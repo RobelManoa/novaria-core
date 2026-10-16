@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Les noms de jobs ci-dessous sont les contrôles obligatoires de la branche main :
+# backend, frontend, gitleaks, snyk, docker, sonarqube.
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: backend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: "backend/requirements*.txt" }
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest
+      - uses: actions/upload-artifact@v4
+        with: { name: coverage-backend, path: backend/coverage.xml }
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: "frontend/package*.json" }
+      - name: Installer les dépendances
+        run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with: { name: coverage-frontend, path: frontend/coverage/lcov.info }
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Détection de secrets (historique complet)
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source /repo --redact --verbose
+
+  snyk:
+    runs-on: ubuntu-latest
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - uses: snyk/actions/setup@master
+      - name: Dépendances Python (SCA)
+        run: |
+          pip install -r backend/requirements.txt
+          snyk test --file=backend/requirements.txt --package-manager=pip --severity-threshold=high
+      - name: Dépendances npm (SCA)
+        working-directory: frontend
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          snyk test --severity-threshold=high
+      - name: "Code source (SAST), sur main seulement (100 tests par mois en plan gratuit)"
+        if: ${{ github.event_name == 'push' }}
+        run: snyk code test --severity-threshold=high
+      - name: Infrastructure as Code
+        run: |
+          if find infra/terraform -name "*.tf" | grep -q .; then snyk iac test infra/terraform --severity-threshold=high; else echo "Pas encore de Terraform"; fi
+
+  docker:
+    runs-on: ubuntu-latest
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with: { context: backend, load: true, tags: "novaria-backend:${{ github.sha }}", build-args: "GIT_SHA=${{ github.sha }}" }
+      - uses: docker/build-push-action@v6
+        with: { context: frontend, load: true, tags: "novaria-frontend:${{ github.sha }}" }
+      - uses: snyk/actions/setup@master
+      - name: Analyse des images
+        run: |
+          snyk container test novaria-backend:${{ github.sha }} --file=backend/Dockerfile --severity-threshold=high
+          snyk container test novaria-frontend:${{ github.sha }} --file=frontend/Dockerfile --severity-threshold=high
+
+  sonarqube:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/download-artifact@v4
+        with: { name: coverage-backend, path: backend }
+      - uses: actions/download-artifact@v4
+        with: { name: coverage-frontend, path: frontend/coverage }
+      - uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
