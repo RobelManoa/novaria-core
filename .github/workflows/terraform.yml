@@ -23,7 +23,7 @@ jobs:
     defaults: { run: { working-directory: infra/terraform/envs/demo } }
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
       - run: terraform fmt -check -recursive ../..
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -43,7 +43,7 @@ jobs:
     defaults: { run: { working-directory: infra/terraform/envs/demo } }
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
