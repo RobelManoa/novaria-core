@@ -1,0 +1,16 @@
+name: Anomalie
+description: Comportement incorrect observé
+labels: ["type:anomalie"]
+body:
+  - type: textarea
+    id: observe
+    attributes: { label: Comportement observé }
+    validations: { required: true }
+  - type: textarea
+    id: attendu
+    attributes: { label: Comportement attendu }
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes: { label: Étapes pour reproduire }
+    validations: { required: true }

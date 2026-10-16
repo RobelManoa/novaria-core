@@ -1,0 +1,19 @@
+name: Tâche
+description: Travail planifié (fonctionnalité, outillage, documentation)
+labels: ["type:tache"]
+body:
+  - type: textarea
+    id: objectif
+    attributes: { label: Objectif, description: "Ce que cette tâche produit et pourquoi" }
+    validations: { required: true }
+  - type: textarea
+    id: taches
+    attributes: { label: Tâches, value: "- [ ] \n- [ ] " }
+    validations: { required: true }
+  - type: textarea
+    id: done
+    attributes: { label: Critère d'acceptation, description: "Comment on constate que c'est terminé" }
+    validations: { required: true }
+  - type: textarea
+    id: preuve
+    attributes: { label: Preuve attendue, description: "Lien, capture, rapport, test" }
