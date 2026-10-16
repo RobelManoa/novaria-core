@@ -1,0 +1,8 @@
+# Politique Snyk. Toute exception doit être justifiée (raison + date d'expiration) :
+# ignore:
+#   SNYK-XXXX-0000:
+#     - '*':
+#         reason: faux positif expliqué dans docs/04-devsecops/exceptions.md
+#         expires: 2026-12-10T00:00:00.000Z
+version: v1.25.0
+ignore: {}
