@@ -94,8 +94,10 @@ jobs:
       - uses: snyk/actions/setup@master
       - name: Analyse des images
         run: |
-          snyk container test novaria-backend:${{ github.sha }} --file=backend/Dockerfile --severity-threshold=high
-          snyk container test novaria-frontend:${{ github.sha }} --file=frontend/Dockerfile --severity-threshold=high
+          rc=0
+          snyk container test novaria-backend:${{ github.sha }} --file=backend/Dockerfile --policy-path=.snyk --severity-threshold=high || rc=1
+          snyk container test novaria-frontend:${{ github.sha }} --file=frontend/Dockerfile --policy-path=.snyk --severity-threshold=high || rc=1
+          exit $rc
 
   sonarqube:
     needs: [backend, frontend]
