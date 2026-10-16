@@ -48,7 +48,7 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { name: tfplan, path: infra/terraform/envs/demo }
       - run: terraform init -input=false
       - run: terraform apply -input=false tfplan
