@@ -1,5 +1,5 @@
 # --- Image frontend : build Vite puis service statique par nginx (non-root) ---
-FROM node:22-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
