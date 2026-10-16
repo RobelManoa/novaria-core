@@ -6,7 +6,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getHealth().then(setHealth).catch((e: Error) => setError(e.message));
+    getHealth()
+      .then(setHealth)
+      .catch((e: Error) => setError(e.message));
   }, []);
 
   return (

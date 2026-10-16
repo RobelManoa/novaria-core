@@ -1,0 +1,31 @@
+# secrets et environnement
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+coverage.xml
+.coverage
+# node
+node_modules/
+dist/
+coverage/
+# terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+# ide / os
+.idea/
+.vscode/
+.DS_Store
+# données volumineuses (documenter la source dans data/datasets/README.md)
+data/datasets/*
+!data/datasets/README.md

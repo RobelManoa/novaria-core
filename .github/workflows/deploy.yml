@@ -1,0 +1,71 @@
+name: Deploy
+
+# Déploie sur AWS (Amazon Web Services) la révision de main dont le CI est vert.
+# Aucune clé AWS longue durée : GitHub s'authentifie par OIDC (OpenID Connect) auprès d'un rôle IAM.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency: { group: deploy-dev, cancel-in-progress: false }
+
+jobs:
+  deploy:
+    # Inactif tant que la variable AWS_ROLE_ARN n'existe pas (pas encore de compte AWS)
+    if: ${{ vars.AWS_ROLE_ARN != '' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') }}
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ env.SHA }}" }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Construire et publier les images (tag = révision)
+        run: |
+          for svc in backend frontend; do
+            docker build --build-arg GIT_SHA=$SHA -t ${{ steps.ecr.outputs.registry }}/novaria-$svc:$SHA $svc
+            docker push ${{ steps.ecr.outputs.registry }}/novaria-$svc:$SHA
+          done
+      - name: Déployer le backend
+        id: td-backend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: infra/ecs/taskdef-backend.json
+          container-name: backend
+          image: ${{ steps.ecr.outputs.registry }}/novaria-backend:${{ env.SHA }}
+      - uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.td-backend.outputs.task-definition }}
+          service: ${{ vars.ECS_SERVICE_BACKEND }}
+          cluster: ${{ vars.ECS_CLUSTER }}
+          wait-for-service-stability: true
+      - name: Déployer le frontend
+        id: td-frontend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: infra/ecs/taskdef-frontend.json
+          container-name: frontend
+          image: ${{ steps.ecr.outputs.registry }}/novaria-frontend:${{ env.SHA }}
+      - uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.td-frontend.outputs.task-definition }}
+          service: ${{ vars.ECS_SERVICE_FRONTEND }}
+          cluster: ${{ vars.ECS_CLUSTER }}
+          wait-for-service-stability: true
+      - name: Vérifier que la version exécutée est la révision déployée
+        run: |
+          revision=$(curl -fsS "${{ vars.API_URL }}/api/v1/health" | python3 -c "import sys,json;print(json.load(sys.stdin)['revision'])")
+          echo "Révision en service : $revision / attendue : $SHA"
+          test "$revision" = "$SHA"

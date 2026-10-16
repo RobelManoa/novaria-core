@@ -1,0 +1,16 @@
+name: Décision d'architecture
+description: Choix structurant à consigner (ADR)
+labels: ["type:decision"]
+body:
+  - type: textarea
+    id: probleme
+    attributes: { label: Problème }
+    validations: { required: true }
+  - type: textarea
+    id: options
+    attributes: { label: Options comparées et critères }
+    validations: { required: true }
+  - type: textarea
+    id: choix
+    attributes: { label: Choix, description: "Raisons et conséquences attendues" }
+    validations: { required: true }

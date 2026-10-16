@@ -8,6 +8,7 @@ COPY requirements.txt .
 RUN pip install --prefix=/install -r requirements.txt
 
 FROM base AS runtime
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*
 ARG GIT_SHA=dev
 ENV GIT_SHA=${GIT_SHA}
 COPY --from=deps /install /usr/local

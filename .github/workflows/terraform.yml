@@ -1,0 +1,54 @@
+name: Terraform
+
+on:
+  pull_request:
+    paths: ["infra/terraform/**"]
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Appliquer le plan (environnement demo, approbation requise)"
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  plan:
+    # Inactif tant que la variable AWS_ROLE_ARN n'existe pas (pas encore de compte AWS)
+    if: ${{ vars.AWS_ROLE_ARN != '' }}
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: infra/terraform/envs/demo } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive ../..
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - run: terraform init -input=false
+      - run: terraform validate
+      - run: terraform plan -input=false -out=tfplan
+      - uses: actions/upload-artifact@v4
+        with: { name: tfplan, path: infra/terraform/envs/demo/tfplan }
+
+  apply:
+    needs: plan
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.apply }}
+    runs-on: ubuntu-latest
+    environment: demo   # relecteur obligatoire configuré dans Settings > Environments
+    defaults: { run: { working-directory: infra/terraform/envs/demo } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: actions/download-artifact@v4
+        with: { name: tfplan, path: infra/terraform/envs/demo }
+      - run: terraform init -input=false
+      - run: terraform apply -input=false tfplan
