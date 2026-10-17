@@ -10,6 +10,7 @@ export default defineConfig({
     proxy: { "/api": { target: "http://localhost:8000", changeOrigin: true } },
   },
   test: {
+    css: true,
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
     coverage: { provider: "v8", reporter: ["text", "lcov"], reportsDirectory: "coverage" },
