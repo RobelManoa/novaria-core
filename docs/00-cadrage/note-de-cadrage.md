@@ -8,8 +8,12 @@ Novaria Core est le socle partagé d'UrbanHub. Il est réalisé par deux étudia
 
 ## 2. Périmètre
 
-- **Inclus** : BC05, soit 9 compétences.
-- **Hors périmètre** : BC01 à BC04, acquis en première année, hors périmètre. [À COMPLÉTER : intitulés exacts]
+- **Inclus** : BC05, « Concevoir et optimiser les architectures de données décisionnelles et automatiser les processus et flux métier par l'apport de l'IA », soit 9 compétences.
+- **Hors périmètre** : BC01 à BC04, acquis en première année :
+  - BC01 : Concevoir et modéliser l'architecture logicielle ;
+  - BC02 : Manager les projets numériques ;
+  - BC03 : Piloter l'intégration et le déploiement continu dans le Système d'Information (SI) ;
+  - BC04 : Optimiser le SI par l'apport du Cloud Computing.
 - **Implémenté** : fonctionnalité complète, intégrée au socle et testée.
 - **Prototype ciblé** : réalisation limitée dont le rapport indique ce qu'elle démontre et ce qu'elle ne démontre pas.
 
