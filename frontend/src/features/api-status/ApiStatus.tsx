@@ -26,7 +26,6 @@ export default function ApiStatus() {
         <span className={styles.dot} aria-hidden="true" />
         <span>API en ligne</span>
         <span className={styles.details}>
-          {" "}
           · version {health.version} · révision {health.revision}
         </span>
       </p>

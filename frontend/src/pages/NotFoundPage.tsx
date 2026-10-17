@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import PageHeader from "@/components/PageHeader";
+import styles from "./NotFoundPage.module.css";
 
 export default function NotFoundPage() {
   return (
@@ -8,7 +9,9 @@ export default function NotFoundPage() {
         title="Page introuvable"
         intro="La page demandée n'existe pas ou a été déplacée."
       />
-      <Link to="/">Retour au tableau de bord</Link>
+      <Link to="/" className={styles.back}>
+        Retour au tableau de bord
+      </Link>
     </>
   );
 }

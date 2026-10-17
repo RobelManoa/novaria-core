@@ -27,6 +27,9 @@
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
   margin-right: auto;
   color: var(--color-text);
   font-size: var(--text-lg);
@@ -34,11 +37,9 @@
   text-decoration: none;
 }
 
+/* Sur téléphone, l'indicateur d'API et le sélecteur de thème se répartissent directement dans l'en-tête. */
 .tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
+  display: contents;
 }
 
 .nav {
@@ -112,6 +113,13 @@
 }
 
 @media (min-width: 64rem) {
+  .tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
   .shell {
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
     grid-template-areas:
