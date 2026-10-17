@@ -1,0 +1,58 @@
+{
+  "family": "novaria-dev-backend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "runtimePlatform": { "cpuArchitecture": "X86_64", "operatingSystemFamily": "LINUX" },
+  "executionRoleArn": "arn:aws:iam::REMPLACER_COMPTE_AWS:role/novaria-dev-ecs-execution",
+  "taskRoleArn": "arn:aws:iam::REMPLACER_COMPTE_AWS:role/novaria-dev-backend-task",
+  "containerDefinitions": [
+    {
+      "name": "backend",
+      "image": "REMPLACE_PAR_LE_DEPLOIEMENT",
+      "essential": true,
+      "portMappings": [
+        { "name": "backend", "containerPort": 8000, "protocol": "tcp", "appProtocol": "http" }
+      ],
+      "environment": [
+        { "name": "ENVIRONMENT", "value": "dev" },
+        { "name": "MONGO_DB", "value": "novaria" }
+      ],
+      "secrets": [
+        {
+          "name": "POSTGRES_URL",
+          "valueFrom": "arn:aws:ssm:eu-west-1:REMPLACER_COMPTE_AWS:parameter/novaria/dev/postgres-url"
+        },
+        {
+          "name": "MONGO_URL",
+          "valueFrom": "arn:aws:ssm:eu-west-1:REMPLACER_COMPTE_AWS:parameter/novaria/dev/mongo-url"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:ssm:eu-west-1:REMPLACER_COMPTE_AWS:parameter/novaria/dev/jwt-secret"
+        }
+      ],
+      "healthCheck": {
+        "command": [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health').status==200 else 1)"
+        ],
+        "interval": 15,
+        "timeout": 3,
+        "retries": 5,
+        "startPeriod": 15
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/novaria/dev/backend",
+          "awslogs-region": "eu-west-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
