@@ -37,4 +37,5 @@ make test && make lint
 | `planning/` | Fichiers ProjectLibre |
 | `scripts/` | Création des issues GitHub, paramètres, secrets |
 
+Nouvelle personne dans l'équipe : commencez par [docs/demarrage.md](docs/demarrage.md).
 Règles de contribution : voir [CONTRIBUTING.md](CONTRIBUTING.md).
