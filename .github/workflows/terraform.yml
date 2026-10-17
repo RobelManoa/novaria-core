@@ -22,17 +22,17 @@ jobs:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: infra/terraform/envs/demo } }
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
       - run: terraform fmt -check -recursive ../..
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
       - run: terraform init -input=false
       - run: terraform validate
       - run: terraform plan -input=false -out=tfplan
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with: { name: tfplan, path: infra/terraform/envs/demo/tfplan }
 
   apply:
@@ -42,13 +42,13 @@ jobs:
     environment: demo   # relecteur obligatoire configuré dans Settings > Environments
     defaults: { run: { working-directory: infra/terraform/envs/demo } }
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { name: tfplan, path: infra/terraform/envs/demo }
       - run: terraform init -input=false
       - run: terraform apply -input=false tfplan
