@@ -1,0 +1,34 @@
+{
+  "family": "novaria-dev-frontend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "runtimePlatform": { "cpuArchitecture": "X86_64", "operatingSystemFamily": "LINUX" },
+  "executionRoleArn": "arn:aws:iam::REMPLACER_COMPTE_AWS:role/novaria-dev-ecs-execution",
+  "containerDefinitions": [
+    {
+      "name": "frontend",
+      "image": "REMPLACE_PAR_LE_DEPLOIEMENT",
+      "essential": true,
+      "portMappings": [
+        { "name": "frontend", "containerPort": 8080, "protocol": "tcp", "appProtocol": "http" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ >/dev/null || exit 1"],
+        "interval": 15,
+        "timeout": 3,
+        "retries": 5,
+        "startPeriod": 10
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/novaria/dev/frontend",
+          "awslogs-region": "eu-west-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
