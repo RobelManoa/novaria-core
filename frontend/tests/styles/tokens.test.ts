@@ -139,4 +139,12 @@ describe("feuilles de style des composants", () => {
       }
     }
   });
+
+  it("donnent une zone tactile minimale aux éléments interactifs", () => {
+    for (const name of ["IconButton", "MainNav", "ThemeSelector"]) {
+      const file = Object.keys(sheets).find((path) => path.endsWith(`${name}.module.css`));
+      expect(file, name).toBeDefined();
+      expect(sheets[file as string], name).toContain("min-height: var(--tap-min)");
+    }
+  });
 });

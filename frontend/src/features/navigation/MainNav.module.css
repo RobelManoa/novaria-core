@@ -1,0 +1,32 @@
+.list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+
+.link:hover {
+  background: var(--color-surface-raised);
+}
+
+.active {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  font-weight: var(--weight-bold);
+}
+
+.active:hover {
+  background: var(--color-primary);
+}
