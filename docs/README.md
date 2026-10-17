@@ -2,6 +2,7 @@
 
 | Dossier | Contenu | Jalon |
 |---|---|---|
+| `demarrage.md` | Guide d'intégration backend et frontend | M0 |
 | `00-cadrage/` | Note de cadrage BC05, matrice de preuves | M0, M5 |
 | `01-architecture/` | Diagrammes C4, ADR | M1 |
 | `02-specifications/` | OpenAPI, spécifications fonctionnelles et techniques | M1, M5 |
