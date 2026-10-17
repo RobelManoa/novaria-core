@@ -1,18 +1,48 @@
-# ADR-000 — Titre de la décision
+# ADR-NNN — Titre de la décision
 
-- Date :
-- Statut : proposée | acceptée | remplacée par ADR-XXX
-- Décideurs :
+| Champ | Valeur |
+|---|---|
+| Date | JJ/MM/AAAA |
+| Statut | Acceptée / Acceptée sous condition / Proposée / À décider / Remplacée par ADR-XXX |
+| Décideurs | |
+| Validation du professeur | Non requise / À demander / Consignée le JJ/MM/AAAA |
+| Issues liées | |
+| Compétences BC05 | |
+| S'appuie sur / Complété par | |
 
-## Problème
-Quel besoin ou quelle contrainte impose un choix ?
+## 1. Problème
 
-## Options comparées
-| Option | Avantages | Inconvénients | Critères (coût, risque, compétence) |
+Quel besoin ou quelle contrainte impose un choix ? Que se passe-t-il si on ne décide pas ?
+
+## 2. Forces de décision
+
+Les critères qui comptent (poids : fort, moyen, faible).
+
+## 3. Options comparées
+
+| Option | Avantages | Inconvénients | Verdict |
 |---|---|---|---|
 
-## Choix
-Option retenue et raisons.
+Noter la réserve la plus forte contre l'option retenue.
 
-## Conséquences
-Ce que le choix change, ce qu'il interdit, comment on le vérifie.
+## 4. Choix
+
+Option retenue, raisons, règles concrètes, diagramme si utile.
+
+## 5. Conséquences
+
+**Positives**
+**Compromis acceptés**
+**Risques et parades** (tableau)
+
+## 6. Plan de repli
+
+Que faire si le choix échoue, et à quelle date on le sait.
+
+## 7. Vérification
+
+Comment prouver que la décision tient (tests, captures, issues).
+
+## 8. Conditions de réexamen
+
+Ce qui rouvrirait la décision.
