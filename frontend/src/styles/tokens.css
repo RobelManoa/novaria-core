@@ -1,0 +1,136 @@
+/*
+ * Jetons de design de Novaria Core.
+ * Aucun composant n'écrit de couleur, d'espacement ou de taille en dur : tout passe par ces variables.
+ *
+ * Points de rupture, mobile d'abord (min-width). Les variables CSS ne fonctionnent pas dans les
+ * requêtes média : ces valeurs sont recopiées dans src/styles/breakpoints.ts (un test les compare).
+ *   breakpoint-tablet: 40rem
+ *   breakpoint-desktop: 64rem
+ *
+ * Thème : clair par défaut, sombre selon data-theme="dark" sur <html>, ou selon la préférence du
+ * système quand data-theme est absent. Le jeu sombre est donc écrit deux fois, à l'identique
+ * (un test vérifie qu'il reste identique).
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Couleurs sémantiques, thème clair */
+  --color-bg: #f4f6f9;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-text: #141a24;
+  --color-text-muted: #485263;
+  --color-border: #c9d0db;
+  --color-border-strong: #6b7587;
+  --color-primary: #1d4ed8;
+  --color-primary-contrast: #ffffff;
+  --color-focus: #1d4ed8;
+  --color-success: #166534;
+  --color-success-bg: #dcfce7;
+  --color-warning: #8a3d06;
+  --color-warning-bg: #fef3c7;
+  --color-danger: #b42318;
+  --color-danger-bg: #fee4e2;
+  --color-info: #1e40af;
+  --color-info-bg: #dbeafe;
+
+  /* Espacements : échelle de 4 px */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  /* Typographie : polices du système, aucune police externe */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+
+  /* Formes, ombres, interactions */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-full: 999px;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 12%);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 18%);
+  --tap-min: 2.75rem;
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --focus-ring-width: 3px;
+
+  /* Mise en page */
+  --sidebar-width: 16rem;
+  --container-max: 72rem;
+  --overlay: rgb(8 12 20 / 55%);
+
+  /* Niveaux de superposition */
+  --z-header: 10;
+  --z-overlay: 40;
+  --z-drawer: 50;
+  --z-skip-link: 100;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #0d1117;
+  --color-surface: #161b22;
+  --color-surface-raised: #1f2630;
+  --color-text: #e9edf3;
+  --color-text-muted: #a5afbe;
+  --color-border: #2f3947;
+  --color-border-strong: #7d889a;
+  --color-primary: #8ab4ff;
+  --color-primary-contrast: #0b1220;
+  --color-focus: #8ab4ff;
+  --color-success: #86efac;
+  --color-success-bg: #0f2e1a;
+  --color-warning: #fcd34d;
+  --color-warning-bg: #3a2a05;
+  --color-danger: #fda4a4;
+  --color-danger-bg: #4a1414;
+  --color-info: #93c5fd;
+  --color-info-bg: #12264d;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 50%);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 60%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-bg: #0d1117;
+    --color-surface: #161b22;
+    --color-surface-raised: #1f2630;
+    --color-text: #e9edf3;
+    --color-text-muted: #a5afbe;
+    --color-border: #2f3947;
+    --color-border-strong: #7d889a;
+    --color-primary: #8ab4ff;
+    --color-primary-contrast: #0b1220;
+    --color-focus: #8ab4ff;
+    --color-success: #86efac;
+    --color-success-bg: #0f2e1a;
+    --color-warning: #fcd34d;
+    --color-warning-bg: #3a2a05;
+    --color-danger: #fda4a4;
+    --color-danger-bg: #4a1414;
+    --color-info: #93c5fd;
+    --color-info-bg: #12264d;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 50%);
+    --shadow-md: 0 4px 12px rgb(0 0 0 / 60%);
+  }
+}

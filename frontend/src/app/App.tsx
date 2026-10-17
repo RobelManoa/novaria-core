@@ -1,25 +1,18 @@
-import { useEffect, useState } from "react";
-import { getHealth, type Health } from "../services/api";
+import { useState } from "react";
+import { type DataRouter, RouterProvider } from "react-router";
+import ThemeProvider from "@/features/theme/ThemeProvider";
+import { createAppRouter } from "./router";
 
-export default function App() {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [error, setError] = useState<string | null>(null);
+interface AppProps {
+  /** Routeur à utiliser ; par défaut, le routeur navigateur de l'application (les tests fournissent un routeur mémoire). */
+  router?: DataRouter;
+}
 
-  useEffect(() => {
-    getHealth()
-      .then(setHealth)
-      .catch((e: Error) => setError(e.message));
-  }, []);
-
+export default function App({ router }: AppProps) {
+  const [activeRouter] = useState(() => router ?? createAppRouter());
   return (
-    <main className="page">
-      <h1>Novaria Core</h1>
-      {health && (
-        <p role="status">
-          API en ligne · version {health.version} · révision {health.revision}
-        </p>
-      )}
-      {error && <p role="alert">{error}</p>}
-    </main>
+    <ThemeProvider>
+      <RouterProvider router={activeRouter} />
+    </ThemeProvider>
   );
 }
