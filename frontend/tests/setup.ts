@@ -18,7 +18,11 @@ globalThis.Request = class extends NativeRequest {
   }
 };
 
+// Certains fichiers de test s'exécutent sous Node, sans navigateur simulé (ex. tests/architecture).
+const hasDom = typeof window !== "undefined";
+
 beforeEach(() => {
+  if (!hasDom) return;
   resetMatchMedia();
   installMatchMedia();
   // jsdom n'évalue pas les requêtes média : on retire les feuilles de style injectées par Vitest pour
@@ -27,6 +31,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  if (!hasDom) return;
   cleanup();
   window.localStorage.clear();
   document.documentElement.removeAttribute("data-theme");
