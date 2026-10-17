@@ -7,7 +7,9 @@ describe("App", () => {
 
   it("affiche la version de l'API quand elle répond", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ status: "ok", version: "0.1.0", revision: "abc123", environment: "test" })),
+      new Response(
+        JSON.stringify({ status: "ok", version: "0.1.0", revision: "abc123", environment: "test" }),
+      ),
     );
     render(<App />);
     expect(await screen.findByRole("status")).toHaveTextContent("abc123");
