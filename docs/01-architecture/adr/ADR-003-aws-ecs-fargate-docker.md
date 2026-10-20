@@ -10,6 +10,8 @@
 | Compétences BC05 | Architectures de données décisionnelles, Documentation |
 | Complété par | [ADR-020](ADR-020-terraform.md), [ADR-021](ADR-021-docker-deploiement.md) |
 
+> **Mise à jour du 20/10/2026 ([ADR-023](ADR-023-execution-locale-d-abord.md)).** Le déploiement sur AWS (Amazon Web Services) est **suspendu** : le projet s'exécute en local avec Docker Compose, d'après la consigne du professeur. Cette ADR reste la cible documentée, non exécutée. Équivalents locaux : [ADR-025](ADR-025-equivalents-locaux-des-services-aws.md).
+
 ## 1. Problème
 
 Les quatre services, le bus d'événements, les bases et le tableau de bord doivent tourner dans un environnement reproductible, détruit après chaque essai pour contenir le coût. Quel service de calcul AWS les héberge ?
@@ -80,7 +82,7 @@ flowchart TB
 
 ## 6. Plan de repli
 
-Sans compte AWS, la démonstration s'exécute localement avec `make up` (Docker Compose) ; Terraform reste écrit et validé statiquement (`fmt`, `validate`, `tflint`, analyse Snyk IaC), sans déploiement ; le `plan` exige des identifiants AWS ([ADR-020](ADR-020-terraform.md)).
+Sans compte AWS, la démonstration s'exécute localement avec Docker Compose (`python3 scripts/dev/dev.py up` sous Linux, `py -3 scripts/dev/dev.py up` sous Windows) ; Terraform reste écrit et validé statiquement (`fmt`, `validate`, `tflint`, analyse Snyk IaC), sans déploiement ; le `plan` exige des identifiants AWS ([ADR-020](ADR-020-terraform.md)).
 
 ## 7. Vérification
 

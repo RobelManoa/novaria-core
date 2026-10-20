@@ -10,6 +10,8 @@
 | Compétences BC05 | Traitement de flux en temps réel, ETL (Extract, Transform, Load), Architectures décisionnelles |
 | S'appuie sur | [ADR-009](ADR-009-bus-evenements.md), [ADR-014](ADR-014-architecture-decisionnelle.md) |
 
+> **Mise à jour du 20/10/2026 ([ADR-023](ADR-023-execution-locale-d-abord.md)).** L'exécution sur AWS (service géré, ECS) est documentée, non exécutée : Flink, Kafka et les tâches par lots tournent en local dans Docker Compose.
+
 ## 1. Problème
 
 Les alertes et les recommandations de feux perdent leur valeur si elles arrivent en retard : la **latence** compte. Dans le même temps, il faut recalculer l'historique (correction d'un défaut, entraînement du modèle, contrôle de cohérence) : un traitement **par lots** reste nécessaire. Comment organiser les deux sans écrire la logique deux fois ?
@@ -66,7 +68,7 @@ flowchart LR
 - Moteur : **Apache Flink**, écrit en **Flink SQL / Table API** (via PyFlink) autant que possible : fenêtres déclaratives (`TUMBLE`, `HOP`), moins de code Python.
 - Fenêtres initiales : 1 minute (alertes) et 5 minutes (tendances).
 - Gestion du retard : délai maximal d'avance désordonnée de 10 secondes, retard autorisé de 30 secondes ; au-delà, le message part vers `errors.dlq` et un compteur l'enregistre. *(Valeurs de départ, à régler par mesure sur MS-15.)*
-- Garanties : points de contrôle Flink et écriture transactionnelle vers Kafka ; les écritures vers PostgreSQL et MongoDB sont **idempotentes** (clé : carrefour, début de fenêtre, taille de fenêtre).
+- Garanties : points de contrôle Flink et écriture transactionnelle vers Kafka ; les écritures vers PostgreSQL et MongoDB sont **idempotentes** (clé : tronçon, début de fenêtre, taille de fenêtre, run ; voir le [dictionnaire de données](../../03-donnees/dictionnaire-de-donnees.md)).
 - Exécution : en local, JobManager et TaskManager dans Docker Compose ; sur AWS (Amazon Web Services), service géré Amazon Managed Service for Apache Flink ou conteneurs sur ECS (Elastic Container Service), selon le chiffrage ([ADR-007](ADR-007-compte-aws.md)).
 
 ### 4.2 Chemin par lots
@@ -78,7 +80,7 @@ flowchart LR
 | Construction du jeu d'entraînement du modèle | Avant chaque entraînement | Alimenter [ADR-015](ADR-015-modeles-ia.md) |
 | Chargement ETL vers l'entrepôt | Planifié | Reprend DAT-05 ([ADR-013](ADR-013-integration-donnees.md)) |
 
-Exécution : tâches ECS planifiées par EventBridge Scheduler en cible, `make` ou cron en local. L'orchestrateur de flux de travail dédié (comme Airflow) est écarté : volume et nombre de tâches trop faibles pour justifier son exploitation.
+Exécution : tâches ECS planifiées par EventBridge Scheduler en cible, une commande de `dev.py` ou le planificateur du système en local (cron sous Linux, Planificateur de tâches sous Windows). L'orchestrateur de flux de travail dédié (comme Airflow) est écarté : volume et nombre de tâches trop faibles pour justifier son exploitation.
 
 ### 4.3 Objectifs de latence (proposés, à confirmer par le professeur et à mesurer)
 

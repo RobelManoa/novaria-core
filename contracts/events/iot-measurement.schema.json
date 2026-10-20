@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RobelManoa/novaria-core/contracts/events/iot-measurement.schema.json",
+  "title": "Mesure brute d'un capteur (novaria.iot.measurement.v1)",
+  "description": "Publiée par la collecte sur le sujet iot.raw. Grain : un capteur, un intervalle.",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "novaria.iot.measurement.v1"
+        },
+        "domain": {
+          "const": "iot"
+        },
+        "schema_version": {
+          "const": "1.0"
+        },
+        "data": {
+          "$ref": "#/$defs/data"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sensor_id",
+        "road_segment_id",
+        "intersection_id",
+        "interval_s",
+        "vehicle_count",
+        "average_speed_kmh",
+        "occupancy_rate",
+        "quality",
+        "provenance"
+      ],
+      "properties": {
+        "sensor_id": {
+          "$ref": "common.schema.json#/$defs/sensor_id"
+        },
+        "road_segment_id": {
+          "$ref": "common.schema.json#/$defs/road_segment_id"
+        },
+        "intersection_id": {
+          "$ref": "common.schema.json#/$defs/intersection_id"
+        },
+        "interval_s": {
+          "description": "Durée (secondes) couverte par la mesure, qui se termine à `time`.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "vehicle_count": {
+          "description": "Véhicules passés pendant l'intervalle.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "average_speed_kmh": {
+          "description": "Vitesse moyenne (km/h) ; null s'il n'y a eu aucun véhicule ou si la vitesse est absente.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 200
+        },
+        "occupancy_rate": {
+          "description": "Part de l'intervalle où le capteur était occupé, de 0 à 1 ; null si absent.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "queue_length_m": {
+          "description": "Longueur de file observée (mètres), si le capteur la fournit.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "quality": {
+          "description": "Qualité de la mesure : VALID (complète et plausible), PARTIAL (champ optionnel absent), SUSPECT (plausibilité douteuse). Un message mal formé n'arrive pas ici : il part vers errors.dlq.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "VALID",
+                "PARTIAL",
+                "SUSPECT"
+              ]
+            },
+            "flags": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "MISSING_SPEED",
+                  "MISSING_OCCUPANCY",
+                  "IMPLAUSIBLE_VALUE",
+                  "LATE",
+                  "GAP_BEFORE"
+                ]
+              }
+            }
+          }
+        },
+        "provenance": {
+          "$ref": "common.schema.json#/$defs/provenance"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "vehicle_count": {
+                "const": 0
+              }
+            },
+            "required": [
+              "vehicle_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "average_speed_kmh": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "quality": {
+                "properties": {
+                  "status": {
+                    "const": "VALID"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            },
+            "required": [
+              "quality"
+            ]
+          },
+          "then": {
+            "properties": {
+              "occupancy_rate": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "quality": {
+                "properties": {
+                  "status": {
+                    "const": "VALID"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "vehicle_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "quality",
+              "vehicle_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "average_speed_kmh": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

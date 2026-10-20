@@ -10,6 +10,8 @@
 | Compétences BC05 | Big Data et traitement massif (Hadoop, Spark) |
 | S'appuie sur | [ADR-002](ADR-002-postgresql-mongodb.md), [ADR-013](ADR-013-integration-donnees.md) |
 
+> **Mise à jour du 20/10/2026 ([ADR-023](ADR-023-execution-locale-d-abord.md)).** Le prototype Spark s'exécute en mode local (PySpark) ; le traitement sur EMR (Elastic MapReduce) est documenté, non exécuté ([ADR-025](ADR-025-equivalents-locaux-des-services-aws.md)).
+
 ## 1. Problème
 
 Le bloc BC05 cite Hadoop et Spark. Le volume simulé de Novaria Core (dizaines de messages par seconde) ne **nécessite** pas de traitement massif. Faut-il quand même une brique Big Data, laquelle, et que démontre-t-elle réellement ?

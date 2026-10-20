@@ -83,7 +83,7 @@ flowchart LR
 | Contexte | Mécanisme |
 |---|---|
 | Flux continu | Service de traitement ([ADR-011](ADR-011-temps-reel-et-batch.md)) |
-| Lots et rattrapage | Tâches Python planifiées (EventBridge Scheduler et ECS (Elastic Container Service) en cible ; `make` en local) |
+| Lots et rattrapage | Tâches Python planifiées (EventBridge Scheduler et ECS (Elastic Container Service) en cible ; une commande de `dev.py` ou le planificateur du système en local) |
 | AWS Glue (DAT-06) | Même logique empaquetée, exécution comparée au local : mêmes totaux exigés |
 
 ## 5. Conséquences

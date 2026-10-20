@@ -3,12 +3,14 @@
 | Champ | Valeur |
 |---|---|
 | Date | 17/10/2026 |
-| Statut | **À décider** avant le 24/10/2026 (les champs de la section 4 restent vides jusqu'à la décision) |
+| Statut | **Différée le 20/10/2026** ([ADR-023](ADR-023-execution-locale-d-abord.md)) : l'option D (pas de compte AWS) s'applique tant que le professeur n'autorise pas de services AWS. Les champs de la section 4 restent vides ; la date du 24/10/2026 n'est plus une porte. |
 | Décideurs | Daddy Luciano, Manoa Robel, avec le professeur pour le plafond (point 4 de GES-06) |
-| Validation du professeur | Requise |
+| Validation du professeur | Requise **si le projet reprend AWS** |
 | Issues liées | GES-18, GES-06, CLD-01, CLD-09, GES-09, CLD-21 |
 | Compétences BC05 | Architectures de données décisionnelles, Documentation |
 | Conditionne | [ADR-003](ADR-003-aws-ecs-fargate-docker.md), [ADR-009](ADR-009-bus-evenements.md), [ADR-011](ADR-011-temps-reel-et-batch.md), [ADR-016](ADR-016-big-data.md), [ADR-017](ADR-017-mlops-mlsecops.md), [ADR-022](ADR-022-hebergement-mongodb.md) |
+
+> **Mise à jour du 20/10/2026 ([ADR-023](ADR-023-execution-locale-d-abord.md)).** L'ouverture du compte, le plafond et le budget d'alerte ne sont plus à décider pour l'instant. Le contenu de cette ADR sert si l'autorisation arrive.
 
 ## 1. Problème
 
@@ -57,7 +59,7 @@ Règles posées dès maintenant, quelle que soit l'option :
 
 | Composant | Compte disponible (A, B, C) | Plan B (D) |
 |---|---|---|
-| Services applicatifs | ECS (Elastic Container Service) Fargate ([ADR-003](ADR-003-aws-ecs-fargate-docker.md)) | Docker Compose local (`make up`) |
+| Services applicatifs | ECS (Elastic Container Service) Fargate ([ADR-003](ADR-003-aws-ecs-fargate-docker.md)) | Docker Compose local (`dev.py up`) |
 | Bus d'événements | Amazon MSK (Managed Streaming for Apache Kafka) ou conteneur sur ECS, selon le chiffrage | Kafka en conteneur local |
 | Traitement de flux | Service géré Flink ou conteneur | Flink en conteneur local |
 | Big Data | EMR Serverless ou Spark local | Spark local en conteneur |

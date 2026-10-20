@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RobelManoa/novaria-core/contracts/events/envelope.schema.json",
+  "title": "Enveloppe d'événement Novaria Core (inspirée de CloudEvents 1.0)",
+  "description": "Attributs communs à tous les événements publiés sur le bus. Les champs inconnus sont refusés (ADR-012, mode strict).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "source",
+    "type",
+    "time",
+    "subject",
+    "schema_version",
+    "domain",
+    "data"
+  ],
+  "properties": {
+    "id": {
+      "description": "Identifiant unique de l'événement : clé d'idempotence. Mesure : « <run_id>:<sensor_id>:<instant en millisecondes> ».",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "source": {
+      "description": "Producteur : « simulateur/<run_id> », « collecte », « traitement », « alerte »…",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*(/[A-Za-z0-9_.:-]+)*$",
+      "maxLength": 200
+    },
+    "type": {
+      "description": "Nature et version majeure du contrat, par exemple novaria.iot.measurement.v1.",
+      "type": "string",
+      "pattern": "^novaria\\.[a-z0-9_.]+\\.v[0-9]+$"
+    },
+    "time": {
+      "description": "Instant de l'observation ou du changement (temps d'événement), UTC.",
+      "$ref": "common.schema.json#/$defs/utc_datetime"
+    },
+    "subject": {
+      "description": "Carrefour concerné : clé de partition Kafka (ordre garanti par carrefour).",
+      "$ref": "common.schema.json#/$defs/intersection_id"
+    },
+    "schema_version": {
+      "description": "Version du schéma de data : majeure.mineure.",
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "correlation_id": {
+      "description": "Identifiant de bout en bout (traçabilité d'une mesure à l'alerte qu'elle déclenche).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "domain": {
+      "enum": [
+        "iot",
+        "traffic",
+        "alert",
+        "signal"
+      ]
+    },
+    "data": {
+      "description": "Charge utile, définie par le schéma propre à chaque type.",
+      "type": "object"
+    }
+  }
+}

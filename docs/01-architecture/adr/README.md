@@ -3,7 +3,7 @@
 Une ADR (Architecture Decision Record, fiche de décision d'architecture) consigne **une décision**, le **problème** qui l'impose, les **options** étudiées, le **choix** et ses **conséquences**. Ce dossier est la preuve de l'issue DOC-04 et la référence des arbitrages techniques de Novaria Core, socle d'UrbanHub.
 
 Responsables : Daddy Luciano et Manoa Robel (relecture croisée).
-Dernière mise à jour : 17/10/2026.
+Dernière mise à jour : 20/10/2026 (exécution locale d'abord : ADR 023 à 028).
 
 ## Comment lire
 
@@ -35,7 +35,15 @@ flowchart TB
         A17[017 MLOps et MLSecOps]
         A19[019 RPA]
     end
-    subgraph LIV["Livraison et cloud"]
+    subgraph LOC["Exécution locale (20/10/2026)"]
+        A23[023 Local d'abord]
+        A24[024 Bases locales]
+        A25[025 Équivalents des services AWS]
+        A26[026 Postes Windows et Linux]
+        A27[027 Jeux de données et provenance]
+        A28[028 États de congestion et alertes]
+    end
+    subgraph LIV["Livraison et cloud (cible documentée)"]
         A3[003 AWS ECS Fargate + Docker]
         A6[006 Région eu-west-1]
         A7[007 Compte AWS, plafond, plan B]
@@ -64,6 +72,17 @@ flowchart TB
     A7 -. conditionne .-> A9
     A7 -. conditionne .-> A16
     A7 -. conditionne .-> A22
+    A23 -. suspend .-> A3
+    A23 -. suspend .-> A7
+    A23 --> A24
+    A23 --> A25
+    A23 --> A26
+    A2 --> A24
+    A24 --> A14
+    A13 --> A27
+    A27 --> A15
+    A28 --> A15
+    A14 --> A28
     A4 --> A18
     A5 --> A18
     A18 --> A17
@@ -76,11 +95,11 @@ flowchart TB
 |---|---|---|---|
 | [001](ADR-001-python-fastapi.md) | Python 3.12 et FastAPI pour les services | Acceptée | Non requise |
 | [002](ADR-002-postgresql-mongodb.md) | PostgreSQL (métier, entrepôt) et MongoDB (journaux, statistiques, événements bruts) | Acceptée | À consigner |
-| [003](ADR-003-aws-ecs-fargate-docker.md) | Hébergement AWS avec ECS Fargate et Docker | Acceptée (déploiement conditionné par 007) | À consigner |
+| [003](ADR-003-aws-ecs-fargate-docker.md) | Hébergement AWS avec ECS Fargate et Docker | Acceptée ; **déploiement suspendu** par 023 (cible documentée) | À consigner |
 | [004](ADR-004-main-protegee-branches-courtes.md) | Branche `main` protégée et branches courtes | Acceptée | Non requise |
 | [005](ADR-005-sonarqube-snyk-controles-bloquants.md) | SonarQube Cloud et Snyk comme contrôles bloquants | Acceptée | Non requise |
 | [006](ADR-006-region-eu-west-1.md) | Région AWS eu-west-1 | Acceptée | À consigner |
-| [007](ADR-007-compte-aws.md) | Compte AWS, plafond de dépense et plan B | **À décider** avant le 24/10/2026 | Requise |
+| [007](ADR-007-compte-aws.md) | Compte AWS, plafond de dépense et plan B | **Différée** (023) : plan B appliqué | Requise si AWS reprend |
 | [008](ADR-008-microservices.md) | Architecture en microservices (4 services) | Acceptée par le binôme | À demander (écart E-01) |
 | [009](ADR-009-bus-evenements.md) | Architecture événementielle et bus Apache Kafka | Acceptée sous condition | À demander (B-03) |
 | [010](ADR-010-architecture-hexagonale.md) | Architecture hexagonale pour les services à logique métier | Acceptée | Non requise |
@@ -88,14 +107,20 @@ flowchart TB
 | [012](ADR-012-validation-contrats-zod.md) | Validation et contrats : Pydantic, schémas JSON, Zod | Acceptée | Contrats à valider |
 | [013](ADR-013-integration-donnees.md) | Intégration des données : ingestion, ETL, qualité, rejeu | Acceptée | Jeu de données à valider |
 | [014](ADR-014-architecture-decisionnelle.md) | Architecture décisionnelle : étoile, indicateurs, CQRS | Acceptée | Indicateurs à valider |
-| [015](ADR-015-modeles-ia.md) | Modèles d'IA pour l'analyse du trafic | Proposée | À consigner (niveau ML) |
+| [015](ADR-015-modeles-ia.md) | Modèles d'IA : la congestion d'abord, la prévision ensuite (réécrite le 20/10) | Proposée | À consigner (niveau ML) |
 | [016](ADR-016-big-data.md) | Big Data : prototype Spark, sans cluster Hadoop | Proposée | À demander (B-07) |
 | [017](ADR-017-mlops-mlsecops.md) | MLOps et MLSecOps | Proposée | À consigner (niveau MLOps) |
 | [018](ADR-018-devsecops.md) | DevSecOps de bout en bout | Acceptée (étapes à ajouter planifiées) | À consigner |
 | [019](ADR-019-rpa-automatisation.md) | RPA : Robot Framework, rapport hebdomadaire | Proposée | À consigner (niveau RPA) |
 | [020](ADR-020-terraform.md) | Infrastructure as Code avec Terraform | Acceptée | À consigner |
 | [021](ADR-021-docker-deploiement.md) | Docker, images signées, déploiement du code, des données et des modèles | Acceptée (signature à ajouter) | À consigner (R-09) |
-| [022](ADR-022-hebergement-mongodb.md) | Hébergement de MongoDB sur AWS | Proposée (essai de persistance) | Non requise |
+| [022](ADR-022-hebergement-mongodb.md) | Hébergement de MongoDB sur AWS | Proposée ; essai différé par 023 | Non requise |
+| [023](ADR-023-execution-locale-d-abord.md) | **Exécution locale d'abord** : AWS documenté, non exécuté | Acceptée (instruction orale, confirmation écrite à obtenir) | Donnée oralement le 20/10/2026 |
+| [024](ADR-024-bases-de-donnees-locales.md) | Bases de données locales : PostgreSQL et MongoDB dans Docker | Acceptée | Non requise |
+| [025](ADR-025-equivalents-locaux-des-services-aws.md) | Équivalents locaux des services AWS et adaptateurs remplaçables | Acceptée | Non requise |
+| [026](ADR-026-postes-de-travail-windows-et-linux.md) | Postes Windows et Linux : Docker et un lanceur Python commun | Acceptée | Non requise |
+| [027](ADR-027-jeux-de-donnees-et-provenance.md) | Jeux de données et provenance : simulateur Python d'abord | Proposée | À demander (jeu de données) |
+| [028](ADR-028-etats-de-congestion-et-alertes.md) | États de congestion, hystérésis et alertes par épisode | Proposée (seuils de départ) | À demander (indicateurs) |
 
 Vocabulaire des statuts : **Acceptée** (décidée) · **Acceptée sous condition** (décidée, avec une porte de sortie datée) · **Proposée** (analysée, confirmation attendue) · **À décider** (décision ouverte) · **Remplacée par ADR-XXX**.
 
@@ -103,11 +128,12 @@ Vocabulaire des statuts : **Acceptée** (décidée) · **Acceptée sous conditio
 
 | Date | Décision à prendre | ADR | Repli si la porte échoue |
 |---|---|---|---|
-| 24/10/2026 | Ouverture du compte AWS, plafond de dépense | [007](ADR-007-compte-aws.md) | Démonstration locale, Terraform validé statiquement |
+| ~~24/10/2026~~ | ~~Ouverture du compte AWS, plafond de dépense~~ : **différée** le 20/10/2026 | [007](ADR-007-compte-aws.md), [023](ADR-023-execution-locale-d-abord.md) | Démonstration locale (déjà appliquée), Terraform validé statiquement |
+| Dès que possible | Confirmation écrite de l'instruction « localhost, pas AWS » | [023](ADR-023-execution-locale-d-abord.md) | Le registre des demandes garde la trace de l'instruction orale |
 | 01/11/2026 (fin de M1) | Kafka et Flink ou bus léger, selon l'exigence de temps réel du professeur | [009](ADR-009-bus-evenements.md), [011](ADR-011-temps-reel-et-batch.md) | Redis Streams ou RabbitMQ, consommateur Python |
-| Avant le premier entraînement (M4) | Cadrage ML : cible, métrique, seuil | [015](ADR-015-modeles-ia.md) | Modèle de référence servi |
+| Avant le premier entraînement (M4) | Cadrage ML : cible, métrique, seuil, seuils d'hystérésis | [015](ADR-015-modeles-ia.md), [028](ADR-028-etats-de-congestion-et-alertes.md) | Règle de seuils servie |
 | 15/11/2026 (fin de M2) | Parcours de bout en bout en microservices opérationnel ? | [008](ADR-008-microservices.md) | Monolithe modulaire |
-| 15/11/2026 (fin de M2) | Essai de persistance de MongoDB sur ECS | [022](ADR-022-hebergement-mongodb.md) | Atlas, EC2 ou PostgreSQL JSONB |
+| ~~15/11/2026~~ | ~~Essai de persistance de MongoDB sur ECS~~ : différé (023) | [022](ADR-022-hebergement-mongodb.md) | MongoDB local ([024](ADR-024-bases-de-donnees-locales.md)) |
 
 ## Décisions attendues du professeur (issue GES-06)
 
@@ -116,6 +142,7 @@ Vocabulaire des statuts : **Acceptée** (décidée) · **Acceptée sous conditio
 3. Topologie et contrats : microservices, contrats d'API et d'événements (ADR 008, 009, 012).
 4. Taux journalier, devise et plafond de dépense AWS (ADR 007).
 5. Exigence formelle de temps réel, qui conditionne Kafka et Flink (ADR 009, 011).
+6. **Confirmation écrite** de la consigne « exécution sur localhost, pas sur les services AWS » (ADR 023).
 
 ## ADR à rédiger
 
@@ -123,7 +150,7 @@ Vocabulaire des statuts : **Acceptée** (décidée) · **Acceptée sous conditio
 |---|---|---|
 | Observabilité et résilience entre services | MS-16 | M4 |
 | Authentification et passerelle d'API (JWT, rôles) | MS-13, BE-03 | M2 |
-| Sauvegarde et restauration | CLD-15 | M4 |
+| Relecture de la table d'équivalences locales/AWS | DOC-11 | M4 |
 | Signature des images (proposition d'issue CLD-25) | écart E-02 | M4 |
 
 ## Charge de travail et simplifications prévues
@@ -143,6 +170,7 @@ Les durées estimées dans le planning (`planning/novaria-core-projectlibre.xml`
 | Abréviation | Signification |
 |---|---|
 | ADR | Architecture Decision Record, fiche de décision d'architecture |
+| DWH | Entrepôt décisionnel (DWH, *Data Warehouse*) : schéma `dwh` de PostgreSQL |
 | API | Application Programming Interface, interface de programmation |
 | AWS | Amazon Web Services |
 | BC05 | Bloc de compétences 5 du référentiel RNCP39765 |
@@ -157,6 +185,7 @@ Les durées estimées dans le planning (`planning/novaria-core-projectlibre.xml`
 | IaC | Infrastructure as Code |
 | IoT | Internet of Things, internet des objets |
 | JWT | JSON Web Token |
+| METR-LA | Jeu ouvert de vitesses de capteurs routiers de Los Angeles |
 | KRaft | Kafka Raft, mode de Kafka sans ZooKeeper |
 | MFA | Multi-Factor Authentication |
 | ML / MLOps / MLSecOps | Machine Learning / Machine Learning Operations / Machine Learning Security Operations |
@@ -164,7 +193,10 @@ Les durées estimées dans le planning (`planning/novaria-core-projectlibre.xml`
 | OIDC | OpenID Connect |
 | RPA | Robotic Process Automation |
 | SAST | Static Application Security Testing |
+| SHA-256 | Secure Hash Algorithm, empreinte de 256 bits d'un fichier |
+| SUMO | Simulation of Urban MObility, simulateur de trafic libre |
 | SBOM | Software Bill of Materials |
 | SCA | Software Composition Analysis |
 | TTL | Time To Live, durée de vie |
+| UCI | University of California, Irvine (dépôt de jeux de données) |
 | VPC | Virtual Private Cloud |

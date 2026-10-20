@@ -10,6 +10,8 @@
 | Compétences BC05 | Architectures de données décisionnelles, ETL (Extract, Transform, Load), Processus décisionnels |
 | Complété par | [ADR-014](ADR-014-architecture-decisionnelle.md), [ADR-022](ADR-022-hebergement-mongodb.md) |
 
+> **Mise à jour du 20/10/2026 ([ADR-023](ADR-023-execution-locale-d-abord.md)).** Les deux bases tournent en local dans Docker ; la mise en œuvre est décrite dans l'[ADR-024](ADR-024-bases-de-donnees-locales.md). Le choix des deux moteurs ne change pas.
+
 ## 1. Problème
 
 Novaria Core manipule des données de natures différentes :

@@ -2,7 +2,7 @@
 
 Projet : Novaria Core, socle d'UrbanHub (bloc de compétences BC05)
 Responsables : Daddy Luciano et Manoa Robel (relecture croisée)
-Dernière mise à jour : 17/10/2026
+Dernière mise à jour : 20/10/2026
 Issue de suivi : GES-05
 
 Ce registre consigne chaque exigence et chaque demande nouvelle avec un statut, une équipe, un jalon et les issues qui la réalisent. Il remplace la lecture dispersée des présentations et sert de référence au moment des arbitrages.
@@ -10,10 +10,10 @@ Ce registre consigne chaque exigence et chaque demande nouvelle avec un statut, 
 ## Mode d'emploi
 
 - Toute demande nouvelle (du professeur, du binôme ou d'un tiers) reçoit une ligne et un identifiant. Une ligne n'est jamais supprimée : on change son statut et on note la date.
-- Statuts : **Incluse** (dans le périmètre), **Exclue** (hors périmètre, avec la raison), **À arbitrer** (décision attendue).
+- Statuts : **Incluse** (dans le périmètre), **Adaptée** (dans le périmètre, réalisée autrement, avec la référence du changement), **Différée** (reportée, documents conservés), **Exclue** (hors périmètre, avec la raison), **À arbitrer** (décision attendue).
 - Colonne « Validation professeur » : **À consigner** tant que la réponse du professeur n'est pas écrite ici avec sa date. La présentation « Novaria Core : socle d'UrbanHub » (version du 15/10/2026) a été remise au professeur comme proposition soumise à validation ; ses réponses se consignent dans `docs/07-gestion/decisions-professeur.md` (issue GES-06), puis dans ce registre.
 - Tout changement de périmètre s'écrit aussi dans `docs/07-gestion/journal-changements.md`.
-- Abréviations : API (Application Programming Interface, interface de programmation), AWS (Amazon Web Services), CI/CD (Continuous Integration / Continuous Delivery), IAM (Identity and Access Management), WBS (Work Breakdown Structure, structure de découpage du projet).
+- Abréviations : API (Application Programming Interface, interface de programmation), AWS (Amazon Web Services), CI/CD (Continuous Integration / Continuous Delivery), IAM (Identity and Access Management), WBS (Work Breakdown Structure, structure de découpage du projet), ADR (Architecture Decision Record, enregistrement de décision d'architecture), ML (Machine Learning, apprentissage automatique), SUMO (Simulation of Urban MObility), UCI (University of California, Irvine).
 
 ## 1. Exigences de la proposition présentée au professeur
 
@@ -30,10 +30,10 @@ Source : présentation « Novaria Core : socle d'UrbanHub » (diapositives indiq
 | R-07 | Scénarios d'erreur éprouvés, tests consignés, résultats et limites documentés | Diapo 5 | Incluse | Cloud · M4 | CLD-13, CLD-14, MS-15 | À consigner |
 | R-08 | Chaîne DevSecOps : Git à branches protégées, construction des conteneurs, tests et validation des contrats, détection de secrets, audit des dépendances | Diapo 7 | Incluse | Cloud · M1 | CLD-02 à CLD-08, MS-05 | À consigner |
 | R-09 | Image immuable, versionnée et signée | Diapo 7 | À arbitrer | Cloud · M4 | Aucune (voir écart E-02) | À consigner |
-| R-10 | Déploiement automatisé sur AWS avec vérification : sondes de santé, contrôle des accès | Diapo 7 | Incluse | Cloud · M1 à M4 | CLD-09 à CLD-12, MS-17 | À consigner |
-| R-11 | Journaux centralisés, sauvegardes SQL planifiées, procédure de restauration documentée | Diapo 7 | Incluse | Cloud · M4 | CLD-14, CLD-15, DOC-06 | À consigner |
-| R-12 | Politique IAM de moindre privilège | Diapo 7 | Incluse | Cloud · M1 | CLD-09, CLD-18 | À consigner |
-| R-13 | Chiffrage AWS fondé sur l'inventaire réel des ressources, sans estimation financière non vérifiée | Diapos 7 et 9 | Incluse | Gestion · M5 | GES-09 | À consigner |
+| R-10 | Déploiement automatisé sur AWS avec vérification : sondes de santé, contrôle des accès | Diapo 7 | **Différée** (C-05, 20/10/2026) : documenté, non exécuté ; sondes de santé et contrôle des accès vérifiés en local | Cloud · M1 à M4 | CLD-09 à CLD-12, MS-17 | À consigner |
+| R-11 | Journaux centralisés, sauvegardes SQL planifiées, procédure de restauration documentée | Diapo 7 | **Adaptée** (C-05) : journaux et sauvegardes en local, restauration vérifiée | Cloud · M4 | CLD-14, CLD-15, DOC-06 | À consigner |
+| R-12 | Politique IAM de moindre privilège | Diapo 7 | **Adaptée** (C-05) : moindre privilège par comptes de base de données ; politique IAM documentée, non appliquée | Cloud · M1 | CLD-09, CLD-18 | À consigner |
+| R-13 | Chiffrage AWS fondé sur l'inventaire réel des ressources, sans estimation financière non vérifiée | Diapos 7 et 9 | **Adaptée** (C-05) : coût projeté sur l'inventaire prévu, étiqueté « non déployé » | Gestion · M5 | GES-09 | À consigner |
 | R-14 | Planification dans ProjectLibre : WBS, charges, dépendances, chemin critique, diagramme de Gantt | Diapo 8 | Incluse | Gestion · M1 | GES-08, GES-10 | À consigner |
 | R-15 | Plan DevSecOps par équipe dans ProjectLibre avec calcul des coûts du projet | Consigne du professeur | Incluse | Gestion · M1 | GES-08, GES-10 | À consigner |
 | R-16 | Revues de code et validations croisées sur chaque livrable | Diapo 8 | Incluse | Les deux · continu | CLD-08, GES-17 | À consigner |
@@ -63,6 +63,9 @@ Source : diapositive 6 de la présentation (« évaluer le besoin réel avant d'
 | C-02 | 17/10/2026 | Service de collecte alimenté par des données IoT (Internet of Things) simulées | Binôme | Incluse | Données · M2 | MS-07, MS-08 | À demander (voir écart E-04) |
 | C-03 | 17/10/2026 | Service d'alerte usager : alertes envoyées aux usagers et consultables sur le tableau de bord | Binôme | Incluse | Back-end, Front-end · M2, M3 | MS-11, MS-14 | À demander |
 | C-04 | 17/10/2026 | Service de réponse extérieure : gestion des feux de circulation, le trafic routier étant l'exemple retenu en première année du master | Binôme | Incluse | Back-end · M2 | MS-12 | À demander |
+| C-05 | 20/10/2026 | Exécuter le projet sur `localhost` pour le moment, pas sur les services AWS ; conserver les documents AWS, ajouter une documentation localhost et des ADR | Professeur, **oralement** (transmis par Manoa Robel) | Incluse | Les deux · M1 à M4 | LOC-01 à LOC-06, ADR 023 à 025 | **Oral le 20/10/2026 ; confirmation écrite à obtenir** |
+| C-06 | 20/10/2026 | Traiter la détection de congestion avant la prévision ; label pris dans la vérité terrain du simulateur | Binôme | Incluse | IA · M4 | IA-01, IA-08, IA-09, DAT-10, ADR 015 et 028 | À demander (niveau Machine Learning) |
+| C-07 | 20/10/2026 | Jeux de données : générateur Python v0 d'abord, SUMO si le temps le permet ; METR-LA pour la prévision seulement ; jeu de l'UCI pour le tutoriel | Binôme | Incluse | IA, Données · M3 à M4 | IA-08, IA-10, IA-11, DAT-01, ADR 027 | À demander (point 2 de GES-06) |
 
 ## 4. Exclusions
 
@@ -73,15 +76,17 @@ Source : diapositive 6 de la présentation (« évaluer le besoin réel avant d'
 | X-03 | Pilotage de feux de circulation réels (matériel) | Le contrôleur de feux est simulé | Proposition du binôme | À demander |
 | X-04 | Hébergement hors AWS | AWS est le seul cloud du projet | Binôme | À consigner |
 | X-05 | Estimation financière AWS avant l'inventaire des ressources | Règle de rigueur budgétaire | Diapo 7 | À consigner |
+| X-06 | Exécution sur des services AWS pendant le projet | Consigne du professeur (C-05) ; reprise possible sur autorisation écrite | Professeur (oral) | Oral le 20/10/2026 ; écrit à obtenir |
 
 ## 5. Points à arbitrer avec le professeur (issue GES-06)
 
 1. Niveau de chaque compétence BC05 : Implémenté ou Prototype ciblé (B-01 à B-07).
 2. Données : simulateur seul ou calé sur un jeu de données urbaines ouvert (C-02, DAT-01).
 3. Équipes à planifier dans ProjectLibre (R-14, R-15).
-4. Taux journalier, devise et plafond de dépense AWS (R-13).
+4. Taux journalier, devise et plafond de dépense AWS (R-13) : sans objet tant que l'exécution reste locale (C-05).
 5. Cahier des charges fonctionnel et validation des contrats d'API et de la topologie, microservices compris (R-02, C-01 à C-04).
 6. Exigence formelle de temps réel, qui conditionne Kafka et Flink (B-03).
+7. **Confirmation écrite** de la consigne « localhost, pas AWS » (C-05, risque R7).
 
 ## 6. Écarts constatés à traiter
 
@@ -92,3 +97,4 @@ Source : diapositive 6 de la présentation (« évaluer le besoin réel avant d'
 | E-03 | Big Data (Hadoop, Spark) est un prototype du backlog mais n'apparaît pas dans la proposition | Le présenter comme brique à arbitrer (B-07) | Les deux | Ouvert |
 | E-04 | Le choix d'un jeu de données ouvert (DAT-01) et la simulation IoT (C-02) se recouvrent | Décider : simulateur seul, ou simulateur calé sur un jeu ouvert ; adapter DAT-01 | Les deux | Ouvert |
 | E-05 | Répartition présentée : Manoa porte NoSQL et AWS ; backlog : BE-05 et CLD-09 à CLD-11, CLD-15, CLD-17, CLD-18, CLD-21 sont attribuées à Daddy | Aligner présentation et backlog dans GES-17 | Les deux | Ouvert |
+| E-06 | R-10 à R-13 et la proposition présentée supposent un déploiement sur AWS ; la consigne du 20/10/2026 (C-05) l'exclut pour le moment | Confirmer par écrit, indiquer au professeur comment les compétences cloud restent démontrées (code Terraform validé statiquement, équivalences locales, coût projeté) | Manoa Robel | Ouvert |

@@ -10,6 +10,8 @@
 | Compétences BC05 | Gestion et déploiement des pipelines MLOps, Machine Learning |
 | S'appuie sur | [ADR-015](ADR-015-modeles-ia.md), [ADR-018](ADR-018-devsecops.md) |
 
+> **Mise à jour du 20/10/2026 ([ADR-023](ADR-023-execution-locale-d-abord.md)).** L'entraînement et le registre de modèles s'exécutent en local (scripts scikit-learn, registre dans MongoDB `model_runs`, stockage dans un dossier). SageMaker, S3 (Simple Storage Service) et CloudWatch sont documentés, non exécutés ([ADR-025](ADR-025-equivalents-locaux-des-services-aws.md)).
+
 ## 1. Problème
 
 Un modèle n'est utile que s'il est **reproductible**, **tracé jusqu'à ses données et son code**, **déployé sans surprise** et **surveillé**. Il constitue aussi une surface d'attaque particulière : données empoisonnées, fichier de modèle piégé, entrées hostiles, dérive silencieuse. MLOps (Machine Learning Operations) organise le cycle de vie ; MLSecOps (Machine Learning Security Operations) y intègre la sécurité dès la conception, dans le prolongement du DevSecOps ([ADR-018](ADR-018-devsecops.md)).
