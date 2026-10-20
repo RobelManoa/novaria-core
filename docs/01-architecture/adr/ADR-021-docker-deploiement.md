@@ -10,6 +10,8 @@
 | Compétences BC05 | Architectures de données décisionnelles, Documentation |
 | S'appuie sur | [ADR-003](ADR-003-aws-ecs-fargate-docker.md), [ADR-018](ADR-018-devsecops.md), [ADR-020](ADR-020-terraform.md) |
 
+> **Mise à jour du 20/10/2026 ([ADR-023](ADR-023-execution-locale-d-abord.md)).** Les images se construisent et s'exécutent en local. La publication dans ECR (Elastic Container Registry) et le déploiement sur ECS (Elastic Container Service) sont documentés, non exécutés. La signature des images devient utile avec un registre : elle reste à ajouter à ce moment.
+
 ## 1. Problème
 
 Quatre services, un bus, deux bases, un moteur de flux et un tableau de bord doivent démarrer de la même façon sur un poste et sur AWS (Amazon Web Services), se déployer sans interruption visible, et pouvoir revenir en arrière. Les **données** (schémas, référentiels, modèles) se déploient aussi, et un retour de code ne les restaure pas.
@@ -83,7 +85,7 @@ Docker Compose avec des **profils** pour tenir sur un poste :
 |---|---|---|
 | `core` | PostgreSQL, MongoDB, 4 services, passerelle, front-end | Développement courant |
 | `streaming` | Kafka (KRaft), Flink | Essais de flux ([ADR-011](ADR-011-temps-reel-et-batch.md)) |
-| `quality` | SonarQube local | Analyse locale (`make quality-up`) |
+| `quality` | SonarQube local | Analyse locale (`docker compose -f compose.quality.yml up -d`) |
 
 Limites de mémoire déclarées par service ; sondes de santé et `depends_on` avec `condition: service_healthy`.
 

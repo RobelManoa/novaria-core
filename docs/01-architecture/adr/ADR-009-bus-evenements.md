@@ -10,6 +10,8 @@
 | Compétences BC05 | Traitement de flux en temps réel, Architectures de données décisionnelles |
 | Complété par | [ADR-011](ADR-011-temps-reel-et-batch.md), [ADR-012](ADR-012-validation-contrats-zod.md) |
 
+> **Mise à jour du 20/10/2026 ([ADR-023](ADR-023-execution-locale-d-abord.md)).** Le bus Kafka tourne en local dans Docker Compose (mode KRaft, issue LOC-04) ; MSK (Managed Streaming for Apache Kafka) est documenté, non exécuté.
+
 ## 1. Problème
 
 Les quatre services échangent un flux continu de faits (mesures, indicateurs, recommandations, alertes, état des feux). Il faut choisir le **style de communication** (appels directs ou événements) et le **bus** qui transporte ces événements, avec des garanties sur l'ordre, la perte, les doublons et le rejeu.

@@ -10,6 +10,8 @@
 | Compétences BC05 | Documentation et spécifications techniques, ETL (Extract, Transform, Load) |
 | S'appuie sur | [ADR-001](ADR-001-python-fastapi.md), [ADR-009](ADR-009-bus-evenements.md) |
 
+> **Mise à jour du 20/10/2026.** Les contrats d'événements v0 (enveloppe, mesure, indicateur, alerte) sont écrits dans `contracts/events/`, avec exemples, 35 cas invalides testés et un validateur en ligne de commande (voir `contracts/README.md`).
+
 ## 1. Problème
 
 Les données traversent cinq frontières : capteur → collecte, services ↔ bus d'événements, service → API REST (Representational State Transfer), API → navigateur, navigateur → utilisateur (formulaires). À chacune, une donnée mal formée (type erroné, unité différente, date sans fuseau, champ manquant) peut corrompre le calcul ou faire planter l'affichage. Le binôme veut savoir exactement à quoi s'attendre des deux côtés, backend et frontend, et normaliser les données une fois pour toutes.
@@ -74,7 +76,7 @@ flowchart LR
 |---|---|
 | Dates et heures | ISO 8601 en UTC (Coordinated Universal Time, temps universel coordonné), avec fuseau explicite |
 | Unités | Vitesse en km/h, débit en véhicules par minute, taux d'occupation de 0 à 1 |
-| Identifiants | Chaînes opaques (`intersection_id`, `sensor_id`), jamais des nombres devinés |
+| Identifiants | Chaînes opaques à motif fixe (`intersection_id`, `road_segment_id`, `sensor_id`), jamais des nombres devinés |
 | Nombres | Valeurs bornées (par exemple vitesse entre 0 et 200) |
 | Champs inconnus | Rejetés dans les entrées (mode strict), tolérés dans les sorties du contrat suivant |
 | Version | `schema_version` dans chaque événement ; `/api/v1` dans chaque route |
