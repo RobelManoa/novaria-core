@@ -1,0 +1,22 @@
+# Fins de ligne : LF partout, y compris sous Windows (ADR-026).
+# Un script shell ou SQL enregistré avec des fins de ligne Windows (CRLF) échoue dans un conteneur Linux.
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.sql text eol=lf
+*.js text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+Dockerfile text eol=lf
+
+# Fichiers binaires : jamais convertis
+*.png binary
+*.jpg binary
+*.pdf binary
+*.zip binary
+*.pptx binary
+*.dump binary
+*.archive binary
