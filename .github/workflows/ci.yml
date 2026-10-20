@@ -4,18 +4,24 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Scan hebdomadaire de main (le lundi à 06:00 UTC) : détecte les nouvelles failles des images de base
+  # et des dépendances sans attendre une pull request. Seuls les jobs snyk et docker s'exécutent.
+  schedule:
+    - cron: "0 6 * * 1"
 
 permissions:
   contents: read
 
+# Le scan planifié a son propre groupe : il n'annule pas une exécution de main, et inversement.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name == 'schedule' && 'planifie' || 'normal' }}
   cancel-in-progress: true
 
 # Les noms de jobs ci-dessous sont les contrôles obligatoires de la branche main :
 # backend, frontend, gitleaks, snyk, docker, sonarqube.
 jobs:
   backend:
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: backend } }
     steps:
@@ -30,6 +36,7 @@ jobs:
         with: { name: coverage-backend, path: backend/coverage.xml }
 
   frontend:
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: frontend } }
     steps:
@@ -46,6 +53,7 @@ jobs:
         with: { name: coverage-frontend, path: frontend/coverage/lcov.info }
 
   gitleaks:
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -100,6 +108,7 @@ jobs:
           exit $rc
 
   sonarqube:
+    if: ${{ github.event_name != 'schedule' }}
     needs: [backend, frontend]
     runs-on: ubuntu-latest
     steps:
