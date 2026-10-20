@@ -1,0 +1,32 @@
+{
+  "id": "run-demo-0001:ROAD_009:60:1792483200000",
+  "source": "traitement",
+  "type": "novaria.traffic.indicator.v1",
+  "time": "2026-10-20T08:01:00Z",
+  "subject": "INT_03",
+  "schema_version": "1.0",
+  "correlation_id": "corr-1792483200000",
+  "domain": "traffic",
+  "data": {
+    "road_segment_id": "ROAD_009",
+    "intersection_id": "INT_03",
+    "window_start": "2026-10-20T08:00:00Z",
+    "window_size_s": 60,
+    "vehicle_count": 2,
+    "flow_veh_per_min": 2.0,
+    "average_speed_kmh": 30.0,
+    "occupancy_rate": null,
+    "max_queue_length_m": null,
+    "speed_ratio": 0.6,
+    "sample_count": 2,
+    "expected_sample_count": 6,
+    "congestion_state": "UNKNOWN",
+    "classifier_version": "regles-v0",
+    "provenance": {
+      "source_type": "SIMULATED",
+      "run_id": "run-demo-0001",
+      "scenario_id": "heure-de-pointe",
+      "seed": 42
+    }
+  }
+}

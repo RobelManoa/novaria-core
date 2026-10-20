@@ -1,0 +1,31 @@
+{
+  "id": "alerte-6f1c2b9e-created",
+  "source": "alerte",
+  "type": "novaria.alert.state_changed.v1",
+  "time": "2026-10-20T08:22:00Z",
+  "subject": "INT_01",
+  "schema_version": "1.0",
+  "correlation_id": "corr-1792484400000",
+  "domain": "alert",
+  "data": {
+    "alert_id": "6f1c2b9e-4c7a-4f0e-9d53-1a2b3c4d5e6f",
+    "rule_id": "congestion.persistante",
+    "kind": "CONGESTION",
+    "state": "CREATED",
+    "previous_state": null,
+    "severity": "WARNING",
+    "cause": "UNKNOWN",
+    "road_segment_id": "ROAD_001",
+    "intersection_id": "INT_01",
+    "episode_id": "0b9a7d2e-8a51-4c3b-b1c4-77aa66bb55cc",
+    "opened_at": "2026-10-20T08:22:00Z",
+    "resolved_at": null,
+    "resolution": null,
+    "provenance": {
+      "source_type": "SIMULATED",
+      "run_id": "run-demo-0001",
+      "scenario_id": "heure-de-pointe",
+      "seed": 42
+    }
+  }
+}
