@@ -10,6 +10,8 @@
 | Compétences BC05 | Architectures de données décisionnelles |
 | S'appuie sur | [ADR-002](ADR-002-postgresql-mongodb.md), [ADR-003](ADR-003-aws-ecs-fargate-docker.md), [ADR-007](ADR-007-compte-aws.md) |
 
+> **Mise à jour du 20/10/2026 ([ADR-023](ADR-023-execution-locale-d-abord.md)).** L'hébergement de MongoDB sur AWS n'est pas exécuté ; MongoDB tourne dans un conteneur local ([ADR-024](ADR-024-bases-de-donnees-locales.md)). L'essai de persistance (CLD-11) est différé.
+
 ## 1. Problème
 
 MongoDB porte les événements bruts, les journaux d'audit, les statistiques et le suivi des modèles. Sur AWS, ECS (Elastic Container Service) Fargate n'offre pas de disque local persistant par défaut. Où et comment héberger MongoDB à faible coût sans perdre de données ?

@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RobelManoa/novaria-core/contracts/events/alert-event.schema.json",
+  "title": "Changement d'état d'une alerte (novaria.alert.state_changed.v1)",
+  "description": "Publié par le service d'alerte usager sur alerts.events via le motif outbox (ADR-009). Une alerte par épisode, jamais une par mesure.",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "novaria.alert.state_changed.v1"
+        },
+        "domain": {
+          "const": "alert"
+        },
+        "schema_version": {
+          "const": "1.0"
+        },
+        "data": {
+          "$ref": "#/$defs/data"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "alert_id",
+        "rule_id",
+        "kind",
+        "state",
+        "previous_state",
+        "severity",
+        "cause",
+        "road_segment_id",
+        "intersection_id",
+        "opened_at",
+        "resolved_at",
+        "resolution",
+        "provenance"
+      ],
+      "properties": {
+        "alert_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "rule_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9_.-]{3,60}$"
+        },
+        "kind": {
+          "enum": [
+            "CONGESTION",
+            "TRAFFIC_ANOMALY",
+            "SENSOR_FAULT"
+          ]
+        },
+        "state": {
+          "description": "Cycle de vie : CREATED, NOTIFIED, ACKNOWLEDGED, RESOLVED.",
+          "enum": [
+            "CREATED",
+            "NOTIFIED",
+            "ACKNOWLEDGED",
+            "RESOLVED"
+          ]
+        },
+        "previous_state": {
+          "enum": [
+            "CREATED",
+            "NOTIFIED",
+            "ACKNOWLEDGED",
+            "RESOLVED",
+            null
+          ]
+        },
+        "severity": {
+          "enum": [
+            "INFO",
+            "WARNING",
+            "CRITICAL"
+          ]
+        },
+        "cause": {
+          "description": "UNKNOWN tant qu'aucun événement confirmé n'existe : une baisse de vitesse ne prouve pas un accident.",
+          "enum": [
+            "UNKNOWN",
+            "CONFIRMED_INCIDENT",
+            "ROADWORKS",
+            "SPECIAL_EVENT",
+            "SENSOR_FAULT"
+          ]
+        },
+        "road_segment_id": {
+          "$ref": "common.schema.json#/$defs/road_segment_id"
+        },
+        "intersection_id": {
+          "$ref": "common.schema.json#/$defs/intersection_id"
+        },
+        "episode_id": {
+          "description": "Épisode de congestion à l'origine de l'alerte, s'il existe.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "opened_at": {
+          "$ref": "common.schema.json#/$defs/utc_datetime"
+        },
+        "resolved_at": {
+          "oneOf": [
+            {
+              "$ref": "common.schema.json#/$defs/utc_datetime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resolution": {
+          "enum": [
+            "AUTO",
+            "MANUAL",
+            null
+          ]
+        },
+        "provenance": {
+          "$ref": "common.schema.json#/$defs/provenance"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "RESOLVED"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "resolved_at": {
+                "type": "string"
+              },
+              "resolution": {
+                "enum": [
+                  "AUTO",
+                  "MANUAL"
+                ]
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "resolved_at": {
+                "type": "null"
+              },
+              "resolution": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

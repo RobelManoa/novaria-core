@@ -27,7 +27,7 @@ Le projet est public et reçoit du code de deux personnes. Comment empêcher qu'
 |---|---|---|---|
 | **A. SonarQube Cloud + Snyk + gitleaks** | Couverture complète, tableaux de bord, seuils configurables | Dépendance à des services tiers ; quotas des plans gratuits | **Retenue** |
 | B. Outils intégrés à GitHub (CodeQL, Dependabot, secret scanning) | Aucun compte supplémentaire | Pas d'analyse d'images ni d'Infrastructure as Code ; Quality Gate moins fin | Utilisés en complément (secret scanning, push protection, Dependabot) |
-| C. Outils libres auto-hébergés (Trivy, Semgrep, SonarQube Community) | Gratuits, sans quota | Exploitation et mises à jour à notre charge | Écartée ; SonarQube local reste disponible (`make quality-up`) |
+| C. Outils libres auto-hébergés (Trivy, Semgrep, SonarQube Community) | Gratuits, sans quota | Exploitation et mises à jour à notre charge | Écartée ; SonarQube local reste disponible (`docker compose -f compose.quality.yml up -d`) |
 | D. Contrôles consultatifs seulement | Aucun blocage | Aucune garantie | Écartée |
 
 ## 4. Choix

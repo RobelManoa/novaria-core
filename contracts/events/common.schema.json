@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RobelManoa/novaria-core/contracts/events/common.schema.json",
+  "title": "Définitions communes aux événements Novaria Core",
+  "description": "Identifiants, dates, provenance et états partagés par tous les contrats d'événements (ADR-012, ADR-027, ADR-028).",
+  "$defs": {
+    "utc_datetime": {
+      "description": "Date et heure ISO 8601 en UTC, fuseau explicite (Z).",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?Z$"
+    },
+    "intersection_id": {
+      "description": "Identifiant de carrefour (clé de partition des sujets Kafka).",
+      "type": "string",
+      "pattern": "^INT_[0-9]{2,}$"
+    },
+    "road_segment_id": {
+      "description": "Identifiant de tronçon d'approche : unité d'analyse de la circulation.",
+      "type": "string",
+      "pattern": "^ROAD_[0-9]{3,}$"
+    },
+    "sensor_id": {
+      "description": "Identifiant de capteur.",
+      "type": "string",
+      "pattern": "^SENSOR_[0-9]{3,}$"
+    },
+    "congestion_state": {
+      "description": "État de circulation d'un tronçon (ADR-028). UNKNOWN : données insuffisantes.",
+      "enum": [
+        "UNKNOWN",
+        "FREE_FLOW",
+        "SLOW",
+        "CONGESTED"
+      ]
+    },
+    "provenance": {
+      "description": "Origine de la donnée. Une donnée simulée n'est jamais présentée comme réelle (ADR-027).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_type",
+        "run_id"
+      ],
+      "properties": {
+        "source_type": {
+          "enum": [
+            "SIMULATED",
+            "REAL_HISTORICAL",
+            "REAL_LIVE"
+          ]
+        },
+        "run_id": {
+          "description": "Exécution d'origine : « live », identifiant d'un run du simulateur ou d'un jeu historique.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "scenario_id": {
+          "description": "Scénario du simulateur (obligatoire si SIMULATED).",
+          "type": "string",
+          "pattern": "^[a-z0-9_-]{1,60}$"
+        },
+        "seed": {
+          "description": "Graine aléatoire du run (obligatoire si SIMULATED) : rend le run reproductible.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "dataset_id": {
+          "description": "Identifiant du jeu historique (obligatoire si REAL_HISTORICAL).",
+          "type": "string",
+          "pattern": "^[a-z0-9_.-]{1,60}$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source_type": {
+                "const": "SIMULATED"
+              }
+            },
+            "required": [
+              "source_type"
+            ]
+          },
+          "then": {
+            "required": [
+              "scenario_id",
+              "seed"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "source_type": {
+                "const": "REAL_HISTORICAL"
+              }
+            },
+            "required": [
+              "source_type"
+            ]
+          },
+          "then": {
+            "required": [
+              "dataset_id"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

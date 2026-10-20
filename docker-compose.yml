@@ -1,32 +1,87 @@
-# Environnement local : PostgreSQL + MongoDB + backend + frontend.
-# Démarrage : cp .env.example .env && docker compose up --build
+# Environnement local de référence (ADR-023 : exécution locale d'abord ; ADR-024 : bases de données).
+# Mêmes commandes sous Windows (PowerShell) et sous Linux : Docker Desktop ou Docker Engine suffit.
+#
+#   python scripts/dev/dev.py init-env     # crée .env avec des mots de passe aléatoires (une seule fois)
+#   python scripts/dev/dev.py db-up        # PostgreSQL + MongoDB + migrations (sans backend ni frontend)
+#   python scripts/dev/dev.py up           # tout : bases, backend, frontend
+#   python scripts/dev/dev.py db-check     # vérifie rôles, droits et collections
+#
+# Les ports ne sont publiés que sur 127.0.0.1 : les bases ne sont pas joignables depuis le réseau.
+name: novaria-core
+
 services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    ports: ["127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"]
-    volumes: ["pgdata:/var/lib/postgresql/data"]
+      POSTGRES_USER: "${POSTGRES_USER:?créer .env avec : python scripts/dev/dev.py init-env}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?créer .env avec : python scripts/dev/dev.py init-env}"
+      POSTGRES_DB: "${POSTGRES_DB:?créer .env avec : python scripts/dev/dev.py init-env}"
+      PG_PASSWORD_APP: "${PG_PASSWORD_APP:?créer .env avec : python scripts/dev/dev.py init-env}"
+      PG_PASSWORD_TRAITEMENT: "${PG_PASSWORD_TRAITEMENT:?créer .env avec : python scripts/dev/dev.py init-env}"
+      PG_PASSWORD_ALERTE: "${PG_PASSWORD_ALERTE:?créer .env avec : python scripts/dev/dev.py init-env}"
+      PG_PASSWORD_LECTURE: "${PG_PASSWORD_LECTURE:?créer .env avec : python scripts/dev/dev.py init-env}"
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5432}:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      # -h 127.0.0.1 : pendant l'initialisation, le serveur temporaire n'écoute que sur une socket Unix ;
+      # le test ne réussit donc qu'une fois l'initialisation terminée.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
-      retries: 10
+      retries: 20
+      start_period: 10s
+
+  # Tâche unique : applique les migrations SQL (db/postgres/migrations) puis s'arrête.
+  db-migrate:
+    image: postgres:16-alpine
+    user: postgres
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      PGOPTIONS: "-c client_min_messages=warning"
+    volumes:
+      - ./db/postgres/migrate.sh:/usr/local/bin/migrate.sh:ro
+      - ./db/postgres/migrations:/migrations:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/migrate.sh"]
+    restart: "no"
 
   mongo:
     image: mongo:7
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
-    ports: ["127.0.0.1:${MONGO_HOST_PORT:-27017}:27017"]
-    volumes: ["mongodata:/data/db"]
+      MONGO_INITDB_ROOT_USERNAME: "${MONGO_ROOT_USER:?créer .env avec : python scripts/dev/dev.py init-env}"
+      MONGO_INITDB_ROOT_PASSWORD: "${MONGO_ROOT_PASSWORD:?créer .env avec : python scripts/dev/dev.py init-env}"
+      MONGO_INITDB_DATABASE: "${MONGO_DB:?créer .env avec : python scripts/dev/dev.py init-env}"
+      MONGO_DB: ${MONGO_DB}
+      MONGO_PASSWORD_COLLECTE: "${MONGO_PASSWORD_COLLECTE:?créer .env avec : python scripts/dev/dev.py init-env}"
+      MONGO_PASSWORD_TRAITEMENT: "${MONGO_PASSWORD_TRAITEMENT:?créer .env avec : python scripts/dev/dev.py init-env}"
+      MONGO_PASSWORD_REPONSE: "${MONGO_PASSWORD_REPONSE:?créer .env avec : python scripts/dev/dev.py init-env}"
+      MONGO_PASSWORD_BACKEND: "${MONGO_PASSWORD_BACKEND:?créer .env avec : python scripts/dev/dev.py init-env}"
+      MONGO_PASSWORD_ML: "${MONGO_PASSWORD_ML:?créer .env avec : python scripts/dev/dev.py init-env}"
+      RAW_EVENTS_TTL_SECONDS: ${RAW_EVENTS_TTL_SECONDS:-1209600}
+      REJECTS_TTL_SECONDS: ${REJECTS_TTL_SECONDS:-2592000}
+    ports: ["127.0.0.1:${MONGO_PORT:-27017}:27017"]
+    volumes:
+      - mongodata:/data/db
+      - ./db/mongo/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      # Connexion authentifiée avec un utilisateur de service : réussit seulement une fois l'initialisation
+      # terminée (le serveur temporaire d'initialisation écoute déjà en local avant la création des utilisateurs).
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet -u svc_backend -p "$$MONGO_PASSWORD_BACKEND" --authenticationDatabase "$$MONGO_DB"
+          "$$MONGO_DB" --eval "db.runCommand({ping: 1}).ok" | grep -q 1
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
+      start_period: 15s
 
   backend:
     build:
@@ -36,19 +91,61 @@ services:
     environment:
       ENVIRONMENT: local
       GIT_SHA: ${GIT_SHA:-local}
-      POSTGRES_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017
+      POSTGRES_URL: postgresql+psycopg://svc_app:${PG_PASSWORD_APP}@postgres:5432/${POSTGRES_DB}
+      MONGO_URL: mongodb://svc_backend:${MONGO_PASSWORD_BACKEND}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
       MONGO_DB: ${MONGO_DB}
       JWT_SECRET: ${JWT_SECRET}
-    ports: ["8000:8000"]
+    ports: ["127.0.0.1:8000:8000"]
     depends_on:
-      postgres: { condition: service_healthy }
+      db-migrate: { condition: service_completed_successfully }
       mongo: { condition: service_healthy }
 
   frontend:
     build: ./frontend
-    ports: ["8080:8080"]
+    ports: ["127.0.0.1:8080:8080"]
     depends_on: [backend]
+
+  # --- Sauvegardes (profil « ops », jamais démarrées par `docker compose up`) --------------------------
+  backup-postgres:
+    profiles: ["ops"]
+    image: postgres:16-alpine
+    user: root
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      PGOPTIONS: "-c client_min_messages=warning"
+      BACKUP_KEEP: ${BACKUP_KEEP:-7}
+    volumes:
+      - ./db/postgres/ops.sh:/usr/local/bin/ops.sh:ro
+      - ./backups:/backups
+    entrypoint: ["/bin/sh", "/usr/local/bin/ops.sh"]
+    command: ["backup"]
+    restart: "no"
+
+  backup-mongo:
+    profiles: ["ops"]
+    image: mongo:7
+    user: root
+    depends_on:
+      mongo: { condition: service_healthy }
+    environment:
+      MONGO_HOST: mongo
+      MONGO_PORT: "27017"
+      MONGO_ROOT_USER: ${MONGO_ROOT_USER}
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_DB: ${MONGO_DB}
+      BACKUP_KEEP: ${BACKUP_KEEP:-7}
+    volumes:
+      - ./db/mongo/ops.sh:/usr/local/bin/ops.sh:ro
+      - ./backups:/backups
+    entrypoint: ["/bin/sh", "/usr/local/bin/ops.sh"]
+    command: ["backup"]
+    restart: "no"
 
 volumes:
   pgdata:

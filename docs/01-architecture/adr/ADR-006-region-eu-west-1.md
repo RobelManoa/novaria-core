@@ -10,6 +10,8 @@
 | Compétences BC05 | Architectures de données décisionnelles |
 | Complété par | [ADR-007](ADR-007-compte-aws.md) |
 
+> **Mise à jour du 20/10/2026 ([ADR-023](ADR-023-execution-locale-d-abord.md)).** Aucune ressource n'est créée. La région reste le choix de la cible documentée.
+
 ## 1. Problème
 
 Toutes les ressources AWS se créent dans une région. Ce choix détermine les services disponibles (bus d'événements géré, traitement de flux, ETL (Extract, Transform, Load), entraînement), le prix, la latence et le lieu de stockage des données.

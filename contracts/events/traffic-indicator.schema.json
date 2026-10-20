@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RobelManoa/novaria-core/contracts/events/traffic-indicator.schema.json",
+  "title": "Indicateur de circulation par fenêtre (novaria.traffic.indicator.v1)",
+  "description": "Publié par le service de traitement sur traffic.indicators. Grain : un tronçon, une fenêtre de 1 ou 5 minutes.",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "novaria.traffic.indicator.v1"
+        },
+        "domain": {
+          "const": "traffic"
+        },
+        "schema_version": {
+          "const": "1.0"
+        },
+        "data": {
+          "$ref": "#/$defs/data"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "road_segment_id",
+        "intersection_id",
+        "window_start",
+        "window_size_s",
+        "vehicle_count",
+        "flow_veh_per_min",
+        "average_speed_kmh",
+        "speed_ratio",
+        "sample_count",
+        "expected_sample_count",
+        "congestion_state",
+        "classifier_version",
+        "provenance"
+      ],
+      "properties": {
+        "road_segment_id": {
+          "$ref": "common.schema.json#/$defs/road_segment_id"
+        },
+        "intersection_id": {
+          "$ref": "common.schema.json#/$defs/intersection_id"
+        },
+        "window_start": {
+          "description": "Début de la fenêtre, UTC. La fenêtre couvre [window_start, window_start + window_size_s[.",
+          "$ref": "common.schema.json#/$defs/utc_datetime"
+        },
+        "window_size_s": {
+          "enum": [
+            60,
+            300
+          ]
+        },
+        "vehicle_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "flow_veh_per_min": {
+          "description": "Débit : véhicules par minute.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "average_speed_kmh": {
+          "description": "Moyenne des vitesses pondérée par le nombre de véhicules ; null si aucun véhicule.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 200
+        },
+        "occupancy_rate": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "max_queue_length_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "speed_ratio": {
+          "description": "Vitesse moyenne / vitesse en circulation fluide du tronçon ; null si la vitesse est null.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 9.999
+        },
+        "sample_count": {
+          "description": "Mesures effectivement reçues dans la fenêtre.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 32767
+        },
+        "expected_sample_count": {
+          "description": "Mesures attendues (durée de la fenêtre / intervalle de rapport × capteurs du tronçon).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32767
+        },
+        "congestion_state": {
+          "$ref": "common.schema.json#/$defs/congestion_state"
+        },
+        "classifier_version": {
+          "description": "Version de la règle ou du modèle qui a produit l'état (traçabilité).",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "provenance": {
+          "$ref": "common.schema.json#/$defs/provenance"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "average_speed_kmh": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "average_speed_kmh"
+            ]
+          },
+          "then": {
+            "properties": {
+              "speed_ratio": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "vehicle_count": {
+                "const": 0
+              }
+            },
+            "required": [
+              "vehicle_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "average_speed_kmh": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "congestion_state": {
+                "enum": [
+                  "SLOW",
+                  "CONGESTED"
+                ]
+              }
+            },
+            "required": [
+              "congestion_state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "speed_ratio": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -26,6 +26,9 @@ coverage/
 .idea/
 .vscode/
 .DS_Store
+# sauvegardes locales des bases (db/*/ops.sh) et fichiers temporaires de travail
+backups/
+var/
 # données volumineuses (documenter la source dans data/datasets/README.md)
 data/datasets/*
 !data/datasets/README.md
