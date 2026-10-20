@@ -55,7 +55,7 @@ infra/terraform/
 
 ### 4.2 État
 
-Bucket S3 (Simple Storage Service) chiffré et versionné, accès restreint au rôle de la CI (Continuous Integration, intégration continue) et aux administrateurs. Verrouillage de l'état : natif S3 dans les versions récentes de Terraform, ou table DynamoDB dans les versions plus anciennes ; mécanisme à confirmer sur la version épinglée en CLD-10. Le bucket est créé par une configuration d'amorçage à état local, documentée dans `infra/terraform/README.md`.
+Bucket S3 (Simple Storage Service) chiffré et versionné, accès restreint au rôle de la CI (Continuous Integration, intégration continue) et aux administrateurs. Verrouillage de l'état : natif S3 dans les versions récentes de Terraform, ou table DynamoDB dans les versions plus anciennes (simple verrou d'état, sans lien avec la base non relationnelle du projet, qui est MongoDB) ; mécanisme à confirmer sur la version épinglée en CLD-10. Le bucket est créé par une configuration d'amorçage à état local, documentée dans `infra/terraform/README.md`.
 
 ### 4.3 Flux de travail
 
