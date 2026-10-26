@@ -1,0 +1,1483 @@
+openapi: 3.1.0
+
+info:
+  title: Novaria Core API
+  version: 1.0.0-draft.1
+  summary: Contrat REST v1 de Novaria Core, source de vérité du back-end et du client du Tableau de bord.
+  description: |
+    Plateforme de mobilité urbaine : détection de congestion, alertes usagers, recommandations de feux.
+
+    **Statut : brouillon (BE-01).** Le contrat attend la validation du professeur (GES-06) avant le
+    développement lourd. Les passages marqués « Proposition » sont des choix du binôme à confirmer.
+
+    ## Conventions
+
+    | Sujet | Règle |
+    |---|---|
+    | Version | `/api/v1` dans chaque chemin (voir *Versionnement*) |
+    | Format | JSON, UTF-8. Noms techniques en anglais `snake_case`, descriptions en français |
+    | Dates | ISO 8601 en UTC, fuseau explicite : `2026-10-20T08:00:10Z`. Aucune heure locale |
+    | Unités | Vitesse en km/h, débit en véhicules par minute, taux d'occupation de 0 à 1, longueurs en mètres |
+    | Valeur absente | `null`, jamais `0` ni `-1`. Une vitesse n'existe que si un véhicule est passé |
+    | Provenance | Chaque indicateur, alerte et prévision porte `provenance`. Une donnée simulée n'est jamais présentée comme réelle |
+    | Identifiants | `INT_01` (carrefour), `ROAD_001` (tronçon), UUID (alerte, épisode, commande) |
+    | Corrélation | L'en-tête `X-Correlation-ID` est lu s'il est fourni, généré sinon, et renvoyé à chaque réponse |
+
+    Les définitions de chaque champ sont dans le dictionnaire de données
+    (`docs/03-donnees/dictionnaire-de-donnees.md`) ; les valeurs de `congestion_state`
+    suivent l'ADR-028.
+
+    ## Authentification
+
+    Jeton porteur JWT (JSON Web Token) obtenu par `POST /api/v1/auth/login` et envoyé dans
+    `Authorization: Bearer <jeton>`.
+
+    | Élément | Valeur |
+    |---|---|
+    | Durée de vie | `expires_in` secondes (valeur de départ : 1800). Pas de jeton de renouvellement en v1 : se reconnecter |
+    | Revendications | `sub` (identifiant utilisateur), `role`, `iat`, `exp` |
+    | Signature | Secret `JWT_SECRET` lu dans l'environnement. Algorithme : HS256 (Proposition) |
+    | Sans jeton valide | `401` |
+    | Jeton valide, rôle insuffisant | `403` |
+    | Routes publiques | `GET /api/v1/health` et `POST /api/v1/auth/login` seulement |
+
+    ## Rôles
+
+    Proposition à valider : trois rôles hiérarchiques. Un rôle inclut les droits du précédent.
+
+    | Rôle | Droits |
+    |---|---|
+    | `viewer` | Lire indicateurs, alertes, prévisions, feux, référentiel. Compte du Robot RPA (lecture seule) |
+    | `operator` | + acquitter et résoudre une alerte, envoyer une commande manuelle aux feux |
+    | `admin` | + gérer les utilisateurs et les règles d'alerte |
+
+    ## Versionnement
+
+    | Changement | Conséquence |
+    |---|---|
+    | Ajouter un champ de réponse, un paramètre facultatif, un point d'accès, une valeur d'énumération de réponse | Compatible : même version `/api/v1`. Les clients ignorent les champs inconnus |
+    | Retirer ou renommer un champ, resserrer une règle, changer une unité, ajouter un paramètre obligatoire | Rupture : nouvelle version `/api/v2`. Les deux coexistent pendant la transition |
+    | Retrait annoncé | En-têtes `Deprecation` et `Sunset` (RFC 9745 et RFC 8594) sur les réponses concernées |
+
+    `info.version` suit la forme `majeure.mineure.correctif` du contrat. La version du produit
+    déployé est donnée par `GET /api/v1/health`.
+
+    ## Erreurs
+
+    Toute erreur a le même corps, `application/problem+json` (RFC 9457), schéma `Problem`.
+    Le champ `code` est stable et lisible par une machine ; `detail` est destiné à une personne.
+
+    ## Pagination
+
+    Les listes renvoient `{ items, next_cursor }`. Le curseur est opaque : le client le renvoie
+    tel quel dans `cursor`. `next_cursor` vaut `null` sur la dernière page. `limit` : 1 à 500, défaut 100.
+  contact:
+    name: Daddy Luciano, Manoa Robel
+    url: https://github.com/RobelManoa/novaria-core
+  license:
+    name: Usage pédagogique (Master 2 EADL)
+    identifier: LicenseRef-Pedagogique
+
+servers:
+  - url: http://localhost:8000
+    description: Poste local, API en accès direct (Docker Compose)
+  - url: http://localhost:8080
+    description: Poste local, derrière la passerelle d'API (cible, MS-13)
+
+tags:
+  - name: Santé
+    description: Sonde utilisée par Docker et le pipeline.
+  - name: Authentification
+    description: Connexion et identité de l'appelant.
+  - name: Utilisateurs
+    description: Gestion des comptes et des rôles (administrateur).
+  - name: Référentiel
+    description: Carrefours et tronçons du réseau.
+  - name: Indicateurs
+    description: Résultats d'agrégation par fenêtre et état de congestion.
+  - name: Alertes
+    description: Cycle de vie des alertes et règles.
+  - name: Feux
+    description: État des feux de circulation et commande manuelle.
+  - name: Prévisions
+    description: Vitesses prévues à court terme.
+  - name: Flux
+    description: Diffusion en direct au Tableau de bord.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/health:
+    get:
+      tags: [Santé]
+      operationId: getHealth
+      summary: Sonde de santé
+      description: Dit que le service tourne. Renvoie la version et la révision Git du code déployé.
+      security: []
+      responses:
+        "200":
+          description: Service en ligne.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+              example:
+                status: ok
+                version: 0.1.0
+                revision: 4d1ca55
+                environment: local
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/auth/login:
+    post:
+      tags: [Authentification]
+      operationId: login
+      summary: Ouvrir une session
+      description: Vérifie les identifiants et émet un jeton d'accès. Limité en débit (voir `429`).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+            example: { username: operateur1, password: "mot-de-passe-d-exemple" }
+      responses:
+        "200":
+          description: Jeton émis.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Token" }
+              example:
+                access_token: eyJhbGciOi...
+                token_type: bearer
+                expires_in: 1800
+        "401":
+          description: Identifiants inconnus ou compte désactivé. Le message ne dit pas lequel des deux.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+              example:
+                type: https://novaria.local/problems/invalid-credentials
+                title: Identifiants invalides
+                status: 401
+                code: INVALID_CREDENTIALS
+                detail: Identifiant ou mot de passe incorrect.
+                correlation_id: 7d2f0c9e-3b0a-4f0e-9a52-1c5c3c4e8a10
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/auth/me:
+    get:
+      tags: [Authentification]
+      operationId: getCurrentUser
+      summary: Identité de l'appelant
+      x-required-role: viewer
+      responses:
+        "200":
+          description: Utilisateur associé au jeton.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/users:
+    get:
+      tags: [Utilisateurs]
+      operationId: listUsers
+      summary: Lister les utilisateurs
+      x-required-role: admin
+      parameters:
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - name: role
+          in: query
+          description: Ne garder que ce rôle.
+          schema: { $ref: "#/components/schemas/Role" }
+      responses:
+        "200":
+          description: Une page d'utilisateurs.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+    post:
+      tags: [Utilisateurs]
+      operationId: createUser
+      summary: Créer un utilisateur
+      x-required-role: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserCreate" }
+      responses:
+        "201":
+          description: Utilisateur créé.
+          headers:
+            Location:
+              description: Adresse de la ressource créée.
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/users/{user_id}:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    get:
+      tags: [Utilisateurs]
+      operationId: getUser
+      summary: Lire un utilisateur
+      x-required-role: admin
+      responses:
+        "200":
+          description: Utilisateur.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+    patch:
+      tags: [Utilisateurs]
+      operationId: updateUser
+      summary: Modifier le rôle, l'état ou le mot de passe
+      description: Seuls les champs fournis changent. Un administrateur ne peut pas retirer son propre rôle `admin` (`409`).
+      x-required-role: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserUpdate" }
+      responses:
+        "200":
+          description: Utilisateur modifié.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/intersections:
+    get:
+      tags: [Référentiel]
+      operationId: listIntersections
+      summary: Lister les carrefours
+      x-required-role: viewer
+      parameters:
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - name: has_traffic_light
+          in: query
+          description: Ne garder que les carrefours à feux (`true`) ou sans feux (`false`).
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: Une page de carrefours.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IntersectionPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/intersections/{intersection_id}:
+    parameters:
+      - $ref: "#/components/parameters/IntersectionId"
+    get:
+      tags: [Référentiel]
+      operationId: getIntersection
+      summary: Lire un carrefour et ses tronçons
+      x-required-role: viewer
+      responses:
+        "200":
+          description: Carrefour avec ses quatre approches au plus.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IntersectionDetail" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/road-segments:
+    get:
+      tags: [Référentiel]
+      operationId: listRoadSegments
+      summary: Lister les tronçons
+      description: Un tronçon est une approche de carrefour ; c'est l'unité d'analyse de la circulation.
+      x-required-role: viewer
+      parameters:
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - name: intersection_id
+          in: query
+          schema: { $ref: "#/components/schemas/IntersectionId" }
+      responses:
+        "200":
+          description: Une page de tronçons.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoadSegmentPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/indicators:
+    get:
+      tags: [Indicateurs]
+      operationId: listIndicators
+      summary: Lister les indicateurs par fenêtre
+      description: |
+        Un indicateur = un tronçon, une fenêtre de 1 ou 5 minutes, un run. Lecture seule, depuis les
+        vues de l'entrepôt (séparation écriture et lecture, ADR-014). Tri : `window_start` décroissant.
+      x-required-role: viewer
+      parameters:
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - name: intersection_id
+          in: query
+          schema: { $ref: "#/components/schemas/IntersectionId" }
+        - name: road_segment_id
+          in: query
+          schema: { $ref: "#/components/schemas/RoadSegmentId" }
+        - name: from
+          in: query
+          description: Début de période inclus (`window_start >= from`), UTC.
+          schema: { $ref: "#/components/schemas/UtcDateTime" }
+        - name: to
+          in: query
+          description: Fin de période exclue (`window_start < to`), UTC. Doit être postérieure à `from`.
+          schema: { $ref: "#/components/schemas/UtcDateTime" }
+        - name: window_size_s
+          in: query
+          description: Taille de fenêtre. Défaut 60 (l'état d'alerte vient des fenêtres de 1 minute).
+          schema: { $ref: "#/components/schemas/WindowSize" }
+        - name: congestion_state
+          in: query
+          schema: { $ref: "#/components/schemas/CongestionState" }
+        - name: run_id
+          in: query
+          description: Ne garder que ce run (exécution du simulateur ou jeu historique).
+          schema: { type: string, minLength: 1, maxLength: 80 }
+        - name: source_type
+          in: query
+          schema: { $ref: "#/components/schemas/SourceType" }
+      responses:
+        "200":
+          description: Une page d'indicateurs.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IndicatorPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/indicators/latest:
+    get:
+      tags: [Indicateurs]
+      operationId: listLatestIndicators
+      summary: Dernier indicateur de chaque tronçon
+      description: "Photographie courante du réseau pour le Tableau de bord : une fenêtre de 1 minute par tronçon."
+      x-required-role: viewer
+      parameters:
+        - name: intersection_id
+          in: query
+          schema: { $ref: "#/components/schemas/IntersectionId" }
+        - name: run_id
+          in: query
+          description: Run à lire. Par défaut, le run le plus récent.
+          schema: { type: string, minLength: 1, maxLength: 80 }
+      responses:
+        "200":
+          description: Un indicateur par tronçon.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Indicator" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/indicators/{indicator_id}:
+    get:
+      tags: [Indicateurs]
+      operationId: getIndicator
+      summary: Lire un indicateur
+      x-required-role: viewer
+      parameters:
+        - name: indicator_id
+          in: path
+          required: true
+          description: Identifiant de l'indicateur, égal à l'attribut `id` de l'événement `novaria.traffic.indicator.v1`.
+          schema: { type: string, minLength: 1, maxLength: 200 }
+          example: "run-demo-0001:ROAD_001:60:1792484400000"
+      responses:
+        "200":
+          description: Indicateur.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Indicator" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/alerts:
+    get:
+      tags: [Alertes]
+      operationId: listAlerts
+      summary: Lister les alertes
+      description: "Une alerte par épisode, jamais une par mesure (ADR-028). Tri : `opened_at` décroissant."
+      x-required-role: viewer
+      parameters:
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - name: state
+          in: query
+          schema: { $ref: "#/components/schemas/AlertState" }
+        - name: kind
+          in: query
+          schema: { $ref: "#/components/schemas/AlertKind" }
+        - name: severity
+          in: query
+          schema: { $ref: "#/components/schemas/Severity" }
+        - name: intersection_id
+          in: query
+          schema: { $ref: "#/components/schemas/IntersectionId" }
+        - name: road_segment_id
+          in: query
+          schema: { $ref: "#/components/schemas/RoadSegmentId" }
+        - name: opened_from
+          in: query
+          schema: { $ref: "#/components/schemas/UtcDateTime" }
+        - name: opened_to
+          in: query
+          schema: { $ref: "#/components/schemas/UtcDateTime" }
+      responses:
+        "200":
+          description: Une page d'alertes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlertPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/alerts/{alert_id}:
+    parameters:
+      - $ref: "#/components/parameters/AlertId"
+    get:
+      tags: [Alertes]
+      operationId: getAlert
+      summary: Lire une alerte et son historique
+      x-required-role: viewer
+      responses:
+        "200":
+          description: Alerte avec ses changements d'état.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlertDetail" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/alerts/{alert_id}/acknowledge:
+    parameters:
+      - $ref: "#/components/parameters/AlertId"
+    post:
+      tags: [Alertes]
+      operationId: acknowledgeAlert
+      summary: Acquitter une alerte
+      description: Passe l'alerte à `ACKNOWLEDGED` ; l'appelant devient `acknowledged_by`. Possible depuis `CREATED` ou `NOTIFIED`. Répéter l'appel sur une alerte déjà acquittée renvoie `200` sans effet.
+      x-required-role: operator
+      responses:
+        "200":
+          description: Alerte à l'état `ACKNOWLEDGED`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Alert" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Alerte déjà résolue ; code `INVALID_STATE_TRANSITION`.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/alerts/{alert_id}/resolve:
+    parameters:
+      - $ref: "#/components/parameters/AlertId"
+    post:
+      tags: [Alertes]
+      operationId: resolveAlert
+      summary: Résoudre une alerte à la main
+      description: Passe l'alerte à `RESOLVED` avec `resolution` égale à `MANUAL`. La résolution automatique se fait à la clôture de l'épisode, sans appel d'API.
+      x-required-role: operator
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                comment:
+                  type: string
+                  maxLength: 500
+                  description: Motif de la résolution, conservé dans l'historique.
+      responses:
+        "200":
+          description: Alerte à l'état `RESOLVED`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Alert" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Alerte déjà résolue ; code `INVALID_STATE_TRANSITION`.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/alert-rules:
+    get:
+      tags: [Alertes]
+      operationId: listAlertRules
+      summary: Lister les règles d'alerte
+      x-required-role: viewer
+      responses:
+        "200":
+          description: Règles configurées (`congestion.persistante`, `anomalie.circulation`, `capteur.muet`).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/AlertRule" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/alert-rules/{rule_id}:
+    patch:
+      tags: [Alertes]
+      operationId: updateAlertRule
+      summary: Activer, désactiver ou régler une règle
+      x-required-role: admin
+      parameters:
+        - name: rule_id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/RuleId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AlertRuleUpdate" }
+      responses:
+        "200":
+          description: Règle modifiée.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlertRule" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/signals:
+    get:
+      tags: [Feux]
+      operationId: listSignals
+      summary: État des feux de tous les carrefours équipés
+      description: |
+        **Schémas provisoires.** Les contrats d'événements `traffic.recommendations` et `signal.status`
+        ne sont pas encore écrits (MS-03, MS-12) ; cette partie suivra leur rédaction.
+      x-required-role: viewer
+      responses:
+        "200":
+          description: Un état par carrefour à feux.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/SignalState" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/signals/{intersection_id}:
+    parameters:
+      - $ref: "#/components/parameters/IntersectionId"
+    get:
+      tags: [Feux]
+      operationId: getSignal
+      summary: État des feux d'un carrefour
+      x-required-role: viewer
+      responses:
+        "200":
+          description: État courant.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SignalState" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/signals/{intersection_id}/commands:
+    parameters:
+      - $ref: "#/components/parameters/IntersectionId"
+    get:
+      tags: [Feux]
+      operationId: listSignalCommands
+      summary: Historique des commandes
+      description: "Lit le journal d'audit des commandes (acceptées et refusées). Tri : `requested_at` décroissant."
+      x-required-role: viewer
+      parameters:
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Cursor" }
+      responses:
+        "200":
+          description: Une page de commandes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SignalCommandPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+    post:
+      tags: [Feux]
+      operationId: sendSignalCommand
+      summary: Envoyer une commande manuelle
+      description: |
+        La commande manuelle est prioritaire sur les recommandations. Le service de réponse extérieure
+        applique des garde-fous : durée minimale de phase, interdiction des verts conflictuels.
+        Une commande dangereuse est **refusée et journalisée** (`422`, code `UNSAFE_COMMAND`).
+        Le modèle ne commande jamais seul un équipement (ADR-008, ADR-015).
+      x-required-role: operator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignalCommandRequest" }
+            example:
+              action: SET_PHASE
+              phase_id: P2
+              duration_s: 30
+              reason: Évacuation après incident confirmé
+      responses:
+        "202":
+          description: Commande acceptée ; son application se lit dans `GET /api/v1/signals/{intersection_id}`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SignalCommand" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Une autre commande manuelle est en cours ; code `COMMAND_IN_PROGRESS`.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "422":
+          description: Corps invalide (`VALIDATION_ERROR`) ou commande refusée par les garde-fous (`UNSAFE_COMMAND`).
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+              examples:
+                unsafe:
+                  summary: Durée sous le minimum de sécurité
+                  value:
+                    type: https://novaria.local/problems/unsafe-command
+                    title: Commande refusée par les garde-fous
+                    status: 422
+                    code: UNSAFE_COMMAND
+                    detail: La durée demandée est inférieure à la durée minimale de la phase.
+                    correlation_id: 0b1f3a52-7a77-4c4e-8f3e-2f1d2f5a9b11
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/forecasts:
+    get:
+      tags: [Prévisions]
+      operationId: listForecasts
+      summary: Prévisions de vitesse à court terme
+      description: |
+        Ratio de vitesse prévu pour chaque tronçon demandé. Tant qu'aucun modèle ne bat la référence
+        (persistance ou moyenne glissante), la réponse l'indique par `model.kind` égal à `REFERENCE`
+        (ADR-015, IA-06). Un modèle entraîné sur le simulateur apprend le simulateur : `provenance`
+        le rappelle.
+      x-required-role: viewer
+      parameters:
+        - name: road_segment_id
+          in: query
+          description: Un ou plusieurs tronçons (paramètre répété). Tous les tronçons si absent.
+          explode: true
+          schema:
+            type: array
+            maxItems: 50
+            items: { $ref: "#/components/schemas/RoadSegmentId" }
+        - name: horizon_min
+          in: query
+          description: Horizon de prévision en minutes, de 5 à 60. Défaut 15.
+          schema: { type: integer, minimum: 5, maximum: 60, default: 15 }
+      responses:
+        "200":
+          description: Une prévision par tronçon.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Forecast" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "503":
+          description: Modèle et référence indisponibles ; code `FORECAST_UNAVAILABLE`.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+  /api/v1/events/stream:
+    get:
+      tags: [Flux]
+      operationId: streamEvents
+      summary: Flux d'événements en direct (SSE)
+      description: |
+        Connexion longue au format *Server-Sent Events*. Proposition : SSE plutôt que WebSocket, car la
+        diffusion va dans un seul sens et OpenAPI sait décrire SSE (choix à confirmer, MS-11).
+
+        Chaque message a un `event` et un `data` JSON :
+
+        | `event` | `data` |
+        |---|---|
+        | `alert.state_changed` | schéma `Alert` |
+        | `signal.status` | schéma `SignalState` |
+        | `heartbeat` | `{ "time": "..." }` toutes les 30 s |
+
+        Le navigateur ne peut pas poser d'en-tête `Authorization` avec `EventSource` : le client utilise
+        `fetch` avec lecture du flux, ou la passerelle fournit un jeton à usage unique (point ouvert).
+      x-required-role: viewer
+      parameters:
+        - name: types
+          in: query
+          description: Types à recevoir, séparés par des virgules. Tous si absent.
+          schema:
+            type: array
+            items: { type: string, enum: [alert.state_changed, signal.status] }
+          style: form
+          explode: false
+      responses:
+        "200":
+          description: Flux ouvert.
+          content:
+            text/event-stream:
+              schema: { type: string }
+              example: |
+                event: alert.state_changed
+                data: {"alert_id":"3f6c7f1e-0d2b-4c55-9c0e-6a1a4b3f2d10","state":"NOTIFIED"}
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "5XX": { $ref: "#/components/responses/ServerError" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Jeton obtenu par `POST /api/v1/auth/login`.
+
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      description: Taille de page, de 1 à 500.
+      schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+    Cursor:
+      name: cursor
+      in: query
+      description: Curseur opaque lu dans `next_cursor` de la page précédente.
+      schema: { type: string, maxLength: 512 }
+    UserId:
+      name: user_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IntersectionId:
+      name: intersection_id
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/IntersectionId" }
+    AlertId:
+      name: alert_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  headers:
+    RetryAfter:
+      description: Secondes à attendre avant de réessayer.
+      schema: { type: integer, minimum: 1 }
+
+  responses:
+    Unauthorized:
+      description: Jeton absent, invalide ou expiré ; code `UNAUTHENTICATED`.
+      headers:
+        WWW-Authenticate:
+          schema: { type: string, example: Bearer }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: https://novaria.local/problems/unauthenticated
+            title: Authentification requise
+            status: 401
+            code: UNAUTHENTICATED
+            detail: Jeton absent, invalide ou expiré.
+            correlation_id: 7d2f0c9e-3b0a-4f0e-9a52-1c5c3c4e8a10
+    Forbidden:
+      description: Rôle insuffisant pour cette opération ; code `FORBIDDEN`.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: https://novaria.local/problems/forbidden
+            title: Droit insuffisant
+            status: 403
+            code: FORBIDDEN
+            detail: Le rôle `viewer` ne permet pas cette opération ; rôle requis `operator`.
+            correlation_id: 4c1d8f20-6e19-4a0c-bb6b-90d6f4f3a0de
+    NotFound:
+      description: Ressource inconnue ; code `NOT_FOUND`.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Conflict:
+      description: État incompatible avec la demande (doublon, règle de gestion) ; code `CONFLICT`.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    ValidationError:
+      description: Entrée invalide ; code `VALIDATION_ERROR`. `errors` liste chaque champ fautif.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: https://novaria.local/problems/validation-error
+            title: Entrée invalide
+            status: 422
+            code: VALIDATION_ERROR
+            detail: 1 champ invalide.
+            errors:
+              - { field: query.window_size_s, message: "La valeur doit être 60 ou 300." }
+            correlation_id: 9a3b2c10-5d6e-4f70-8a91-b2c3d4e5f607
+    TooManyRequests:
+      description: Limite de débit atteinte ; code `RATE_LIMITED`.
+      headers:
+        Retry-After: { $ref: "#/components/headers/RetryAfter" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    ServerError:
+      description: Erreur interne ou service en aval indisponible ; code `INTERNAL_ERROR` ou `UPSTREAM_UNAVAILABLE`. Aucun détail technique n'est exposé.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+
+  schemas:
+    # ------------------------------------------------------------------ Types simples
+    UtcDateTime:
+      type: string
+      format: date-time
+      pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?Z$'
+      description: Date et heure ISO 8601 en UTC, fuseau explicite (`Z`).
+      examples: ["2026-10-20T08:20:00Z"]
+    IntersectionId:
+      type: string
+      pattern: '^INT_[0-9]{2,}$'
+      examples: [INT_01]
+    RoadSegmentId:
+      type: string
+      pattern: '^ROAD_[0-9]{3,}$'
+      examples: [ROAD_001]
+    RuleId:
+      type: string
+      pattern: '^[a-z0-9_.-]{3,60}$'
+      examples: [congestion.persistante]
+    WindowSize:
+      type: integer
+      enum: [60, 300]
+      description: Taille de la fenêtre en secondes.
+    CongestionState:
+      type: string
+      enum: [UNKNOWN, FREE_FLOW, SLOW, CONGESTED]
+      description: |
+        État stabilisé d'un tronçon (hystérésis, ADR-028).
+        `UNKNOWN` : données insuffisantes (complétude inférieure à 0,5).
+    SourceType:
+      type: string
+      enum: [SIMULATED, REAL_HISTORICAL, REAL_LIVE]
+    Role:
+      type: string
+      enum: [viewer, operator, admin]
+    AlertState:
+      type: string
+      enum: [CREATED, NOTIFIED, ACKNOWLEDGED, RESOLVED]
+    AlertKind:
+      type: string
+      enum: [CONGESTION, TRAFFIC_ANOMALY, SENSOR_FAULT]
+    Severity:
+      type: string
+      enum: [INFO, WARNING, CRITICAL]
+    AlertCause:
+      type: string
+      enum: [UNKNOWN, CONFIRMED_INCIDENT, ROADWORKS, SPECIAL_EVENT, SENSOR_FAULT]
+      description: '`UNKNOWN` tant qu''aucun événement confirmé n''existe : une baisse de vitesse ne prouve pas un accident.'
+
+    Provenance:
+      type: object
+      additionalProperties: false
+      required: [source_type, run_id]
+      description: Origine de la donnée. Une donnée simulée n'est jamais présentée comme réelle (ADR-027).
+      properties:
+        source_type: { $ref: "#/components/schemas/SourceType" }
+        run_id:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: '`live`, identifiant d''un run du simulateur ou d''un jeu historique.'
+        scenario_id:
+          type: string
+          pattern: '^[a-z0-9_-]{1,60}$'
+          description: Obligatoire si `SIMULATED`.
+        seed:
+          type: integer
+          minimum: 0
+          description: Obligatoire si `SIMULATED` ; rend le run reproductible.
+        dataset_id:
+          type: string
+          pattern: '^[a-z0-9_.-]{1,60}$'
+          description: Obligatoire si `REAL_HISTORICAL`.
+      allOf:
+        - if:
+            properties: { source_type: { const: SIMULATED } }
+            required: [source_type]
+          then:
+            required: [scenario_id, seed]
+        - if:
+            properties: { source_type: { const: REAL_HISTORICAL } }
+            required: [source_type]
+          then:
+            required: [dataset_id]
+
+    # ------------------------------------------------------------------ Erreurs
+    Problem:
+      type: object
+      description: Corps unique de toute erreur (RFC 9457, `application/problem+json`).
+      required: [type, title, status, code, correlation_id]
+      properties:
+        type:
+          type: string
+          format: uri
+          description: Identifie la famille d'erreur.
+        title:
+          type: string
+          description: Résumé court, identique pour un même `code`.
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+          description: Code HTTP, répété dans le corps.
+        code:
+          type: string
+          description: Code stable lisible par une machine.
+          enum:
+            - UNAUTHENTICATED
+            - INVALID_CREDENTIALS
+            - FORBIDDEN
+            - NOT_FOUND
+            - CONFLICT
+            - VALIDATION_ERROR
+            - INVALID_STATE_TRANSITION
+            - COMMAND_IN_PROGRESS
+            - UNSAFE_COMMAND
+            - RATE_LIMITED
+            - FORECAST_UNAVAILABLE
+            - UPSTREAM_UNAVAILABLE
+            - INTERNAL_ERROR
+        detail:
+          type: string
+          description: Explication pour une personne. Ne contient ni secret, ni trace d'exécution.
+        correlation_id:
+          type: string
+          description: Identifiant de corrélation de la requête, à citer dans un signalement.
+        errors:
+          type: array
+          description: Un élément par champ invalide (`VALIDATION_ERROR`).
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field:
+                type: string
+                description: 'Chemin du champ, par exemple `body.password` ou `query.limit`.'
+              message: { type: string }
+
+    # ------------------------------------------------------------------ Santé, authentification
+    Health:
+      type: object
+      required: [status, version, revision, environment]
+      properties:
+        status: { type: string, enum: [ok] }
+        version: { type: string, description: Version du produit déployé. }
+        revision: { type: string, description: Révision Git du code construit. }
+        environment: { type: string, examples: [local] }
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 64 }
+        password: { type: string, minLength: 1, maxLength: 128, writeOnly: true }
+    Token:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, enum: [bearer] }
+        expires_in: { type: integer, minimum: 1, description: Durée de vie en secondes. }
+
+    # ------------------------------------------------------------------ Utilisateurs
+    User:
+      type: object
+      required: [user_id, username, role, is_active, created_at]
+      properties:
+        user_id: { type: string, format: uuid }
+        username: { type: string, minLength: 3, maxLength: 64 }
+        role: { $ref: "#/components/schemas/Role" }
+        is_active: { type: boolean }
+        created_at: { $ref: "#/components/schemas/UtcDateTime" }
+    UserCreate:
+      type: object
+      additionalProperties: false
+      required: [username, password, role]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 64, pattern: '^[a-z0-9_.-]+$' }
+        password: { type: string, minLength: 12, maxLength: 128, writeOnly: true }
+        role: { $ref: "#/components/schemas/Role" }
+    UserUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        role: { $ref: "#/components/schemas/Role" }
+        is_active: { type: boolean }
+        password: { type: string, minLength: 12, maxLength: 128, writeOnly: true }
+    UserPage:
+      allOf:
+        - $ref: "#/components/schemas/PageInfo"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/User" }
+
+    PageInfo:
+      type: object
+      required: [next_cursor]
+      properties:
+        next_cursor:
+          type: [string, "null"]
+          description: Curseur de la page suivante ; `null` sur la dernière page.
+
+    # ------------------------------------------------------------------ Référentiel
+    Intersection:
+      type: object
+      required: [intersection_id, name, has_traffic_light]
+      properties:
+        intersection_id: { $ref: "#/components/schemas/IntersectionId" }
+        name: { type: string }
+        latitude:
+          type: [number, "null"]
+          minimum: -90
+          maximum: 90
+          description: Vide pour le réseau fictif de démonstration.
+        longitude:
+          type: [number, "null"]
+          minimum: -180
+          maximum: 180
+        has_traffic_light: { type: boolean }
+    RoadSegment:
+      type: object
+      required: [road_segment_id, intersection_id, approach, road_type, lane_count, length_m, speed_limit_kmh, free_flow_speed_kmh]
+      properties:
+        road_segment_id: { $ref: "#/components/schemas/RoadSegmentId" }
+        intersection_id: { $ref: "#/components/schemas/IntersectionId" }
+        approach:
+          type: string
+          enum: [N, E, S, W]
+          description: Côté d'où arrive la circulation.
+        road_type: { type: string, enum: [MOTORWAY, ARTERIAL, COLLECTOR, LOCAL] }
+        lane_count: { type: integer, minimum: 1, maximum: 8 }
+        length_m: { type: number, exclusiveMinimum: 0 }
+        speed_limit_kmh: { type: integer, minimum: 5, maximum: 130 }
+        free_flow_speed_kmh:
+          type: number
+          exclusiveMinimum: 0
+          description: Vitesse en circulation fluide, dénominateur du ratio de vitesse.
+    IntersectionDetail:
+      allOf:
+        - $ref: "#/components/schemas/Intersection"
+        - type: object
+          required: [road_segments]
+          properties:
+            road_segments:
+              type: array
+              maxItems: 4
+              items: { $ref: "#/components/schemas/RoadSegment" }
+    IntersectionPage:
+      allOf:
+        - $ref: "#/components/schemas/PageInfo"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Intersection" }
+    RoadSegmentPage:
+      allOf:
+        - $ref: "#/components/schemas/PageInfo"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/RoadSegment" }
+
+    # ------------------------------------------------------------------ Indicateurs
+    Indicator:
+      type: object
+      description: Un tronçon, une fenêtre, un run. Mêmes champs et mêmes unités que l'événement `novaria.traffic.indicator.v1`.
+      required:
+        - indicator_id
+        - road_segment_id
+        - intersection_id
+        - window_start
+        - window_size_s
+        - vehicle_count
+        - flow_veh_per_min
+        - average_speed_kmh
+        - speed_ratio
+        - sample_count
+        - expected_sample_count
+        - congestion_state
+        - classifier_version
+        - provenance
+      properties:
+        indicator_id: { type: string, description: Identifiant stable, égal à l'`id` de l'événement. }
+        road_segment_id: { $ref: "#/components/schemas/RoadSegmentId" }
+        intersection_id: { $ref: "#/components/schemas/IntersectionId" }
+        window_start:
+          $ref: "#/components/schemas/UtcDateTime"
+          description: Début de la fenêtre ; elle couvre [window_start, window_start + window_size_s[.
+        window_size_s: { $ref: "#/components/schemas/WindowSize" }
+        vehicle_count: { type: integer, minimum: 0, maximum: 100000 }
+        flow_veh_per_min: { type: number, minimum: 0, maximum: 1000 }
+        average_speed_kmh:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 200
+          description: Moyenne pondérée par le nombre de véhicules ; `null` si aucun véhicule.
+        occupancy_rate: { type: [number, "null"], minimum: 0, maximum: 1 }
+        max_queue_length_m: { type: [number, "null"], minimum: 0, maximum: 10000 }
+        speed_ratio:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 9.999
+          description: Vitesse moyenne divisée par la vitesse fluide du tronçon ; `null` si la vitesse est `null`.
+        sample_count: { type: integer, minimum: 0, maximum: 32767 }
+        expected_sample_count: { type: integer, minimum: 1, maximum: 32767 }
+        completeness:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: min(1, sample_count / expected_sample_count).
+        congestion_state: { $ref: "#/components/schemas/CongestionState" }
+        classifier_version:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: Version de la règle ou du modèle qui a produit l'état (`regles-v0`).
+        provenance: { $ref: "#/components/schemas/Provenance" }
+      examples:
+        - indicator_id: "run-demo-0001:ROAD_001:60:1792484400000"
+          road_segment_id: ROAD_001
+          intersection_id: INT_01
+          window_start: "2026-10-20T08:20:00Z"
+          window_size_s: 60
+          vehicle_count: 9
+          flow_veh_per_min: 9.0
+          average_speed_kmh: 11.4
+          occupancy_rate: 0.78
+          max_queue_length_m: 140.0
+          speed_ratio: 0.228
+          sample_count: 6
+          expected_sample_count: 6
+          completeness: 1.0
+          congestion_state: CONGESTED
+          classifier_version: regles-v0
+          provenance: { source_type: SIMULATED, run_id: run-demo-0001, scenario_id: heure-de-pointe, seed: 42 }
+    IndicatorPage:
+      allOf:
+        - $ref: "#/components/schemas/PageInfo"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Indicator" }
+
+    # ------------------------------------------------------------------ Alertes
+    Alert:
+      type: object
+      description: Mêmes valeurs que l'événement `novaria.alert.state_changed.v1` et la table `alertes.alert`.
+      required:
+        - alert_id
+        - rule_id
+        - kind
+        - state
+        - severity
+        - cause
+        - road_segment_id
+        - intersection_id
+        - opened_at
+        - resolved_at
+        - resolution
+        - provenance
+      properties:
+        alert_id: { type: string, format: uuid }
+        rule_id: { $ref: "#/components/schemas/RuleId" }
+        kind: { $ref: "#/components/schemas/AlertKind" }
+        state: { $ref: "#/components/schemas/AlertState" }
+        severity: { $ref: "#/components/schemas/Severity" }
+        cause: { $ref: "#/components/schemas/AlertCause" }
+        road_segment_id: { $ref: "#/components/schemas/RoadSegmentId" }
+        intersection_id: { $ref: "#/components/schemas/IntersectionId" }
+        episode_id: { type: [string, "null"], format: uuid }
+        opened_at: { $ref: "#/components/schemas/UtcDateTime" }
+        notified_at: { oneOf: [{ $ref: "#/components/schemas/UtcDateTime" }, { type: "null" }] }
+        acknowledged_at: { oneOf: [{ $ref: "#/components/schemas/UtcDateTime" }, { type: "null" }] }
+        acknowledged_by: { type: [string, "null"], description: Nom d'utilisateur de l'opérateur. }
+        resolved_at:
+          oneOf: [{ $ref: "#/components/schemas/UtcDateTime" }, { type: "null" }]
+          description: Renseigné si et seulement si `state` vaut `RESOLVED`.
+        resolution:
+          type: [string, "null"]
+          enum: [AUTO, MANUAL, null]
+          description: Renseigné si et seulement si `state` vaut `RESOLVED`.
+        provenance: { $ref: "#/components/schemas/Provenance" }
+    AlertHistoryEntry:
+      type: object
+      required: [from_state, to_state, changed_at, actor]
+      properties:
+        from_state:
+          type: [string, "null"]
+          enum: [CREATED, NOTIFIED, ACKNOWLEDGED, RESOLVED, null]
+        to_state: { $ref: "#/components/schemas/AlertState" }
+        changed_at: { $ref: "#/components/schemas/UtcDateTime" }
+        actor: { type: string, description: 'Nom d''utilisateur ou `system`.' }
+        comment: { type: [string, "null"], maxLength: 500 }
+    AlertDetail:
+      allOf:
+        - $ref: "#/components/schemas/Alert"
+        - type: object
+          required: [history]
+          properties:
+            history:
+              type: array
+              items: { $ref: "#/components/schemas/AlertHistoryEntry" }
+    AlertPage:
+      allOf:
+        - $ref: "#/components/schemas/PageInfo"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Alert" }
+    AlertRule:
+      type: object
+      required: [rule_id, kind, enabled, params, min_gap_s, updated_at]
+      properties:
+        rule_id: { $ref: "#/components/schemas/RuleId" }
+        kind: { $ref: "#/components/schemas/AlertKind" }
+        enabled: { type: boolean }
+        params:
+          type: object
+          description: Paramètres propres à la règle (par exemple `silence_s` pour `capteur.muet`).
+          additionalProperties: true
+        min_gap_s:
+          type: integer
+          minimum: 0
+          description: Délai minimal entre deux notifications pour un même tronçon.
+        updated_at: { $ref: "#/components/schemas/UtcDateTime" }
+    AlertRuleUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        enabled: { type: boolean }
+        params: { type: object, additionalProperties: true }
+        min_gap_s: { type: integer, minimum: 0 }
+
+    # ------------------------------------------------------------------ Feux (provisoire)
+    SignalPhase:
+      type: object
+      required: [phase_id, green_approaches, min_duration_s, duration_s]
+      properties:
+        phase_id: { type: string, pattern: '^P[0-9]+$', examples: [P1] }
+        green_approaches:
+          type: array
+          description: Approches au vert pendant cette phase. Deux phases en conflit ne se recouvrent jamais.
+          items: { type: string, enum: [N, E, S, W] }
+        min_duration_s: { type: integer, minimum: 1, description: Durée minimale de sécurité. }
+        duration_s: { type: integer, minimum: 1 }
+    SignalState:
+      type: object
+      description: Provisoire, à aligner sur le contrat `signal.status` (MS-12).
+      required: [intersection_id, mode, current_phase_id, phases, updated_at]
+      properties:
+        intersection_id: { $ref: "#/components/schemas/IntersectionId" }
+        mode:
+          type: string
+          enum: [AUTOMATIC, MANUAL, DEGRADED_FIXED_PLAN]
+          description: |
+            `AUTOMATIC` : suit les recommandations. `MANUAL` : commande d'un opérateur en cours.
+            `DEGRADED_FIXED_PLAN` : retour au plan à durées fixes quand les recommandations manquent.
+        current_phase_id: { type: string }
+        phases:
+          type: array
+          items: { $ref: "#/components/schemas/SignalPhase" }
+        updated_at: { $ref: "#/components/schemas/UtcDateTime" }
+        provenance: { $ref: "#/components/schemas/Provenance" }
+    SignalCommandRequest:
+      type: object
+      additionalProperties: false
+      required: [action, reason]
+      properties:
+        action:
+          type: string
+          enum: [SET_PHASE, RESUME_AUTOMATIC]
+          description: '`SET_PHASE` impose une phase ; `RESUME_AUTOMATIC` rend la main aux recommandations.'
+        phase_id: { type: string, pattern: '^P[0-9]+$', description: Obligatoire avec `SET_PHASE`. }
+        duration_s: { type: integer, minimum: 1, maximum: 600, description: Obligatoire avec `SET_PHASE`. }
+        reason: { type: string, minLength: 3, maxLength: 500, description: Motif, conservé dans le journal d'audit. }
+      allOf:
+        - if:
+            properties: { action: { const: SET_PHASE } }
+            required: [action]
+          then:
+            required: [phase_id, duration_s]
+    SignalCommand:
+      type: object
+      required: [command_id, intersection_id, action, status, requested_by, requested_at, reason]
+      properties:
+        command_id: { type: string, format: uuid }
+        intersection_id: { $ref: "#/components/schemas/IntersectionId" }
+        action: { type: string, enum: [SET_PHASE, RESUME_AUTOMATIC] }
+        phase_id: { type: [string, "null"] }
+        duration_s: { type: [integer, "null"] }
+        status:
+          type: string
+          enum: [ACCEPTED, APPLIED, REFUSED, EXPIRED]
+        refusal_reason: { type: [string, "null"], description: Renseigné si `status` vaut `REFUSED`. }
+        requested_by: { type: string }
+        requested_at: { $ref: "#/components/schemas/UtcDateTime" }
+        reason: { type: string }
+    SignalCommandPage:
+      allOf:
+        - $ref: "#/components/schemas/PageInfo"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/SignalCommand" }
+
+    # ------------------------------------------------------------------ Prévisions
+    Forecast:
+      type: object
+      required: [road_segment_id, issued_at, horizon_min, target_time, predicted_speed_ratio, model, provenance]
+      properties:
+        road_segment_id: { $ref: "#/components/schemas/RoadSegmentId" }
+        issued_at: { $ref: "#/components/schemas/UtcDateTime" }
+        horizon_min: { type: integer, minimum: 5, maximum: 60 }
+        target_time:
+          $ref: "#/components/schemas/UtcDateTime"
+          description: Instant prévu, égal à `issued_at` plus `horizon_min`.
+        predicted_speed_ratio: { type: number, minimum: 0, maximum: 9.999 }
+        predicted_state: { $ref: "#/components/schemas/CongestionState" }
+        model:
+          type: object
+          required: [kind, name, version]
+          properties:
+            kind:
+              type: string
+              enum: [REFERENCE, MODEL]
+              description: '`REFERENCE` : persistance ou moyenne glissante. `MODEL` : modèle entraîné qui a battu la référence.'
+            name: { type: string }
+            version: { type: string }
+            run_id:
+              type: [string, "null"]
+              description: Identifiant du run d'entraînement (`model_runs`), qui remonte au code et aux données.
+        provenance: { $ref: "#/components/schemas/Provenance" }
