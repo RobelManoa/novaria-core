@@ -7,14 +7,19 @@ Bibliothèque standard uniquement. Aide : python scripts/dev/dev.py --help
 from __future__ import annotations
 
 import argparse
+import importlib.util
+import json
 import os
 import platform
+import re
 import secrets
 import shutil
 import subprocess
 import sys
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
+from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[2]
 ENV_FILE = ROOT / ".env"
@@ -82,11 +87,12 @@ def require_env() -> None:
         raise DevError(INIT_ENV_HINT)
 
 
-def compose(*args: str, check: bool = True, capture: bool = False) -> subprocess.CompletedProcess:
+def compose(*args: str, check: bool = True, capture: bool = False,
+            input_text: str | None = None) -> subprocess.CompletedProcess:
     """Lance `docker compose ...` à la racine du dépôt (sans shell : même comportement sous Windows)."""
     require_docker()
     return subprocess.run(
-        ["docker", "compose", *args], cwd=ROOT, check=check, capture_output=capture,
+        ["docker", "compose", *args], cwd=ROOT, check=check, capture_output=capture, input=input_text,
         text=True, encoding="utf-8", errors="replace",
     )
 
@@ -275,6 +281,184 @@ def cmd_db_check(_: argparse.Namespace) -> int:
     return 0 if failures == 0 else 1
 
 
+# --------------------------------------------------------------------------- Kafka (ADR-009, LOC-04)
+# Les outils en ligne de commande de Kafka sont dans le conteneur : aucun client Kafka à installer sur le poste.
+KAFKA_BIN = "/opt/kafka/bin"
+KAFKA_BOOTSTRAP = "localhost:9092"  # adresse vue depuis le conteneur du broker
+KAFKA_PARTITIONS = 3  # ADR-009 §4.3 : 3 partitions par sujet en local
+KAFKA_SEPARATOR = "|"  # sépare partition, décalage, clé et valeur à la relecture, clé et valeur à la publication
+EXAMPLE_MEASUREMENT = ROOT / "contracts" / "events" / "examples" / "mesure-valide.json"
+VALIDATOR = ROOT / "contracts" / "validate_events.py"
+
+
+class Topic(NamedTuple):
+    name: str
+    key: str  # champ qui sert de clé de partition (même clé : même partition, donc ordre conservé)
+    configs: tuple[str, ...] = ()
+
+
+# Sujets du bus (ADR-009 §4.1). La clé est celle des contrats : `subject` de l'enveloppe = `data.intersection_id`.
+KAFKA_TOPICS: tuple[Topic, ...] = (
+    Topic("iot.raw", "intersection_id", ("retention.ms=604800000",)),  # rétention de 7 jours (ADR-009 §4.3)
+    Topic("traffic.indicators", "intersection_id"),
+    Topic("traffic.recommendations", "intersection_id"),
+    Topic("alerts.events", "intersection_id"),
+    Topic("signal.status", "intersection_id"),
+    Topic("errors.dlq", "intersection_id"),
+)
+
+
+def kafka_tool(tool: str, *args: str, input_text: str | None = None) -> subprocess.CompletedProcess:
+    """Lance un outil Kafka dans le conteneur `kafka` ; la sortie est capturée."""
+    return compose("exec", "-T", "kafka", f"{KAFKA_BIN}/{tool}", "--bootstrap-server", KAFKA_BOOTSTRAP, *args,
+                   check=False, capture=True, input_text=input_text)
+
+
+def parse_topic_descriptions(output: str) -> dict[str, tuple[int, int, dict[str, str]]]:
+    """Lit la sortie de `kafka-topics.sh --describe` : {sujet: (partitions, réplication, configuration)}."""
+    topics = {}
+    pattern = re.compile(r"^Topic: (\S+)\s+TopicId: \S+\s+PartitionCount: (\d+)\s+ReplicationFactor: (\d+)\s+Configs: (.*)$")
+    for line in output.splitlines():
+        match = pattern.match(line.strip())
+        if match:
+            configs = dict(item.split("=", 1) for item in match.group(4).split(",") if "=" in item)
+            topics[match.group(1)] = (int(match.group(2)), int(match.group(3)), configs)
+    return topics
+
+
+def parse_offsets(output: str, topic: str) -> dict[int, int]:
+    """Lit la sortie de `kafka-get-offsets.sh` (lignes « sujet:partition:décalage »)."""
+    offsets = {}
+    for line in output.splitlines():
+        name, _, rest = line.strip().rpartition(":")  # décalage
+        head, _, partition = name.rpartition(":")
+        if head == topic and partition.isdigit() and rest.isdigit():
+            offsets[int(partition)] = int(rest)
+    return offsets
+
+
+def parse_consumed(output: str) -> tuple[int, int, str, str] | None:
+    """Lit la première ligne « Partition:p|Offset:o|clé|valeur » d'un consommateur ; None si absente."""
+    for line in output.splitlines():
+        if line.startswith("Partition:"):
+            head = line.split(KAFKA_SEPARATOR, 3)
+            if len(head) == 4 and head[1].startswith("Offset:"):
+                return int(head[0].removeprefix("Partition:")), int(head[1].removeprefix("Offset:")), head[2], head[3]
+    return None
+
+
+def cmd_kafka_up(_: argparse.Namespace) -> int:
+    code = run_compose_step("up", "-d", "--wait", "kafka")
+    if code == 0:
+        print("Kafka prêt : 127.0.0.1:9094 depuis le poste (KAFKA_PORT), kafka:9092 depuis les conteneurs.")
+    return code
+
+
+def kafka_topic_rows() -> tuple[list[str], int]:
+    """Crée les sujets manquants, puis rend les lignes du tableau et le nombre d'anomalies."""
+    listing = kafka_tool("kafka-topics.sh", "--list")
+    if listing.returncode != 0:
+        raise DevError("Impossible de lister les sujets :\n" + (listing.stderr or listing.stdout).strip())
+    existing = set(listing.stdout.split())
+    created = set()
+    for topic in KAFKA_TOPICS:
+        if topic.name in existing:
+            continue
+        configs = [arg for config in topic.configs for arg in ("--config", config)]
+        result = kafka_tool("kafka-topics.sh", "--create", "--topic", topic.name, "--partitions",
+                            str(KAFKA_PARTITIONS), "--replication-factor", "1", *configs)
+        if result.returncode != 0:
+            raise DevError(f"Création de {topic.name} impossible :\n" + (result.stderr or result.stdout).strip())
+        created.add(topic.name)
+    description = kafka_tool("kafka-topics.sh", "--describe")
+    if description.returncode != 0:
+        raise DevError("Impossible de décrire les sujets :\n" + (description.stderr or description.stdout).strip())
+    found = parse_topic_descriptions(description.stdout)
+    rows = [f"  {'sujet':<24} {'partitions':<11} {'clé de partition':<17} état"]
+    failures = 0
+    for topic in KAFKA_TOPICS:
+        if topic.name not in found:
+            failures += 1
+            rows.append(f"  {topic.name:<24} {'-':<11} {topic.key:<17} [KO] absent")
+            continue
+        partitions, _, configs = found[topic.name]
+        wrong = [f"{k} attendu {v}" for k, v in (c.split("=", 1) for c in topic.configs) if configs.get(k) != v]
+        if partitions != KAFKA_PARTITIONS:
+            wrong.append(f"{KAFKA_PARTITIONS} partitions attendues")
+        failures += 1 if wrong else 0
+        state = f"[KO] {', '.join(wrong)}" if wrong else f"[OK] {'créé' if topic.name in created else 'déjà présent'}"
+        rows.append(f"  {topic.name:<24} {partitions:<11} {topic.key:<17} {state}")
+    return rows, failures
+
+
+def cmd_kafka_topics(_: argparse.Namespace) -> int:
+    """Démarre Kafka si besoin, crée les 6 sujets manquants (sans toucher aux existants) et les vérifie."""
+    code = run_compose_step("up", "-d", "--wait", "kafka")
+    if code != 0:
+        return code
+    rows, failures = kafka_topic_rows()
+    print("\n".join(rows))
+    print(f"{len(KAFKA_TOPICS)} sujets présents et conformes." if failures == 0
+          else f"{failures} sujet(s) en échec.")
+    return 0 if failures == 0 else 1
+
+
+def cmd_kafka_roundtrip(args: argparse.Namespace) -> int:
+    """Publie un événement, le relit au décalage exact où il a été écrit, puis le valide contre le contrat."""
+    require_env()
+    if importlib.util.find_spec("jsonschema") is None or importlib.util.find_spec("referencing") is None:
+        raise DevError("Le validateur de contrats demande : pip install jsonschema referencing")
+    try:
+        event = json.loads(args.file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise DevError(f"Événement illisible ({args.file}) : {error}") from error
+    if not isinstance(event, dict) or not event.get("subject"):
+        raise DevError("L'événement doit être un objet avec un champ `subject` (la clé de partition).")
+    key = str(event["subject"])
+    described = kafka_tool("kafka-topics.sh", "--describe", "--topic", args.topic)
+    if described.returncode != 0 or args.topic not in parse_topic_descriptions(described.stdout):
+        raise DevError(f"Le sujet {args.topic} n'existe pas. Le créer :  python scripts/dev/dev.py kafka-topics")
+
+    before = parse_offsets(kafka_tool("kafka-get-offsets.sh", "--topic", args.topic, "--time", "-1").stdout, args.topic)
+    sent = json.dumps(event, separators=(",", ":"))
+    produced = kafka_tool(
+        "kafka-console-producer.sh", "--topic", args.topic, "--reader-property", "parse.key=true",
+        "--reader-property", f"key.separator={KAFKA_SEPARATOR}", input_text=f"{key}{KAFKA_SEPARATOR}{sent}\n")
+    after = parse_offsets(kafka_tool("kafka-get-offsets.sh", "--topic", args.topic, "--time", "-1").stdout, args.topic)
+    grown = [p for p, end in after.items() if end > before.get(p, 0)]
+    if produced.returncode != 0 or len(grown) != 1 or after[grown[0]] != before.get(grown[0], 0) + 1:
+        raise DevError("Publication non confirmée (un seul message devait apparaître) :\n"
+                       + (produced.stderr or produced.stdout).strip())
+    partition, offset = grown[0], before.get(grown[0], 0)
+    print(f"  [OK] publié  : sujet {args.topic}, partition {partition}, décalage {offset}, clé {key}")
+
+    read = kafka_tool(
+        "kafka-console-consumer.sh", "--topic", args.topic, "--partition", str(partition), "--offset", str(offset),
+        "--max-messages", "1", "--timeout-ms", "15000", "--formatter-property", "print.partition=true",
+        "--formatter-property", "print.offset=true", "--formatter-property", "print.key=true",
+        "--formatter-property", f"key.separator={KAFKA_SEPARATOR}")
+    consumed = parse_consumed(read.stdout)
+    if consumed is None:
+        raise DevError("Relecture impossible :\n" + (read.stderr or read.stdout).strip())
+    _, _, read_key, read_value = consumed
+    if read_key != key or json.loads(read_value) != event:
+        print("  [KO] relu    : le message relu diffère du message publié")
+        return 1
+    print(f"  [OK] relu    : partition {partition}, décalage {offset}, clé {read_key}, contenu identique à {args.file.name}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / f"relu-{args.topic}-p{partition}-o{offset}.json"
+        target.write_text(read_value, encoding="utf-8")
+        checked = subprocess.run([sys.executable, str(VALIDATOR), str(target)], capture_output=True, text=True,
+                                 encoding="utf-8", errors="replace", check=False)
+    for line in (checked.stdout + checked.stderr).splitlines():
+        print(f"  [contrat] {line}")
+    if checked.returncode != 0:
+        return 1
+    print("  [OK] conforme au contrat (schéma et règles entre champs)")
+    return 0
+
+
 # --------------------------------------------------------------------------- vérification du poste
 def tool_version(command: Sequence[str]) -> str | None:
     executable = shutil.which(command[0])
@@ -347,6 +531,11 @@ def build_parser() -> argparse.ArgumentParser:
     add("db-migrate", cmd_db_migrate, "applique les migrations SQL en attente")
     add("db-status", cmd_db_status, "état des bases et des migrations")
     add("db-check", cmd_db_check, "vérifie rôles, droits, collections et index")
+    add("kafka-up", cmd_kafka_up, "démarre Kafka (mode KRaft) et attend qu'il soit prêt")
+    add("kafka-topics", cmd_kafka_topics, "crée les 6 sujets du bus s'ils manquent et les vérifie")
+    trip = add("kafka-roundtrip", cmd_kafka_roundtrip, "publie un événement, le relit et le valide contre le contrat")
+    trip.add_argument("--file", type=Path, default=EXAMPLE_MEASUREMENT, help="événement à publier (mesure-valide.json)")
+    trip.add_argument("--topic", default="iot.raw", help="sujet de publication (iot.raw)")
     add("psql", cmd_psql, "ouvre psql dans le conteneur PostgreSQL (administrateur)")
     add("mongosh", cmd_mongosh, "ouvre mongosh dans le conteneur MongoDB (administrateur)")
     add("backup", cmd_backup, "sauvegarde PostgreSQL et MongoDB dans backups/")

@@ -3,7 +3,7 @@
 PY ?= python3
 DEV = $(PY) scripts/dev/dev.py
 
-.PHONY: help init-env up down ps logs db-up db-migrate db-status db-check psql mongosh backup restore-check restore db-reset test test-contracts lint format quality-up quality-down hooks
+.PHONY: help init-env up down ps logs db-up db-migrate db-status db-check psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts lint format quality-up quality-down hooks
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -39,6 +39,13 @@ restore:       ## REMPLACE les données locales par la dernière sauvegarde (con
 	$(DEV) restore
 db-reset:      ## SUPPRIME les données locales (confirmation demandée)
 	$(DEV) db-reset
+
+kafka-up:      ## Démarre Kafka (mode KRaft) et attend qu'il soit prêt
+	$(DEV) kafka-up
+kafka-topics:  ## Crée les 6 sujets du bus s'ils manquent et les vérifie
+	$(DEV) kafka-topics
+kafka-roundtrip: ## Publie mesure-valide.json sur iot.raw, le relit et le valide
+	$(DEV) kafka-roundtrip
 
 test:          ## Tests backend + frontend + scripts du poste
 	cd backend && python -m pytest
