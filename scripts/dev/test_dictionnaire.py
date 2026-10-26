@@ -28,11 +28,12 @@ INIT_MONGO = RACINE / "db" / "mongo" / "init" / "01-collections-et-utilisateurs.
 # Exécute le script d'initialisation avec une base simulée et affiche ce qu'il crée.
 EXTRACTION_MONGO = r"""
 const fs = require("fs");
-const sortie = { collections: {}, index: {} };
+const sortie = { collections: {}, index: {}, roles: {}, utilisateurs: {} };
 const base = new Proxy({}, {
   get(_, nom) {
     if (nom === "createCollection") return (n, options) => { sortie.collections[n] = options.validator.$jsonSchema; };
-    if (nom === "createRole" || nom === "createUser") return () => {};
+    if (nom === "createRole") return (r) => { sortie.roles[r.role] = r.privileges; };
+    if (nom === "createUser") return (u) => { sortie.utilisateurs[u.user] = u.roles.map((r) => r.role); };
     return { createIndex: (cles, options) => { (sortie.index[nom] = sortie.index[nom] || []).push(options.name); } };
   },
 });
@@ -43,6 +44,21 @@ ENVIRONNEMENT_MONGO = {
     "MONGO_DB": "novaria",
     **{f"MONGO_PASSWORD_{nom}": "x" for nom in ("COLLECTE", "TRAITEMENT", "REPONSE", "BACKEND", "ML")},
 }
+
+
+def extraire_mongo() -> dict:
+    """Exécute le script d'initialisation MongoDB avec une base simulée ; renvoie collections, index, rôles, utilisateurs."""
+    with tempfile.TemporaryDirectory() as dossier:
+        script = Path(dossier) / "extraire.js"
+        script.write_text(EXTRACTION_MONGO, encoding="utf-8")
+        resultat = subprocess.run(
+            ["node", str(script), str(INIT_MONGO)],
+            capture_output=True, text=True, encoding="utf-8", timeout=60,
+            env={**os.environ, **ENVIRONNEMENT_MONGO},
+        )
+    if resultat.returncode != 0:
+        raise AssertionError(f"Le script d'initialisation MongoDB a échoué :\n{resultat.stderr}")
+    return json.loads(resultat.stdout)
 
 
 def texte_du_dictionnaire() -> str:
@@ -137,17 +153,7 @@ def champs(schema: dict, prefixe: str = ""):
 class DictionnaireMongo(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        with tempfile.TemporaryDirectory() as dossier:
-            script = Path(dossier) / "extraire.js"
-            script.write_text(EXTRACTION_MONGO, encoding="utf-8")
-            resultat = subprocess.run(
-                ["node", str(script), str(INIT_MONGO)],
-                capture_output=True, text=True, encoding="utf-8", timeout=60,
-                env={**os.environ, **ENVIRONNEMENT_MONGO},
-            )
-        if resultat.returncode != 0:
-            raise AssertionError(f"Le script d'initialisation MongoDB a échoué :\n{resultat.stderr}")
-        cls.mongo = json.loads(resultat.stdout)
+        cls.mongo = extraire_mongo()
         texte = texte_du_dictionnaire()
         debut = texte.index("## 10. Collections MongoDB")
         fin = texte.index("\n## ", debut + 1)
