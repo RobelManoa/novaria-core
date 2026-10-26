@@ -2,8 +2,6 @@
     python3 -m unittest discover -s contracts/tests -v        (Windows : py -3 -m unittest ...)
 Dépendances : pip install jsonschema referencing
 """
-import copy
-import json
 import sys
 import unittest
 import unittest.mock
@@ -11,13 +9,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import validate_events as ve  # noqa: E402
-
-EXAMPLES = ROOT / "events" / "examples"
-
-
-def load(name):
-    return json.loads((EXAMPLES / name).read_text(encoding="utf-8"))
+from cases import EXAMPLES, INVALID_CASES, load, mutate  # noqa: E402
 
 
 class SchemasTests(unittest.TestCase):
@@ -35,60 +29,10 @@ class SchemasTests(unittest.TestCase):
 
     def test_les_exemples_sont_valides(self):
         files = sorted(EXAMPLES.glob("*.json"))
-        self.assertGreaterEqual(len(files), 9)
+        self.assertGreaterEqual(len(files), 17)
         for path in files:
             with self.subTest(exemple=path.name):
                 self.assertEqual(ve.validate_event(load(path.name)), [])
-
-
-def mutate(name, change):
-    event = copy.deepcopy(load(name))
-    change(event)
-    return event
-
-
-# (description, exemple de départ, modification, fragment attendu dans le message d'erreur)
-INVALID_CASES = [
-    ("champ inconnu dans l'enveloppe", "mesure-valide.json", lambda e: e.update(extra=1), "extra"),
-    ("champ inconnu dans data", "mesure-valide.json", lambda e: e["data"].update(vitesse_mph=30), "vitesse_mph"),
-    ("type inconnu", "mesure-valide.json", lambda e: e.update(type="novaria.autre.v1"), "type inconnu"),
-    ("date sans fuseau", "mesure-valide.json", lambda e: e.update(time="2026-10-20T08:00:10"), "does not match"),
-    ("date avec décalage au lieu de UTC", "mesure-valide.json", lambda e: e.update(time="2026-10-20T10:00:10+02:00"), "does not match"),
-    ("identifiant de carrefour mal formé", "mesure-valide.json", lambda e: e.update(subject="carrefour-1"), "does not match"),
-    ("vitesse négative", "mesure-valide.json", lambda e: e["data"].update(average_speed_kmh=-1), "minimum"),
-    ("vitesse hors borne (200 km/h)", "mesure-valide.json", lambda e: e["data"].update(average_speed_kmh=250), "maximum"),
-    ("taux d'occupation supérieur à 1", "mesure-valide.json", lambda e: e["data"].update(occupancy_rate=1.4), "maximum"),
-    ("nombre de véhicules fractionnaire", "mesure-valide.json", lambda e: e["data"].update(vehicle_count=2.5), "integer"),
-    ("vitesse présente alors qu'aucun véhicule", "mesure-route-vide.json", lambda e: e["data"].update(average_speed_kmh=30), "null"),
-    ("mesure VALID sans vitesse malgré des véhicules", "mesure-valide.json", lambda e: e["data"].update(average_speed_kmh=None), "number"),
-    ("mesure VALID sans taux d'occupation", "mesure-valide.json", lambda e: e["data"].update(occupancy_rate=None), "number"),
-    ("statut de qualité inconnu", "mesure-valide.json", lambda e: e["data"]["quality"].update(status="GOOD"), "GOOD"),
-    ("drapeau de qualité inconnu", "mesure-partielle.json", lambda e: e["data"]["quality"].update(flags=["BIZARRE"]), "BIZARRE"),
-    ("provenance absente", "mesure-valide.json", lambda e: e["data"].pop("provenance"), "provenance"),
-    ("simulation sans graine", "mesure-valide.json", lambda e: e["data"]["provenance"].pop("seed"), "seed"),
-    ("simulation sans scénario", "mesure-valide.json", lambda e: e["data"]["provenance"].pop("scenario_id"), "scenario_id"),
-    ("origine historique sans jeu de données", "mesure-valide.json",
-     lambda e: e["data"]["provenance"].update(source_type="REAL_HISTORICAL"), "dataset_id"),
-    ("origine inconnue", "mesure-valide.json", lambda e: e["data"]["provenance"].update(source_type="IMAGINARY"), "IMAGINARY"),
-    ("fenêtre de 2 minutes", "indicateur-fluide.json", lambda e: e["data"].update(window_size_s=120), "120"),
-    ("état de congestion inconnu", "indicateur-fluide.json", lambda e: e["data"].update(congestion_state="JAMMED"), "JAMMED"),
-    ("ratio de vitesse non nul sans vitesse", "indicateur-route-vide.json", lambda e: e["data"].update(speed_ratio=0.5), "null"),
-    ("congestion sans ratio de vitesse", "indicateur-congestion.json", lambda e: e["data"].update(speed_ratio=None), "number"),
-    ("mesures attendues à zéro", "indicateur-fluide.json", lambda e: e["data"].update(expected_sample_count=0), "minimum"),
-    ("alerte résolue sans date de résolution", "alerte-resolue.json", lambda e: e["data"].update(resolved_at=None), "string"),
-    ("alerte non résolue avec une date de résolution", "alerte-creee.json",
-     lambda e: e["data"].update(resolved_at="2026-10-20T09:00:00Z"), "null"),
-    ("alerte non résolue avec un mode de résolution", "alerte-creee.json", lambda e: e["data"].update(resolution="AUTO"), "null"),
-    ("état d'alerte inconnu", "alerte-creee.json", lambda e: e["data"].update(state="CLOSED"), "CLOSED"),
-    ("identifiant d'alerte qui n'est pas un UUID", "alerte-creee.json", lambda e: e["data"].update(alert_id="abc"), "uuid"),
-    # Règles sémantiques (comparaison entre champs)
-    ("subject différent du carrefour de data", "mesure-valide.json", lambda e: e.update(subject="INT_02"), "subject"),
-    ("id de mesure qui ne suit pas la convention", "mesure-valide.json", lambda e: e.update(id="n-importe-quoi"), "id de mesure"),
-    ("fenêtre non alignée", "indicateur-fluide.json",
-     lambda e: (e["data"].update(window_start="2026-10-20T08:00:07Z"), e.update(time="2026-10-20T08:01:07Z")), "aligné"),
-    ("time d'un indicateur différent de la fin de fenêtre", "indicateur-fluide.json", lambda e: e.update(time="2026-10-20T08:00:00Z"), "fin de fenêtre"),
-    ("alerte résolue avant d'être ouverte", "alerte-resolue.json", lambda e: e["data"].update(resolved_at="2026-10-20T08:00:00Z"), "précéder"),
-]
 
 
 class InvalidEventsTests(unittest.TestCase):

@@ -1,0 +1,58 @@
+{
+  "id": "c3a1d2e4-5b6f-4a7c-8d9e-0f1a2b3c4d5e",
+  "source": "traitement",
+  "type": "novaria.traffic.recommendation.v1",
+  "time": "2026-10-20T08:21:05Z",
+  "subject": "INT_01",
+  "schema_version": "1.0",
+  "correlation_id": "corr-1792484400000",
+  "domain": "traffic",
+  "data": {
+    "recommendation_id": "c3a1d2e4-5b6f-4a7c-8d9e-0f1a2b3c4d5e",
+    "intersection_id": "INT_01",
+    "valid_until": "2026-10-20T08:26:05Z",
+    "cycle_s": 55,
+    "phases": [
+      {
+        "phase_id": "P1",
+        "green_approaches": [
+          "N",
+          "S"
+        ],
+        "duration_s": 30
+      },
+      {
+        "phase_id": "P2",
+        "green_approaches": [
+          "E",
+          "W"
+        ],
+        "duration_s": 25
+      }
+    ],
+    "method": {
+      "kind": "WEBSTER_REFERENCE",
+      "version": "webster-v0"
+    },
+    "model": {
+      "name": "congestion-score",
+      "version": "0.1.0",
+      "run_id": "run-train-0001",
+      "score": 0.91
+    },
+    "inputs": {
+      "indicator_ids": [
+        "run-demo-0001:ROAD_001:60:1792484400000"
+      ],
+      "window_start": "2026-10-20T08:20:00Z",
+      "window_size_s": 60,
+      "congestion_state": "CONGESTED"
+    },
+    "provenance": {
+      "source_type": "SIMULATED",
+      "run_id": "run-demo-0001",
+      "scenario_id": "heure-de-pointe",
+      "seed": 42
+    }
+  }
+}

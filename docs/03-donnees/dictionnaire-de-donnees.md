@@ -207,13 +207,13 @@ Attributs de l'enveloppe, communs à tous les événements :
 | Attribut | Règle |
 |---|---|
 | `id` | Clé d'idempotence. Mesure : `<run_id>:<sensor_id>:<instant en millisecondes>`. Un même `id` reçu deux fois est ignoré (index unique `uniq_event_id`). |
-| `source` | Producteur : `simulateur/<run_id>`, `collecte`, `traitement`, `alerte` |
+| `source` | Producteur : `simulateur/<run_id>`, `collecte`, `traitement`, `alerte`, `reponse`. Sauf pour les mesures, c'est le service qui publie |
 | `type` | `novaria.<domaine>.<sujet>.v<majeure>` |
 | `time` | Instant de l'observation (temps d'événement), UTC. Mesure : fin de l'intervalle. Indicateur : fin de la fenêtre. |
-| `subject` | **= `intersection_id`** : clé de partition Kafka, ordre garanti par carrefour |
+| `subject` | **= `intersection_id`** : clé de partition Kafka, ordre garanti par carrefour. Seul `errors.dlq` admet `UNKNOWN`, quand le carrefour du message rejeté n'est pas identifiable |
 | `schema_version` | `majeure.mineure` |
 | `correlation_id` | Facultatif : relie une mesure à l'indicateur et à l'alerte qu'elle a produits |
-| `domain` | iot, traffic, alert ou signal |
+| `domain` | iot, traffic, alert, signal ou error |
 
 ## 6. Indicateur par fenêtre (`dwh.fact_traffic_window` et `novaria.traffic.indicator.v1`)
 
@@ -549,7 +549,7 @@ Créée par `db/postgres/migrate.sh`, qui l'écrit seul : aucun rôle de service
 
 Le schéma est créé vide à l'initialisation. Ses tables sont créées par Alembic dans `services/traitement/` ([ADR-024](../01-architecture/adr/ADR-024-bases-de-donnees-locales.md)), **pas par un fichier SQL de `db/postgres/migrations/`**. À ce jour `services/traitement/migrations/` ne contient aucune révision : le schéma n'a pas de table (BE-02).
 
-Cible, déduite du contrat [OpenAPI](../02-specifications/openapi.yaml) (schéma `User`), à confirmer par BE-02 :
+Cible, déduite du contrat [OpenAPI](../../contracts/openapi/api-metier.openapi.yaml) (schéma `User`), à confirmer par BE-02 :
 
 | Colonne visée | Règle visée | Sens |
 |---|---|---|
@@ -571,12 +571,69 @@ Le dictionnaire sera complété avec les colonnes réelles au moment où BE-02 l
 | Vitesse en circulation fluide des données réelles | Estimée par un quantile des vitesses nocturnes | Fiche de provenance de chaque jeu |
 | Jours fériés | Non chargés (`is_holiday` faux) | DAT-10, si le jeu de données le justifie |
 | Durée de conservation de `raw_events` (14 jours) | Valeur de départ | Volume observé |
-| Contrats `traffic.recommendations` et `signal.status` | Non écrits | MS-11 |
+| Bornes des contrats `traffic.recommendations` et `signal.status` (durée de phase 1 à 600 s, plan de 2 à 8 phases) | Valeurs de départ (section 13), à remplacer par les règles de sécurité des feux | MS-12 |
 | Tables du schéma `app` | Aucune révision Alembic (section 11.2) | BE-02 |
 | Transitions d'une alerte | Ordre non contrôlé par la base : c'est le service d'alerte qui le garantit (section 7.3). Une contrainte supplémentaire serait une nouvelle migration. | MS-11 |
 | Calendrier `dim_date` | 2012 à 2030 : un fait daté hors de cette période est refusé. L'étendre = nouvelle migration. | Choix du jeu de données (DAT-01) |
 | Contenu de `etl_reject` | Colonnes créées, valeurs non fixées (section 8.1) | DAT-04 |
 | Durée de la tranche de `usage_stats` | Non fixée | BE-05 |
+
+## 13. Autres événements du bus (MS-03)
+
+Les trois sujets suivants complètent les deux premiers contrats (sections 5 et 6, et alertes en 7.3). Schémas dans `contracts/events/`, exemples dans `contracts/events/examples/`, matrice des sujets dans `contracts/topics.json`. Les attributs de l'enveloppe sont ceux de la section 5.
+
+### 13.1 Recommandation de plan de feux (`novaria.traffic.recommendation.v1`, sujet `traffic.recommendations`)
+
+Grain : un carrefour, un instant de calcul. Publiée par le traitement, consommée par la réponse extérieure, qui la soumet aux garde-fous. Un modèle ne commande jamais seul : la durée des phases vient du calcul de référence (formule de Webster, [ADR-015](../01-architecture/adr/ADR-015-modeles-ia.md)).
+
+| Champ (`data`) | Type | Règle | Sens |
+|---|---|---|---|
+| `recommendation_id` | UUID (Universally Unique Identifier) | égal à l'`id` de l'événement | Clé d'idempotence |
+| `intersection_id` | texte | motif `INT_xx` | Carrefour concerné |
+| `valid_until` | date et heure UTC | postérieure à `time` | Fin de validité ; passé ce délai sans nouvelle recommandation, retour possible au plan fixe |
+| `cycle_s` | entier | 2 à 1200 ; **égal à la somme des `duration_s`** | Durée du cycle, en secondes |
+| `phases` | liste | 2 à 8 éléments, `phase_id` distincts | Phases dans l'ordre d'application |
+| `phases[].phase_id` | texte | `P1`, `P2`… | Phase |
+| `phases[].green_approaches` | liste | N, E, S, W ; au moins une, sans doublon | Approches au vert |
+| `phases[].duration_s` | entier | 1 à 600 (valeur de départ) | Durée de la phase |
+| `method` | objet | `kind` = WEBSTER_REFERENCE, `version` | Calcul qui a produit les durées |
+| `model` | objet ou `null` | `name`, `version`, `run_id`, `score` de 0 à 1 ; facultatif | Score d'un modèle, entrée du calcul (jamais la décision) |
+| `inputs` | objet | `indicator_ids` (au moins un, sans doublon), `window_start`, `window_size_s` (60 ou 300), `congestion_state` | Indicateurs sur lesquels repose la recommandation |
+| `provenance` | objet | comme la section 5 | Origine |
+
+### 13.2 État des feux (`novaria.signal.status.v1`, sujet `signal.status`)
+
+Grain : un carrefour, une décision. Publié par la réponse extérieure après chaque décision ; reflète le contrôleur de feux simulé. Une décision refusée publie l'état inchangé avec son motif.
+
+| Champ (`data`) | Type | Règle | Sens |
+|---|---|---|---|
+| `intersection_id` | texte | motif `INT_xx` | Carrefour concerné |
+| `mode` | énumération | AUTOMATIC, MANUAL, DEGRADED_FIXED_PLAN ; DEGRADED_FIXED_PLAN si la décision est FIXED_PLAN_FALLBACK | AUTOMATIC : suit les recommandations. MANUAL : commande d'un opérateur. DEGRADED_FIXED_PLAN : plan à durées fixes |
+| `current_phase_id` | texte | une des `phases` | Phase en cours |
+| `phase_started_at` | date et heure UTC | au plus tard `time` | Début de la phase en cours |
+| `phases` | liste | 2 à 8 éléments, `phase_id` distincts | Plan appliqué |
+| `phases[].min_duration_s` | entier | 1 à 600 | Durée minimale de sécurité |
+| `phases[].duration_s` | entier | 1 à 600, au moins `min_duration_s` | Durée appliquée |
+| `decision.origin` | énumération | RECOMMENDATION, MANUAL_COMMAND, FIXED_PLAN_FALLBACK, STARTUP | Ce qui a produit l'état |
+| `decision.reference_id` | UUID ou `null` | obligatoire pour RECOMMENDATION et MANUAL_COMMAND, `null` sinon | `recommendation_id` ou `command_id` |
+| `decision.outcome` | énumération | APPLIED, REFUSED | Résultat des garde-fous |
+| `decision.refusal_reason` | texte ou `null` | majuscules et `_` ; obligatoire si REFUSED, `null` sinon | Code du refus (par exemple UNSAFE_COMMAND) |
+| `provenance` | objet | comme la section 5 | Origine |
+
+### 13.3 Message rejeté (`novaria.error.rejected.v1`, sujet `errors.dlq`)
+
+Grain : un message rejeté. Publié par le service qui rejette (`source`), après les tentatives prévues. Archive : collection `rejects` (section 10.2), qui reçoit les champs `source_topic`, `rejected_at`, `reason`, `attempts` et `original_payload`, et `source` sous le nom `service`.
+
+| Champ (`data`) | Type | Règle | Sens |
+|---|---|---|---|
+| `source_topic` | énumération | iot.raw, traffic.indicators, traffic.recommendations, alerts.events, signal.status | Sujet d'où vient le message |
+| `rejected_at` | date et heure UTC | égale à `time` | Moment du rejet |
+| `reason_code` | énumération | CONTRACT_VIOLATION (DQ-01), SEMANTIC_VIOLATION, UNREADABLE, UNKNOWN_TYPE, UNKNOWN_SENSOR (DQ-02), LATE (DQ-04), FUTURE_TIMESTAMP (DQ-10), PROCESSING_FAILED | Famille du rejet |
+| `reason` | texte | 1 à 2000 caractères | Chemin et message de l'erreur de contrat, ou explication ; ni secret ni donnée personnelle |
+| `attempts` | entier | 1 à 100 | Tentatives avant le rejet |
+| `original_key` | texte ou `null` | au plus 200 caractères | Clé du message d'origine |
+| `intersection_id` | texte ou `null` | motif `INT_xx` ; `subject` vaut ce carrefour, ou `UNKNOWN` si `null` | Carrefour du message d'origine, s'il est identifiable |
+| `original_payload` | tout type | un texte si `reason_code` est UNREADABLE | Message tel que reçu, pour analyse et rejeu |
 
 ## Vérifier
 

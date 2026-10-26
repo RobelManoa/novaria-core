@@ -1,0 +1,48 @@
+{
+  "id": "dlq:traitement:iot.raw:1792483212000",
+  "source": "traitement",
+  "type": "novaria.error.rejected.v1",
+  "time": "2026-10-20T08:00:12Z",
+  "subject": "INT_01",
+  "schema_version": "1.0",
+  "correlation_id": "corr-1792483210000",
+  "domain": "error",
+  "data": {
+    "source_topic": "iot.raw",
+    "rejected_at": "2026-10-20T08:00:12Z",
+    "reason_code": "UNKNOWN_SENSOR",
+    "reason": "SENSOR_999 absent du référentiel (dwh.dim_sensor)",
+    "attempts": 1,
+    "original_key": "INT_01",
+    "intersection_id": "INT_01",
+    "original_payload": {
+      "id": "run-demo-0001:SENSOR_999:1792483210000",
+      "source": "simulateur/run-demo-0001",
+      "type": "novaria.iot.measurement.v1",
+      "time": "2026-10-20T08:00:10Z",
+      "subject": "INT_01",
+      "schema_version": "1.0",
+      "correlation_id": "corr-1792483210000",
+      "domain": "iot",
+      "data": {
+        "sensor_id": "SENSOR_999",
+        "road_segment_id": "ROAD_001",
+        "intersection_id": "INT_01",
+        "interval_s": 10,
+        "vehicle_count": 4,
+        "average_speed_kmh": 38.5,
+        "occupancy_rate": 0.31,
+        "queue_length_m": 22.0,
+        "quality": {
+          "status": "VALID"
+        },
+        "provenance": {
+          "source_type": "SIMULATED",
+          "run_id": "run-demo-0001",
+          "scenario_id": "heure-de-pointe",
+          "seed": 42
+        }
+      }
+    }
+  }
+}

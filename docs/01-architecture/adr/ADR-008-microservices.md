@@ -85,7 +85,7 @@ Quel mécanisme pour quel échange (règles 2 et 3) :
 | Échange | Mécanisme | Pourquoi |
 |---|---|---|
 | Mesures, indicateurs, recommandations, alertes, état des feux, entre services | **Événements** sur le bus (`iot.raw`, `traffic.indicators`, `traffic.recommendations`, `alerts.events`, `signal.status`) | Le flux est continu ; un consommateur arrêté rattrape son retard ([ADR-009](ADR-009-bus-evenements.md)) |
-| Le tableau de bord lit indicateurs, alertes, état des feux | **API REST** via la passerelle ([contrat](../../02-specifications/openapi.yaml)) | Une requête appelle une réponse ; le tableau de bord n'est pas un service du flux |
+| Le tableau de bord lit indicateurs, alertes, état des feux | **API REST** via la passerelle ([contrats](../../../contracts/openapi/README.md)) | Une requête appelle une réponse ; le tableau de bord n'est pas un service du flux |
 | Le tableau de bord envoie une commande manuelle de feux | **API REST** vers le service de réponse extérieure, via la passerelle | C'est la requête d'un humain, soumise aux mêmes garde-fous que les recommandations |
 | L'alerte arrive au tableau de bord sans rechargement | Flux SSE (Server-Sent Events, du serveur vers le navigateur) de `GET /events/stream`, alimenté par `alerts.events` | Le navigateur ne lit pas le bus |
 | Un service appelle un autre service | **Jamais** en REST synchrone | Évite la chaîne de pannes (règle 3) |

@@ -289,6 +289,7 @@ KAFKA_PARTITIONS = 3  # ADR-009 §4.3 : 3 partitions par sujet en local
 KAFKA_SEPARATOR = "|"  # sépare partition, décalage, clé et valeur à la relecture, clé et valeur à la publication
 EXAMPLE_MEASUREMENT = ROOT / "contracts" / "events" / "examples" / "mesure-valide.json"
 VALIDATOR = ROOT / "contracts" / "validate_events.py"
+TOPICS_FILE = ROOT / "contracts" / "topics.json"  # matrice des sujets : type d'événement, schéma, producteurs, consommateurs
 
 
 class Topic(NamedTuple):
@@ -415,6 +416,10 @@ def cmd_kafka_roundtrip(args: argparse.Namespace) -> int:
     if not isinstance(event, dict) or not event.get("subject"):
         raise DevError("L'événement doit être un objet avec un champ `subject` (la clé de partition).")
     key = str(event["subject"])
+    expected_type = json.loads(TOPICS_FILE.read_text(encoding="utf-8"))["topics"].get(args.topic, {}).get("type")
+    if expected_type is not None and event.get("type") != expected_type:
+        raise DevError(f"Le sujet {args.topic} reçoit des événements {expected_type}, pas {event.get('type')!r} "
+                       "(matrice des sujets : contracts/topics.json).")
     described = kafka_tool("kafka-topics.sh", "--describe", "--topic", args.topic)
     if described.returncode != 0 or args.topic not in parse_topic_descriptions(described.stdout):
         raise DevError(f"Le sujet {args.topic} n'existe pas. Le créer :  python scripts/dev/dev.py kafka-topics")

@@ -59,6 +59,12 @@ class SujetsTests(unittest.TestCase):
         self.assertEqual(iot.configs, (f"retention.ms={7 * 24 * 3600 * 1000}",))
         self.assertIn("rétention de 7 jours pour `iot.raw`", ADR_009.read_text(encoding="utf-8"))
 
+    def test_les_sujets_sont_ceux_de_la_matrice_des_contrats(self):
+        matrice = json.loads((ROOT / "contracts" / "topics.json").read_text(encoding="utf-8"))["topics"]
+        self.assertEqual([t.name for t in dev.KAFKA_TOPICS], list(matrice))
+        self.assertEqual({t.key for t in dev.KAFKA_TOPICS}, {"intersection_id"})  # la matrice dit : clé = subject
+        self.assertEqual({entry["key"] for entry in matrice.values()}, {"subject"})
+
     def test_les_sujets_des_contrats_sont_crees(self):
         contrats = (ROOT / "contracts" / "README.md").read_text(encoding="utf-8")
         for sujet in re.findall(r"\| `novaria\.[a-z_.0-9]+` \| `([a-z.]+)` \|", contrats):
@@ -267,6 +273,13 @@ class AllerRetourTests(unittest.TestCase):
         tool, _ = self.broker(publish=False)
         with self.assertRaises(dev.DevError):
             self.run_roundtrip(tool)
+
+    def test_un_evenement_n_est_pas_publie_sur_un_sujet_qui_n_est_pas_le_sien(self):
+        tool, log = self.broker()
+        with self.assertRaises(dev.DevError) as erreur:
+            self.run_roundtrip(tool, file=ROOT / "contracts" / "events" / "examples" / "indicateur-fluide.json")
+        self.assertIn("iot.raw", str(erreur.exception))
+        self.assertEqual(log, [], "rien ne doit être publié")
 
     def test_sujet_absent(self):
         def tool(name, *args, **kwargs):

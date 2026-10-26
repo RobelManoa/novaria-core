@@ -1,0 +1,97 @@
+{
+  "services": [
+    "collecte",
+    "traitement",
+    "alerte",
+    "reponse"
+  ],
+  "topics": {
+    "iot.raw": {
+      "type": "novaria.iot.measurement.v1",
+      "schema": "iot-measurement.schema.json",
+      "key": "subject",
+      "source": "origin",
+      "producers": [
+        "collecte"
+      ],
+      "consumers": [
+        "traitement"
+      ],
+      "external_consumers": []
+    },
+    "traffic.indicators": {
+      "type": "novaria.traffic.indicator.v1",
+      "schema": "traffic-indicator.schema.json",
+      "key": "subject",
+      "source": "publisher",
+      "producers": [
+        "traitement"
+      ],
+      "consumers": [
+        "alerte"
+      ],
+      "external_consumers": [
+        "tableau-de-bord"
+      ]
+    },
+    "traffic.recommendations": {
+      "type": "novaria.traffic.recommendation.v1",
+      "schema": "traffic-recommendation.schema.json",
+      "key": "subject",
+      "source": "publisher",
+      "producers": [
+        "traitement"
+      ],
+      "consumers": [
+        "reponse"
+      ],
+      "external_consumers": []
+    },
+    "alerts.events": {
+      "type": "novaria.alert.state_changed.v1",
+      "schema": "alert-event.schema.json",
+      "key": "subject",
+      "source": "publisher",
+      "producers": [
+        "alerte"
+      ],
+      "consumers": [
+        "alerte"
+      ],
+      "external_consumers": [
+        "tableau-de-bord"
+      ]
+    },
+    "signal.status": {
+      "type": "novaria.signal.status.v1",
+      "schema": "signal-status.schema.json",
+      "key": "subject",
+      "source": "publisher",
+      "producers": [
+        "reponse"
+      ],
+      "consumers": [
+        "alerte"
+      ],
+      "external_consumers": [
+        "tableau-de-bord"
+      ]
+    },
+    "errors.dlq": {
+      "type": "novaria.error.rejected.v1",
+      "schema": "error-rejected.schema.json",
+      "key": "subject",
+      "source": "publisher",
+      "producers": [
+        "collecte",
+        "traitement",
+        "alerte",
+        "reponse"
+      ],
+      "consumers": [],
+      "external_consumers": [
+        "revue-manuelle"
+      ]
+    }
+  }
+}

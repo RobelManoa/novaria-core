@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RobelManoa/novaria-core/contracts/events/error-rejected.schema.json",
+  "title": "Message rejeté (novaria.error.rejected.v1)",
+  "description": "Publié sur errors.dlq par le service qui rejette un message (source = ce service), après les tentatives prévues (ADR-009). Aucun message n'est perdu en silence : la charge d'origine est conservée telle que reçue, pour analyse et rejeu. Les champs source_topic, rejected_at, reason, original_payload et attempts sont ceux de la collection MongoDB rejects (dictionnaire de données, section 10.2).",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "novaria.error.rejected.v1"
+        },
+        "domain": {
+          "const": "error"
+        },
+        "schema_version": {
+          "const": "1.0"
+        },
+        "data": {
+          "$ref": "#/$defs/data"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_topic",
+        "rejected_at",
+        "reason_code",
+        "reason",
+        "attempts",
+        "original_key",
+        "intersection_id",
+        "original_payload"
+      ],
+      "properties": {
+        "source_topic": {
+          "description": "Sujet d'où vient le message rejeté.",
+          "enum": [
+            "iot.raw",
+            "traffic.indicators",
+            "traffic.recommendations",
+            "alerts.events",
+            "signal.status"
+          ]
+        },
+        "rejected_at": {
+          "description": "Moment du rejet, UTC ; égal à time.",
+          "$ref": "common.schema.json#/$defs/utc_datetime"
+        },
+        "reason_code": {
+          "description": "Famille du rejet. CONTRACT_VIOLATION : schéma non respecté (DQ-01). SEMANTIC_VIOLATION : règle entre champs non respectée. UNREADABLE : ni JSON ni UTF-8 valide. UNKNOWN_TYPE : type d'événement inconnu. UNKNOWN_SENSOR : capteur ou tronçon absent du référentiel (DQ-02). LATE : au-delà du retard autorisé (DQ-04). FUTURE_TIMESTAMP : horodatage dans le futur (DQ-10). PROCESSING_FAILED : échec de traitement après les tentatives.",
+          "enum": [
+            "CONTRACT_VIOLATION",
+            "SEMANTIC_VIOLATION",
+            "UNREADABLE",
+            "UNKNOWN_TYPE",
+            "UNKNOWN_SENSOR",
+            "LATE",
+            "FUTURE_TIMESTAMP",
+            "PROCESSING_FAILED"
+          ]
+        },
+        "reason": {
+          "description": "Détail : chemin et message de l'erreur de contrat, ou explication. Ne contient ni secret ni donnée personnelle.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "attempts": {
+          "description": "Nombre de tentatives avant le rejet.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "original_key": {
+          "description": "Clé du message d'origine, décodée en texte ; null si absente.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "intersection_id": {
+          "description": "Carrefour du message d'origine s'il est identifiable, sinon null. Détermine le sujet de l'enveloppe (UNKNOWN si null).",
+          "oneOf": [
+            {
+              "$ref": "common.schema.json#/$defs/intersection_id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "original_payload": {
+          "description": "Message tel que reçu : un objet JSON, ou un texte si le message est illisible."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "reason_code": {
+                "const": "UNREADABLE"
+              }
+            },
+            "required": [
+              "reason_code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "original_payload": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

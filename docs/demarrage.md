@@ -85,7 +85,7 @@ python -m pytest                         # tests + couverture (coverage.xml)
 
 ### Ajouter un endpoint, pas à pas
 
-1. Décrire la route dans le contrat `docs/02-specifications/openapi.yaml` (source de vérité).
+1. Décrire la route dans le contrat de son service, dans `contracts/openapi/` (source de vérité : `<nom du service>.openapi.yaml`).
 2. Écrire le test d'abord dans `services/traitement/tests/` (modèle : `tests/unit/test_health.py`).
 3. Créer le schéma dans `schemas/`, la logique dans `services/`, l'accès aux données dans `repositories/`.
 4. Brancher la route dans `api/v1/` et l'inclure dans `app/main.py`.
@@ -144,7 +144,8 @@ Dependabot ouvre chaque mois des pull requests groupées de mises à jour, sans 
 | Périmètre et compétences BC05 | `docs/00-cadrage/note-de-cadrage.md` |
 | Kafka local : sujets, publication, relecture | `docs/08-exploitation/kafka-local.md` |
 | Décisions d'architecture (ADR) | `docs/01-architecture/adr/` (modèle : `000-modele.md`) |
-| Contrat d'API | `docs/02-specifications/openapi.yaml` |
+| Contrats d'API (un par service) | `contracts/openapi/` |
+| Contrats d'événements du bus, matrice des sujets, conformité | `contracts/` (`README.md`) |
 | Décisions prises avec le professeur | `docs/07-gestion/decisions-professeur.md` |
 | Risques et changements | `docs/07-gestion/` |
 | Usage de l'IA | `docs/ia/journal-usage-ia.md` : inscrivez-y tout usage significatif |

@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RobelManoa/novaria-core/contracts/events/traffic-recommendation.schema.json",
+  "title": "Recommandation de plan de feux (novaria.traffic.recommendation.v1)",
+  "description": "Publiée par le service de traitement sur traffic.recommendations ; consommée par la réponse extérieure, qui la soumet aux garde-fous avant tout effet (ADR-008, règle 6). Un modèle ne commande jamais seul : la durée des phases vient du calcul de référence (ADR-015, cas 4). Grain : un carrefour, un instant de calcul.",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "novaria.traffic.recommendation.v1"
+        },
+        "subject": {
+          "$ref": "common.schema.json#/$defs/intersection_id"
+        },
+        "domain": {
+          "const": "traffic"
+        },
+        "schema_version": {
+          "const": "1.0"
+        },
+        "data": {
+          "$ref": "#/$defs/data"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recommendation_id",
+        "intersection_id",
+        "valid_until",
+        "cycle_s",
+        "phases",
+        "method",
+        "inputs",
+        "provenance"
+      ],
+      "properties": {
+        "recommendation_id": {
+          "description": "Identifiant de la recommandation ; égal à l'id de l'événement (clé d'idempotence).",
+          "$ref": "common.schema.json#/$defs/uuid"
+        },
+        "intersection_id": {
+          "$ref": "common.schema.json#/$defs/intersection_id"
+        },
+        "valid_until": {
+          "description": "Fin de validité, UTC, postérieure à time. Passé ce délai sans nouvelle recommandation, la réponse extérieure peut revenir au plan fixe (EXG-REP-03).",
+          "$ref": "common.schema.json#/$defs/utc_datetime"
+        },
+        "cycle_s": {
+          "description": "Durée du cycle (secondes) : somme des durées des phases.",
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 1200
+        },
+        "phases": {
+          "description": "Phases recommandées, dans l'ordre d'application.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "phase_id",
+              "green_approaches",
+              "duration_s"
+            ],
+            "properties": {
+              "phase_id": {
+                "$ref": "common.schema.json#/$defs/signal_phase_id"
+              },
+              "green_approaches": {
+                "description": "Approches au vert pendant cette phase.",
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "$ref": "common.schema.json#/$defs/approach"
+                }
+              },
+              "duration_s": {
+                "description": "Durée de la phase recommandée (secondes). Bornes de départ, à remplacer par les règles de sécurité de MS-12 (EXG-REP-02).",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 600
+              }
+            }
+          }
+        },
+        "method": {
+          "description": "Calcul qui a produit les durées.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "version"
+          ],
+          "properties": {
+            "kind": {
+              "description": "WEBSTER_REFERENCE : calcul déterministe de référence (formule de Webster).",
+              "enum": [
+                "WEBSTER_REFERENCE"
+              ]
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          }
+        },
+        "model": {
+          "description": "Score d'un modèle entraîné, entrée du calcul (jamais la décision). Absent ou null sans modèle.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version",
+            "score"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "run_id": {
+              "description": "Run d'entraînement (model_runs) qui remonte au code et aux données.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "inputs": {
+          "description": "Indicateurs sur lesquels repose la recommandation (traçabilité).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "indicator_ids",
+            "window_start",
+            "window_size_s",
+            "congestion_state"
+          ],
+          "properties": {
+            "indicator_ids": {
+              "description": "Identifiants (id d'enveloppe) des indicateurs utilisés.",
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "window_start": {
+              "$ref": "common.schema.json#/$defs/utc_datetime"
+            },
+            "window_size_s": {
+              "enum": [
+                60,
+                300
+              ]
+            },
+            "congestion_state": {
+              "$ref": "common.schema.json#/$defs/congestion_state"
+            }
+          }
+        },
+        "provenance": {
+          "$ref": "common.schema.json#/$defs/provenance"
+        }
+      }
+    }
+  }
+}
