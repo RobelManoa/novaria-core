@@ -27,6 +27,9 @@ SCHEMA_BY_TYPE = {
     "novaria.iot.measurement.v1": "iot-measurement.schema.json",
     "novaria.traffic.indicator.v1": "traffic-indicator.schema.json",
     "novaria.alert.state_changed.v1": "alert-event.schema.json",
+    "novaria.traffic.recommendation.v1": "traffic-recommendation.schema.json",
+    "novaria.signal.status.v1": "signal-status.schema.json",
+    "novaria.error.rejected.v1": "error-rejected.schema.json",
 }
 
 
@@ -57,11 +60,48 @@ def schema_errors(event: dict) -> list[str]:
             for e in sorted(validator.iter_errors(event), key=lambda e: list(e.absolute_path))]
 
 
+def _duplicates(values: list[str]) -> list[str]:
+    return sorted({v for v in values if values.count(v) > 1})
+
+
+def _recommendation_errors(event: dict, data: dict) -> list[str]:
+    errors = []
+    if event["id"] != data["recommendation_id"]:
+        errors.append("id d'une recommandation attendu : data.recommendation_id")
+    if _parse_utc(data["valid_until"]) <= _parse_utc(event["time"]):
+        errors.append("valid_until doit être postérieur à time")
+    if sum(phase["duration_s"] for phase in data["phases"]) != data["cycle_s"]:
+        errors.append("cycle_s doit être égal à la somme des durées des phases")
+    doubles = _duplicates([phase["phase_id"] for phase in data["phases"]])
+    if doubles:
+        errors.append(f"phase_id en double : {', '.join(doubles)}")
+    return errors
+
+
+def _signal_status_errors(event: dict, data: dict) -> list[str]:
+    errors = []
+    ids = [phase["phase_id"] for phase in data["phases"]]
+    if _duplicates(ids):
+        errors.append(f"phase_id en double : {', '.join(_duplicates(ids))}")
+    if data["current_phase_id"] not in ids:
+        errors.append("current_phase_id doit désigner une phase de phases")
+    if _parse_utc(data["phase_started_at"]) > _parse_utc(event["time"]):
+        errors.append("phase_started_at ne peut pas être postérieur à time")
+    for phase in data["phases"]:
+        if phase["duration_s"] < phase["min_duration_s"]:
+            errors.append(f"phase {phase['phase_id']} : duration_s inférieur à min_duration_s")
+    return errors
+
+
 def semantic_errors(event: dict) -> list[str]:
     """Règles que le schéma JSON ne sait pas exprimer (comparaison entre champs). Voir le dictionnaire de données."""
     errors: list[str] = []
     data = event.get("data", {})
-    if event.get("subject") != data.get("intersection_id"):
+    if event.get("type") == "novaria.error.rejected.v1":
+        # le carrefour d'un message rejeté peut être inconnu : le sujet vaut alors UNKNOWN
+        if event.get("subject") != (data.get("intersection_id") or "UNKNOWN"):
+            errors.append("subject doit être égal à data.intersection_id, ou à UNKNOWN s'il est null (clé de partition)")
+    elif event.get("subject") != data.get("intersection_id"):
         errors.append("subject doit être égal à data.intersection_id (clé de partition)")
     try:
         if event["type"] == "novaria.iot.measurement.v1":
@@ -81,6 +121,13 @@ def semantic_errors(event: dict) -> list[str]:
         elif event["type"] == "novaria.alert.state_changed.v1":
             if data["resolved_at"] is not None and _parse_utc(data["resolved_at"]) < _parse_utc(data["opened_at"]):
                 errors.append("resolved_at ne peut pas précéder opened_at")
+        elif event["type"] == "novaria.traffic.recommendation.v1":
+            errors.extend(_recommendation_errors(event, data))
+        elif event["type"] == "novaria.signal.status.v1":
+            errors.extend(_signal_status_errors(event, data))
+        elif event["type"] == "novaria.error.rejected.v1":
+            if _parse_utc(event["time"]) != _parse_utc(data["rejected_at"]):
+                errors.append("time d'un rejet doit être égal à data.rejected_at")
     except (KeyError, TypeError, ValueError):
         pass  # champ absent ou mal typé : déjà signalé par le schéma
     return errors

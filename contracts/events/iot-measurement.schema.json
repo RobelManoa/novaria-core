@@ -12,6 +12,9 @@
         "type": {
           "const": "novaria.iot.measurement.v1"
         },
+        "subject": {
+          "$ref": "common.schema.json#/$defs/intersection_id"
+        },
         "domain": {
           "const": "iot"
         },

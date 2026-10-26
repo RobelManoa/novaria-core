@@ -1,0 +1,53 @@
+{
+  "id": "e7b9a1c3-2d4f-4e6a-8b0c-1d2e3f4a5b6c",
+  "source": "traitement",
+  "type": "novaria.traffic.recommendation.v1",
+  "time": "2026-10-20T08:25:05Z",
+  "subject": "INT_01",
+  "schema_version": "1.0",
+  "domain": "traffic",
+  "data": {
+    "recommendation_id": "e7b9a1c3-2d4f-4e6a-8b0c-1d2e3f4a5b6c",
+    "intersection_id": "INT_01",
+    "valid_until": "2026-10-20T08:30:05Z",
+    "cycle_s": 60,
+    "phases": [
+      {
+        "phase_id": "P1",
+        "green_approaches": [
+          "N",
+          "S"
+        ],
+        "duration_s": 28
+      },
+      {
+        "phase_id": "P2",
+        "green_approaches": [
+          "E",
+          "W"
+        ],
+        "duration_s": 32
+      }
+    ],
+    "method": {
+      "kind": "WEBSTER_REFERENCE",
+      "version": "webster-v0"
+    },
+    "model": null,
+    "inputs": {
+      "indicator_ids": [
+        "run-demo-0001:ROAD_001:60:1792484700000",
+        "run-demo-0001:ROAD_002:60:1792484700000"
+      ],
+      "window_start": "2026-10-20T08:24:00Z",
+      "window_size_s": 60,
+      "congestion_state": "SLOW"
+    },
+    "provenance": {
+      "source_type": "SIMULATED",
+      "run_id": "run-demo-0001",
+      "scenario_id": "heure-de-pointe",
+      "seed": 42
+    }
+  }
+}

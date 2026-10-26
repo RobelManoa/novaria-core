@@ -1,0 +1,20 @@
+{
+  "id": "dlq:collecte:iot.raw:1792483213000",
+  "source": "collecte",
+  "type": "novaria.error.rejected.v1",
+  "time": "2026-10-20T08:00:13Z",
+  "subject": "UNKNOWN",
+  "schema_version": "1.0",
+  "correlation_id": "corr-1792483210000",
+  "domain": "error",
+  "data": {
+    "source_topic": "iot.raw",
+    "rejected_at": "2026-10-20T08:00:13Z",
+    "reason_code": "UNREADABLE",
+    "reason": "Fin de document inattendue à la position 31 (JSON tronqué)",
+    "attempts": 1,
+    "original_key": null,
+    "intersection_id": null,
+    "original_payload": "{\"id\":\"run-demo-0001:SENSOR_001:17"
+  }
+}
