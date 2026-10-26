@@ -32,6 +32,7 @@ make up                   # PostgreSQL, MongoDB, backend, frontend
 | Frontend | http://localhost:8080 |
 | PostgreSQL | `localhost:5432` |
 | MongoDB | `localhost:27017` |
+| Kafka (bus d'événements) | `127.0.0.1:9094` depuis le poste, `kafka:9092` depuis un conteneur ; sujets : `make kafka-topics` ([kafka-local.md](08-exploitation/kafka-local.md)) |
 
 Le test est réussi quand `/api/v1/health` renvoie `{"status":"ok", ...}`. Pour arrêter : `make down`. Pour suivre les journaux du backend : `make logs`.
 
@@ -141,6 +142,7 @@ Dependabot ouvre chaque mois des pull requests groupées de mises à jour, sans 
 | Tâches à faire | Issues GitHub. Filtrer par étiquette `team:backend` ou `team:frontend`, par priorité `prio:P0`, par jalon |
 | Définition des tâches et dépendances | `scripts/github/issues_data.py` (identifiants BE-xx, FE-xx, DAT-xx…) |
 | Périmètre et compétences BC05 | `docs/00-cadrage/note-de-cadrage.md` |
+| Kafka local : sujets, publication, relecture | `docs/08-exploitation/kafka-local.md` |
 | Décisions d'architecture (ADR) | `docs/01-architecture/adr/` (modèle : `000-modele.md`) |
 | Contrat d'API | `docs/02-specifications/openapi.yaml` |
 | Décisions prises avec le professeur | `docs/07-gestion/decisions-professeur.md` |

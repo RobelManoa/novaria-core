@@ -5,8 +5,10 @@
 #   python scripts/dev/dev.py db-up        # PostgreSQL + MongoDB + migrations (sans backend ni frontend)
 #   python scripts/dev/dev.py up           # tout : bases, backend, frontend
 #   python scripts/dev/dev.py db-check     # vérifie rôles, droits et collections
+#   python scripts/dev/dev.py kafka-up     # Kafka (mode KRaft), un seul broker
+#   python scripts/dev/dev.py kafka-topics # crée les 6 sujets du bus (ADR-009) et les liste
 #
-# Les ports ne sont publiés que sur 127.0.0.1 : les bases ne sont pas joignables depuis le réseau.
+# Les ports ne sont publiés que sur 127.0.0.1 : les bases et le bus ne sont pas joignables depuis le réseau.
 name: novaria-core
 
 services:
@@ -83,6 +85,39 @@ services:
       retries: 20
       start_period: 15s
 
+  # Bus d'événements (ADR-009, LOC-04) : un seul broker en mode KRaft (Kafka Raft, sans ZooKeeper).
+  # Deux écouteurs : « kafka:9092 » pour les conteneurs du réseau Compose, « 127.0.0.1:KAFKA_PORT » pour le poste.
+  # Pas d'authentification ni de chiffrement en local (le port n'est joignable que depuis ce poste) ;
+  # la matrice d'accès par service est prévue par CLD-18. Les sujets ne sont pas créés automatiquement :
+  # `dev.py kafka-topics` les crée.
+  kafka:
+    image: apache/kafka:4.3.1
+    environment:
+      CLUSTER_ID: "novaria-local-kraft-01"
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:9094,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://127.0.0.1:${KAFKA_PORT:-9094}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+    ports: ["127.0.0.1:${KAFKA_PORT:-9094}:9094"]
+    volumes:
+      - kafkadata:/var/lib/kafka/data
+    healthcheck:
+      # Réussit seulement quand le broker répond à une requête d'API : l'élection du contrôleur est terminée.
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 15s
+      retries: 12
+      start_period: 20s
+
   backend:
     build:
       context: ./backend
@@ -150,3 +185,4 @@ services:
 volumes:
   pgdata:
   mongodata:
+  kafkadata:
