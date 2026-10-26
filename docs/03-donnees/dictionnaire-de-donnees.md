@@ -1,6 +1,8 @@
 # Dictionnaire de données
 
-Une définition par terme, une unité par grandeur, une règle par calcul. Ce document fait foi pour les bases (`db/`), les événements (`contracts/`), le simulateur et le modèle. Version du 20/10/2026 ; toute modification passe par pull request et met à jour les trois endroits à la fois.
+Une définition par terme, une unité par grandeur, une règle par calcul. Ce document fait foi pour les bases (`db/`), les événements (`contracts/`), le simulateur et le modèle. Version du 27/10/2026 (relue et complétée : issues DAT-02 et DAT-10) ; toute modification passe par pull request et met à jour les trois endroits à la fois.
+
+**Complétude vérifiée par un test** : chaque table et chaque colonne des migrations `db/postgres/migrations/`, chaque collection, champ et index de `db/mongo/init/` doivent figurer ici (`scripts/dev/test_dictionnaire.py`, voir « Vérifier » en fin de document). Ajouter une colonne sans la décrire fait échouer le test.
 
 Lire ensuite : [bases locales](base-de-donnees-locale.md), [contrats d'événements](../../contracts/README.md), [ADR-028](../01-architecture/adr/ADR-028-etats-de-congestion-et-alertes.md) (pourquoi ces règles), [ADR-027](../01-architecture/adr/ADR-027-jeux-de-donnees-et-provenance.md) (provenance).
 
@@ -83,6 +85,40 @@ erDiagram
 
 Le schéma `alertes` n'a **aucune clé étrangère vers `dwh`** : chaque service est propriétaire de ses données ([ADR-008](../01-architecture/adr/ADR-008-microservices.md), règle 1). Les liens entre services sont des identifiants textuels (`road_segment_id`, `episode_id`).
 
+```mermaid
+erDiagram
+    alert_rule ||--o{ alert : "rule_id"
+    alert ||--o{ alert_history : "alert_id (suppression en cascade)"
+    alert_rule {
+        text rule_id PK "congestion.persistante"
+        text kind
+        jsonb params
+        integer min_gap_s
+    }
+    alert {
+        uuid alert_id PK
+        text road_segment_id "identifiant métier, sans clé étrangère"
+        uuid episode_id "épisode de dwh, sans clé étrangère"
+        text state "CREATED NOTIFIED ACKNOWLEDGED RESOLVED"
+        timestamptz opened_at
+        timestamptz resolved_at
+    }
+    alert_history {
+        bigint history_id PK
+        text from_state
+        text to_state
+        timestamptz changed_at
+    }
+    outbox_event {
+        bigint outbox_id PK
+        text event_id UK
+        jsonb payload
+        timestamptz published_at "NULL = à publier"
+    }
+```
+
+`outbox_event` n'a pas de lien SQL avec `alert` : l'événement porte lui-même ce dont les consommateurs ont besoin (motif « outbox », [ADR-009](../01-architecture/adr/ADR-009-bus-evenements.md)). Les tables `etl_reject` (section 8.1) et `schema_migrations` (section 11) sont des tables de service, sans lien avec les autres.
+
 ### Circulation d'une donnée
 
 ```mermaid
@@ -103,23 +139,37 @@ flowchart LR
 
 | Table | Colonne | Type | Règle | Sens |
 |---|---|---|---|---|
-| `dim_intersection` | `intersection_id` | texte, unique | `^INT_[0-9]{2,}$` | Identifiant métier, partagé avec les événements |
-| | `name` | texte | non vide | Nom affiché |
+| `dim_intersection` | `intersection_key` | entier généré | clé primaire | Clé technique (voir 4.1) |
+| | `intersection_id` | texte, unique | `^INT_[0-9]{2,}$` | Identifiant métier, partagé avec les événements |
+| | `name` | texte | obligatoire | Nom affiché |
 | | `latitude`, `longitude` | décimal | les deux ou aucune ; −90 à 90, −180 à 180 | Vides pour le réseau fictif |
 | | `has_traffic_light` | booléen | défaut vrai | Carrefour à feux |
-| `dim_road_segment` | `road_segment_id` | texte, unique | `^ROAD_[0-9]{3,}$` | Identifiant du tronçon |
+| `dim_road_segment` | `road_segment_key` | entier généré | clé primaire | Clé technique (voir 4.1) |
+| | `road_segment_id` | texte, unique | `^ROAD_[0-9]{3,}$` | Identifiant du tronçon |
+| | `intersection_key` | entier | obligatoire ; clé étrangère vers `dim_intersection` | Carrefour auquel le tronçon mène |
+| | `name` | texte | obligatoire | Nom affiché |
 | | `approach` | texte | N, E, S, W ; un seul tronçon par côté et par carrefour | Côté d'où arrive la circulation |
 | | `road_type` | texte | MOTORWAY, ARTERIAL, COLLECTOR, LOCAL | Catégorie de route |
 | | `lane_count` | entier | 1 à 8 | Voies de l'approche |
 | | `length_m` | décimal | > 0 | Longueur de l'approche (m) |
 | | `speed_limit_kmh` | entier | 5 à 130 | Vitesse limite (km/h) |
 | | `free_flow_speed_kmh` | décimal | > 0 | Vitesse en circulation fluide : dénominateur du ratio. **Simulation : égale à la vitesse limite.** Données réelles : à estimer (quantile élevé des vitesses de nuit). |
-| `dim_sensor` | `sensor_id` | texte, unique | `^SENSOR_[0-9]{3,}$` | Identifiant du capteur |
+| `dim_sensor` | `sensor_key` | entier généré | clé primaire | Clé technique (voir 4.1) |
+| | `sensor_id` | texte, unique | `^SENSOR_[0-9]{3,}$` | Identifiant du capteur |
+| | `road_segment_key` | entier | obligatoire ; clé étrangère vers `dim_road_segment` | Tronçon équipé (un tronçon peut avoir plusieurs capteurs) |
 | | `sensor_type` | texte | LOOP, CAMERA, RADAR, SIMULATED | Technologie |
 | | `reporting_interval_s` | entier | 1 à 3600, défaut 10 | Durée couverte par chaque mesure |
 | `dim_source` | `source_type` | texte | SIMULATED, REAL_HISTORICAL, REAL_LIVE | Provenance (voir [ADR-027](../01-architecture/adr/ADR-027-jeux-de-donnees-et-provenance.md)) |
-| `dim_congestion_state` | `state_code`, `severity_rank` | texte, 0 à 3 | UNKNOWN 0, FREE_FLOW 1, SLOW 2, CONGESTED 3 | États ordonnés par gravité |
-| `dim_date` | `date_key` | entier | AAAAMMJJ, 2012 à 2030 | Calendrier en UTC. `is_holiday` vaut faux tant que le calendrier des jours fériés du jeu n'est pas chargé (limite connue). |
+| | `description` | texte | obligatoire | Sens de l'origine, en français |
+| `dim_congestion_state` | `state_code`, `severity_rank` | texte, 0 à 3 | UNKNOWN 0, FREE_FLOW 1, SLOW 2, CONGESTED 3 ; rang unique | États ordonnés par gravité |
+| | `label_fr` | texte | obligatoire | Libellé affiché : Inconnu, Fluide, Ralenti, Congestionné |
+| `dim_date` | `date_key` | entier | AAAAMMJJ ; la contrainte accepte 2000 à 2099, la migration `0004` charge 2012 à 2030 (6 940 jours) | Clé du calendrier, en UTC. Un fait daté hors du calendrier chargé est **refusé** (clé étrangère). |
+| | `full_date` | date | unique | Jour calendaire |
+| | `year`, `month`, `day` | entiers | mois 1 à 12, jour 1 à 31 | Année civile, mois, jour |
+| | `iso_day_of_week` | entier | 1 (lundi) à 7 (dimanche), norme ISO 8601 | Jour de la semaine |
+| | `iso_week` | entier | 1 à 53 | Semaine ISO ; la semaine 1 peut commencer fin décembre, donc `year` et `iso_week` ne forment pas une semaine ISO complète |
+| | `is_weekend` | booléen | vrai le samedi et le dimanche | Fin de semaine |
+| | `is_holiday`, `holiday_name` | booléen, texte | `is_holiday` faux par défaut ; `holiday_name` vide tant que le calendrier n'est pas chargé | Jour férié (limite connue) |
 
 Le réseau de démonstration (fictif) : 6 carrefours, 24 tronçons, 24 capteurs, généré par `scripts/dev/gen_reseau.py` (migration `0005`).
 
@@ -128,6 +178,13 @@ Le réseau de démonstration (fictif) : 6 carrefours, 24 tronçons, 24 capteurs,
 | INT_01, INT_02 | ARTERIAL | 2 | 300 m | 50 km/h |
 | INT_03, INT_04 | COLLECTOR | 1 | 250 m | 50 km/h |
 | INT_05, INT_06 | LOCAL | 1 | 150 m | 30 km/h |
+
+### 4.1 Clés techniques
+
+| Clé | Table | Règle |
+|---|---|---|
+| `intersection_key`, `road_segment_key`, `sensor_key` | `dim_intersection`, `dim_road_segment`, `dim_sensor` | Entier généré par la base (`GENERATED ALWAYS AS IDENTITY`), propre à l'entrepôt. **Jamais** employé dans un événement, une API ou un fichier d'échange : on y échange les identifiants métier (`INT_`, `ROAD_`, `SENSOR_`), qui restent stables si l'entrepôt est reconstruit. |
+| `date_key` | `dim_date`, `fact_traffic_window` | Entier AAAAMMJJ, calculé : dans `fact_traffic_window` la base le déduit de `window_start`, il ne s'écrit pas. |
 
 ## 5. Mesure brute (`novaria.iot.measurement.v1`)
 
@@ -221,6 +278,17 @@ stateDiagram-v2
 | L'état revient à FREE_FLOW | Clôture : `ended_at` renseigné ; `window_count` et `min_speed_ratio` finalisés |
 | Clé d'unicité | (`road_segment_key`, `run_id`, `started_at`) : un rejeu ne duplique pas l'épisode |
 
+| Colonne `dwh.fact_congestion_episode` | Type | Règle | Sens |
+|---|---|---|---|
+| `episode_id` | uuid | clé primaire, générée | Identifiant de l'épisode ; repris par `alertes.alert.episode_id` (sans clé étrangère) |
+| `road_segment_key` | entier | obligatoire ; clé étrangère vers `dim_road_segment` | Tronçon concerné |
+| `run_id`, `source_type` | texte | obligatoires ; `source_type` : clé étrangère vers `dim_source` | Exécution et origine |
+| `started_at` | date et heure | obligatoire, UTC | Début de la première fenêtre dégradée |
+| `ended_at` | date et heure | `null` ou ≥ `started_at` | `null` : épisode en cours |
+| `peak_state` | texte | obligatoire ; clé étrangère vers `dim_congestion_state` | État le plus grave atteint |
+| `min_speed_ratio` | décimal | ≥ 0 | Plus faible ratio de vitesse de l'épisode |
+| `window_count` | entier | ≥ 1, défaut 1 | Fenêtres dégradées comptées |
+
 ### 7.3 Alertes (`alertes.*`)
 
 | Règle | Valeur |
@@ -236,13 +304,51 @@ stateDiagram-v2
 
 | Colonne `alertes.alert` | Sens |
 |---|---|
-| `alert_id` | Identifiant unique de l'alerte |
-| `rule_id`, `kind` | Règle déclenchée et type (CONGESTION, TRAFFIC_ANOMALY, SENSOR_FAULT) |
+| `alert_id` | Identifiant unique de l'alerte (uuid généré) |
+| `rule_id`, `kind` | Règle déclenchée (clé étrangère vers `alert_rule`) et type (CONGESTION, TRAFFIC_ANOMALY, SENSOR_FAULT) |
 | `road_segment_id`, `intersection_id` | Tronçon et carrefour concernés (texte, pas de clé étrangère inter-services) |
 | `episode_id` | Épisode d'origine, s'il existe |
 | `run_id`, `source_type` | Provenance |
-| `opened_at`, `notified_at`, `acknowledged_at`, `acknowledged_by`, `resolved_at` | Jalons du cycle de vie (UTC) |
+| `severity` | INFO, WARNING ou CRITICAL |
+| `cause` | UNKNOWN (défaut), CONFIRMED_INCIDENT, ROADWORKS, SPECIAL_EVENT ou SENSOR_FAULT |
+| `state` | CREATED (défaut), NOTIFIED, ACKNOWLEDGED ou RESOLVED |
+| `opened_at`, `notified_at`, `acknowledged_at`, `acknowledged_by`, `resolved_at` | Jalons du cycle de vie (UTC) ; `acknowledged_by` : texte libre en attendant la table des utilisateurs |
+| `resolution` | AUTO ou MANUAL, renseignée avec `resolved_at` |
 | `correlation_id` | Trace de bout en bout |
+| `updated_at` | Dernière modification (UTC), posée par le service |
+
+Ce que la base **garantit** : valeurs des énumérations, couple (`state` RESOLVED, `resolved_at`, `resolution`) cohérent, `acknowledged_at` présent si l'état est ACKNOWLEDGED, `resolved_at` ≥ `opened_at`, une seule alerte non résolue par type, tronçon et run. Ce qu'elle **ne garantit pas** : l'ordre des transitions (CREATED vers NOTIFIED vers ACKNOWLEDGED vers RESOLVED) et la présence de `notified_at` à l'état NOTIFIED. Ils relèvent du service d'alerte, qui écrit chaque transition dans `alert_history`.
+
+| Colonne `alertes.alert_rule` | Type | Règle | Sens |
+|---|---|---|---|
+| `rule_id` | texte | clé primaire ; `^[a-z0-9_.-]{3,60}$` | Nom de la règle (`congestion.persistante`, `anomalie.circulation`, `capteur.muet`) |
+| `kind` | texte | CONGESTION, TRAFFIC_ANOMALY ou SENSOR_FAULT | Type d'alerte produit |
+| `enabled` | booléen | défaut vrai | Règle active |
+| `params` | jsonb | défaut `{}` | Seuils propres à la règle (par exemple `min_windows`, `silence_s`) |
+| `min_gap_s` | entier | ≥ 0, défaut 300 | Délai minimal entre deux notifications d'un même tronçon (secondes) |
+| `updated_at` | date et heure | défaut maintenant, UTC | Dernière modification |
+
+Les trois règles ci-dessus sont chargées par la migration `0003`.
+
+| Colonne `alertes.alert_history` | Type | Règle | Sens |
+|---|---|---|---|
+| `history_id` | entier long | clé primaire, générée | Ordre d'écriture |
+| `alert_id` | uuid | obligatoire ; clé étrangère vers `alert`, suppression en cascade | Alerte concernée |
+| `from_state` | texte | `null` à la création, sinon un état du cycle de vie | État quitté |
+| `to_state` | texte | obligatoire, état du cycle de vie | État atteint |
+| `changed_at` | date et heure | défaut maintenant, UTC | Moment du changement |
+| `actor` | texte | obligatoire | Qui : service ou identifiant d'opérateur |
+| `details` | jsonb | facultatif | Contexte du changement (motif, valeurs observées) |
+
+| Colonne `alertes.outbox_event` | Type | Règle | Sens |
+|---|---|---|---|
+| `outbox_id` | entier long | clé primaire, générée | Ordre de publication |
+| `topic` | texte | obligatoire | Sujet Kafka cible (par exemple `alerts.events`) |
+| `event_key` | texte | obligatoire | Clé de partition : le `subject` de l'événement, soit `intersection_id` |
+| `event_id` | texte | obligatoire, **unique** | Attribut `id` de l'enveloppe : garantit l'idempotence côté consommateur |
+| `payload` | jsonb | obligatoire | Événement complet, conforme à `contracts/events/` |
+| `created_at` | date et heure | défaut maintenant, UTC | Écrit dans la même transaction que le changement d'état |
+| `published_at` | date et heure | `null` tant que non publié | Publication confirmée par Kafka ; l'index partiel sur les lignes à `null` sert le relais |
 
 ## 8. Règles de qualité
 
@@ -260,6 +366,20 @@ stateDiagram-v2
 | DQ-10 | Horodatage dans le futur (plus de 5 s après l'horloge du consommateur, hors rejeu) | Rejet, motif `FUTURE_TIMESTAMP` | `rejects` |
 
 Le taux de rejet, la complétude moyenne et le nombre de mesures `SUSPECT` par run se mesurent dès le premier run : ils entrent dans la fiche de provenance du jeu de données.
+
+### 8.1 Table `dwh.etl_reject`
+
+Une ligne par ligne refusée lors d'un chargement par lots (DQ-09). Le taux de rejet d'un chargement se calcule ici. Aucun code n'écrit encore dans cette table : le contenu exact de `dataset`, `source_ref` et `rule` sera fixé avec l'ETL (DAT-04) ; les exemples ci-dessous sont une proposition.
+
+| Colonne | Type | Règle | Sens |
+|---|---|---|---|
+| `reject_id` | entier long | clé primaire, générée | Identifiant du rejet |
+| `rejected_at` | date et heure | défaut maintenant, UTC | Moment du refus |
+| `dataset` | texte | obligatoire | Jeu chargé (identifiant du jeu ou du run) |
+| `source_ref` | texte | facultatif | Où retrouver la ligne dans la source (fichier, numéro de ligne) |
+| `rule` | texte | obligatoire | Règle de qualité ou contrainte violée (par exemple `DQ-09`, nom de la contrainte) |
+| `reason` | texte | obligatoire | Motif lisible |
+| `payload` | jsonb | facultatif | Ligne d'origine, pour la corriger et la rejouer |
 
 ## 9. Jeu d'entraînement (IA-08)
 
@@ -284,18 +404,165 @@ Un jeu = un ensemble de runs, enregistré en Parquet sous `data/datasets/`, acco
 
 ## 10. Collections MongoDB
 
-Champs principaux ; les validateurs complets sont dans `db/mongo/init/01-collections-et-utilisateurs.js`.
+Six collections, créées avec un validateur strict par `db/mongo/init/01-collections-et-utilisateurs.js` : un document mal formé est refusé à l'écriture (erreur de validation, code 121). Les champs inconnus restent permis, pour accepter les ajouts compatibles du contrat d'événement. Les droits par utilisateur de service sont dans [bases locales](base-de-donnees-locale.md).
 
-| Collection | Champs obligatoires | Index notables |
+| Collection | Contenu | Conservation |
 |---|---|---|
-| `raw_events` | enveloppe de l'événement + `received_at` (date) + `data.provenance` | unique sur `id` ; durée de vie 14 jours sur `received_at` |
-| `rejects` | `source_topic`, `rejected_at`, `reason`, `original_payload` | durée de vie 30 jours sur `rejected_at` |
-| `audit_logs` | `ts`, `service`, `actor`, `action`, `outcome` (ok, denied, error) | `ts` décroissant ; `actor` + `ts` |
-| `usage_stats` | `endpoint`, `bucket_start`, `count` | unique sur `endpoint` + `bucket_start` |
-| `processing_stats` | `kind` (quality, lateness, rejects), `window_start`, `values` | `kind` + `window_start` |
-| `model_runs` | `run_id`, `created_at`, `git_sha`, `dataset_sha256`, `seed`, `params`, `metrics`, `status` | unique sur `run_id` |
+| `raw_events` | Événements bruts validés, tels que publiés sur `iot.raw` | 14 jours |
+| `rejects` | Messages rejetés, avec motif et charge d'origine | 30 jours |
+| `audit_logs` | Qui a fait quoi, quand, avec quel résultat | illimitée en local |
+| `usage_stats` | Compteurs d'usage de l'API | illimitée en local |
+| `processing_stats` | Qualité, retards, rejets par fenêtre | illimitée en local |
+| `model_runs` | Un document par entraînement | illimitée en local |
 
-## 11. Points ouverts
+Les dates sont des dates MongoDB (UTC), jamais du texte. La colonne « Obligatoire » indique ce que le validateur exige.
+
+### 10.1 `raw_events`
+
+Grain : un événement de mesure (section 5). Écrit par la collecte.
+
+| Champ | Type | Obligatoire | Règle | Sens |
+|---|---|---|---|---|
+| `id` | texte | oui | 1 à 200 caractères ; unique | Clé d'idempotence de l'enveloppe |
+| `type` | texte | oui | `^novaria\.[a-z0-9_.]+\.v[0-9]+$` | Type d'événement |
+| `source` | texte | oui | non vide | Producteur |
+| `subject` | texte | non | | `intersection_id` |
+| `time` | date | oui | | Instant de l'observation |
+| `schema_version` | texte | oui | | `majeure.mineure` |
+| `domain` | texte | oui | | iot, traffic, alert ou signal |
+| `correlation_id` | texte | non | | Trace de bout en bout |
+| `received_at` | date | oui | | Réception par la collecte ; sert à la durée de vie |
+| `data` | objet | oui | contient `provenance` | Charge utile de l'événement |
+| `data.provenance` | objet | oui | contient `source_type` | Origine de la donnée |
+| `data.provenance.source_type` | texte | oui | SIMULATED, REAL_HISTORICAL, REAL_LIVE | Provenance (ADR-027) |
+| `data.provenance.run_id` | texte | non | | Exécution d'origine |
+| `data.provenance.scenario_id` | texte | non | | Scénario du simulateur |
+| `data.provenance.seed` | nombre | non | | Graine du simulateur |
+
+| Index | Clés | Rôle |
+|---|---|---|
+| `uniq_event_id` | `id`, unique | Un même événement reçu deux fois est refusé : idempotence |
+| `subject_time` | `subject`, `time` décroissant | Relire les mesures d'un carrefour |
+| `ttl_received_at` | `received_at`, expire après 14 jours (`RAW_EVENTS_TTL_SECONDS`) | Purge automatique |
+
+### 10.2 `rejects`
+
+Archive du sujet `errors.dlq`. Écrit par la collecte et le traitement.
+
+| Champ | Type | Obligatoire | Règle | Sens |
+|---|---|---|---|---|
+| `source_topic` | texte | oui | | Sujet d'origine (par exemple `iot.raw`) |
+| `rejected_at` | date | oui | | Moment du rejet |
+| `reason` | texte | oui | non vide | Motif : code de la section 8 (`UNKNOWN_SENSOR`, `LATE`, `FUTURE_TIMESTAMP`) ou chemin et message de l'erreur de contrat |
+| `original_payload` | tout type | oui | | Message tel que reçu, pour analyse et rejeu |
+| `service` | texte | non | | Service qui a rejeté |
+| `attempts` | nombre | non | | Nombre de tentatives |
+
+| Index | Clés | Rôle |
+|---|---|---|
+| `topic_time` | `source_topic`, `rejected_at` décroissant | Lister les rejets d'un sujet |
+| `ttl_rejected_at` | `rejected_at`, expire après 30 jours (`REJECTS_TTL_SECONDS`) | Purge automatique |
+
+### 10.3 `audit_logs`
+
+Journal d'audit : jamais de secret ni de donnée personnelle. Écrit par la réponse extérieure et l'API métier.
+
+| Champ | Type | Obligatoire | Règle | Sens |
+|---|---|---|---|---|
+| `ts` | date | oui | | Moment de l'action |
+| `service` | texte | oui | | Service qui journalise |
+| `actor` | texte | oui | | Qui agit : utilisateur ou service |
+| `action` | texte | oui | | Ce qui est fait |
+| `outcome` | texte | oui | ok, denied, error | Résultat |
+| `correlation_id` | texte | non | | Trace de bout en bout |
+| `details` | objet | non | | Contexte libre |
+
+| Index | Clés | Rôle |
+|---|---|---|
+| `ts_desc` | `ts` décroissant | Dernières actions |
+| `actor_ts` | `actor`, `ts` décroissant | Actions d'une personne ou d'un service |
+| `correlation` | `correlation_id`, clairsemé | Retrouver une chaîne d'événements |
+
+### 10.4 `usage_stats`
+
+Compteurs d'usage de l'API par point d'accès et par tranche de temps. Écrit par l'API métier.
+
+| Champ | Type | Obligatoire | Règle | Sens |
+|---|---|---|---|---|
+| `endpoint` | texte | oui | | Point d'accès (méthode et chemin) |
+| `bucket_start` | date | oui | | Début de la tranche de temps |
+| `count` | nombre | oui | ≥ 0 | Appels comptés dans la tranche |
+
+| Index | Clés | Rôle |
+|---|---|---|
+| `uniq_endpoint_bucket` | `endpoint`, `bucket_start` décroissant, unique | Une ligne par point d'accès et par tranche ; on incrémente `count` |
+
+### 10.5 `processing_stats`
+
+Statistiques de traitement par fenêtre. Écrit par le service de traitement.
+
+| Champ | Type | Obligatoire | Règle | Sens |
+|---|---|---|---|---|
+| `kind` | texte | oui | quality, lateness, rejects | Famille de statistique |
+| `window_start` | date | oui | | Début de la fenêtre |
+| `road_segment_id` | texte | non | | Tronçon, si la statistique est par tronçon |
+| `values` | objet | oui | | Valeurs mesurées (doublons, retards, rejets…) |
+
+| Index | Clés | Rôle |
+|---|---|---|
+| `kind_window` | `kind`, `window_start` décroissant | Relire une famille de statistiques dans le temps |
+
+### 10.6 `model_runs`
+
+Suivi des entraînements (MLOps, ADR-017) : un document par exécution. Écrit par le module d'apprentissage.
+
+| Champ | Type | Obligatoire | Règle | Sens |
+|---|---|---|---|---|
+| `run_id` | texte | oui | unique | Identifiant de l'entraînement |
+| `created_at` | date | oui | | Début de l'entraînement |
+| `git_sha` | texte | oui | | Version du code utilisé |
+| `dataset_sha256` | texte | oui | 64 caractères hexadécimaux minuscules | Empreinte du jeu d'entraînement (section 9) |
+| `seed` | nombre | oui | | Graine de l'entraînement |
+| `params` | objet | oui | | Hyperparamètres |
+| `metrics` | objet | oui | | Métriques d'évaluation |
+| `model_sha256` | texte | non | 64 caractères hexadécimaux minuscules | Empreinte du modèle enregistré |
+| `status` | texte | oui | trained, rejected, registered | État du modèle |
+
+| Index | Clés | Rôle |
+|---|---|---|
+| `uniq_run_id` | `run_id`, unique | Un entraînement, un document |
+| `created_desc` | `created_at` décroissant | Derniers entraînements |
+
+## 11. Schémas `ops` et `app`
+
+### 11.1 `ops.schema_migrations`
+
+Créée par `db/postgres/migrate.sh`, qui l'écrit seul : aucun rôle de service n'y a accès.
+
+| Colonne | Type | Règle | Sens |
+|---|---|---|---|
+| `filename` | texte | clé primaire | Nom de la migration appliquée (`NNNN_description.sql`) |
+| `sha256` | texte | obligatoire | Empreinte du fichier appliqué : modifier une migration déjà appliquée est refusé |
+| `applied_at` | date et heure | défaut maintenant, UTC | Moment de l'application |
+
+### 11.2 Schéma `app`
+
+Le schéma est créé vide à l'initialisation. Ses tables sont créées par Alembic dans `backend/` ([ADR-024](../01-architecture/adr/ADR-024-bases-de-donnees-locales.md)), **pas par un fichier SQL de `db/postgres/migrations/`**. À ce jour `backend/migrations/` ne contient aucune révision : le schéma n'a pas de table (BE-02).
+
+Cible, déduite du contrat [OpenAPI](../02-specifications/openapi.yaml) (schéma `User`), à confirmer par BE-02 :
+
+| Colonne visée | Règle visée | Sens |
+|---|---|---|
+| `user_id` | uuid, clé primaire | Identifiant exposé par l'API |
+| `username` | texte unique, 3 à 64 caractères | Identifiant de connexion |
+| mot de passe | **empreinte seulement**, jamais le mot de passe en clair | Authentification (BE-03) |
+| `role` | viewer, operator ou admin | Droit d'accès |
+| `is_active` | booléen | Compte utilisable |
+| `created_at` | date et heure, UTC | Création |
+
+Le dictionnaire sera complété avec les colonnes réelles au moment où BE-02 les crée.
+
+## 12. Points ouverts
 
 | Sujet | Position actuelle | À fixer par |
 |---|---|---|
@@ -305,3 +572,17 @@ Champs principaux ; les validateurs complets sont dans `db/mongo/init/01-collect
 | Jours fériés | Non chargés (`is_holiday` faux) | DAT-10, si le jeu de données le justifie |
 | Durée de conservation de `raw_events` (14 jours) | Valeur de départ | Volume observé |
 | Contrats `traffic.recommendations` et `signal.status` | Non écrits | MS-11 |
+| Tables du schéma `app` | Aucune révision Alembic (section 11.2) | BE-02 |
+| Transitions d'une alerte | Ordre non contrôlé par la base : c'est le service d'alerte qui le garantit (section 7.3). Une contrainte supplémentaire serait une nouvelle migration. | MS-11 |
+| Calendrier `dim_date` | 2012 à 2030 : un fait daté hors de cette période est refusé. L'étendre = nouvelle migration. | Choix du jeu de données (DAT-01) |
+| Contenu de `etl_reject` | Colonnes créées, valeurs non fixées (section 8.1) | DAT-04 |
+| Durée de la tranche de `usage_stats` | Non fixée | BE-05 |
+
+## Vérifier
+
+| Contrôle | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Le dictionnaire couvre migrations et collections | `python3 -m unittest discover -s scripts/dev -p "test_dictionnaire.py"` | `py -3 -m unittest discover -s scripts/dev -p "test_dictionnaire.py"` |
+| Les bases se créent à vide et les droits sont corrects | `python3 scripts/dev/dev.py db-up` puis `db-check` | `py -3 scripts/dev/dev.py db-up` puis `db-check` |
+
+Le test lit les migrations SQL (bibliothèque standard) et, si Node.js est installé, exécute le script d'initialisation MongoDB avec une base simulée pour en extraire collections, champs et index. Sans Node.js, la partie MongoDB est ignorée, pas en échec.
