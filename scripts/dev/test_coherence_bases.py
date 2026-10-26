@@ -11,7 +11,12 @@ from pathlib import Path
 DOCS = Path(__file__).resolve().parents[2] / "docs"
 ADR = DOCS / "01-architecture" / "adr"
 AUTORISES = {
-    "dynamodb": {"ADR-002-postgresql-mongodb.md", "ADR-020-terraform.md", "correction-diapositive-architecture.md"},
+    "dynamodb": {
+        "ADR-002-postgresql-mongodb.md",
+        "ADR-020-terraform.md",
+        "correction-diapositive-architecture.md",
+        "journal-usage-ia.md",
+    },
     "documentdb": {"ADR-022-hebergement-mongodb.md", "correction-diapositive-architecture.md"},
 }
 
