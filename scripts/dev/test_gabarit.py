@@ -25,8 +25,15 @@ FICHIERS_DU_GABARIT = [
     ".dockerignore", "Dockerfile", "README.md", "pyproject.toml", "requirements.txt", "requirements-dev.txt",
     "app/__init__.py", "app/main.py", "app/api/v1/health.py", "app/core/config.py", "app/core/logs.py",
     "tests/unit/test_health.py", "tests/unit/test_logs.py",
+    "app/schemas/events.py", "tests/contract/conftest.py", "tests/contract/test_event_models.py",
+    "tests/contract/test_openapi_contract.py",
 ]
-CODE_COMMUN = ["app/core/logs.py", "tests/unit/test_logs.py"]
+# Code copié du gabarit dans chaque service (CONTRIBUTING.md : pas de bibliothèque partagée). Les modèles
+# d'événements et leurs tests de conformité aux contrats de contracts/ en font partie (MS-03).
+CODE_COMMUN = [
+    "app/core/logs.py", "tests/unit/test_logs.py", "app/schemas/events.py",
+    "tests/contract/conftest.py", "tests/contract/test_event_models.py", "tests/contract/test_openapi_contract.py",
+]
 JOBS_OBLIGATOIRES = {"backend", "frontend", "gitleaks", "snyk", "docker", "sonarqube"}
 
 
