@@ -547,7 +547,7 @@ Créée par `db/postgres/migrate.sh`, qui l'écrit seul : aucun rôle de service
 
 ### 11.2 Schéma `app`
 
-Le schéma est créé vide à l'initialisation. Ses tables sont créées par Alembic dans `backend/` ([ADR-024](../01-architecture/adr/ADR-024-bases-de-donnees-locales.md)), **pas par un fichier SQL de `db/postgres/migrations/`**. À ce jour `backend/migrations/` ne contient aucune révision : le schéma n'a pas de table (BE-02).
+Le schéma est créé vide à l'initialisation. Ses tables sont créées par Alembic dans `services/traitement/` ([ADR-024](../01-architecture/adr/ADR-024-bases-de-donnees-locales.md)), **pas par un fichier SQL de `db/postgres/migrations/`**. À ce jour `services/traitement/migrations/` ne contient aucune révision : le schéma n'a pas de table (BE-02).
 
 Cible, déduite du contrat [OpenAPI](../02-specifications/openapi.yaml) (schéma `User`), à confirmer par BE-02 :
 

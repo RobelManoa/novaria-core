@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -8,10 +9,12 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    app_name: str = "Novaria Core API"
+    service_name: str = "gabarit"
+    app_name: str = "Novaria Core : service gabarit"
     app_version: str = "0.1.0"
     environment: str = "local"
     git_sha: str = "dev"  # injecté au build : relie la version déployée à sa révision
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
 
 @lru_cache

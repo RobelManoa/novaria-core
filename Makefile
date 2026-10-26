@@ -3,7 +3,7 @@
 PY ?= python3
 DEV = $(PY) scripts/dev/dev.py
 
-.PHONY: help init-env up down ps logs db-up db-migrate db-status db-check psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts lint format quality-up quality-down hooks
+.PHONY: help init-env up down ps logs db-up db-migrate db-status db-check psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts lint format new-service quality-up quality-down hooks
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -16,7 +16,7 @@ down:          ## Arrête tout (données conservées)
 	$(DEV) down
 ps:            ## État des conteneurs
 	$(DEV) ps
-logs:          ## Journaux (make logs S=backend pour un seul service)
+logs:          ## Journaux (make logs S=backend pour un seul service Compose)
 	$(DEV) logs $(S)
 
 db-up:         ## Démarre PostgreSQL et MongoDB, applique les migrations
@@ -47,18 +47,20 @@ kafka-topics:  ## Crée les 6 sujets du bus s'ils manquent et les vérifie
 kafka-roundtrip: ## Publie mesure-valide.json sur iot.raw, le relit et le valide
 	$(DEV) kafka-roundtrip
 
-test:          ## Tests backend + frontend + scripts du poste
-	cd backend && python -m pytest
+test:          ## Tests des services + frontend + scripts du poste
+	@for d in services/*/; do (cd $$d && python -m pytest) || exit 1; done
 	cd frontend && npm test
 	$(PY) -m unittest discover -s scripts/dev
 test-contracts: ## Valide les exemples et les cas invalides des contrats d'événements
 	$(PY) -m unittest discover -s contracts/tests
-lint:
-	cd backend && ruff check . && ruff format --check .
+lint:          ## Ruff sur chaque service, ESLint et Prettier sur le frontend
+	@for d in services/*/; do (cd $$d && ruff check . && ruff format --check .) || exit 1; done
 	cd frontend && npm run lint && npm run format:check
-format:
-	cd backend && ruff check --fix . && ruff format .
+format:        ## Formate chaque service et le frontend
+	@for d in services/*/; do (cd $$d && ruff check --fix . && ruff format .) || exit 1; done
 	cd frontend && npx prettier --write src
+new-service:   ## Crée services/<N> depuis le gabarit (make new-service N=alerte)
+	$(DEV) new-service $(N)
 quality-up:    ## SonarQube Community Build local
 	docker compose -f compose.quality.yml up -d
 quality-down:

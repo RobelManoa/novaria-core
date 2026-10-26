@@ -512,6 +512,19 @@ def cmd_check_tools(_: argparse.Namespace) -> int:
     return 0 if missing == 0 else 1
 
 
+def cmd_new_service(args: argparse.Namespace) -> int:
+    """Crée services/<nom> depuis le gabarit (MS-04) ; la logique est dans new_service.py."""
+    import new_service
+
+    try:
+        target = new_service.create(args.name, ROOT)
+    except new_service.NewServiceError as error:
+        raise DevError(str(error)) from error
+    print(f"Service créé : {target.relative_to(ROOT).as_posix()}")
+    print("Suite : voir CONTRIBUTING.md, « Créer un nouveau service ». La CI n'est pas à modifier.")
+    return 0
+
+
 # --------------------------------------------------------------------------- ligne de commande
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="dev.py", description=__doc__.splitlines()[0])
@@ -547,6 +560,8 @@ def build_parser() -> argparse.ArgumentParser:
     rest.add_argument("--yes", action="store_true", help="sans demande de confirmation")
     reset = add("db-reset", cmd_db_reset, "SUPPRIME les données locales des deux bases")
     reset.add_argument("--yes", action="store_true", help="sans demande de confirmation")
+    add("new-service", cmd_new_service, "crée services/<nom> depuis le gabarit").add_argument(
+        "name", help="nom du service : minuscules, chiffres, tirets (exemple : alerte)")
     add("ps", cmd_ps, "état des conteneurs")
     logs = add("logs", cmd_logs, "suit les journaux")
     logs.add_argument("services", nargs="*", help="services (tous par défaut)")

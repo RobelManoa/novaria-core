@@ -27,7 +27,7 @@ flowchart LR
 flowchart LR
     OA["openapi.yaml<br/>contrat public /api/v1"] --> FE["Tableau de bord<br/>client typé (FE-02)"]
     OA --> API["API métier et services<br/>routes FastAPI (BE-02 à BE-06)"]
-    OA --> CT["backend/tests/contract<br/>conformité (BE-07)"]
+    OA --> CT["services/traitement/tests/contract<br/>conformité (BE-07)"]
     EV["contracts/events/<br/>schémas d'événements"] -. mêmes champs et énumérations .-> OA
 ```
 

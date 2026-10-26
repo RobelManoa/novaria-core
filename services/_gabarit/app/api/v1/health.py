@@ -7,7 +7,7 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 def health() -> dict[str, str]:
-    """Sonde de santé utilisée par Docker, ECS et le pipeline après déploiement."""
+    """Sonde de santé (Docker, pipeline) ; schéma `Health` du contrat OpenAPI."""
     settings = get_settings()
     return {
         "status": "ok",
