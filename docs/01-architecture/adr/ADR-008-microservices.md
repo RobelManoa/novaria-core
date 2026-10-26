@@ -37,7 +37,7 @@ Le traitement de données urbaines comporte des étapes de natures différentes 
 
 | Option | Avantages | Inconvénients | Verdict |
 |---|---|---|---|
-| A. Monolithe en couches (squelette actuel `backend/`) | Le plus rapide à construire, une seule image | Couplage, technologie unique, aucune démonstration d'indépendance | Écartée |
+| A. Monolithe en couches (squelette actuel `services/traitement/`) | Le plus rapide à construire, une seule image | Couplage, technologie unique, aucune démonstration d'indépendance | Écartée |
 | B. Monolithe modulaire (modules isolés, un seul déploiement) | Peu de coût d'exploitation, frontières nettes | Pannes non isolées, un seul rythme de déploiement | Plan de repli |
 | **C. Quatre microservices + passerelle + simulateur** | Indépendance de panne, de déploiement et de technologie ; extension par ajout de services | Complexité réseau, cohérence des données, tests de bout en bout, coût de plus d'images | **Retenue** |
 | D. Beaucoup de petits services (nano-services) | Découpage fin | Charge d'exploitation hors de proportion | Écartée |

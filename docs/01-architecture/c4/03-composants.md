@@ -1,12 +1,12 @@
 # Vue 3 : composants du back-end
 
-Le contenu de deux conteneurs de la [vue 2](02-conteneurs.md) : l'**API métier** (dossier `backend/`, la partie de Daddy) et le **Service Traitement** (cœur des données). Les autres services suivent le même gabarit, résumé en fin de document. Légende et noms : [README](README.md).
+Le contenu de deux conteneurs de la [vue 2](02-conteneurs.md) : l'**API métier** (dossier `services/traitement/`, ancien `backend/`, la partie de Daddy) et le **Service Traitement** (cœur des données). Les autres services suivent le même gabarit, résumé en fin de document. Légende et noms : [README](README.md).
 
 Un composant C4 est un regroupement de code qui a une responsabilité (un module, un paquet), pas une classe.
 
 ## 3.1 API métier
 
-Dossier `backend/app/`. Architecture en couches simples (`api`, `services`, `repositories`, `models`, `schemas`, `core`) : l'API métier ne porte pas de logique de domaine riche, [ADR-010](../adr/ADR-010-architecture-hexagonale.md) réserve l'hexagone aux services à logique métier.
+Dossier `services/traitement/app/` (ancien `backend/app/`, déplacé par MS-04). Architecture en couches simples (`api`, `services`, `repositories`, `models`, `schemas`, `core`) : l'API métier ne porte pas de logique de domaine riche, [ADR-010](../adr/ADR-010-architecture-hexagonale.md) réserve l'hexagone aux services à logique métier.
 
 ```mermaid
 flowchart TB

@@ -121,7 +121,7 @@ Chaque collection a un **validateur** : un document mal formé est refusé à l'
 | Cas | Marche à suivre |
 |---|---|
 | Nouvelle table dans `dwh` ou `alertes` | Créer `db/postgres/migrations/NNNN_description.sql` (numéro suivant, jamais renuméroter), puis `db-migrate`. Une migration déjà appliquée ne se modifie jamais : le runner refuse (empreinte SHA-256 — *Secure Hash Algorithm*, algorithme de hachage — enregistrée). Ajouter une nouvelle migration à la place. |
-| Nouvelle table dans `app` | Migration Alembic du backend (`backend/`), pas de fichier SQL (Structured Query Language) ici. |
+| Nouvelle table dans `app` | Migration Alembic du service (`services/traitement/migrations/`), pas de fichier SQL (Structured Query Language) ici. |
 | Nouvelle collection MongoDB | Ajouter validateur, index et droits dans `db/mongo/init/01-collections-et-utilisateurs.js`, puis recréer la base locale (`db-reset`) : le script ne s'exécute qu'au premier démarrage d'un volume vide. Prévoir aussi la version qui s'applique à une base existante dans une issue dédiée. |
 | Nouveau droit | Même fichier d'initialisation, plus le test correspondant dans `build_checks()` de `scripts/dev/dev.py`. |
 

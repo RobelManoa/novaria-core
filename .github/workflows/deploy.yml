@@ -34,8 +34,9 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
       - name: Construire et publier les images (tag = révision)
         run: |
-          for svc in backend frontend; do
-            docker build --build-arg GIT_SHA=$SHA -t ${{ steps.ecr.outputs.registry }}/novaria-$svc:$SHA $svc
+          for entry in backend:services/traitement frontend:frontend; do
+            svc=${entry%%:*}; dir=${entry#*:}
+            docker build --build-arg GIT_SHA=$SHA -t ${{ steps.ecr.outputs.registry }}/novaria-$svc:$SHA $dir
             docker push ${{ steps.ecr.outputs.registry }}/novaria-$svc:$SHA
           done
       - name: Déployer le backend

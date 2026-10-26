@@ -1,4 +1,4 @@
-# --- Image backend : construction multi-étapes, utilisateur non-root ---
+# --- Image du service traitement : construction multi-étapes, utilisateur non-root ---
 FROM python:3.15-slim AS base
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 WORKDIR /srv

@@ -120,7 +120,7 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ./services/traitement
       args:
         GIT_SHA: ${GIT_SHA:-local}
     environment:

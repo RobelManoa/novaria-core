@@ -34,7 +34,7 @@ Guides : [bases de données locales](docs/03-donnees/base-de-donnees-locale.md) 
 
 | Dossier | Contenu |
 |---|---|
-| `backend/` | API FastAPI versionnée `/api/v1` |
+| `services/` | Un dossier par service FastAPI : `traitement/` (ancien `backend/`) et `_gabarit/`, le modèle des nouveaux services |
 | `frontend/` | Dashboard React + Vite |
 | `db/` | Bases locales : initialisation, migrations SQL, sauvegarde (PostgreSQL, MongoDB) |
 | `contracts/` | Contrats d'événements (schémas JSON), validateur et tests |

@@ -115,4 +115,4 @@ Décision : les trois exceptions sont **maintenues** (aucun correctif publié), 
 
 | Contrôle de nécessité (même commande sous Linux et Windows) | Effet |
 |---|---|
-| `docker build -t novaria-backend:test backend` puis `snyk container test novaria-backend:test --file=backend/Dockerfile --severity-threshold=high` | Sans `--policy-path`, Snyk n'applique pas `.snyk` : il liste les failles de gravité high ou critical. Demande `snyk auth` (jeton saisi dans le navigateur, jamais dans le terminal ni dans une conversation) |
+| `docker build -t novaria-traitement:test services/traitement` puis `snyk container test novaria-traitement:test --file=services/traitement/Dockerfile --severity-threshold=high` | Sans `--policy-path`, Snyk n'applique pas `.snyk` : il liste les failles de gravité high ou critical. Demande `snyk auth` (jeton saisi dans le navigateur, jamais dans le terminal ni dans une conversation) |
