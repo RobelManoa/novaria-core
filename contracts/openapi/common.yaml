@@ -1,0 +1,218 @@
+openapi: 3.1.0
+
+# Composants partagés par les contrats de service de ce dossier. Ce fichier ne décrit aucune API : il n'a
+# ni `paths` ni serveur. Un composant n'est ici que s'il sert à au moins deux services ; sinon il reste dans
+# le contrat de son service. Le test scripts/dev/test_openapi.py l'impose.
+info:
+  title: "Novaria Core : composants communs des contrats OpenAPI"
+  version: 1.0.0-draft.1
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Jeton obtenu par `POST /api/v1/auth/login`.
+
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      description: Taille de page, de 1 à 500.
+      schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+    Cursor:
+      name: cursor
+      in: query
+      description: Curseur opaque lu dans `next_cursor` de la page précédente.
+      schema: { type: string, maxLength: 512 }
+    IntersectionId:
+      name: intersection_id
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/IntersectionId" }
+
+  headers:
+    RetryAfter:
+      description: Secondes à attendre avant de réessayer.
+      schema: { type: integer, minimum: 1 }
+
+  responses:
+    Unauthorized:
+      description: Jeton absent, invalide ou expiré ; code `UNAUTHENTICATED`.
+      headers:
+        WWW-Authenticate:
+          schema: { type: string, example: Bearer }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: https://novaria.local/problems/unauthenticated
+            title: Authentification requise
+            status: 401
+            code: UNAUTHENTICATED
+            detail: Jeton absent, invalide ou expiré.
+            correlation_id: 7d2f0c9e-3b0a-4f0e-9a52-1c5c3c4e8a10
+    Forbidden:
+      description: Rôle insuffisant pour cette opération ; code `FORBIDDEN`.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: https://novaria.local/problems/forbidden
+            title: Droit insuffisant
+            status: 403
+            code: FORBIDDEN
+            detail: Le rôle `viewer` ne permet pas cette opération ; rôle requis `operator`.
+            correlation_id: 4c1d8f20-6e19-4a0c-bb6b-90d6f4f3a0de
+    NotFound:
+      description: Ressource inconnue ; code `NOT_FOUND`.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    ValidationError:
+      description: Entrée invalide ; code `VALIDATION_ERROR`. `errors` liste chaque champ fautif.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: https://novaria.local/problems/validation-error
+            title: Entrée invalide
+            status: 422
+            code: VALIDATION_ERROR
+            detail: 1 champ invalide.
+            errors:
+              - { field: query.window_size_s, message: "La valeur doit être 60 ou 300." }
+            correlation_id: 9a3b2c10-5d6e-4f70-8a91-b2c3d4e5f607
+    TooManyRequests:
+      description: Limite de débit atteinte ; code `RATE_LIMITED`.
+      headers:
+        Retry-After: { $ref: "#/components/headers/RetryAfter" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    ServerError:
+      description: Erreur interne ou service en aval indisponible ; code `INTERNAL_ERROR` ou `UPSTREAM_UNAVAILABLE`. Aucun détail technique n'est exposé.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+
+  schemas:
+    IntersectionId:
+      type: string
+      pattern: '^INT_[0-9]{2,}$'
+      examples: [INT_01]
+    UtcDateTime:
+      type: string
+      format: date-time
+      pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?Z$'
+      description: Date et heure ISO 8601 en UTC, fuseau explicite (`Z`).
+      examples: ["2026-10-20T08:20:00Z"]
+    RoadSegmentId:
+      type: string
+      pattern: '^ROAD_[0-9]{3,}$'
+      examples: [ROAD_001]
+    SourceType:
+      type: string
+      enum: [SIMULATED, REAL_HISTORICAL, REAL_LIVE]
+    Provenance:
+      type: object
+      additionalProperties: false
+      required: [source_type, run_id]
+      description: Origine de la donnée. Une donnée simulée n'est jamais présentée comme réelle (ADR-027).
+      properties:
+        source_type: { $ref: "#/components/schemas/SourceType" }
+        run_id:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: '`live`, identifiant d''un run du simulateur ou d''un jeu historique.'
+        scenario_id:
+          type: string
+          pattern: '^[a-z0-9_-]{1,60}$'
+          description: Obligatoire si `SIMULATED`.
+        seed:
+          type: integer
+          minimum: 0
+          description: Obligatoire si `SIMULATED` ; rend le run reproductible.
+        dataset_id:
+          type: string
+          pattern: '^[a-z0-9_.-]{1,60}$'
+          description: Obligatoire si `REAL_HISTORICAL`.
+      allOf:
+        - if:
+            properties: { source_type: { const: SIMULATED } }
+            required: [source_type]
+          then:
+            required: [scenario_id, seed]
+        - if:
+            properties: { source_type: { const: REAL_HISTORICAL } }
+            required: [source_type]
+          then:
+            required: [dataset_id]
+    Problem:
+      type: object
+      description: Corps unique de toute erreur (RFC 9457, `application/problem+json`).
+      required: [type, title, status, code, correlation_id]
+      properties:
+        type:
+          type: string
+          format: uri
+          description: Identifie la famille d'erreur.
+        title:
+          type: string
+          description: Résumé court, identique pour un même `code`.
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+          description: Code HTTP, répété dans le corps.
+        code:
+          type: string
+          description: Code stable lisible par une machine.
+          enum:
+            - UNAUTHENTICATED
+            - INVALID_CREDENTIALS
+            - FORBIDDEN
+            - NOT_FOUND
+            - CONFLICT
+            - VALIDATION_ERROR
+            - INVALID_STATE_TRANSITION
+            - COMMAND_IN_PROGRESS
+            - UNSAFE_COMMAND
+            - RATE_LIMITED
+            - FORECAST_UNAVAILABLE
+            - UPSTREAM_UNAVAILABLE
+            - INTERNAL_ERROR
+        detail:
+          type: string
+          description: Explication pour une personne. Ne contient ni secret, ni trace d'exécution.
+        correlation_id:
+          type: string
+          description: Identifiant de corrélation de la requête, à citer dans un signalement.
+        errors:
+          type: array
+          description: Un élément par champ invalide (`VALIDATION_ERROR`).
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field:
+                type: string
+                description: 'Chemin du champ, par exemple `body.password` ou `query.limit`.'
+              message: { type: string }
+    Health:
+      type: object
+      required: [status, version, revision, environment]
+      properties:
+        status: { type: string, enum: [ok] }
+        version: { type: string, description: Version du produit déployé. }
+        revision: { type: string, description: Révision Git du code construit. }
+        environment: { type: string, examples: [local] }
+    PageInfo:
+      type: object
+      required: [next_cursor]
+      properties:
+        next_cursor:
+          type: [string, "null"]
+          description: Curseur de la page suivante ; `null` sur la dernière page.

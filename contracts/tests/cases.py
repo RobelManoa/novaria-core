@@ -1,6 +1,6 @@
 """Cas de référence des contrats d'événements : exemples valides et cas invalides, partagés par les tests.
 
-Utilisé par contracts/tests/test_events.py et par backend/tests/contract/ (parité avec les modèles Pydantic).
+Utilisé par contracts/tests/test_events.py et par services/*/tests/contract/ (parité avec les modèles Pydantic).
 """
 import copy
 import json

@@ -1,0 +1,247 @@
+openapi: 3.1.0
+
+info:
+  title: "Novaria Core : service Réponse extérieure"
+  version: 1.0.0-draft.1
+  summary: État des feux de circulation et commande manuelle.
+  description: |
+    Applique les recommandations et les commandes manuelles au contrôleur de feux simulé, après les garde-fous ; publie `signal.status` et journalise dans `audit_logs`.
+
+    **Statut : brouillon (MS-03).** Contrat issu du contrat unique de BE-01, découpé par service. Les conventions communes (dates, unités, erreurs, pagination, authentification, rôles, versionnement) sont dans `contracts/openapi/README.md` ; les composants partagés sont dans `common.yaml`.
+  contact:
+    name: Daddy Luciano, Manoa Robel
+    url: https://github.com/RobelManoa/novaria-core
+  license:
+    name: Usage pédagogique (Master 2 EADL)
+    identifier: LicenseRef-Pedagogique
+
+servers:
+  - url: http://localhost:8080
+    description: Poste local, derrière la passerelle d'API (cible, MS-13)
+
+tags:
+  - name: Santé
+    description: Sonde utilisée par Docker et le pipeline.
+  - name: Feux
+    description: État des feux de circulation et commande manuelle.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/health:
+    get:
+      tags: [Santé]
+      operationId: getHealth
+      summary: Sonde de santé
+      description: Dit que le service tourne. Renvoie la version et la révision Git du code déployé.
+      security: []
+      responses:
+        "200":
+          description: Service en ligne.
+          content:
+            application/json:
+              schema: { $ref: "common.yaml#/components/schemas/Health" }
+              example:
+                status: ok
+                version: 0.1.0
+                revision: 4d1ca55
+                environment: local
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/signals:
+    get:
+      tags: [Feux]
+      operationId: listSignals
+      summary: État des feux de tous les carrefours équipés
+      description: |
+        **Schémas provisoires.** Les contrats d'événements `traffic.recommendations` et `signal.status`
+        ne sont pas encore écrits (MS-03, MS-12) ; cette partie suivra leur rédaction.
+      x-required-role: viewer
+      responses:
+        "200":
+          description: Un état par carrefour à feux.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/SignalState" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/signals/{intersection_id}:
+    parameters:
+      - $ref: "common.yaml#/components/parameters/IntersectionId"
+    get:
+      tags: [Feux]
+      operationId: getSignal
+      summary: État des feux d'un carrefour
+      x-required-role: viewer
+      responses:
+        "200":
+          description: État courant.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SignalState" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.yaml#/components/responses/NotFound" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/signals/{intersection_id}/commands:
+    parameters:
+      - $ref: "common.yaml#/components/parameters/IntersectionId"
+    get:
+      tags: [Feux]
+      operationId: listSignalCommands
+      summary: Historique des commandes
+      description: "Lit le journal d'audit des commandes (acceptées et refusées). Tri : `requested_at` décroissant."
+      x-required-role: viewer
+      parameters:
+        - { $ref: "common.yaml#/components/parameters/Limit" }
+        - { $ref: "common.yaml#/components/parameters/Cursor" }
+      responses:
+        "200":
+          description: Une page de commandes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SignalCommandPage" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.yaml#/components/responses/NotFound" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+    post:
+      tags: [Feux]
+      operationId: sendSignalCommand
+      summary: Envoyer une commande manuelle
+      description: |
+        La commande manuelle est prioritaire sur les recommandations. Le service de réponse extérieure
+        applique des garde-fous : durée minimale de phase, interdiction des verts conflictuels.
+        Une commande dangereuse est **refusée et journalisée** (`422`, code `UNSAFE_COMMAND`).
+        Le modèle ne commande jamais seul un équipement (ADR-008, ADR-015).
+      x-required-role: operator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignalCommandRequest" }
+            example:
+              action: SET_PHASE
+              phase_id: P2
+              duration_s: 30
+              reason: Évacuation après incident confirmé
+      responses:
+        "202":
+          description: Commande acceptée ; son application se lit dans `GET /api/v1/signals/{intersection_id}`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SignalCommand" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.yaml#/components/responses/NotFound" }
+        "409":
+          description: Une autre commande manuelle est en cours ; code `COMMAND_IN_PROGRESS`.
+          content:
+            application/problem+json:
+              schema: { $ref: "common.yaml#/components/schemas/Problem" }
+        "422":
+          description: Corps invalide (`VALIDATION_ERROR`) ou commande refusée par les garde-fous (`UNSAFE_COMMAND`).
+          content:
+            application/problem+json:
+              schema: { $ref: "common.yaml#/components/schemas/Problem" }
+              examples:
+                unsafe:
+                  summary: Durée sous le minimum de sécurité
+                  value:
+                    type: https://novaria.local/problems/unsafe-command
+                    title: Commande refusée par les garde-fous
+                    status: 422
+                    code: UNSAFE_COMMAND
+                    detail: La durée demandée est inférieure à la durée minimale de la phase.
+                    correlation_id: 0b1f3a52-7a77-4c4e-8f3e-2f1d2f5a9b11
+        "429": { $ref: "common.yaml#/components/responses/TooManyRequests" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+components:
+  securitySchemes:
+    bearerAuth: { $ref: "common.yaml#/components/securitySchemes/bearerAuth" }
+
+  schemas:
+    SignalPhase:
+      type: object
+      required: [phase_id, green_approaches, min_duration_s, duration_s]
+      properties:
+        phase_id: { type: string, pattern: '^P[0-9]+$', examples: [P1] }
+        green_approaches:
+          type: array
+          description: Approches au vert pendant cette phase. Deux phases en conflit ne se recouvrent jamais.
+          items: { type: string, enum: [N, E, S, W] }
+        min_duration_s: { type: integer, minimum: 1, description: Durée minimale de sécurité. }
+        duration_s: { type: integer, minimum: 1 }
+    SignalState:
+      type: object
+      description: Provisoire, à aligner sur le contrat `signal.status` (MS-12).
+      required: [intersection_id, mode, current_phase_id, phases, updated_at]
+      properties:
+        intersection_id: { $ref: "common.yaml#/components/schemas/IntersectionId" }
+        mode:
+          type: string
+          enum: [AUTOMATIC, MANUAL, DEGRADED_FIXED_PLAN]
+          description: |
+            `AUTOMATIC` : suit les recommandations. `MANUAL` : commande d'un opérateur en cours.
+            `DEGRADED_FIXED_PLAN` : retour au plan à durées fixes quand les recommandations manquent.
+        current_phase_id: { type: string }
+        phases:
+          type: array
+          items: { $ref: "#/components/schemas/SignalPhase" }
+        updated_at: { $ref: "common.yaml#/components/schemas/UtcDateTime" }
+        provenance: { $ref: "common.yaml#/components/schemas/Provenance" }
+    SignalCommandRequest:
+      type: object
+      additionalProperties: false
+      required: [action, reason]
+      properties:
+        action:
+          type: string
+          enum: [SET_PHASE, RESUME_AUTOMATIC]
+          description: '`SET_PHASE` impose une phase ; `RESUME_AUTOMATIC` rend la main aux recommandations.'
+        phase_id: { type: string, pattern: '^P[0-9]+$', description: Obligatoire avec `SET_PHASE`. }
+        duration_s: { type: integer, minimum: 1, maximum: 600, description: Obligatoire avec `SET_PHASE`. }
+        reason: { type: string, minLength: 3, maxLength: 500, description: Motif, conservé dans le journal d'audit. }
+      allOf:
+        - if:
+            properties: { action: { const: SET_PHASE } }
+            required: [action]
+          then:
+            required: [phase_id, duration_s]
+    SignalCommand:
+      type: object
+      required: [command_id, intersection_id, action, status, requested_by, requested_at, reason]
+      properties:
+        command_id: { type: string, format: uuid }
+        intersection_id: { $ref: "common.yaml#/components/schemas/IntersectionId" }
+        action: { type: string, enum: [SET_PHASE, RESUME_AUTOMATIC] }
+        phase_id: { type: [string, "null"] }
+        duration_s: { type: [integer, "null"] }
+        status:
+          type: string
+          enum: [ACCEPTED, APPLIED, REFUSED, EXPIRED]
+        refusal_reason: { type: [string, "null"], description: Renseigné si `status` vaut `REFUSED`. }
+        requested_by: { type: string }
+        requested_at: { $ref: "common.yaml#/components/schemas/UtcDateTime" }
+        reason: { type: string }
+    SignalCommandPage:
+      allOf:
+        - $ref: "common.yaml#/components/schemas/PageInfo"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/SignalCommand" }

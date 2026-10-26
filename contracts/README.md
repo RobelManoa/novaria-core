@@ -12,7 +12,7 @@ Les contrats décrivent exactement ce qui circule entre les composants. Une sour
 | `conformance.py` | Banc de conformité par service et par sujet | outil et bibliothèque |
 | `check_compat.py` | Contrôle de compatibilité ascendante entre deux versions des schémas | outil |
 | `tests/` | Tests : 19 exemples valides, 85 cas invalides refusés pour la bonne raison, matrice par service, compatibilité | à lancer avant toute modification |
-| `backend/app/schemas/events.py` | Modèles Pydantic des six événements, alignés sur les schémas (test de parité dans `backend/tests/contract/`) | MS-03 |
+| `services/_gabarit/app/schemas/events.py` | Modèles Pydantic des six événements, alignés sur les schémas, copiés dans chaque service (test de parité dans `tests/contract/` de chaque service) | MS-03 |
 
 ## Événements v1
 
@@ -100,7 +100,7 @@ assert_consumption("reponse", "traffic.recommendations", message)
 | Contrôler les exemples de chaque service | `python3 contracts/conformance.py` | `py -3 contracts/conformance.py` |
 | Afficher la matrice service par sujet | `python3 contracts/conformance.py --matrix` | `py -3 contracts/conformance.py --matrix` |
 
-Côté back-end, les modèles Pydantic de `backend/app/schemas/events.py` sont alignés sur les schémas : `backend/tests/contract/test_event_models.py` compare leurs champs, bornes et énumérations, vérifie sur tous les exemples et cas invalides que le modèle accepte exactement ce que le schéma accepte, et tourne dans le job `backend` de la CI (Continuous Integration, intégration continue). Le modèle couvre la structure et les règles conditionnelles du schéma ; les règles entre champs restent dans `validate_events.py`.
+Côté services, les modèles Pydantic de `app/schemas/events.py` (dans le gabarit `services/_gabarit` et copiés dans chaque service, comme le veut `CONTRIBUTING.md`) sont alignés sur les schémas : `tests/contract/test_event_models.py` compare leurs champs, bornes et énumérations, vérifie sur tous les exemples et cas invalides que le modèle accepte exactement ce que le schéma accepte, et tourne dans le job `backend` de la CI (Continuous Integration, intégration continue). Le modèle couvre la structure et les règles conditionnelles du schéma ; les règles entre champs restent dans `validate_events.py`.
 
 ## Règles de versionnement
 
@@ -146,7 +146,7 @@ Un fichier par service dans `openapi/`, plus `common.yaml` pour les composants p
 
 | Limite | Conséquence |
 |---|---|
-| Les contrats ne figurent pas dans la CI, sauf la parité des modèles Pydantic (job `backend`) | Ajouter `contracts/tests` à la CI modifie les contrôles obligatoires : pas fait sans accord des deux membres |
+| Les contrats ne figurent pas dans la CI, sauf la parité des modèles Pydantic et la sonde de chaque service (job `backend`, qui parcourt `services/*/`) | Ajouter `contracts/tests` à la CI modifie les contrôles obligatoires : pas fait sans accord des deux membres |
 | Les services n'existent pas encore | Le banc `conformance.py` est prêt ; chaque service l'appelle dans son test dès MS-08 à MS-12 |
 | Les contrats OpenAPI ne sont pas vérifiés par un validateur OpenAPI complet | À lancer, par exemple : `npx @redocly/cli lint contracts/openapi/traitement.openapi.yaml`. La référence externe `../events/iot-measurement.schema.json` demande un outil qui suive les références de fichier |
 | Le validateur MongoDB de `raw_events` est une description proche du schéma JSON, pas identique (types BSON (Binary JSON, JSON binaire de MongoDB)) | Vérifié sur la mesure d'exemple : acceptée ; origine inconnue, provenance absente et type mal formé : refusés |

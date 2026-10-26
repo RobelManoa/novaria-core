@@ -40,4 +40,4 @@ app/core/               configuration et journaux
 tests/unit/             tests unitaires
 ```
 
-Quand le service grandit, ajouter `services/`, `repositories/` et `schemas/` sous `app/` selon l'[ADR-010](../../docs/01-architecture/adr/ADR-010-architecture-hexagonale.md) ; les contrats d'interface sont dans `docs/02-specifications/openapi.yaml`.
+Quand le service grandit, ajouter `services/`, `repositories/` et `schemas/` sous `app/` selon l'[ADR-010](../../docs/01-architecture/adr/ADR-010-architecture-hexagonale.md) ; les contrats d'interface sont dans `contracts/openapi/<nom du service>.openapi.yaml`.

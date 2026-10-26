@@ -1,0 +1,270 @@
+openapi: 3.1.0
+
+info:
+  title: "Novaria Core : API métier"
+  version: 1.0.0-draft.1
+  summary: Santé, authentification et gestion des comptes. Service à créer depuis le gabarit (schéma PostgreSQL `app`).
+  description: |
+    Émet les jetons JWT (JSON Web Token) que la passerelle contrôle ; seul service qui écrit les comptes.
+
+    **Statut : brouillon (MS-03).** Contrat issu du contrat unique de BE-01, découpé par service. Les conventions communes (dates, unités, erreurs, pagination, authentification, rôles, versionnement) sont dans `contracts/openapi/README.md` ; les composants partagés sont dans `common.yaml`.
+  contact:
+    name: Daddy Luciano, Manoa Robel
+    url: https://github.com/RobelManoa/novaria-core
+  license:
+    name: Usage pédagogique (Master 2 EADL)
+    identifier: LicenseRef-Pedagogique
+
+servers:
+  - url: http://localhost:8000
+    description: Poste local, API en accès direct (Docker Compose)
+  - url: http://localhost:8080
+    description: Poste local, derrière la passerelle d'API (cible, MS-13)
+
+tags:
+  - name: Santé
+    description: Sonde utilisée par Docker et le pipeline.
+  - name: Authentification
+    description: Connexion et identité de l'appelant.
+  - name: Utilisateurs
+    description: Gestion des comptes et des rôles (administrateur).
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/health:
+    get:
+      tags: [Santé]
+      operationId: getHealth
+      summary: Sonde de santé
+      description: Dit que le service tourne. Renvoie la version et la révision Git du code déployé.
+      security: []
+      responses:
+        "200":
+          description: Service en ligne.
+          content:
+            application/json:
+              schema: { $ref: "common.yaml#/components/schemas/Health" }
+              example:
+                status: ok
+                version: 0.1.0
+                revision: 4d1ca55
+                environment: local
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/auth/login:
+    post:
+      tags: [Authentification]
+      operationId: login
+      summary: Ouvrir une session
+      description: Vérifie les identifiants et émet un jeton d'accès. Limité en débit (voir `429`).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+            example: { username: operateur1, password: "mot-de-passe-d-exemple" }
+      responses:
+        "200":
+          description: Jeton émis.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Token" }
+              example:
+                access_token: eyJhbGciOi...
+                token_type: bearer
+                expires_in: 1800
+        "401":
+          description: Identifiants inconnus ou compte désactivé. Le message ne dit pas lequel des deux.
+          content:
+            application/problem+json:
+              schema: { $ref: "common.yaml#/components/schemas/Problem" }
+              example:
+                type: https://novaria.local/problems/invalid-credentials
+                title: Identifiants invalides
+                status: 401
+                code: INVALID_CREDENTIALS
+                detail: Identifiant ou mot de passe incorrect.
+                correlation_id: 7d2f0c9e-3b0a-4f0e-9a52-1c5c3c4e8a10
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "429": { $ref: "common.yaml#/components/responses/TooManyRequests" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/auth/me:
+    get:
+      tags: [Authentification]
+      operationId: getCurrentUser
+      summary: Identité de l'appelant
+      x-required-role: viewer
+      responses:
+        "200":
+          description: Utilisateur associé au jeton.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/users:
+    get:
+      tags: [Utilisateurs]
+      operationId: listUsers
+      summary: Lister les utilisateurs
+      x-required-role: admin
+      parameters:
+        - { $ref: "common.yaml#/components/parameters/Limit" }
+        - { $ref: "common.yaml#/components/parameters/Cursor" }
+        - name: role
+          in: query
+          description: Ne garder que ce rôle.
+          schema: { $ref: "#/components/schemas/Role" }
+      responses:
+        "200":
+          description: Une page d'utilisateurs.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserPage" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+    post:
+      tags: [Utilisateurs]
+      operationId: createUser
+      summary: Créer un utilisateur
+      x-required-role: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserCreate" }
+      responses:
+        "201":
+          description: Utilisateur créé.
+          headers:
+            Location:
+              description: Adresse de la ressource créée.
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/users/{user_id}:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    get:
+      tags: [Utilisateurs]
+      operationId: getUser
+      summary: Lire un utilisateur
+      x-required-role: admin
+      responses:
+        "200":
+          description: Utilisateur.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.yaml#/components/responses/NotFound" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+    patch:
+      tags: [Utilisateurs]
+      operationId: updateUser
+      summary: Modifier le rôle, l'état ou le mot de passe
+      description: Seuls les champs fournis changent. Un administrateur ne peut pas retirer son propre rôle `admin` (`409`).
+      x-required-role: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserUpdate" }
+      responses:
+        "200":
+          description: Utilisateur modifié.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.yaml#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+components:
+  securitySchemes:
+    bearerAuth: { $ref: "common.yaml#/components/securitySchemes/bearerAuth" }
+
+  parameters:
+    UserId:
+      name: user_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    Conflict:
+      description: État incompatible avec la demande (doublon, règle de gestion) ; code `CONFLICT`.
+      content:
+        application/problem+json:
+          schema: { $ref: "common.yaml#/components/schemas/Problem" }
+
+  schemas:
+    Role:
+      type: string
+      enum: [viewer, operator, admin]
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 64 }
+        password: { type: string, minLength: 1, maxLength: 128, writeOnly: true }
+    Token:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, enum: [bearer] }
+        expires_in: { type: integer, minimum: 1, description: Durée de vie en secondes. }
+    User:
+      type: object
+      required: [user_id, username, role, is_active, created_at]
+      properties:
+        user_id: { type: string, format: uuid }
+        username: { type: string, minLength: 3, maxLength: 64 }
+        role: { $ref: "#/components/schemas/Role" }
+        is_active: { type: boolean }
+        created_at: { $ref: "common.yaml#/components/schemas/UtcDateTime" }
+    UserCreate:
+      type: object
+      additionalProperties: false
+      required: [username, password, role]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 64, pattern: '^[a-z0-9_.-]+$' }
+        password: { type: string, minLength: 12, maxLength: 128, writeOnly: true }
+        role: { $ref: "#/components/schemas/Role" }
+    UserUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        role: { $ref: "#/components/schemas/Role" }
+        is_active: { type: boolean }
+        password: { type: string, minLength: 12, maxLength: 128, writeOnly: true }
+    UserPage:
+      allOf:
+        - $ref: "common.yaml#/components/schemas/PageInfo"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/User" }

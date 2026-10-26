@@ -21,7 +21,7 @@ Depuis ce dossier.
 ## Organisation
 
 `api/` (routes) → `services/` (règles métier) → `repositories/` (accès PostgreSQL et MongoDB). Les
-contrats d'interface sont décrits dans `docs/02-specifications/openapi.yaml` (source de vérité).
+contrats d'interface sont décrits dans `contracts/openapi/traitement.openapi.yaml` (source de vérité).
 
 ## Points ouverts
 
