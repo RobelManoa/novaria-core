@@ -76,7 +76,7 @@ Une seule base `novaria`, quatre schémas. Chaque service n'écrit que dans son 
 
 | Schéma | Propriétaire des écritures | Tables | Créées par |
 |---|---|---|---|
-| `app` | API (Application Programming Interface, interface de programmation) métier (`svc_app`) | utilisateurs, rôles | Alembic (outil de migration du backend) |
+| `app` | API (Application Programming Interface, interface de programmation) métier (`svc_app`) | utilisateurs, rôles (aucune table à ce jour : BE-02) | Alembic (outil de migration du backend) |
 | `dwh` | Service de traitement (`svc_traitement`) | `dim_source`, `dim_congestion_state`, `dim_date`, `dim_intersection`, `dim_road_segment`, `dim_sensor`, `fact_traffic_window`, `fact_congestion_episode`, `etl_reject` | Migrations `0001`, `0002`, `0004`, `0005` |
 | `alertes` | Service d'alerte usager (`svc_alerte`) | `alert_rule`, `alert`, `alert_history`, `outbox_event` | Migration `0003` |
 | `ops` | Administrateur | `schema_migrations` | `db/postgres/migrate.sh` |
@@ -161,6 +161,10 @@ Outils graphiques facultatifs : DBeaver (PostgreSQL) et MongoDB Compass, connect
 | Sauvegarde, rotation, restauration dans une base jetable, détection d'un écart | Exécutés sur ce serveur | idem |
 | Syntaxe du fichier Compose | `docker compose config` | idem |
 | Script d'initialisation MongoDB | Syntaxe et appels simulés (collections, index, rôles, utilisateurs) | idem |
-| **Exécution réelle sous Docker des deux bases** | `db-up` puis `db-check` | **À lancer sur chaque poste** : premier test de bout en bout |
+| Création à vide sous Windows 11 (Docker Desktop 29.1.3) : script d'initialisation PostgreSQL 16.13 et MongoDB 7 montés depuis le disque Windows, 5 migrations, 2e passe sans effet, 6 collections, 5 utilisateurs de service | Conteneurs jetables `postgres:16-alpine` et `mongo:7` démarrés à vide avec les fichiers du dépôt, mots de passe aléatoires, volumes du projet non touchés | Poste Windows, 27/10/2026 (DAT-02) |
+| Contraintes et droits du modèle sur ces bases : 6 940 jours de calendrier, 6 carrefours, 24 tronçons, 24 capteurs, 3 règles d'alerte ; 9 refus de contraintes de l'entrepôt (vitesse sans véhicule, fenêtre de 120 s, date hors calendrier…) et 4 de contraintes d'alerte (RESOLVED sans date, deuxième alerte ouverte, cause hors liste, événement en double) ; rejeu d'un fait sans doublon ; 11 cas de droits par rôle SQL ; 29 cas de validateurs, d'index uniques et de droits MongoDB | Requêtes exécutées dans ces conteneurs, cas positifs et négatifs | idem |
+| Fins de ligne des scripts `.sh`, `.sql`, `.js` du dossier `db/` | Aucun caractère CR dans les fichiers de l'arbre de travail Windows | idem |
+| Sonde de santé MongoDB de `docker-compose.yml` | Même commande rejouée dans un conteneur à vide : réussit après 23 s | idem |
+| **`db-up` puis `db-check`** (Compose, volumes du projet) | Non relancés pour DAT-02 : ils utilisent les volumes `pgdata` et `mongodata` existants | **À lancer sur chaque poste** après avoir lu l'avertissement de `db-reset` |
 
 Si `db-check` échoue sur votre poste, copier la sortie dans l'issue [LOC-01](https://github.com/RobelManoa/novaria-core/issues) (PostgreSQL) ou LOC-02 (MongoDB) ; sans secret, car la commande n'en affiche aucun.

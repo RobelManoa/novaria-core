@@ -2,7 +2,7 @@
 
 Projet : Novaria Core, socle d'UrbanHub (bloc de compétences BC05)
 Responsables : Daddy Luciano et Manoa Robel (relecture croisée)
-Dernière mise à jour : 20/10/2026
+Dernière mise à jour : 27/10/2026
 Issue de suivi : CLD-23
 Statut : proposition à valider par les deux membres (relecture de la pull request)
 
@@ -63,9 +63,9 @@ Chaque exception de `.snyk` a ces quatre éléments, vérifiés par un test (sec
 
 | Identifiant Snyk | Composant | Image | Raison | Créée le | Expiration | Registre |
 |---|---|---|---|---|---|---|
-| SNYK-DEBIAN13-ZLIB-19520500 | zlib1g (Out-of-bounds Write) | backend (python:3.12-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-10-17 | 2026-11-15 | R10 |
-| SNYK-DEBIAN13-ATTR-17678182 | libattr1 (Link Following) | backend (python:3.12-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-10-17 | 2026-11-15 | R10 |
-| SNYK-DEBIAN13-ACL-17677866 | libacl1 (Link Following) | backend (python:3.12-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-10-17 | 2026-11-15 | R10 |
+| SNYK-DEBIAN13-ZLIB-19520500 | zlib1g (Out-of-bounds Write) | backend (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-10-17 | 2026-11-15 | R10 |
+| SNYK-DEBIAN13-ATTR-17678182 | libattr1 (Link Following) | backend (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-10-17 | 2026-11-15 | R10 |
+| SNYK-DEBIAN13-ACL-17677866 | libacl1 (Link Following) | backend (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-10-17 | 2026-11-15 | R10 |
 
 ## 7. Scan hebdomadaire
 
@@ -99,3 +99,20 @@ Le test `scripts/dev/test_exceptions.py` vérifie que chaque exception de `.snyk
 | Faille corrigée | Supprimer l'exception de `.snyk` et sa ligne du tableau de la section 6, puis noter la fermeture (date, version corrigée) dans la ligne R10 du registre des risques |
 | Faille toujours sans correctif | Renouveler selon la section 4 |
 | Fin de projet | Aucune exception ne doit rester active après le 09/12/2026 |
+
+## 10. Revue du 27/10/2026
+
+| Vérification | Résultat |
+|---|---|
+| Image de base du backend | `python:3.15-slim` (Debian 13 « trixie »). Dependabot l'a fait passer de `python:3.12-slim` à `python:3.15-slim` le 26/10/2026 (#163). Les exceptions ont été créées sur l'ancienne image : elles visent des paquets Debian, identiques dans la nouvelle |
+| Versions installées après `apt-get upgrade` | zlib1g `1:1.3.dfsg+really1.3.1-1+b1`, libattr1 `1:2.5.2-3`, libacl1 `2.3.2-2+b1` : mêmes versions avant et après la mise à jour, donc aucun correctif reçu |
+| Correctif publié par Debian 13 | **Non** pour les trois failles. Pages Snyk lues le 27/10/2026 : « There is no fixed version for `Debian:13` » pour `zlib` (CVE-2026-85091), `attr` (CVE-2026-54371) et `acl` (CVE-2026-54369). Les numéros CVE sont ceux des pages Snyk, non recoupés avec le suivi de sécurité de Debian |
+| Dernier contrôle des images sur `main` (push du 26/10/2026, 21:04 UTC) | Job `docker` réussi : backend « Tested 88 dependencies, no vulnerable paths found », frontend « Tested 21 dependencies, no vulnerable paths found » |
+| Premier scan planifié sur `main` | Exécution `schedule` du 26/10/2026, démarrée à 12:16 UTC (run 40321302551) : jobs `docker` et `snyk` réussis, les quatre autres jobs ignorés comme prévu. L'heure prévue est 06:00 UTC ; GitHub ne garantit pas l'heure exacte d'un scan planifié |
+| Les exceptions sont-elles encore nécessaires pour que le contrôle réussisse ? | **Non vérifié** : le journal de Snyk n'affiche pas les failles ignorées. À contrôler avant le 15/11/2026 (commande ci-dessous) |
+
+Décision : les trois exceptions sont **maintenues** (aucun correctif publié), sans changement de date. Prochaine revue avant le 15/11/2026 : si la commande ci-dessous ne signale plus ces trois failles sans la politique, supprimer les exceptions (section 9).
+
+| Contrôle de nécessité (même commande sous Linux et Windows) | Effet |
+|---|---|
+| `docker build -t novaria-backend:test backend` puis `snyk container test novaria-backend:test --file=backend/Dockerfile --severity-threshold=high` | Sans `--policy-path`, Snyk n'applique pas `.snyk` : il liste les failles de gravité high ou critical. Demande `snyk auth` (jeton saisi dans le navigateur, jamais dans le terminal ni dans une conversation) |
