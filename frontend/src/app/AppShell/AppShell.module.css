@@ -1,0 +1,146 @@
+.shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "header"
+    "main"
+    "footer";
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.header {
+  grid-area: header;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: max(var(--space-3), env(safe-area-inset-top))
+    max(var(--space-4), env(safe-area-inset-right)) var(--space-3)
+    max(var(--space-4), env(safe-area-inset-left));
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  margin-right: auto;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  text-decoration: none;
+}
+
+/* Sur téléphone, l'indicateur d'API et le sélecteur de thème se répartissent directement dans l'en-tête. */
+.tools {
+  display: contents;
+}
+
+.nav {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: var(--z-drawer);
+  width: min(var(--sidebar-width), 85vw);
+  height: 100vh;
+  height: 100dvh;
+  padding: var(--space-3) var(--space-3) max(var(--space-4), env(safe-area-inset-bottom))
+    max(var(--space-3), env(safe-area-inset-left));
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+  transform: translateX(-100%);
+  visibility: hidden;
+  transition:
+    transform var(--duration-normal) ease,
+    visibility 0s linear var(--duration-normal);
+}
+
+.navOpen {
+  transform: none;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.navHeader {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-3);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  background: var(--overlay);
+}
+
+.main {
+  grid-area: main;
+  min-width: 0;
+  padding-block: var(--space-5);
+}
+
+.content {
+  width: 100%;
+  max-width: var(--container-max);
+  margin-inline: auto;
+  padding-inline: max(var(--space-4), env(safe-area-inset-left))
+    max(var(--space-4), env(safe-area-inset-right));
+}
+
+.footer {
+  grid-area: footer;
+  padding: var(--space-4) max(var(--space-4), env(safe-area-inset-right))
+    max(var(--space-4), env(safe-area-inset-bottom)) max(var(--space-4), env(safe-area-inset-left));
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+@media (min-width: 40rem) {
+  .content {
+    padding-inline: var(--space-5);
+  }
+}
+
+@media (min-width: 64rem) {
+  .tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .shell {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    grid-template-areas:
+      "nav header"
+      "nav main"
+      "nav footer";
+  }
+
+  .menuButton,
+  .navHeader {
+    display: none;
+  }
+
+  .nav {
+    grid-area: nav;
+    position: sticky;
+    z-index: auto;
+    width: auto;
+    box-shadow: none;
+    transform: none;
+    visibility: visible;
+    transition: none;
+  }
+}

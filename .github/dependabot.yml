@@ -20,12 +20,18 @@ updates:
     directory: /backend
     schedule: { interval: monthly }
     open-pull-requests-limit: 1
+    ignore:
+      - { dependency-name: "*", update-types: ["version-update:semver-major"] }
   - package-ecosystem: docker
     directory: /frontend
     schedule: { interval: monthly }
     open-pull-requests-limit: 1
+    ignore:
+      - { dependency-name: "*", update-types: ["version-update:semver-major"] }
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: monthly }
     groups:
-      actions: { patterns: ["*"] }
+      actions: { patterns: ["*"], update-types: [minor, patch] }
+    ignore:
+      - { dependency-name: "*", update-types: ["version-update:semver-major"] }

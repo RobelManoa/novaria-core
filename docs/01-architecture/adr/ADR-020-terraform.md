@@ -10,6 +10,8 @@
 | Compétences BC05 | Architectures de données décisionnelles, Documentation |
 | S'appuie sur | [ADR-003](ADR-003-aws-ecs-fargate-docker.md), [ADR-006](ADR-006-region-eu-west-1.md), [ADR-007](ADR-007-compte-aws.md) |
 
+> **Mise à jour du 20/10/2026 ([ADR-023](ADR-023-execution-locale-d-abord.md)).** Le code Terraform est **conservé** et se contrôle sans compte (`fmt`, `validate`, `tflint`, analyse Snyk IaC). Le `plan` et l'`apply` ne sont pas exécutés tant qu'AWS n'est pas autorisé.
+
 ## 1. Problème
 
 Un environnement créé à la main dans la console AWS (Amazon Web Services) ne se reproduit pas, ne se relit pas, ne se détruit pas proprement et ne se vérifie pas. Le projet doit créer et détruire son infrastructure à volonté (maîtrise des coûts, risque R3), en laissant une trace relue en pull request.
@@ -53,7 +55,7 @@ infra/terraform/
 
 ### 4.2 État
 
-Bucket S3 (Simple Storage Service) chiffré et versionné, accès restreint au rôle de la CI (Continuous Integration, intégration continue) et aux administrateurs. Verrouillage de l'état : natif S3 dans les versions récentes de Terraform, ou table DynamoDB dans les versions plus anciennes ; mécanisme à confirmer sur la version épinglée en CLD-10. Le bucket est créé par une configuration d'amorçage à état local, documentée dans `infra/terraform/README.md`.
+Bucket S3 (Simple Storage Service) chiffré et versionné, accès restreint au rôle de la CI (Continuous Integration, intégration continue) et aux administrateurs. Verrouillage de l'état : natif S3 dans les versions récentes de Terraform, ou table DynamoDB dans les versions plus anciennes (simple verrou d'état, sans lien avec la base non relationnelle du projet, qui est MongoDB) ; mécanisme à confirmer sur la version épinglée en CLD-10. Le bucket est créé par une configuration d'amorçage à état local, documentée dans `infra/terraform/README.md`.
 
 ### 4.3 Flux de travail
 
