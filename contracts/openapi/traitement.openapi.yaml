@@ -1,0 +1,459 @@
+openapi: 3.1.0
+
+info:
+  title: "Novaria Core : service Traitement"
+  version: 1.0.0-draft.1
+  summary: Référentiel du réseau, indicateurs de circulation et prévisions (lecture).
+  description: |
+    Lit l'entrepôt (schéma `dwh`) et publie, sur le bus, `traffic.indicators` et `traffic.recommendations` (contrats dans `contracts/events/`). Les prévisions viennent du module d'apprentissage : le service les expose (Proposition, IA-06).
+
+    **Statut : brouillon (MS-03).** Contrat issu du contrat unique de BE-01, découpé par service. Les conventions communes (dates, unités, erreurs, pagination, authentification, rôles, versionnement) sont dans `contracts/openapi/README.md` ; les composants partagés sont dans `common.yaml`.
+  contact:
+    name: Daddy Luciano, Manoa Robel
+    url: https://github.com/RobelManoa/novaria-core
+  license:
+    name: Usage pédagogique (Master 2 EADL)
+    identifier: LicenseRef-Pedagogique
+
+servers:
+  - url: http://localhost:8000
+    description: Poste local, derrière la passerelle d'API (Docker Compose, MS-06)
+
+tags:
+  - name: Santé
+    description: Sonde utilisée par Docker et le pipeline.
+  - name: Référentiel
+    description: Carrefours et tronçons du réseau.
+  - name: Indicateurs
+    description: Résultats d'agrégation par fenêtre et état de congestion.
+  - name: Prévisions
+    description: Vitesses prévues à court terme.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/health:
+    get:
+      tags: [Santé]
+      operationId: getHealth
+      summary: Sonde de santé
+      description: Dit que le service tourne. Renvoie la version et la révision Git du code déployé.
+      security: []
+      responses:
+        "200":
+          description: Service en ligne.
+          content:
+            application/json:
+              schema: { $ref: "common.yaml#/components/schemas/Health" }
+              example:
+                status: ok
+                version: 0.1.0
+                revision: 4d1ca55
+                environment: local
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/intersections:
+    get:
+      tags: [Référentiel]
+      operationId: listIntersections
+      summary: Lister les carrefours
+      x-required-role: viewer
+      parameters:
+        - { $ref: "common.yaml#/components/parameters/Limit" }
+        - { $ref: "common.yaml#/components/parameters/Cursor" }
+        - name: has_traffic_light
+          in: query
+          description: Ne garder que les carrefours à feux (`true`) ou sans feux (`false`).
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: Une page de carrefours.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IntersectionPage" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/intersections/{intersection_id}:
+    parameters:
+      - $ref: "common.yaml#/components/parameters/IntersectionId"
+    get:
+      tags: [Référentiel]
+      operationId: getIntersection
+      summary: Lire un carrefour et ses tronçons
+      x-required-role: viewer
+      responses:
+        "200":
+          description: Carrefour avec ses quatre approches au plus.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IntersectionDetail" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.yaml#/components/responses/NotFound" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/road-segments:
+    get:
+      tags: [Référentiel]
+      operationId: listRoadSegments
+      summary: Lister les tronçons
+      description: Un tronçon est une approche de carrefour ; c'est l'unité d'analyse de la circulation.
+      x-required-role: viewer
+      parameters:
+        - { $ref: "common.yaml#/components/parameters/Limit" }
+        - { $ref: "common.yaml#/components/parameters/Cursor" }
+        - name: intersection_id
+          in: query
+          schema: { $ref: "common.yaml#/components/schemas/IntersectionId" }
+      responses:
+        "200":
+          description: Une page de tronçons.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoadSegmentPage" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/indicators:
+    get:
+      tags: [Indicateurs]
+      operationId: listIndicators
+      summary: Lister les indicateurs par fenêtre
+      description: |
+        Un indicateur = un tronçon, une fenêtre de 1 ou 5 minutes, un run. Lecture seule, depuis les
+        vues de l'entrepôt (séparation écriture et lecture, ADR-014). Tri : `window_start` décroissant.
+      x-required-role: viewer
+      parameters:
+        - { $ref: "common.yaml#/components/parameters/Limit" }
+        - { $ref: "common.yaml#/components/parameters/Cursor" }
+        - name: intersection_id
+          in: query
+          schema: { $ref: "common.yaml#/components/schemas/IntersectionId" }
+        - name: road_segment_id
+          in: query
+          schema: { $ref: "common.yaml#/components/schemas/RoadSegmentId" }
+        - name: from
+          in: query
+          description: Début de période inclus (`window_start >= from`), UTC.
+          schema: { $ref: "common.yaml#/components/schemas/UtcDateTime" }
+        - name: to
+          in: query
+          description: Fin de période exclue (`window_start < to`), UTC. Doit être postérieure à `from`.
+          schema: { $ref: "common.yaml#/components/schemas/UtcDateTime" }
+        - name: window_size_s
+          in: query
+          description: Taille de fenêtre. Défaut 60 (l'état d'alerte vient des fenêtres de 1 minute).
+          schema: { $ref: "#/components/schemas/WindowSize" }
+        - name: congestion_state
+          in: query
+          schema: { $ref: "#/components/schemas/CongestionState" }
+        - name: run_id
+          in: query
+          description: Ne garder que ce run (exécution du simulateur ou jeu historique).
+          schema: { type: string, minLength: 1, maxLength: 80 }
+        - name: source_type
+          in: query
+          schema: { $ref: "common.yaml#/components/schemas/SourceType" }
+      responses:
+        "200":
+          description: Une page d'indicateurs.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IndicatorPage" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/indicators/latest:
+    get:
+      tags: [Indicateurs]
+      operationId: listLatestIndicators
+      summary: Dernier indicateur de chaque tronçon
+      description: "Photographie courante du réseau pour le Tableau de bord : une fenêtre de 1 minute par tronçon."
+      x-required-role: viewer
+      parameters:
+        - name: intersection_id
+          in: query
+          schema: { $ref: "common.yaml#/components/schemas/IntersectionId" }
+        - name: run_id
+          in: query
+          description: Run à lire. Par défaut, le run le plus récent.
+          schema: { type: string, minLength: 1, maxLength: 80 }
+      responses:
+        "200":
+          description: Un indicateur par tronçon.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Indicator" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/indicators/{indicator_id}:
+    get:
+      tags: [Indicateurs]
+      operationId: getIndicator
+      summary: Lire un indicateur
+      x-required-role: viewer
+      parameters:
+        - name: indicator_id
+          in: path
+          required: true
+          description: Identifiant de l'indicateur, égal à l'attribut `id` de l'événement `novaria.traffic.indicator.v1`.
+          schema: { type: string, minLength: 1, maxLength: 200 }
+          example: "run-demo-0001:ROAD_001:60:1792484400000"
+      responses:
+        "200":
+          description: Indicateur.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Indicator" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.yaml#/components/responses/NotFound" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/forecasts:
+    get:
+      tags: [Prévisions]
+      operationId: listForecasts
+      summary: Prévisions de vitesse à court terme
+      description: |
+        Ratio de vitesse prévu pour chaque tronçon demandé. Tant qu'aucun modèle ne bat la référence
+        (persistance ou moyenne glissante), la réponse l'indique par `model.kind` égal à `REFERENCE`
+        (ADR-015, IA-06). Un modèle entraîné sur le simulateur apprend le simulateur : `provenance`
+        le rappelle.
+      x-required-role: viewer
+      parameters:
+        - name: road_segment_id
+          in: query
+          description: Un ou plusieurs tronçons (paramètre répété). Tous les tronçons si absent.
+          explode: true
+          schema:
+            type: array
+            maxItems: 50
+            items: { $ref: "common.yaml#/components/schemas/RoadSegmentId" }
+        - name: horizon_min
+          in: query
+          description: Horizon de prévision en minutes, de 5 à 60. Défaut 15.
+          schema: { type: integer, minimum: 5, maximum: 60, default: 15 }
+      responses:
+        "200":
+          description: Une prévision par tronçon.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Forecast" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "503":
+          description: Modèle et référence indisponibles ; code `FORECAST_UNAVAILABLE`.
+          content:
+            application/problem+json:
+              schema: { $ref: "common.yaml#/components/schemas/Problem" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+components:
+  securitySchemes:
+    bearerAuth: { $ref: "common.yaml#/components/securitySchemes/bearerAuth" }
+
+  schemas:
+    WindowSize:
+      type: integer
+      enum: [60, 300]
+      description: Taille de la fenêtre en secondes.
+    CongestionState:
+      type: string
+      enum: [UNKNOWN, FREE_FLOW, SLOW, CONGESTED]
+      description: |
+        État stabilisé d'un tronçon (hystérésis, ADR-028).
+        `UNKNOWN` : données insuffisantes (complétude inférieure à 0,5).
+    Intersection:
+      type: object
+      required: [intersection_id, name, has_traffic_light]
+      properties:
+        intersection_id: { $ref: "common.yaml#/components/schemas/IntersectionId" }
+        name: { type: string }
+        latitude:
+          type: [number, "null"]
+          minimum: -90
+          maximum: 90
+          description: Vide pour le réseau fictif de démonstration.
+        longitude:
+          type: [number, "null"]
+          minimum: -180
+          maximum: 180
+        has_traffic_light: { type: boolean }
+    RoadSegment:
+      type: object
+      required: [road_segment_id, intersection_id, approach, road_type, lane_count, length_m, speed_limit_kmh, free_flow_speed_kmh]
+      properties:
+        road_segment_id: { $ref: "common.yaml#/components/schemas/RoadSegmentId" }
+        intersection_id: { $ref: "common.yaml#/components/schemas/IntersectionId" }
+        approach:
+          type: string
+          enum: [N, E, S, W]
+          description: Côté d'où arrive la circulation.
+        road_type: { type: string, enum: [MOTORWAY, ARTERIAL, COLLECTOR, LOCAL] }
+        lane_count: { type: integer, minimum: 1, maximum: 8 }
+        length_m: { type: number, exclusiveMinimum: 0 }
+        speed_limit_kmh: { type: integer, minimum: 5, maximum: 130 }
+        free_flow_speed_kmh:
+          type: number
+          exclusiveMinimum: 0
+          description: Vitesse en circulation fluide, dénominateur du ratio de vitesse.
+    IntersectionDetail:
+      allOf:
+        - $ref: "#/components/schemas/Intersection"
+        - type: object
+          required: [road_segments]
+          properties:
+            road_segments:
+              type: array
+              maxItems: 4
+              items: { $ref: "#/components/schemas/RoadSegment" }
+    IntersectionPage:
+      allOf:
+        - $ref: "common.yaml#/components/schemas/PageInfo"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Intersection" }
+    RoadSegmentPage:
+      allOf:
+        - $ref: "common.yaml#/components/schemas/PageInfo"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/RoadSegment" }
+    Indicator:
+      type: object
+      description: Un tronçon, une fenêtre, un run. Mêmes champs et mêmes unités que l'événement `novaria.traffic.indicator.v1`.
+      required:
+        - indicator_id
+        - road_segment_id
+        - intersection_id
+        - window_start
+        - window_size_s
+        - vehicle_count
+        - flow_veh_per_min
+        - average_speed_kmh
+        - speed_ratio
+        - sample_count
+        - expected_sample_count
+        - congestion_state
+        - classifier_version
+        - provenance
+      properties:
+        indicator_id: { type: string, description: Identifiant stable, égal à l'`id` de l'événement. }
+        road_segment_id: { $ref: "common.yaml#/components/schemas/RoadSegmentId" }
+        intersection_id: { $ref: "common.yaml#/components/schemas/IntersectionId" }
+        window_start:
+          $ref: "common.yaml#/components/schemas/UtcDateTime"
+          description: Début de la fenêtre ; elle couvre [window_start, window_start + window_size_s[.
+        window_size_s: { $ref: "#/components/schemas/WindowSize" }
+        vehicle_count: { type: integer, minimum: 0, maximum: 100000 }
+        flow_veh_per_min: { type: number, minimum: 0, maximum: 1000 }
+        average_speed_kmh:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 200
+          description: Moyenne pondérée par le nombre de véhicules ; `null` si aucun véhicule.
+        occupancy_rate: { type: [number, "null"], minimum: 0, maximum: 1 }
+        max_queue_length_m: { type: [number, "null"], minimum: 0, maximum: 10000 }
+        speed_ratio:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 9.999
+          description: Vitesse moyenne divisée par la vitesse fluide du tronçon ; `null` si la vitesse est `null`.
+        sample_count: { type: integer, minimum: 0, maximum: 32767 }
+        expected_sample_count: { type: integer, minimum: 1, maximum: 32767 }
+        completeness:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: min(1, sample_count / expected_sample_count).
+        congestion_state: { $ref: "#/components/schemas/CongestionState" }
+        classifier_version:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: Version de la règle ou du modèle qui a produit l'état (`regles-v0`).
+        provenance: { $ref: "common.yaml#/components/schemas/Provenance" }
+      examples:
+        - indicator_id: "run-demo-0001:ROAD_001:60:1792484400000"
+          road_segment_id: ROAD_001
+          intersection_id: INT_01
+          window_start: "2026-10-20T08:20:00Z"
+          window_size_s: 60
+          vehicle_count: 9
+          flow_veh_per_min: 9.0
+          average_speed_kmh: 11.4
+          occupancy_rate: 0.78
+          max_queue_length_m: 140.0
+          speed_ratio: 0.228
+          sample_count: 6
+          expected_sample_count: 6
+          completeness: 1.0
+          congestion_state: CONGESTED
+          classifier_version: regles-v0
+          provenance: { source_type: SIMULATED, run_id: run-demo-0001, scenario_id: heure-de-pointe, seed: 42 }
+    IndicatorPage:
+      allOf:
+        - $ref: "common.yaml#/components/schemas/PageInfo"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Indicator" }
+    Forecast:
+      type: object
+      required: [road_segment_id, issued_at, horizon_min, target_time, predicted_speed_ratio, model, provenance]
+      properties:
+        road_segment_id: { $ref: "common.yaml#/components/schemas/RoadSegmentId" }
+        issued_at: { $ref: "common.yaml#/components/schemas/UtcDateTime" }
+        horizon_min: { type: integer, minimum: 5, maximum: 60 }
+        target_time:
+          $ref: "common.yaml#/components/schemas/UtcDateTime"
+          description: Instant prévu, égal à `issued_at` plus `horizon_min`.
+        predicted_speed_ratio: { type: number, minimum: 0, maximum: 9.999 }
+        predicted_state: { $ref: "#/components/schemas/CongestionState" }
+        model:
+          type: object
+          required: [kind, name, version]
+          properties:
+            kind:
+              type: string
+              enum: [REFERENCE, MODEL]
+              description: '`REFERENCE` : persistance ou moyenne glissante. `MODEL` : modèle entraîné qui a battu la référence.'
+            name: { type: string }
+            version: { type: string }
+            run_id:
+              type: [string, "null"]
+              description: Identifiant du run d'entraînement (`model_runs`), qui remonte au code et aux données.
+        provenance: { $ref: "common.yaml#/components/schemas/Provenance" }

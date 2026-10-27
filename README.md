@@ -24,17 +24,53 @@ Prérequis : Docker, Git, Python 3.12. Le même lanceur sert sous Linux et sous 
 | Créer `.env` (mots de passe aléatoires, une seule fois) | `python3 scripts/dev/dev.py init-env` | `py -3 scripts/dev/dev.py init-env` |
 | Démarrer PostgreSQL, MongoDB et les migrations | `python3 scripts/dev/dev.py db-up` | `py -3 scripts/dev/dev.py db-up` |
 | Vérifier rôles et droits | `python3 scripts/dev/dev.py db-check` | `py -3 scripts/dev/dev.py db-check` |
-| Tout démarrer | `python3 scripts/dev/dev.py up` | `py -3 scripts/dev/dev.py up` |
+| Vérifier l'écriture dans MongoDB | `python3 scripts/dev/dev.py db-check-events` | `py -3 scripts/dev/dev.py db-check-events` |
+| **Tout démarrer** (bases, bus, 4 services, simulateur, passerelle, front-end) et vérifier chaque `/health` | `python3 scripts/dev/dev.py up` | `py -3 scripts/dev/dev.py up` |
+| Revérifier les sondes | `python3 scripts/dev/dev.py health` | `py -3 scripts/dev/dev.py health` |
+| Tout arrêter (données conservées) | `python3 scripts/dev/dev.py down` | `py -3 scripts/dev/dev.py down` |
 
-Sous Linux, `make up`, `make db-up`, `make test`, `make lint` sont des raccourcis (`make help` liste tout). API : <http://localhost:8000/docs> · Front-end : <http://localhost:8080>.
+Sous Linux, `make up`, `make down`, `make health`, `make db-up`, `make test`, `make lint` sont des raccourcis (`make help` liste tout). Front-end : <http://localhost:8080> · API, par la passerelle : <http://localhost:8000/api/v1/>.
 
-Guides : [bases de données locales](docs/03-donnees/base-de-donnees-locale.md) · [sauvegarde et restauration](docs/08-exploitation/sauvegarde-restauration-locale.md) · [dictionnaire de données](docs/03-donnees/dictionnaire-de-donnees.md) · [démarrage du binôme](docs/07-gestion/demarrage-binome.md).
+### Ce qui tourne et sur quels ports
+
+```mermaid
+flowchart LR
+    NAV[Navigateur] --> FE["frontend :8080"]
+    FE --> GW["passerelle :8000"]
+    GW --> TRA["traitement :8002"]
+    GW --> ALE["alerte :8003"]
+    GW --> REP["reponse :8004"]
+    SIM["simulateur :8005"] --> COL["collecte :8001"]
+    COL --> K[("kafka :9094")]
+    TRA <--> K
+    ALE <--> K
+    REP <--> K
+    COL --> M[("mongo :27017")]
+    TRA --> M
+    REP --> M
+    TRA --> P[("postgres :5432")]
+    ALE --> P
+```
+
+| Conteneur | Port sur le poste (127.0.0.1) | Variable de `.env` |
+|---|---|---|
+| frontend | 8080 | `FRONTEND_PORT` |
+| passerelle (point d'entrée de l'API) | 8000 | `GATEWAY_PORT` |
+| collecte, traitement, alerte, reponse | 8001, 8002, 8003, 8004 | `COLLECTE_PORT`, `TRAITEMENT_PORT`, `ALERTE_PORT`, `REPONSE_PORT` |
+| simulateur | 8005 | `SIMULATOR_PORT` |
+| postgres, mongo, kafka | 5432, 27017, 9094 | `POSTGRES_PORT`, `MONGO_PORT`, `KAFKA_PORT` |
+
+Rien n'est publié hors de `127.0.0.1`. Ordre de démarrage, sondes de santé, preuve et dépannage : [pile locale](docs/08-exploitation/pile-locale.md).
+
+Guides : [pile locale](docs/08-exploitation/pile-locale.md) · [bases de données locales](docs/03-donnees/base-de-donnees-locale.md) · [sauvegarde et restauration](docs/08-exploitation/sauvegarde-restauration-locale.md) · [dictionnaire de données](docs/03-donnees/dictionnaire-de-donnees.md) · [démarrage du binôme](docs/07-gestion/demarrage-binome.md).
 
 ## Structure
 
 | Dossier | Contenu |
 |---|---|
-| `backend/` | API FastAPI versionnée `/api/v1` |
+| `services/` | Un dossier par service FastAPI : `collecte/`, `traitement/`, `alerte/`, `reponse/` et `_gabarit/`, le modèle des nouveaux services |
+| `simulator/` | Simulateur de capteurs IoT (squelette, MS-07) |
+| `gateway/` | Passerelle d'API : configuration nginx (routage, MS-06 ; authentification, MS-13) |
 | `frontend/` | Dashboard React + Vite |
 | `db/` | Bases locales : initialisation, migrations SQL, sauvegarde (PostgreSQL, MongoDB) |
 | `contracts/` | Contrats d'événements (schémas JSON), validateur et tests |

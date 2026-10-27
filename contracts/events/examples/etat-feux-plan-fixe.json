@@ -1,0 +1,48 @@
+{
+  "id": "signal:INT_01:1792485120000",
+  "source": "reponse",
+  "type": "novaria.signal.status.v1",
+  "time": "2026-10-20T08:32:00Z",
+  "subject": "INT_01",
+  "schema_version": "1.0",
+  "correlation_id": "corr-1792485120000",
+  "domain": "signal",
+  "data": {
+    "intersection_id": "INT_01",
+    "mode": "DEGRADED_FIXED_PLAN",
+    "current_phase_id": "P1",
+    "phase_started_at": "2026-10-20T08:32:00Z",
+    "phases": [
+      {
+        "phase_id": "P1",
+        "green_approaches": [
+          "N",
+          "S"
+        ],
+        "min_duration_s": 10,
+        "duration_s": 30
+      },
+      {
+        "phase_id": "P2",
+        "green_approaches": [
+          "E",
+          "W"
+        ],
+        "min_duration_s": 10,
+        "duration_s": 25
+      }
+    ],
+    "decision": {
+      "origin": "FIXED_PLAN_FALLBACK",
+      "reference_id": null,
+      "outcome": "APPLIED",
+      "refusal_reason": null
+    },
+    "provenance": {
+      "source_type": "SIMULATED",
+      "run_id": "run-demo-0001",
+      "scenario_id": "heure-de-pointe",
+      "seed": 42
+    }
+  }
+}

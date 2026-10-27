@@ -1,6 +1,10 @@
 # Dictionnaire de données
 
+<<<<<<< HEAD
+Une définition par terme, une unité par grandeur, une règle par calcul. Ce document fait foi pour les bases (`db/`), les événements (`contracts/`), le simulateur et le modèle. Version du 27/10/2026 (relue et complétée : issues DAT-02 et DAT-10 ; compte rendu de la relecture croisée : [revue DAT-10](revue-croisee-dat-10.md)) ; toute modification passe par pull request et met à jour les trois endroits à la fois.
+=======
 Une définition par terme, une unité par grandeur, une règle par calcul. Ce document fait foi pour les bases (`db/`), les événements (`contracts/`), le simulateur et le modèle. Version du 27/10/2026 (relue et complétée : issues DAT-02 et DAT-10) ; toute modification passe par pull request et met à jour les trois endroits à la fois.
+>>>>>>> origin/main
 
 **Complétude vérifiée par un test** : chaque table et chaque colonne des migrations `db/postgres/migrations/`, chaque collection, champ et index de `db/mongo/init/` doivent figurer ici (`scripts/dev/test_dictionnaire.py`, voir « Vérifier » en fin de document). Ajouter une colonne sans la décrire fait échouer le test.
 
@@ -199,21 +203,21 @@ Grain : un capteur, un intervalle. Stockée dans MongoDB `raw_events` (14 jours)
 | `occupancy_rate` | nombre ou `null` | 0 à 1 ; obligatoire si qualité `VALID` | Part de l'intervalle où le capteur était occupé |
 | `queue_length_m` | nombre | 0 à 10 000, facultatif | File observée |
 | `quality.status` | énumération | VALID, PARTIAL, SUSPECT | Voir section 8 |
-| `quality.flags` | liste | MISSING_SPEED, MISSING_OCCUPANCY, IMPLAUSIBLE_VALUE, LATE, GAP_BEFORE | Détail de la qualité |
+| `quality.flags` | liste | MISSING_SPEED, MISSING_OCCUPANCY, IMPLAUSIBLE_VALUE, LATE, GAP_BEFORE ; sans doublon. **PARTIAL exige** MISSING_SPEED ou MISSING_OCCUPANCY ; **SUSPECT exige** IMPLAUSIBLE_VALUE (règles DQ-06 et DQ-05, contrôlées par `validate_events.py`) | Détail de la qualité |
 | `provenance` | objet | `source_type` + `run_id` ; si SIMULATED : `scenario_id` et `seed` ; si REAL_HISTORICAL : `dataset_id` | Origine |
 
 Attributs de l'enveloppe, communs à tous les événements :
 
 | Attribut | Règle |
 |---|---|
-| `id` | Clé d'idempotence. Mesure : `<run_id>:<sensor_id>:<instant en millisecondes>`. Un même `id` reçu deux fois est ignoré (index unique `uniq_event_id`). |
-| `source` | Producteur : `simulateur/<run_id>`, `collecte`, `traitement`, `alerte` |
+| `id` | Clé d'idempotence. Mesure : `<run_id>:<sensor_id>:<instant en millisecondes>`. Indicateur : `<run_id>:<road_segment_id>:<window_size_s>:<début de fenêtre en millisecondes>`. Recommandation : son `recommendation_id`. Alerte : un identifiant par changement d'état, format non fixé (section 12). Un même `id` reçu deux fois est ignoré (index unique `uniq_event_id`). |
+| `source` | Producteur : `simulateur/<run_id>`, `collecte`, `traitement`, `alerte`, `reponse`. Sauf pour les mesures, c'est le service qui publie |
 | `type` | `novaria.<domaine>.<sujet>.v<majeure>` |
 | `time` | Instant de l'observation (temps d'événement), UTC. Mesure : fin de l'intervalle. Indicateur : fin de la fenêtre. |
-| `subject` | **= `intersection_id`** : clé de partition Kafka, ordre garanti par carrefour |
+| `subject` | **= `intersection_id`** : clé de partition Kafka, ordre garanti par carrefour. Seul `errors.dlq` admet `UNKNOWN`, quand le carrefour du message rejeté n'est pas identifiable |
 | `schema_version` | `majeure.mineure` |
 | `correlation_id` | Facultatif : relie une mesure à l'indicateur et à l'alerte qu'elle a produits |
-| `domain` | iot, traffic, alert ou signal |
+| `domain` | iot, traffic, alert, signal ou error |
 
 ## 6. Indicateur par fenêtre (`dwh.fact_traffic_window` et `novaria.traffic.indicator.v1`)
 
@@ -349,6 +353,28 @@ Les trois règles ci-dessus sont chargées par la migration `0003`.
 | `payload` | jsonb | obligatoire | Événement complet, conforme à `contracts/events/` |
 | `created_at` | date et heure | défaut maintenant, UTC | Écrit dans la même transaction que le changement d'état |
 | `published_at` | date et heure | `null` tant que non publié | Publication confirmée par Kafka ; l'index partiel sur les lignes à `null` sert le relais |
+<<<<<<< HEAD
+
+### 7.3.1 Événement d'alerte (`novaria.alert.state_changed.v1`, sujet `alerts.events`)
+
+Grain : un changement d'état d'une alerte. Publié par le service d'alerte via `alertes.outbox_event` (colonne `payload`), dans la même transaction que le changement ; consommé par le flux du tableau de bord. Les attributs de l'enveloppe sont ceux de la section 5 (`subject` = `intersection_id`, `domain` = `alert`).
+
+| Champ (`data`) | Colonne ou source | Règle | Sens |
+|---|---|---|---|
+| `alert_id` | `alertes.alert.alert_id` | UUID | Alerte concernée |
+| `rule_id`, `kind` | `alert.rule_id`, `alert.kind` | motif de `rule_id` : voir `alert_rule` ; `kind` : CONGESTION, TRAFFIC_ANOMALY, SENSOR_FAULT | Règle déclenchée et type |
+| `state` | `alert.state` | CREATED, NOTIFIED, ACKNOWLEDGED, RESOLVED | État atteint |
+| `previous_state` | `alert_history.from_state` | `null` **si et seulement si** `state` vaut CREATED ; sinon un état strictement antérieur dans l'ordre ci-dessus (l'état n'est jamais rejoué ni reculé) | État quitté |
+| `severity`, `cause` | `alert.severity`, `alert.cause` | comme ci-dessus ; `cause` vaut UNKNOWN sans événement confirmé | Gravité et cause |
+| `road_segment_id`, `intersection_id` | `alert.road_segment_id`, `alert.intersection_id` | motifs `ROAD_xxx`, `INT_xx` | Tronçon et carrefour |
+| `episode_id` | `alert.episode_id` | UUID ou `null` | Épisode d'origine, s'il existe |
+| `opened_at` | `alert.opened_at` | UTC | Ouverture de l'alerte |
+| `resolved_at`, `resolution` | `alert.resolved_at`, `alert.resolution` | renseignés **si et seulement si** `state` vaut RESOLVED (AUTO ou MANUAL) ; `resolved_at` ≥ `opened_at` | Clôture |
+| `provenance` | `alert.run_id`, `alert.source_type` (+ `scenario_id`, `seed` ou `dataset_id`) | comme la section 5 | Origine |
+
+Volontairement **absents** de l'événement : `acknowledged_by` (texte libre, qui peut désigner une personne), `notified_at`, `acknowledged_at` et `updated_at` (lisibles dans l'API et dans `alert_history`).
+=======
+>>>>>>> origin/main
 
 ## 8. Règles de qualité
 
@@ -364,6 +390,8 @@ Les trois règles ci-dessus sont chargées par la migration `0003`.
 | DQ-08 | Capteur muet plus de 60 s | Alerte `SENSOR_FAULT` (règle `capteur.muet`) | `alertes.alert` |
 | DQ-09 | Ligne d'un chargement ETL (Extract, Transform, Load) qui viole une contrainte | Refus, ligne dans `dwh.etl_reject` avec règle et motif ; taux de rejet publié | `dwh.etl_reject` |
 | DQ-10 | Horodatage dans le futur (plus de 5 s après l'horloge du consommateur, hors rejeu) | Rejet, motif `FUTURE_TIMESTAMP` | `rejects` |
+
+Un drapeau de qualité n'est pas un motif de rejet : DQ-05 et DQ-06 acceptent la mesure en la marquant (le contrat impose le drapeau), DQ-01, DQ-02, DQ-04 et DQ-10 la rejettent. Le drapeau `LATE` est à clarifier (section 12).
 
 Le taux de rejet, la complétude moyenne et le nombre de mesures `SUSPECT` par run se mesurent dès le premier run : ils entrent dans la fiche de provenance du jeu de données.
 
@@ -429,7 +457,11 @@ Grain : un événement de mesure (section 5). Écrit par la collecte.
 | `subject` | texte | non | | `intersection_id` |
 | `time` | date | oui | | Instant de l'observation |
 | `schema_version` | texte | oui | | `majeure.mineure` |
+<<<<<<< HEAD
+| `domain` | texte | oui | | iot, traffic, alert, signal ou error (ici `iot`, seul domaine publié sur `iot.raw`) |
+=======
 | `domain` | texte | oui | | iot, traffic, alert ou signal |
+>>>>>>> origin/main
 | `correlation_id` | texte | non | | Trace de bout en bout |
 | `received_at` | date | oui | | Réception par la collecte ; sert à la durée de vie |
 | `data` | objet | oui | contient `provenance` | Charge utile de l'événement |
@@ -547,9 +579,15 @@ Créée par `db/postgres/migrate.sh`, qui l'écrit seul : aucun rôle de service
 
 ### 11.2 Schéma `app`
 
+<<<<<<< HEAD
+Le schéma est créé vide à l'initialisation. Ses tables sont créées par Alembic dans `services/traitement/` ([ADR-024](../01-architecture/adr/ADR-024-bases-de-donnees-locales.md)), **pas par un fichier SQL de `db/postgres/migrations/`**. À ce jour `services/traitement/migrations/` ne contient aucune révision : le schéma n'a pas de table (BE-02).
+
+Cible, déduite du contrat [OpenAPI](../../contracts/openapi/api-metier.openapi.yaml) (schéma `User`), à confirmer par BE-02 :
+=======
 Le schéma est créé vide à l'initialisation. Ses tables sont créées par Alembic dans `backend/` ([ADR-024](../01-architecture/adr/ADR-024-bases-de-donnees-locales.md)), **pas par un fichier SQL de `db/postgres/migrations/`**. À ce jour `backend/migrations/` ne contient aucune révision : le schéma n'a pas de table (BE-02).
 
 Cible, déduite du contrat [OpenAPI](../02-specifications/openapi.yaml) (schéma `User`), à confirmer par BE-02 :
+>>>>>>> origin/main
 
 | Colonne visée | Règle visée | Sens |
 |---|---|---|
@@ -571,12 +609,81 @@ Le dictionnaire sera complété avec les colonnes réelles au moment où BE-02 l
 | Vitesse en circulation fluide des données réelles | Estimée par un quantile des vitesses nocturnes | Fiche de provenance de chaque jeu |
 | Jours fériés | Non chargés (`is_holiday` faux) | DAT-10, si le jeu de données le justifie |
 | Durée de conservation de `raw_events` (14 jours) | Valeur de départ | Volume observé |
+<<<<<<< HEAD
+| Bornes des contrats `traffic.recommendations` et `signal.status` (durée de phase 1 à 600 s, plan de 2 à 8 phases) | Valeurs de départ (section 13), à remplacer par les règles de sécurité des feux | MS-12 |
+=======
 | Contrats `traffic.recommendations` et `signal.status` | Non écrits | MS-11 |
+>>>>>>> origin/main
 | Tables du schéma `app` | Aucune révision Alembic (section 11.2) | BE-02 |
 | Transitions d'une alerte | Ordre non contrôlé par la base : c'est le service d'alerte qui le garantit (section 7.3). Une contrainte supplémentaire serait une nouvelle migration. | MS-11 |
 | Calendrier `dim_date` | 2012 à 2030 : un fait daté hors de cette période est refusé. L'étendre = nouvelle migration. | Choix du jeu de données (DAT-01) |
 | Contenu de `etl_reject` | Colonnes créées, valeurs non fixées (section 8.1) | DAT-04 |
 | Durée de la tranche de `usage_stats` | Non fixée | BE-05 |
+<<<<<<< HEAD
+| Drapeau `LATE` d'une mesure et rejet `LATE` (DQ-04) | Un message trop tardif est rejeté (DQ-04), mais le drapeau `LATE` existe dans la qualité d'une mesure acceptée. Proposition : le drapeau marque une mesure en retard **dans la tolérance** (entre le délai de désordre de 10 s et le retard autorisé de 30 s) ; au-delà, rejet | Les deux membres, puis MS-15 |
+| État d'une fenêtre de 5 minutes | Le schéma impose `congestion_state` aussi pour 300 s, alors que l'état se calcule sur 1 minute (section 7.1). Proposition : l'état stabilisé à la fin de la fenêtre de 5 minutes | Manoa (traitement), IA-01 |
+| Retour de `UNKNOWN` et épisodes | Le diagramme 7.1 revient de `UNKNOWN` à `FREE_FLOW`, ce qui **clôturerait** un épisode (7.2) alors que la route peut rester bloquée : alerte résolue puis recréée. Proposition : `UNKNOWN` ne clôt pas l'épisode ; au retour des données, l'état est reclassé d'après le ratio avec les seuils d'entrée | MS-09, MS-11 |
+| Identifiant d'un événement d'alerte | L'exemple utilise `alerte-<8 premiers caractères de alert_id>-<état>` : risque de collision, format non contrôlé. Proposition : `<alert_id>:<state>` (une alerte ne repasse jamais deux fois par le même état) | Les deux membres, puis MS-11 |
+| Validateur MongoDB de `raw_events` moins strict que le contrat | Il n'exige que `data.provenance.source_type` ; `run_id` (obligatoire dans le contrat) et `scenario_id`, `seed` (si SIMULATED) ne sont pas imposés. Le contrat est vérifié avant l'écriture | LOC-02 / MS-07, si la défense en profondeur le justifie |
+
+## 13. Autres événements du bus (MS-03)
+
+Les trois sujets suivants complètent les deux premiers contrats (sections 5 et 6, et alertes en 7.3). Schémas dans `contracts/events/`, exemples dans `contracts/events/examples/`, matrice des sujets dans `contracts/topics.json`. Les attributs de l'enveloppe sont ceux de la section 5.
+
+### 13.1 Recommandation de plan de feux (`novaria.traffic.recommendation.v1`, sujet `traffic.recommendations`)
+
+Grain : un carrefour, un instant de calcul. Publiée par le traitement, consommée par la réponse extérieure, qui la soumet aux garde-fous. Un modèle ne commande jamais seul : la durée des phases vient du calcul de référence (formule de Webster, [ADR-015](../01-architecture/adr/ADR-015-modeles-ia.md)).
+
+| Champ (`data`) | Type | Règle | Sens |
+|---|---|---|---|
+| `recommendation_id` | UUID (Universally Unique Identifier) | égal à l'`id` de l'événement | Clé d'idempotence |
+| `intersection_id` | texte | motif `INT_xx` | Carrefour concerné |
+| `valid_until` | date et heure UTC | postérieure à `time` | Fin de validité ; passé ce délai sans nouvelle recommandation, retour possible au plan fixe |
+| `cycle_s` | entier | 2 à 1200 ; **égal à la somme des `duration_s`** | Durée du cycle, en secondes |
+| `phases` | liste | 2 à 8 éléments, `phase_id` distincts | Phases dans l'ordre d'application |
+| `phases[].phase_id` | texte | `P1`, `P2`… | Phase |
+| `phases[].green_approaches` | liste | N, E, S, W ; au moins une, sans doublon | Approches au vert |
+| `phases[].duration_s` | entier | 1 à 600 (valeur de départ) | Durée de la phase |
+| `method` | objet | `kind` = WEBSTER_REFERENCE, `version` | Calcul qui a produit les durées |
+| `model` | objet ou `null` | `name`, `version`, `run_id`, `score` de 0 à 1 ; facultatif | Score d'un modèle, entrée du calcul (jamais la décision) |
+| `inputs` | objet | `indicator_ids` (au moins un, sans doublon), `window_start`, `window_size_s` (60 ou 300), `congestion_state` | Indicateurs sur lesquels repose la recommandation |
+| `provenance` | objet | comme la section 5 | Origine |
+
+### 13.2 État des feux (`novaria.signal.status.v1`, sujet `signal.status`)
+
+Grain : un carrefour, une décision. Publié par la réponse extérieure après chaque décision ; reflète le contrôleur de feux simulé. Une décision refusée publie l'état inchangé avec son motif.
+
+| Champ (`data`) | Type | Règle | Sens |
+|---|---|---|---|
+| `intersection_id` | texte | motif `INT_xx` | Carrefour concerné |
+| `mode` | énumération | AUTOMATIC, MANUAL, DEGRADED_FIXED_PLAN ; DEGRADED_FIXED_PLAN si la décision est FIXED_PLAN_FALLBACK | AUTOMATIC : suit les recommandations. MANUAL : commande d'un opérateur. DEGRADED_FIXED_PLAN : plan à durées fixes |
+| `current_phase_id` | texte | une des `phases` | Phase en cours |
+| `phase_started_at` | date et heure UTC | au plus tard `time` | Début de la phase en cours |
+| `phases` | liste | 2 à 8 éléments, `phase_id` distincts | Plan appliqué |
+| `phases[].min_duration_s` | entier | 1 à 600 | Durée minimale de sécurité |
+| `phases[].duration_s` | entier | 1 à 600, au moins `min_duration_s` | Durée appliquée |
+| `decision.origin` | énumération | RECOMMENDATION, MANUAL_COMMAND, FIXED_PLAN_FALLBACK, STARTUP | Ce qui a produit l'état |
+| `decision.reference_id` | UUID ou `null` | obligatoire pour RECOMMENDATION et MANUAL_COMMAND, `null` sinon | `recommendation_id` ou `command_id` |
+| `decision.outcome` | énumération | APPLIED, REFUSED | Résultat des garde-fous |
+| `decision.refusal_reason` | texte ou `null` | majuscules et `_` ; obligatoire si REFUSED, `null` sinon | Code du refus (par exemple UNSAFE_COMMAND) |
+| `provenance` | objet | comme la section 5 | Origine |
+
+### 13.3 Message rejeté (`novaria.error.rejected.v1`, sujet `errors.dlq`)
+
+Grain : un message rejeté. Publié par le service qui rejette (`source`), après les tentatives prévues. Archive : collection `rejects` (section 10.2), qui reçoit les champs `source_topic`, `rejected_at`, `reason`, `attempts` et `original_payload`, et `source` sous le nom `service`.
+
+| Champ (`data`) | Type | Règle | Sens |
+|---|---|---|---|
+| `source_topic` | énumération | iot.raw, traffic.indicators, traffic.recommendations, alerts.events, signal.status | Sujet d'où vient le message |
+| `rejected_at` | date et heure UTC | égale à `time` | Moment du rejet |
+| `reason_code` | énumération | CONTRACT_VIOLATION (DQ-01), SEMANTIC_VIOLATION, UNREADABLE, UNKNOWN_TYPE, UNKNOWN_SENSOR (DQ-02), LATE (DQ-04), FUTURE_TIMESTAMP (DQ-10), PROCESSING_FAILED | Famille du rejet |
+| `reason` | texte | 1 à 2000 caractères | Chemin et message de l'erreur de contrat, ou explication ; ni secret ni donnée personnelle |
+| `attempts` | entier | 1 à 100 | Tentatives avant le rejet |
+| `original_key` | texte ou `null` | au plus 200 caractères | Clé du message d'origine |
+| `intersection_id` | texte ou `null` | motif `INT_xx` ; `subject` vaut ce carrefour, ou `UNKNOWN` si `null` | Carrefour du message d'origine, s'il est identifiable |
+| `original_payload` | tout type | un texte si `reason_code` est UNREADABLE | Message tel que reçu, pour analyse et rejeu |
+=======
+>>>>>>> origin/main
 
 ## Vérifier
 

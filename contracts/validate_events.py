@@ -27,6 +27,9 @@ SCHEMA_BY_TYPE = {
     "novaria.iot.measurement.v1": "iot-measurement.schema.json",
     "novaria.traffic.indicator.v1": "traffic-indicator.schema.json",
     "novaria.alert.state_changed.v1": "alert-event.schema.json",
+    "novaria.traffic.recommendation.v1": "traffic-recommendation.schema.json",
+    "novaria.signal.status.v1": "signal-status.schema.json",
+    "novaria.error.rejected.v1": "error-rejected.schema.json",
 }
 
 
@@ -57,11 +60,72 @@ def schema_errors(event: dict) -> list[str]:
             for e in sorted(validator.iter_errors(event), key=lambda e: list(e.absolute_path))]
 
 
+def _duplicates(values: list[str]) -> list[str]:
+    return sorted({v for v in values if values.count(v) > 1})
+
+
+def _recommendation_errors(event: dict, data: dict) -> list[str]:
+    errors = []
+    if event["id"] != data["recommendation_id"]:
+        errors.append("id d'une recommandation attendu : data.recommendation_id")
+    if _parse_utc(data["valid_until"]) <= _parse_utc(event["time"]):
+        errors.append("valid_until doit être postérieur à time")
+    if sum(phase["duration_s"] for phase in data["phases"]) != data["cycle_s"]:
+        errors.append("cycle_s doit être égal à la somme des durées des phases")
+    doubles = _duplicates([phase["phase_id"] for phase in data["phases"]])
+    if doubles:
+        errors.append(f"phase_id en double : {', '.join(doubles)}")
+    return errors
+
+
+def _signal_status_errors(event: dict, data: dict) -> list[str]:
+    errors = []
+    ids = [phase["phase_id"] for phase in data["phases"]]
+    if _duplicates(ids):
+        errors.append(f"phase_id en double : {', '.join(_duplicates(ids))}")
+    if data["current_phase_id"] not in ids:
+        errors.append("current_phase_id doit désigner une phase de phases")
+    if _parse_utc(data["phase_started_at"]) > _parse_utc(event["time"]):
+        errors.append("phase_started_at ne peut pas être postérieur à time")
+    for phase in data["phases"]:
+        if phase["duration_s"] < phase["min_duration_s"]:
+            errors.append(f"phase {phase['phase_id']} : duration_s inférieur à min_duration_s")
+    return errors
+
+
+def _measurement_quality_errors(quality: dict) -> list[str]:
+    """DQ-05 et DQ-06 : une qualité dégradée dit pourquoi, par un drapeau."""
+    flags = set(quality.get("flags", []))
+    errors = []
+    if quality["status"] == "PARTIAL" and not flags & {"MISSING_SPEED", "MISSING_OCCUPANCY"}:
+        errors.append("qualité PARTIAL : drapeau MISSING_SPEED ou MISSING_OCCUPANCY attendu (DQ-06)")
+    if quality["status"] == "SUSPECT" and "IMPLAUSIBLE_VALUE" not in flags:
+        errors.append("qualité SUSPECT : drapeau IMPLAUSIBLE_VALUE attendu (DQ-05)")
+    return errors
+
+
+ALERT_STATES = ("CREATED", "NOTIFIED", "ACKNOWLEDGED", "RESOLVED")
+
+
+def _alert_transition_errors(data: dict) -> list[str]:
+    """Un événement d'alerte décrit un changement d'état : previous_state est null à la création, sinon un état antérieur."""
+    previous, state = data["previous_state"], data["state"]
+    if (previous is None) != (state == "CREATED"):
+        return ["previous_state vaut null si et seulement si state vaut CREATED"]
+    if previous is not None and ALERT_STATES.index(previous) >= ALERT_STATES.index(state):
+        return [f"transition {previous} vers {state} : l'état d'une alerte ne fait qu'avancer"]
+    return []
+
+
 def semantic_errors(event: dict) -> list[str]:
     """Règles que le schéma JSON ne sait pas exprimer (comparaison entre champs). Voir le dictionnaire de données."""
     errors: list[str] = []
     data = event.get("data", {})
-    if event.get("subject") != data.get("intersection_id"):
+    if event.get("type") == "novaria.error.rejected.v1":
+        # le carrefour d'un message rejeté peut être inconnu : le sujet vaut alors UNKNOWN
+        if event.get("subject") != (data.get("intersection_id") or "UNKNOWN"):
+            errors.append("subject doit être égal à data.intersection_id, ou à UNKNOWN s'il est null (clé de partition)")
+    elif event.get("subject") != data.get("intersection_id"):
         errors.append("subject doit être égal à data.intersection_id (clé de partition)")
     try:
         if event["type"] == "novaria.iot.measurement.v1":
@@ -69,9 +133,14 @@ def semantic_errors(event: dict) -> list[str]:
             expected = f"{data['provenance']['run_id']}:{data['sensor_id']}:{instant_ms}"
             if event["id"] != expected:
                 errors.append(f"id de mesure attendu : {expected}")
+            errors.extend(_measurement_quality_errors(data["quality"]))
         elif event["type"] == "novaria.traffic.indicator.v1":
             start = _parse_utc(data["window_start"])
             size = data["window_size_s"]
+            window_ms = int(start.timestamp() * 1000)
+            expected_id = f"{data['provenance']['run_id']}:{data['road_segment_id']}:{size}:{window_ms}"
+            if event["id"] != expected_id:
+                errors.append(f"id d'indicateur attendu : {expected_id}")
             if int(start.timestamp()) % size != 0:
                 errors.append("window_start doit être aligné sur la taille de la fenêtre")
             if _parse_utc(event["time"]) != datetime.fromtimestamp(start.timestamp() + size, timezone.utc):
@@ -79,8 +148,16 @@ def semantic_errors(event: dict) -> list[str]:
             if data["sample_count"] > data["expected_sample_count"] * 2:
                 errors.append("sample_count dépasse deux fois le nombre attendu (doublons ?)")
         elif event["type"] == "novaria.alert.state_changed.v1":
+            errors.extend(_alert_transition_errors(data))
             if data["resolved_at"] is not None and _parse_utc(data["resolved_at"]) < _parse_utc(data["opened_at"]):
                 errors.append("resolved_at ne peut pas précéder opened_at")
+        elif event["type"] == "novaria.traffic.recommendation.v1":
+            errors.extend(_recommendation_errors(event, data))
+        elif event["type"] == "novaria.signal.status.v1":
+            errors.extend(_signal_status_errors(event, data))
+        elif event["type"] == "novaria.error.rejected.v1":
+            if _parse_utc(event["time"]) != _parse_utc(data["rejected_at"]):
+                errors.append("time d'un rejet doit être égal à data.rejected_at")
     except (KeyError, TypeError, ValueError):
         pass  # champ absent ou mal typé : déjà signalé par le schéma
     return errors

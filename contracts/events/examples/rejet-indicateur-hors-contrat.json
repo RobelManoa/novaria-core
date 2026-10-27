@@ -1,0 +1,51 @@
+{
+  "id": "dlq:alerte:traffic.indicators:1792484461000",
+  "source": "alerte",
+  "type": "novaria.error.rejected.v1",
+  "time": "2026-10-20T08:21:01Z",
+  "subject": "INT_01",
+  "schema_version": "1.0",
+  "correlation_id": "corr-1792484400000",
+  "domain": "error",
+  "data": {
+    "source_topic": "traffic.indicators",
+    "rejected_at": "2026-10-20T08:21:01Z",
+    "reason_code": "CONTRACT_VIOLATION",
+    "reason": "data/window_size_s : 120 is not one of [60, 300]",
+    "attempts": 3,
+    "original_key": "INT_01",
+    "intersection_id": "INT_01",
+    "original_payload": {
+      "id": "run-demo-0001:ROAD_001:60:1792484400000",
+      "source": "traitement",
+      "type": "novaria.traffic.indicator.v1",
+      "time": "2026-10-20T08:21:00Z",
+      "subject": "INT_01",
+      "schema_version": "1.0",
+      "correlation_id": "corr-1792484400000",
+      "domain": "traffic",
+      "data": {
+        "road_segment_id": "ROAD_001",
+        "intersection_id": "INT_01",
+        "window_start": "2026-10-20T08:20:00Z",
+        "window_size_s": 120,
+        "vehicle_count": 9,
+        "flow_veh_per_min": 9.0,
+        "average_speed_kmh": 11.4,
+        "occupancy_rate": 0.78,
+        "max_queue_length_m": 140.0,
+        "speed_ratio": 0.228,
+        "sample_count": 6,
+        "expected_sample_count": 6,
+        "congestion_state": "CONGESTED",
+        "classifier_version": "regles-v0",
+        "provenance": {
+          "source_type": "SIMULATED",
+          "run_id": "run-demo-0001",
+          "scenario_id": "heure-de-pointe",
+          "seed": 42
+        }
+      }
+    }
+  }
+}

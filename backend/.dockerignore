@@ -1,7 +1,0 @@
-tests
-.venv
-__pycache__
-*.pyc
-coverage.xml
-.pytest_cache
-.ruff_cache

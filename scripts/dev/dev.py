@@ -17,7 +17,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
+import urllib.request
 from collections.abc import Sequence
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NamedTuple
 
@@ -102,15 +106,113 @@ def run_compose_step(*args: str) -> int:
     return compose(*args, check=False).returncode
 
 
+# Conteneurs applicatifs de docker-compose.yml (hors bases, bus et tâches uniques).
+APP_SERVICES = ("collecte", "traitement", "alerte", "reponse", "simulateur", "passerelle", "frontend")
+HEALTH_WAIT_SECONDS = 90
+
+
+class HealthCheck(NamedTuple):
+    name: str
+    port_variable: str  # variable de .env qui fixe le port publié sur 127.0.0.1
+    default_port: int
+    path: str
+    label: str = ""  # précise ce que le chemin prouve quand il traverse plusieurs conteneurs
+
+
+# Un /health par conteneur applicatif, plus deux chemins qui traversent la chaîne : l'API vue par la passerelle puis
+# par le front-end (ils prouvent le routage et le proxy, pas seulement que chaque conteneur tourne).
+HEALTH_CHECKS: tuple[HealthCheck, ...] = (
+    HealthCheck("collecte", "COLLECTE_PORT", 8001, "/api/v1/health"),
+    HealthCheck("traitement", "TRAITEMENT_PORT", 8002, "/api/v1/health"),
+    HealthCheck("alerte", "ALERTE_PORT", 8003, "/api/v1/health"),
+    HealthCheck("reponse", "REPONSE_PORT", 8004, "/api/v1/health"),
+    HealthCheck("simulateur", "SIMULATOR_PORT", 8005, "/api/v1/health"),
+    HealthCheck("passerelle", "GATEWAY_PORT", 8000, "/health"),
+    HealthCheck("frontend", "FRONTEND_PORT", 8080, "/"),
+    HealthCheck("passerelle", "GATEWAY_PORT", 8000, "/api/v1/health", "route vers traitement"),
+    HealthCheck("frontend", "FRONTEND_PORT", 8080, "/api/v1/health", "proxy vers la passerelle"),
+)
+
+
+def published_port(check: HealthCheck, env_values: dict[str, str]) -> int:
+    """Port publié : variable d'environnement du shell, sinon .env, sinon valeur par défaut."""
+    return int(os.environ.get(check.port_variable) or env_values.get(check.port_variable) or check.default_port)
+
+
+def probe(url: str, timeout: float = 5.0) -> tuple[bool, str]:
+    """GET sur `url` : (succès, détail). Un corps JSON doit avoir `status` égal à « ok »."""
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310 : 127.0.0.1 seulement
+            body = response.read().decode("utf-8", errors="replace")
+            if response.status != 200:
+                return False, f"HTTP {response.status}"
+    except urllib.error.HTTPError as error:
+        return False, f"HTTP {error.code}"
+    except (urllib.error.URLError, OSError, TimeoutError) as error:
+        return False, f"injoignable ({getattr(error, 'reason', error)})"
+    try:
+        data = json.loads(body)
+    except ValueError:
+        return True, "HTTP 200"  # page HTML du front-end
+    if isinstance(data, dict) and data.get("status") != "ok":
+        return False, f"statut {data.get('status')!r}"
+    revision = data.get("revision") if isinstance(data, dict) else None
+    return True, f"ok (révision {revision})" if revision else "ok"
+
+
+def check_health(wait_seconds: int = 0) -> tuple[list[str], int]:
+    """Interroge chaque /health (nouvelles tentatives pendant `wait_seconds`) ; rend les lignes et le nombre d'échecs."""
+    env_values = parse_env(ENV_FILE.read_text(encoding="utf-8")) if ENV_FILE.exists() else {}
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        rows, failures = [], 0
+        for check in HEALTH_CHECKS:
+            url = f"http://127.0.0.1:{published_port(check, env_values)}{check.path}"
+            ok, detail = probe(url)
+            failures += 0 if ok else 1
+            what = f"{check.name} ({check.label})" if check.label else check.name
+            rows.append(f"  [{'OK' if ok else 'KO'}] {what:<36} {url:<46} {detail}")
+        if failures == 0 or time.monotonic() >= deadline:
+            return rows, failures
+        time.sleep(3)
+
+
+def print_health(wait_seconds: int = 0) -> int:
+    rows, failures = check_health(wait_seconds)
+    print("\n".join(rows))
+    if failures:
+        print(f"{failures} sonde(s) en échec. Voir les journaux :  python scripts/dev/dev.py logs <service>")
+        return 1
+    print(f"Les {len(rows)} sondes répondent.")
+    return 0
+
+
 def cmd_up(_: argparse.Namespace) -> int:
-    code = run_compose_step("up", "--build", "-d")
+    """Démarre tout (l'ordre vient de depends_on dans docker-compose.yml), puis interroge chaque /health."""
+    code = run_compose_step("up", "--build", "-d", "--remove-orphans")
+    if code != 0:
+        return code
+    code = print_health(HEALTH_WAIT_SECONDS)
     if code == 0:
-        print("API : http://localhost:8000/docs   ·   Front-end : http://localhost:8080")
+        env_values = parse_env(ENV_FILE.read_text(encoding="utf-8")) if ENV_FILE.exists() else {}
+        gateway = next(c for c in HEALTH_CHECKS if c.name == "passerelle")
+        front = next(c for c in HEALTH_CHECKS if c.name == "frontend")
+        print(f"Front-end : http://localhost:{published_port(front, env_values)}   ·   "
+              f"API (passerelle) : http://localhost:{published_port(gateway, env_values)}/api/v1/")
     return code
 
 
+def cmd_health(args: argparse.Namespace) -> int:
+    require_env()
+    return print_health(args.wait)
+
+
 def cmd_down(_: argparse.Namespace) -> int:
-    return run_compose_step("down")
+    """Arrête et supprime les conteneurs et le réseau du projet. Les données (volumes) sont conservées."""
+    code = run_compose_step("down", "--remove-orphans")
+    if code == 0:
+        print("Conteneurs supprimés ; les données sont conservées (les effacer : db-reset).")
+    return code
 
 
 def cmd_db_up(_: argparse.Namespace) -> int:
@@ -183,11 +285,11 @@ def cmd_restore(args: argparse.Namespace) -> int:
     require_env()
     if not args.yes:
         print("ATTENTION : les tables PostgreSQL et les collections MongoDB actuelles seront REMPLACÉES "
-              "par celles de la sauvegarde. Le backend et le front-end sont arrêtés pendant l'opération.")
+              "par celles de la sauvegarde. Les services et le front-end sont arrêtés pendant l'opération.")
         if input("Taper « restaurer » pour confirmer : ").strip().lower() != "restaurer":
             print("Annulé.")
             return 1
-    compose("stop", "backend", "frontend", check=False)
+    compose("stop", *APP_SERVICES, check=False)
     for service, target in (("backup-postgres", args.postgres), ("backup-mongo", args.mongo)):
         code = run_compose_step("--profile", "ops", "run", "--rm", "-e", "CONFIRM_RESTORE=yes",
                                 service, "restore", target)
@@ -281,6 +383,93 @@ def cmd_db_check(_: argparse.Namespace) -> int:
     return 0 if failures == 0 else 1
 
 
+# --------------------------------------------------------------------------- événements dans MongoDB (LOC-02)
+EVENT_TEST_SUFFIX = ":db-check"  # identifiant des documents d'essai : supprimés avant et après le contrôle
+MONGO_ADMIN = ('mongosh --quiet -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" '
+               '--authenticationDatabase admin "$MONGO_DB"')
+MONGO_COLLECTE = 'mongosh --quiet -u svc_collecte -p "$MONGO_PASSWORD_COLLECTE" --authenticationDatabase "$MONGO_DB" "$MONGO_DB"'
+VALIDATION_FAILED = 121  # code MongoDB « Document failed validation »
+
+
+def raw_event_documents(event: dict, received_at: str) -> tuple[dict, dict]:
+    """Deux documents pour `raw_events` en JSON étendu (les dates sont `{"$date": ...}`) : un conforme, un sans provenance.
+
+    Le service de collecte ajoute `received_at` à l'écriture : il n'est pas dans l'événement publié sur le bus.
+    """
+    valid = {**event, "id": event["id"] + EVENT_TEST_SUFFIX, "time": {"$date": event["time"]},
+             "received_at": {"$date": received_at}}
+    without_provenance = {**valid, "id": valid["id"] + "-sans-provenance",
+                          "data": {k: v for k, v in event["data"].items() if k != "provenance"}}
+    return valid, without_provenance
+
+
+def insert_script(document: dict) -> str:
+    """Script mongosh : insère le document et affiche une ligne JSON {accepted, code} (jamais d'exception brute)."""
+    return ("try { const r = db.raw_events.insertOne(EJSON.deserialize(" + json.dumps(document) + ")); "
+            "print(JSON.stringify({accepted: r.acknowledged})); } "
+            "catch (e) { print(JSON.stringify({accepted: false, code: e.code, name: e.codeName || e.name})); }\n")
+
+
+def parse_result_line(output: str) -> dict | None:
+    """Dernier objet JSON de la sortie ; None s'il n'y en a pas.
+
+    mongosh lit son script sur l'entrée standard et préfixe chaque réponse de son invite (`novaria> {...}`).
+    """
+    for line in reversed(output.splitlines()):
+        start, end = line.find("{"), line.rfind("}")
+        if 0 <= start < end:
+            try:
+                return json.loads(line[start:end + 1])
+            except ValueError:
+                return None
+    return None
+
+
+def run_mongosh(login: str, script: str) -> subprocess.CompletedProcess:
+    return compose("exec", "-T", "mongo", "sh", "-c", login, check=False, capture=True, input_text=script)
+
+
+def cmd_db_check_events(args: argparse.Namespace) -> int:
+    """Insère une mesure conforme (acceptée) puis la même sans provenance (refusée) avec le compte de collecte (LOC-02)."""
+    require_env()
+    try:
+        event = json.loads(args.file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise DevError(f"Événement illisible ({args.file}) : {error}") from error
+    received_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    valid, without_provenance = raw_event_documents(event, received_at)
+    ids = json.dumps([valid["id"], without_provenance["id"]])
+    cleanup = f"db.raw_events.deleteMany({{id: {{$in: {ids}}}}})\n"
+    ttl = ("const i = db.raw_events.getIndexes().find((x) => x.expireAfterSeconds !== undefined); "
+           "print(JSON.stringify({ttl: i && i.expireAfterSeconds, "
+           "expected: Number(process.env.RAW_EVENTS_TTL_SECONDS || 1209600)}))\n")
+    failures = 0
+
+    def report(ok: bool, label: str) -> None:
+        nonlocal failures
+        failures += 0 if ok else 1
+        print(f"  [{'OK' if ok else 'KO'}] mongo    {label}")
+
+    run_mongosh(MONGO_ADMIN, cleanup)
+    try:
+        accepted = run_mongosh(MONGO_COLLECTE, insert_script(valid))
+        result = parse_result_line(accepted.stdout)
+        report(accepted.returncode == 0 and result == {"accepted": True}, "collecte : mesure conforme acceptée")
+        refused = run_mongosh(MONGO_COLLECTE, insert_script(without_provenance))
+        result = parse_result_line(refused.stdout)
+        report(refused.returncode == 0 and result is not None and result.get("accepted") is False
+               and result.get("code") == VALIDATION_FAILED, "collecte : mesure sans provenance refusée (validateur)")
+        index = run_mongosh(MONGO_ADMIN, ttl)
+        result = parse_result_line(index.stdout) or {}
+        days = (result.get("ttl") or 0) / 86400
+        report(index.returncode == 0 and bool(result.get("ttl")) and result.get("ttl") == result.get("expected"),
+               f"raw_events : index de durée de vie de {days:g} jours")
+    finally:
+        run_mongosh(MONGO_ADMIN, cleanup)
+    print("Toutes les vérifications passent." if failures == 0 else f"{failures} vérification(s) en échec.")
+    return 0 if failures == 0 else 1
+
+
 # --------------------------------------------------------------------------- Kafka (ADR-009, LOC-04)
 # Les outils en ligne de commande de Kafka sont dans le conteneur : aucun client Kafka à installer sur le poste.
 KAFKA_BIN = "/opt/kafka/bin"
@@ -289,6 +478,7 @@ KAFKA_PARTITIONS = 3  # ADR-009 §4.3 : 3 partitions par sujet en local
 KAFKA_SEPARATOR = "|"  # sépare partition, décalage, clé et valeur à la relecture, clé et valeur à la publication
 EXAMPLE_MEASUREMENT = ROOT / "contracts" / "events" / "examples" / "mesure-valide.json"
 VALIDATOR = ROOT / "contracts" / "validate_events.py"
+TOPICS_FILE = ROOT / "contracts" / "topics.json"  # matrice des sujets : type d'événement, schéma, producteurs, consommateurs
 
 
 class Topic(NamedTuple):
@@ -415,6 +605,10 @@ def cmd_kafka_roundtrip(args: argparse.Namespace) -> int:
     if not isinstance(event, dict) or not event.get("subject"):
         raise DevError("L'événement doit être un objet avec un champ `subject` (la clé de partition).")
     key = str(event["subject"])
+    expected_type = json.loads(TOPICS_FILE.read_text(encoding="utf-8"))["topics"].get(args.topic, {}).get("type")
+    if expected_type is not None and event.get("type") != expected_type:
+        raise DevError(f"Le sujet {args.topic} reçoit des événements {expected_type}, pas {event.get('type')!r} "
+                       "(matrice des sujets : contracts/topics.json).")
     described = kafka_tool("kafka-topics.sh", "--describe", "--topic", args.topic)
     if described.returncode != 0 or args.topic not in parse_topic_descriptions(described.stdout):
         raise DevError(f"Le sujet {args.topic} n'existe pas. Le créer :  python scripts/dev/dev.py kafka-topics")
@@ -456,6 +650,50 @@ def cmd_kafka_roundtrip(args: argparse.Namespace) -> int:
     if checked.returncode != 0:
         return 1
     print("  [OK] conforme au contrat (schéma et règles entre champs)")
+    return 0
+
+
+# --------------------------------------------------------------------------- dépendances verrouillées (MS-06)
+# Chaque service écrit ses dépendances en intervalles dans requirements.in et requirements-dev.in ; les fichiers
+# requirements.txt et requirements-dev.txt sont le verrou : versions exactes et empreintes de tous les fichiers de
+# chaque version, pour tous les systèmes (--universal). Les images s'installent avec --require-hashes --only-binary.
+UV_VERSION = "0.13.6"  # version de l'outil de résolution : fixée pour que deux postes produisent le même verrou
+LOCK_IMAGE = "python:3.12-slim"  # Python minimal du projet (requires-python)
+LOCK_PAIRS = (("requirements.in", "requirements.txt"), ("requirements-dev.in", "requirements-dev.txt"))
+
+
+def lockable_services(name: str | None = None) -> list[Path]:
+    """Dossiers de services/ qui ont un requirements.in (le gabarit compris), ou celui qui porte le nom `name`."""
+    directories = sorted(p for p in (ROOT / "services").iterdir() if (p / "requirements.in").is_file())
+    if name is not None:
+        directories = [d for d in directories if d.name == name]
+        if not directories:
+            raise DevError(f"Aucun service « {name} » avec un requirements.in dans services/.")
+    return directories
+
+
+def lock_command(directory: Path) -> list[str]:
+    """Commande `docker run` qui recalcule les deux verrous d'un service (aucun outil à installer sur le poste)."""
+    compile_steps = " && ".join(
+        f"uv pip compile --quiet {source} --universal --generate-hashes --python-version 3.12 -o {target}"
+        for source, target in LOCK_PAIRS
+    )
+    user = ["--user", f"{os.getuid()}:{os.getgid()}"] if hasattr(os, "getuid") else []  # fichiers au nom de la personne
+    return ["docker", "run", "--rm", *user, "-e", "HOME=/tmp", "-e", "PIP_DISABLE_PIP_VERSION_CHECK=1", "-e", "PATH=/tmp/.local/bin:/usr/local/bin:/usr/bin:/bin",
+            "-v", f"{directory}:/work", "-w", "/work", LOCK_IMAGE, "sh", "-c",
+            f"pip install --quiet --user uv=={UV_VERSION} && {compile_steps}"]
+
+
+def cmd_lock_deps(args: argparse.Namespace) -> int:
+    """Recalcule requirements.txt et requirements-dev.txt depuis les fichiers .in (réseau nécessaire)."""
+    require_docker()
+    for directory in lockable_services(args.service):
+        print(f"Verrou de {directory.name} …")
+        code = subprocess.run(lock_command(directory), check=False).returncode
+        if code != 0:
+            print(f"ERREUR : le verrou de {directory.name} a échoué (code {code}).", file=sys.stderr)
+            return code
+    print("Verrous à jour. Relire le diff, lancer les tests du service, puis commiter .in et .txt ensemble.")
     return 0
 
 
@@ -512,6 +750,19 @@ def cmd_check_tools(_: argparse.Namespace) -> int:
     return 0 if missing == 0 else 1
 
 
+def cmd_new_service(args: argparse.Namespace) -> int:
+    """Crée services/<nom> depuis le gabarit (MS-04) ; la logique est dans new_service.py."""
+    import new_service
+
+    try:
+        target = new_service.create(args.name, ROOT)
+    except new_service.NewServiceError as error:
+        raise DevError(str(error)) from error
+    print(f"Service créé : {target.relative_to(ROOT).as_posix()}")
+    print("Suite : voir CONTRIBUTING.md, « Créer un nouveau service ». La CI n'est pas à modifier.")
+    return 0
+
+
 # --------------------------------------------------------------------------- ligne de commande
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="dev.py", description=__doc__.splitlines()[0])
@@ -525,12 +776,18 @@ def build_parser() -> argparse.ArgumentParser:
     add("check-tools", cmd_check_tools, "vérifie les outils installés sur le poste")
     add("init-env", cmd_init_env, "crée .env avec des mots de passe aléatoires").add_argument(
         "--force", action="store_true", help="recrée .env même s'il existe")
-    add("up", cmd_up, "démarre tout : bases, migrations, backend, frontend")
-    add("down", cmd_down, "arrête tout (les données sont conservées)")
+    add("up", cmd_up, "démarre tout (bases, bus, 4 services, simulateur, passerelle, front-end) et vérifie chaque /health")
+    add("down", cmd_down, "arrête et supprime les conteneurs (les données sont conservées)")
+    lock = add("lock-deps", cmd_lock_deps, "recalcule les verrous de dépendances (requirements*.txt) depuis les .in")
+    lock.add_argument("service", nargs="?", help="un seul service (tous par défaut)")
+    health = add("health", cmd_health, "interroge le /health de chaque conteneur")
+    health.add_argument("--wait", type=int, default=0, metavar="SECONDES", help="réessaie pendant ce délai (0 : un seul essai)")
     add("db-up", cmd_db_up, "démarre PostgreSQL et MongoDB, puis applique les migrations")
     add("db-migrate", cmd_db_migrate, "applique les migrations SQL en attente")
     add("db-status", cmd_db_status, "état des bases et des migrations")
     add("db-check", cmd_db_check, "vérifie rôles, droits, collections et index")
+    events = add("db-check-events", cmd_db_check_events, "insère une mesure conforme (acceptée) et une sans provenance (refusée)")
+    events.add_argument("--file", type=Path, default=EXAMPLE_MEASUREMENT, help="événement de départ (mesure-valide.json)")
     add("kafka-up", cmd_kafka_up, "démarre Kafka (mode KRaft) et attend qu'il soit prêt")
     add("kafka-topics", cmd_kafka_topics, "crée les 6 sujets du bus s'ils manquent et les vérifie")
     trip = add("kafka-roundtrip", cmd_kafka_roundtrip, "publie un événement, le relit et le valide contre le contrat")
@@ -547,6 +804,8 @@ def build_parser() -> argparse.ArgumentParser:
     rest.add_argument("--yes", action="store_true", help="sans demande de confirmation")
     reset = add("db-reset", cmd_db_reset, "SUPPRIME les données locales des deux bases")
     reset.add_argument("--yes", action="store_true", help="sans demande de confirmation")
+    add("new-service", cmd_new_service, "crée services/<nom> depuis le gabarit").add_argument(
+        "name", help="nom du service : minuscules, chiffres, tirets (exemple : alerte)")
     add("ps", cmd_ps, "état des conteneurs")
     logs = add("logs", cmd_logs, "suit les journaux")
     logs.add_argument("services", nargs="*", help="services (tous par défaut)")

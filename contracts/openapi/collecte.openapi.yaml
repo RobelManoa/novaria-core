@@ -1,0 +1,94 @@
+openapi: 3.1.0
+
+info:
+  title: "Novaria Core : service Collecte"
+  version: 1.0.0-draft.1
+  summary: Dépôt des mesures de capteurs (réseau interne).
+  description: |
+    Valide chaque mesure contre `contracts/events/iot-measurement.schema.json`, la dédoublonne et la publie sur `iot.raw` ; une mesure refusée part sur `errors.dlq`. **Proposition** (MS-08) : le point d'entrée n'est pas exposé par la passerelle, l'authentification de service reste à décider (CLD-18).
+
+    **Statut : brouillon (MS-03).** Contrat issu du contrat unique de BE-01, découpé par service. Les conventions communes (dates, unités, erreurs, pagination, authentification, rôles, versionnement) sont dans `contracts/openapi/README.md` ; les composants partagés sont dans `common.yaml`.
+  contact:
+    name: Daddy Luciano, Manoa Robel
+    url: https://github.com/RobelManoa/novaria-core
+  license:
+    name: Usage pédagogique (Master 2 EADL)
+    identifier: LicenseRef-Pedagogique
+
+tags:
+  - name: Santé
+    description: Sonde utilisée par Docker et le pipeline.
+  - name: Mesures
+    description: Dépôt des mesures de capteurs par le simulateur (réseau interne, hors passerelle).
+
+paths:
+  /api/v1/health:
+    get:
+      tags: [Santé]
+      operationId: getHealth
+      summary: Sonde de santé
+      description: Dit que le service tourne. Renvoie la version et la révision Git du code déployé.
+      security: []
+      responses:
+        "200":
+          description: Service en ligne.
+          content:
+            application/json:
+              schema: { $ref: "common.yaml#/components/schemas/Health" }
+              example:
+                status: ok
+                version: 0.1.0
+                revision: 4d1ca55
+                environment: local
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/measurements:
+    post:
+      tags: [Mesures]
+      operationId: ingestMeasurement
+      summary: Déposer une mesure de capteur
+      description: |
+        Point d'entrée du simulateur IoT (Internet of Things) : le corps est l'**événement complet**
+        `novaria.iot.measurement.v1` (enveloppe et `data`), décrit par
+        `contracts/events/iot-measurement.schema.json`. La collecte applique le schéma **et** les règles entre
+        champs de `contracts/validate_events.py`, puis dédoublonne par `id` (règle DQ-03).
+
+        | Cas | Réponse | Suite |
+        |---|---|---|
+        | Mesure conforme et nouvelle | `202`, `status` `ACCEPTED` | Publiée sur `iot.raw`, stockée dans `raw_events` |
+        | Même `id` déjà reçu | `202`, `status` `DUPLICATE` | Ignorée sans erreur, comptée dans `processing_stats` |
+        | Mesure hors contrat | `422`, code `VALIDATION_ERROR` | **Jamais** publiée sur `iot.raw` ; envoyée sur `errors.dlq` (règle DQ-01) |
+
+        Proposition : le point d'entrée n'est pas exposé par la passerelle (`x-internal`) et n'a pas
+        d'authentification de service en v1 (CLD-18).
+      security: []
+      x-internal: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "../events/iot-measurement.schema.json" }
+      responses:
+        "202":
+          description: Mesure reçue.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MeasurementReceipt" }
+              example:
+                event_id: "run-demo-0001:SENSOR_001:1792483210000"
+                status: ACCEPTED
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+components:
+  schemas:
+    MeasurementReceipt:
+      type: object
+      description: Accusé de réception d'une mesure.
+      required: [event_id, status]
+      properties:
+        event_id: { type: string, minLength: 1, description: "`id` de l'événement reçu (clé d'idempotence)." }
+        status:
+          type: string
+          enum: [ACCEPTED, DUPLICATE]
+          description: "`ACCEPTED` : publiée. `DUPLICATE` : `id` déjà reçu, ignorée sans erreur."

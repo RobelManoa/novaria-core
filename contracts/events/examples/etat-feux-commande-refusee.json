@@ -1,0 +1,48 @@
+{
+  "id": "signal:INT_01:1792485012000",
+  "source": "reponse",
+  "type": "novaria.signal.status.v1",
+  "time": "2026-10-20T08:30:12Z",
+  "subject": "INT_01",
+  "schema_version": "1.0",
+  "correlation_id": "corr-1792485010000",
+  "domain": "signal",
+  "data": {
+    "intersection_id": "INT_01",
+    "mode": "AUTOMATIC",
+    "current_phase_id": "P2",
+    "phase_started_at": "2026-10-20T08:29:50Z",
+    "phases": [
+      {
+        "phase_id": "P1",
+        "green_approaches": [
+          "N",
+          "S"
+        ],
+        "min_duration_s": 10,
+        "duration_s": 30
+      },
+      {
+        "phase_id": "P2",
+        "green_approaches": [
+          "E",
+          "W"
+        ],
+        "min_duration_s": 10,
+        "duration_s": 25
+      }
+    ],
+    "decision": {
+      "origin": "MANUAL_COMMAND",
+      "reference_id": "9d8c7b6a-5e4f-4d3c-b2a1-0a9b8c7d6e5f",
+      "outcome": "REFUSED",
+      "refusal_reason": "UNSAFE_COMMAND"
+    },
+    "provenance": {
+      "source_type": "SIMULATED",
+      "run_id": "run-demo-0001",
+      "scenario_id": "heure-de-pointe",
+      "seed": 42
+    }
+  }
+}

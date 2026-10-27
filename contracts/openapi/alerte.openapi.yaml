@@ -1,0 +1,389 @@
+openapi: 3.1.0
+
+info:
+  title: "Novaria Core : service Alerte usager"
+  version: 1.0.0-draft.1
+  summary: Cycle de vie des alertes, règles d'alerte et diffusion en direct.
+  description: |
+    Possède le schéma `alertes` ; publie `alerts.events` (motif outbox) et alimente le flux SSE (Server-Sent Events) du tableau de bord.
+
+    **Statut : brouillon (MS-03).** Contrat issu du contrat unique de BE-01, découpé par service. Les conventions communes (dates, unités, erreurs, pagination, authentification, rôles, versionnement) sont dans `contracts/openapi/README.md` ; les composants partagés sont dans `common.yaml`.
+  contact:
+    name: Daddy Luciano, Manoa Robel
+    url: https://github.com/RobelManoa/novaria-core
+  license:
+    name: Usage pédagogique (Master 2 EADL)
+    identifier: LicenseRef-Pedagogique
+
+servers:
+  - url: http://localhost:8000
+    description: Poste local, derrière la passerelle d'API (Docker Compose, MS-06)
+
+tags:
+  - name: Santé
+    description: Sonde utilisée par Docker et le pipeline.
+  - name: Alertes
+    description: Cycle de vie des alertes et règles.
+  - name: Flux
+    description: Diffusion en direct au Tableau de bord.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/health:
+    get:
+      tags: [Santé]
+      operationId: getHealth
+      summary: Sonde de santé
+      description: Dit que le service tourne. Renvoie la version et la révision Git du code déployé.
+      security: []
+      responses:
+        "200":
+          description: Service en ligne.
+          content:
+            application/json:
+              schema: { $ref: "common.yaml#/components/schemas/Health" }
+              example:
+                status: ok
+                version: 0.1.0
+                revision: 4d1ca55
+                environment: local
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/alerts:
+    get:
+      tags: [Alertes]
+      operationId: listAlerts
+      summary: Lister les alertes
+      description: "Une alerte par épisode, jamais une par mesure (ADR-028). Tri : `opened_at` décroissant."
+      x-required-role: viewer
+      parameters:
+        - { $ref: "common.yaml#/components/parameters/Limit" }
+        - { $ref: "common.yaml#/components/parameters/Cursor" }
+        - name: state
+          in: query
+          schema: { $ref: "#/components/schemas/AlertState" }
+        - name: kind
+          in: query
+          schema: { $ref: "#/components/schemas/AlertKind" }
+        - name: severity
+          in: query
+          schema: { $ref: "#/components/schemas/Severity" }
+        - name: intersection_id
+          in: query
+          schema: { $ref: "common.yaml#/components/schemas/IntersectionId" }
+        - name: road_segment_id
+          in: query
+          schema: { $ref: "common.yaml#/components/schemas/RoadSegmentId" }
+        - name: opened_from
+          in: query
+          schema: { $ref: "common.yaml#/components/schemas/UtcDateTime" }
+        - name: opened_to
+          in: query
+          schema: { $ref: "common.yaml#/components/schemas/UtcDateTime" }
+      responses:
+        "200":
+          description: Une page d'alertes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlertPage" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/alerts/{alert_id}:
+    parameters:
+      - $ref: "#/components/parameters/AlertId"
+    get:
+      tags: [Alertes]
+      operationId: getAlert
+      summary: Lire une alerte et son historique
+      x-required-role: viewer
+      responses:
+        "200":
+          description: Alerte avec ses changements d'état.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlertDetail" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.yaml#/components/responses/NotFound" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/alerts/{alert_id}/acknowledge:
+    parameters:
+      - $ref: "#/components/parameters/AlertId"
+    post:
+      tags: [Alertes]
+      operationId: acknowledgeAlert
+      summary: Acquitter une alerte
+      description: Passe l'alerte à `ACKNOWLEDGED` ; l'appelant devient `acknowledged_by`. Possible depuis `CREATED` ou `NOTIFIED`. Répéter l'appel sur une alerte déjà acquittée renvoie `200` sans effet.
+      x-required-role: operator
+      responses:
+        "200":
+          description: Alerte à l'état `ACKNOWLEDGED`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Alert" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.yaml#/components/responses/NotFound" }
+        "409":
+          description: Alerte déjà résolue ; code `INVALID_STATE_TRANSITION`.
+          content:
+            application/problem+json:
+              schema: { $ref: "common.yaml#/components/schemas/Problem" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/alerts/{alert_id}/resolve:
+    parameters:
+      - $ref: "#/components/parameters/AlertId"
+    post:
+      tags: [Alertes]
+      operationId: resolveAlert
+      summary: Résoudre une alerte à la main
+      description: Passe l'alerte à `RESOLVED` avec `resolution` égale à `MANUAL`. La résolution automatique se fait à la clôture de l'épisode, sans appel d'API.
+      x-required-role: operator
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                comment:
+                  type: string
+                  maxLength: 500
+                  description: Motif de la résolution, conservé dans l'historique.
+      responses:
+        "200":
+          description: Alerte à l'état `RESOLVED`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Alert" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.yaml#/components/responses/NotFound" }
+        "409":
+          description: Alerte déjà résolue ; code `INVALID_STATE_TRANSITION`.
+          content:
+            application/problem+json:
+              schema: { $ref: "common.yaml#/components/schemas/Problem" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/alert-rules:
+    get:
+      tags: [Alertes]
+      operationId: listAlertRules
+      summary: Lister les règles d'alerte
+      x-required-role: viewer
+      responses:
+        "200":
+          description: Règles configurées (`congestion.persistante`, `anomalie.circulation`, `capteur.muet`).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/AlertRule" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/alert-rules/{rule_id}:
+    patch:
+      tags: [Alertes]
+      operationId: updateAlertRule
+      summary: Activer, désactiver ou régler une règle
+      x-required-role: admin
+      parameters:
+        - name: rule_id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/RuleId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AlertRuleUpdate" }
+      responses:
+        "200":
+          description: Règle modifiée.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlertRule" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.yaml#/components/responses/NotFound" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/events/stream:
+    get:
+      tags: [Flux]
+      operationId: streamEvents
+      summary: Flux d'événements en direct (SSE)
+      description: |
+        Connexion longue au format *Server-Sent Events*. Proposition : SSE plutôt que WebSocket, car la
+        diffusion va dans un seul sens et OpenAPI sait décrire SSE (choix à confirmer, MS-11).
+
+        Chaque message a un `event` et un `data` JSON :
+
+        | `event` | `data` |
+        |---|---|
+        | `alert.state_changed` | schéma `Alert` |
+        | `signal.status` | schéma `SignalState` |
+        | `heartbeat` | `{ "time": "..." }` toutes les 30 s |
+
+        Le navigateur ne peut pas poser d'en-tête `Authorization` avec `EventSource` : le client utilise
+        `fetch` avec lecture du flux, ou la passerelle fournit un jeton à usage unique (point ouvert).
+      x-required-role: viewer
+      parameters:
+        - name: types
+          in: query
+          description: Types à recevoir, séparés par des virgules. Tous si absent.
+          schema:
+            type: array
+            items: { type: string, enum: [alert.state_changed, signal.status] }
+          style: form
+          explode: false
+      responses:
+        "200":
+          description: Flux ouvert.
+          content:
+            text/event-stream:
+              schema: { type: string }
+              example: |
+                event: alert.state_changed
+                data: {"alert_id":"3f6c7f1e-0d2b-4c55-9c0e-6a1a4b3f2d10","state":"NOTIFIED"}
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+components:
+  securitySchemes:
+    bearerAuth: { $ref: "common.yaml#/components/securitySchemes/bearerAuth" }
+
+  parameters:
+    AlertId:
+      name: alert_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  schemas:
+    RuleId:
+      type: string
+      pattern: '^[a-z0-9_.-]{3,60}$'
+      examples: [congestion.persistante]
+    AlertState:
+      type: string
+      enum: [CREATED, NOTIFIED, ACKNOWLEDGED, RESOLVED]
+    AlertKind:
+      type: string
+      enum: [CONGESTION, TRAFFIC_ANOMALY, SENSOR_FAULT]
+    Severity:
+      type: string
+      enum: [INFO, WARNING, CRITICAL]
+    AlertCause:
+      type: string
+      enum: [UNKNOWN, CONFIRMED_INCIDENT, ROADWORKS, SPECIAL_EVENT, SENSOR_FAULT]
+      description: '`UNKNOWN` tant qu''aucun événement confirmé n''existe : une baisse de vitesse ne prouve pas un accident.'
+    Alert:
+      type: object
+      description: Mêmes valeurs que l'événement `novaria.alert.state_changed.v1` et la table `alertes.alert`.
+      required:
+        - alert_id
+        - rule_id
+        - kind
+        - state
+        - severity
+        - cause
+        - road_segment_id
+        - intersection_id
+        - opened_at
+        - resolved_at
+        - resolution
+        - provenance
+      properties:
+        alert_id: { type: string, format: uuid }
+        rule_id: { $ref: "#/components/schemas/RuleId" }
+        kind: { $ref: "#/components/schemas/AlertKind" }
+        state: { $ref: "#/components/schemas/AlertState" }
+        severity: { $ref: "#/components/schemas/Severity" }
+        cause: { $ref: "#/components/schemas/AlertCause" }
+        road_segment_id: { $ref: "common.yaml#/components/schemas/RoadSegmentId" }
+        intersection_id: { $ref: "common.yaml#/components/schemas/IntersectionId" }
+        episode_id: { type: [string, "null"], format: uuid }
+        opened_at: { $ref: "common.yaml#/components/schemas/UtcDateTime" }
+        notified_at: { oneOf: [{ $ref: "common.yaml#/components/schemas/UtcDateTime" }, { type: "null" }] }
+        acknowledged_at: { oneOf: [{ $ref: "common.yaml#/components/schemas/UtcDateTime" }, { type: "null" }] }
+        acknowledged_by: { type: [string, "null"], description: Nom d'utilisateur de l'opérateur. }
+        resolved_at:
+          oneOf: [{ $ref: "common.yaml#/components/schemas/UtcDateTime" }, { type: "null" }]
+          description: Renseigné si et seulement si `state` vaut `RESOLVED`.
+        resolution:
+          type: [string, "null"]
+          enum: [AUTO, MANUAL, null]
+          description: Renseigné si et seulement si `state` vaut `RESOLVED`.
+        provenance: { $ref: "common.yaml#/components/schemas/Provenance" }
+    AlertHistoryEntry:
+      type: object
+      required: [from_state, to_state, changed_at, actor]
+      properties:
+        from_state:
+          type: [string, "null"]
+          enum: [CREATED, NOTIFIED, ACKNOWLEDGED, RESOLVED, null]
+        to_state: { $ref: "#/components/schemas/AlertState" }
+        changed_at: { $ref: "common.yaml#/components/schemas/UtcDateTime" }
+        actor: { type: string, description: 'Nom d''utilisateur ou `system`.' }
+        comment: { type: [string, "null"], maxLength: 500 }
+    AlertDetail:
+      allOf:
+        - $ref: "#/components/schemas/Alert"
+        - type: object
+          required: [history]
+          properties:
+            history:
+              type: array
+              items: { $ref: "#/components/schemas/AlertHistoryEntry" }
+    AlertPage:
+      allOf:
+        - $ref: "common.yaml#/components/schemas/PageInfo"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Alert" }
+    AlertRule:
+      type: object
+      required: [rule_id, kind, enabled, params, min_gap_s, updated_at]
+      properties:
+        rule_id: { $ref: "#/components/schemas/RuleId" }
+        kind: { $ref: "#/components/schemas/AlertKind" }
+        enabled: { type: boolean }
+        params:
+          type: object
+          description: Paramètres propres à la règle (par exemple `silence_s` pour `capteur.muet`).
+          additionalProperties: true
+        min_gap_s:
+          type: integer
+          minimum: 0
+          description: Délai minimal entre deux notifications pour un même tronçon.
+        updated_at: { $ref: "common.yaml#/components/schemas/UtcDateTime" }
+    AlertRuleUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        enabled: { type: boolean }
+        params: { type: object, additionalProperties: true }
+        min_gap_s: { type: integer, minimum: 0 }

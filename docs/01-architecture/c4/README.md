@@ -80,7 +80,7 @@ Les deux noms sont déduits de [ADR-008](../adr/ADR-008-microservices.md) et de 
 |---|---|---|---|---|
 | Tableau de bord | React, Vite, TypeScript | `frontend/` | Affiche indicateurs, alertes, état des feux ; envoie la commande manuelle | Existe (socle FE-01) |
 | Passerelle d'API | Nginx ou Traefik | `gateway/` | Point d'entrée unique : routage `/api/<service>`, authentification, limitation de débit, CORS | Planifié (MS-13) |
-| API métier | Python, FastAPI | `backend/` | Utilisateurs, rôles et jetons ; audit et statistiques d'usage | Existe (squelette : `/health`) |
+| API métier | Python, FastAPI | `services/traitement/` (ancien `backend/`) | Utilisateurs, rôles et jetons ; audit et statistiques d'usage | Existe (squelette : `/health`), dossier partagé avec le Service Traitement tant que le point ouvert 1 n'est pas tranché |
 | Simulateur IoT | Python | `simulator/` | Génère des mesures de capteurs reproductibles (graine) avec anomalies injectables | Planifié (MS-07) |
 | Service Collecte | Python, FastAPI | `services/collecte/` | Reçoit, valide, dédoublonne, stocke le brut, publie `iot.raw` | Planifié (MS-08) |
 | Service Traitement | Python, FastAPI | `services/traitement/` | Nettoie, agrège par fenêtres, alimente l'entrepôt, publie indicateurs et recommandations, sert l'API de lecture | Planifié (MS-09, MS-10) |
@@ -129,7 +129,7 @@ Les deux noms sont déduits de [ADR-008](../adr/ADR-008-microservices.md) et de 
 
 | N° | Point | Constat | Qui |
 |---|---|---|---|
-| 1 | Avenir de `backend/` | [ADR-010](../adr/ADR-010-architecture-hexagonale.md) prévoit de migrer le squelette `backend/` vers `services/traitement` (MS-04). Or le schéma `app` (utilisateurs) et les rôles de base `svc_app` et `svc_backend` existent déjà pour un service à part. Ces vues le montrent comme **API métier**, distincte du Service Traitement. | Daddy et Manoa |
+| 1 | Avenir de l'API métier | Le squelette `backend/` a été déplacé vers `services/traitement` le 27/10/2026 (MS-04, prévu par l'[ADR-010](../adr/ADR-010-architecture-hexagonale.md)). Or le schéma `app` (utilisateurs) et les rôles de base `svc_app` et `svc_backend` existent déjà pour un service à part. Ces vues le montrent comme **API métier**, distincte du Service Traitement. | Daddy et Manoa |
 | 2 | Qui valide le jeton ? | [MS-13](../../../scripts/github/issues_microservices.py) place l'authentification à la **passerelle** ; BE-03 la place dans le back-end. Mécanisme non décidé (ADR « Authentification et passerelle d'API » à rédiger). Ces vues : l'API métier émet le jeton, la passerelle le contrôle. | Daddy |
 | 3 | Où est servi le modèle ? | IA-06 parle d'un « endpoint d'inférence » sans dire dans quel conteneur. Ces vues : conteneur **Modèle IA** séparé, appelé par le Service Traitement. | Manoa |
 | 4 | Noms des personnes | « Usager » et « Opérateur de mobilité » ne figurent pas tels quels dans la note de cadrage. | Manoa |

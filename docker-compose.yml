@@ -2,14 +2,26 @@
 # Mêmes commandes sous Windows (PowerShell) et sous Linux : Docker Desktop ou Docker Engine suffit.
 #
 #   python scripts/dev/dev.py init-env     # crée .env avec des mots de passe aléatoires (une seule fois)
-#   python scripts/dev/dev.py db-up        # PostgreSQL + MongoDB + migrations (sans backend ni frontend)
-#   python scripts/dev/dev.py up           # tout : bases, backend, frontend
+#   python scripts/dev/dev.py up           # TOUT : bases, bus, quatre services, simulateur, passerelle, front-end
+#   python scripts/dev/dev.py health       # interroge le /health de chaque conteneur
+#   python scripts/dev/dev.py down         # arrête et supprime les conteneurs (les données sont conservées)
+#   python scripts/dev/dev.py db-up        # seulement PostgreSQL + MongoDB + migrations
+#   python scripts/dev/dev.py kafka-up     # seulement Kafka (mode KRaft), un seul broker
 #   python scripts/dev/dev.py db-check     # vérifie rôles, droits et collections
-#   python scripts/dev/dev.py kafka-up     # Kafka (mode KRaft), un seul broker
-#   python scripts/dev/dev.py kafka-topics # crée les 6 sujets du bus (ADR-009) et les liste
 #
-# Les ports ne sont publiés que sur 127.0.0.1 : les bases et le bus ne sont pas joignables depuis le réseau.
+# Ordre de démarrage (depends_on, condition service_healthy ou service_completed_successfully) :
+#   postgres, mongo, kafka (sains) -> db-migrate et kafka-init (terminés) -> collecte, traitement, alerte, reponse
+#   -> simulateur (après la collecte), passerelle (après les trois services qu'elle expose) -> frontend.
+#
+# Les ports ne sont publiés que sur 127.0.0.1 : rien n'est joignable depuis le réseau. Ports dans .env.example.
 name: novaria-core
+
+# Variables communes à tous les services applicatifs.
+x-environnement-service: &environnement-service
+  ENVIRONMENT: local
+  GIT_SHA: ${GIT_SHA:-local}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
 
 services:
   postgres:
@@ -118,27 +130,112 @@ services:
       retries: 12
       start_period: 20s
 
-  backend:
+  # Tâche unique : crée les 6 sujets du bus (ADR-009) puis s'arrête. La création automatique est désactivée
+  # côté broker : sans cette tâche, aucun service ne trouverait ses sujets.
+  kafka-init:
+    image: apache/kafka:4.3.1
+    depends_on:
+      kafka: { condition: service_healthy }
+    volumes:
+      - ./infra/kafka/init-topics.sh:/init-topics.sh:ro
+    entrypoint: ["/bin/sh", "/init-topics.sh"]
+    restart: "no"
+
+  # --- Les quatre services (ADR-008) : un compte de base par service, aux droits minimaux (ADR-024) ------
+  collecte:
     build:
-      context: ./backend
-      args:
-        GIT_SHA: ${GIT_SHA:-local}
+      context: ./services/collecte
+      args: { GIT_SHA: "${GIT_SHA:-local}" }
+    environment:
+      <<: *environnement-service
+      SERVICE_NAME: collecte
+      MONGO_URL: mongodb://svc_collecte:${MONGO_PASSWORD_COLLECTE}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
+      MONGO_DB: ${MONGO_DB}
+    ports: ["127.0.0.1:${COLLECTE_PORT:-8001}:8000"]
+    depends_on:
+      mongo: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+
+  traitement:
+    build:
+      context: ./services/traitement
+      args: { GIT_SHA: "${GIT_SHA:-local}" }
+    environment:
+      <<: *environnement-service
+      SERVICE_NAME: traitement
+      POSTGRES_URL: postgresql+psycopg://svc_traitement:${PG_PASSWORD_TRAITEMENT}@postgres:5432/${POSTGRES_DB}
+      MONGO_URL: mongodb://svc_traitement:${MONGO_PASSWORD_TRAITEMENT}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
+      MONGO_DB: ${MONGO_DB}
+    ports: ["127.0.0.1:${TRAITEMENT_PORT:-8002}:8000"]
+    depends_on:
+      db-migrate: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      mongo: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+
+  alerte:
+    build:
+      context: ./services/alerte
+      args: { GIT_SHA: "${GIT_SHA:-local}" }
+    environment:
+      <<: *environnement-service
+      SERVICE_NAME: alerte
+      POSTGRES_URL: postgresql+psycopg://svc_alerte:${PG_PASSWORD_ALERTE}@postgres:5432/${POSTGRES_DB}
+    ports: ["127.0.0.1:${ALERTE_PORT:-8003}:8000"]
+    depends_on:
+      db-migrate: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+
+  reponse:
+    build:
+      context: ./services/reponse
+      args: { GIT_SHA: "${GIT_SHA:-local}" }
+    environment:
+      <<: *environnement-service
+      SERVICE_NAME: reponse
+      MONGO_URL: mongodb://svc_reponse:${MONGO_PASSWORD_REPONSE}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
+      MONGO_DB: ${MONGO_DB}
+    ports: ["127.0.0.1:${REPONSE_PORT:-8004}:8000"]
+    depends_on:
+      mongo: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+
+  # --- Simulateur de capteurs (squelette, MS-07) : parle à la collecte seulement -------------------------
+  simulateur:
+    build:
+      context: ./simulator
+      args: { GIT_SHA: "${GIT_SHA:-local}" }
     environment:
       ENVIRONMENT: local
       GIT_SHA: ${GIT_SHA:-local}
-      POSTGRES_URL: postgresql+psycopg://svc_app:${PG_PASSWORD_APP}@postgres:5432/${POSTGRES_DB}
-      MONGO_URL: mongodb://svc_backend:${MONGO_PASSWORD_BACKEND}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
-      MONGO_DB: ${MONGO_DB}
-      JWT_SECRET: ${JWT_SECRET}
-    ports: ["127.0.0.1:8000:8000"]
+      COLLECTE_URL: http://collecte:8000
+    ports: ["127.0.0.1:${SIMULATOR_PORT:-8005}:8000"]
     depends_on:
-      db-migrate: { condition: service_completed_successfully }
-      mongo: { condition: service_healthy }
+      collecte: { condition: service_healthy }
+
+  # --- Passerelle d'API (routage, MS-06 ; authentification et limitation de débit : MS-13) ----------------
+  passerelle:
+    image: nginxinc/nginx-unprivileged:1.30-alpine-slim
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports: ["127.0.0.1:${GATEWAY_PORT:-8000}:8000"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    depends_on:
+      traitement: { condition: service_healthy }
+      alerte: { condition: service_healthy }
+      reponse: { condition: service_healthy }
 
   frontend:
     build: ./frontend
-    ports: ["127.0.0.1:8080:8080"]
-    depends_on: [backend]
+    ports: ["127.0.0.1:${FRONTEND_PORT:-8080}:8080"]
+    depends_on:
+      passerelle: { condition: service_healthy }
 
   # --- Sauvegardes (profil « ops », jamais démarrées par `docker compose up`) --------------------------
   backup-postgres:

@@ -38,8 +38,8 @@
       "$ref": "common.schema.json#/$defs/utc_datetime"
     },
     "subject": {
-      "description": "Carrefour concerné : clé de partition Kafka (ordre garanti par carrefour).",
-      "$ref": "common.schema.json#/$defs/intersection_id"
+      "description": "Carrefour concerné : clé de partition Kafka (ordre garanti par carrefour). UNKNOWN seulement pour un message rejeté dont le carrefour est inconnu (errors.dlq).",
+      "$ref": "common.schema.json#/$defs/event_subject"
     },
     "schema_version": {
       "description": "Version du schéma de data : majeure.mineure.",
@@ -57,7 +57,8 @@
         "iot",
         "traffic",
         "alert",
-        "signal"
+        "signal",
+        "error"
       ]
     },
     "data": {

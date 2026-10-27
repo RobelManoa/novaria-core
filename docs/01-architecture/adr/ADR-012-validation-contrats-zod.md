@@ -10,7 +10,7 @@
 | Compétences BC05 | Documentation et spécifications techniques, ETL (Extract, Transform, Load) |
 | S'appuie sur | [ADR-001](ADR-001-python-fastapi.md), [ADR-009](ADR-009-bus-evenements.md) |
 
-> **Mise à jour du 20/10/2026.** Les contrats d'événements v0 (enveloppe, mesure, indicateur, alerte) sont écrits dans `contracts/events/`, avec exemples, 35 cas invalides testés et un validateur en ligne de commande (voir `contracts/README.md`).
+> **Mise à jour du 20/10/2026.** Les contrats d'événements v0 (enveloppe, mesure, indicateur, alerte) sont écrits dans `contracts/events/`, avec exemples, des cas invalides testés (92 au 27/10/2026, relecture croisée DAT-10) et un validateur en ligne de commande (voir `contracts/README.md`).
 
 ## 1. Problème
 

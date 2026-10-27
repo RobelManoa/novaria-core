@@ -48,7 +48,7 @@ Plusieurs ADR (Architecture Decision Record, enregistrement de décision d'archi
 | Glue | Catalogue et ETL (Extract, Transform, Load) | Scripts Python d'ETL, catalogue = [dictionnaire de données](../../03-donnees/dictionnaire-de-donnees.md) | Documenté ; Glue non exécuté |
 | SageMaker | Entraînement et service de modèles | Entraînement local (scikit-learn), registre dans MongoDB `model_runs` ([ADR-017](ADR-017-mlops-mlsecops.md)) | Même script d'entraînement |
 | CloudWatch | Journaux, métriques, alarmes | Journaux JSON (JavaScript Object Notation) sur la sortie standard, point `/metrics` des services (MS-16) | Format de journal identique |
-| Secrets Manager | Secrets d'exécution | `.env` généré, ignoré par Git | `Settings` de `backend/app/core/config.py` |
+| Secrets Manager | Secrets d'exécution | `.env` généré, ignoré par Git | `Settings` de `services/traitement/app/core/config.py` |
 | IAM (Identity and Access Management) et OIDC (OpenID Connect) | Identités, accès du CI (Continuous Integration, intégration continue) | Comptes de base de données par service ; aucun accès cloud | Aucun jeton AWS dans GitHub |
 | EventBridge Scheduler | Tâches planifiées | `cron`, Planificateur de tâches Windows, ou profil Compose `ops` | Commande `dev.py` |
 | VPC (Virtual Private Cloud, réseau privé virtuel), ALB (Application Load Balancer, répartiteur de charge) | Réseau et entrée | Réseau Compose, ports sur `127.0.0.1` | Documenté |
@@ -108,7 +108,7 @@ Si un port s'avère trop lourd à maintenir, le service utilise directement l'é
 
 | Contrôle | Preuve |
 |---|---|
-| Aucune importation AWS dans le domaine | Recherche de `boto3` dans `backend/` et `ml/` : aucun résultat |
+| Aucune importation AWS dans le domaine | Recherche de `boto3` dans `services/` et `ml/` : aucun résultat (relancée le 27/10/2026) |
 | Chaque ligne de la table a une issue | LOC-04, LOC-05 et les issues réorientées |
 | Les variables de configuration sont dans `.env.example` | Test de `dev.py` |
 

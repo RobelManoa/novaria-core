@@ -22,21 +22,22 @@ Il faut un compte GitHub avec accès au dépôt `RobelManoa/novaria-core`. Aucun
 git clone git@github.com:RobelManoa/novaria-core.git
 cd novaria-core
 cp .env.example .env      # valeurs locales sans danger ; le fichier n'est jamais versionné
-make up                   # PostgreSQL, MongoDB, backend, frontend
+make up                   # tout : bases, bus, 4 services, simulateur, passerelle, front-end (puis vérifie chaque /health)
 ```
 
-| Service | Adresse |
-|---|---|
-| API (documentation interactive) | http://localhost:8000/docs |
-| Sonde de santé | http://localhost:8000/api/v1/health |
-| Frontend | http://localhost:8080 |
-| PostgreSQL | `localhost:5432` |
-| MongoDB | `localhost:27017` |
+| Conteneur | Adresse sur le poste | Sonde de santé |
+|---|---|---|
+| Frontend | http://localhost:8080 | `/` |
+| Passerelle (point d'entrée de l'API) | http://localhost:8000/api/v1/ | http://localhost:8000/health |
+| Collecte, traitement, alerte, reponse | `127.0.0.1:8001`, `8002`, `8003`, `8004` | `/api/v1/health` de chacun |
+| Simulateur | `127.0.0.1:8005` | `/api/v1/health` |
+| PostgreSQL | `localhost:5432` | |
+| MongoDB | `localhost:27017` | |
 | Kafka (bus d'événements) | `127.0.0.1:9094` depuis le poste, `kafka:9092` depuis un conteneur ; sujets : `make kafka-topics` ([kafka-local.md](08-exploitation/kafka-local.md)) |
 
-Le test est réussi quand `/api/v1/health` renvoie `{"status":"ok", ...}`. Pour arrêter : `make down`. Pour suivre les journaux du backend : `make logs`.
+Le test est réussi quand `make up` finit par « Les 9 sondes répondent » (`make health` le refait à tout moment). Pour arrêter : `make down` (les données sont conservées). Pour suivre les journaux d'un service : `make logs S=traitement`. Ordre de démarrage, ports et dépannage : [pile-locale.md](08-exploitation/pile-locale.md).
 
-**Port déjà utilisé** (erreur `address already in use`) : un PostgreSQL ou un MongoDB local occupe le port. Ajoutez dans votre `.env` `POSTGRES_HOST_PORT=5433` et `MONGO_HOST_PORT=27018`, puis relancez `make up`. Les conteneurs continuent de se parler sur les ports internes habituels.
+**Port déjà utilisé** (erreur `address already in use`) : un PostgreSQL, un MongoDB ou un autre programme local occupe le port. Changez la variable correspondante dans votre `.env` (par exemple `POSTGRES_PORT=5433`, `MONGO_PORT=27018` ou `GATEWAY_PORT=8100` ; la liste est dans `.env.example`), puis relancez `make up`. Les conteneurs continuent de se parler sur les ports internes habituels.
 
 Accès aux bases depuis le terminal :
 
@@ -47,7 +48,7 @@ docker compose exec mongo sh -c 'mongosh -u "$MONGO_INITDB_ROOT_USERNAME" -p "$M
 
 ## 3. Travailler côté backend
 
-Le backend est une API FastAPI versionnée sous `/api/v1`. Organisation du dossier `backend/app/` :
+Le backend est une API FastAPI versionnée sous `/api/v1`. Organisation du dossier `services/traitement/app/` :
 
 | Dossier | Rôle |
 |---|---|
@@ -59,24 +60,24 @@ Le backend est une API FastAPI versionnée sous `/api/v1`. Organisation du dossi
 | `core/` | Configuration lue depuis les variables d'environnement |
 | `db/` | Connexions aux bases |
 
-Le dossier `backend/tests/` contient `unit/`, `integration/` et `contract/` (conformité au contrat OpenAPI). `backend/migrations/` accueillera les migrations Alembic.
+Le dossier `services/traitement/tests/` contient `unit/`, `integration/` et `contract/` (conformité au contrat OpenAPI). `services/traitement/migrations/` accueillera les migrations Alembic.
 
 ### Boucle de développement locale (avec rechargement automatique)
 
 ```bash
 docker compose up -d postgres mongo     # les bases seulement
-cd backend
+cd services/traitement
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 uvicorn app.main:app --reload           # http://localhost:8000/docs
 ```
 
-Les variables lues par le backend sont les mêmes que celles que `docker-compose.yml` injecte : `ENVIRONMENT`, `GIT_SHA`, `POSTGRES_URL`, `MONGO_URL`, `MONGO_DB`, `JWT_SECRET`. En local hors Docker, créez `backend/.env` (ignoré par Git) avec les mêmes noms, en remplaçant `postgres` et `mongo` par `localhost` et en utilisant les ports hôte de votre `.env`.
+Les variables lues par le backend sont les mêmes que celles que `docker-compose.yml` injecte : `ENVIRONMENT`, `GIT_SHA`, `POSTGRES_URL`, `MONGO_URL`, `MONGO_DB`, `JWT_SECRET`. En local hors Docker, créez `services/traitement/.env` (ignoré par Git) avec les mêmes noms, en remplaçant `postgres` et `mongo` par `localhost` et en utilisant les ports hôte de votre `.env`.
 
 ### Vérifier avant chaque commit
 
 ```bash
-cd backend
+cd services/traitement
 ruff check . && ruff format --check .    # corrige avec : ruff check --fix . && ruff format .
 python -m pytest                         # tests + couverture (coverage.xml)
 ```
@@ -85,15 +86,15 @@ python -m pytest                         # tests + couverture (coverage.xml)
 
 ### Ajouter un endpoint, pas à pas
 
-1. Décrire la route dans le contrat `docs/02-specifications/openapi.yaml` (source de vérité).
-2. Écrire le test d'abord dans `backend/tests/` (modèle : `tests/unit/test_health.py`).
+1. Décrire la route dans le contrat de son service, dans `contracts/openapi/` (source de vérité : `<nom du service>.openapi.yaml`).
+2. Écrire le test d'abord dans `services/traitement/tests/` (modèle : `tests/unit/test_health.py`).
 3. Créer le schéma dans `schemas/`, la logique dans `services/`, l'accès aux données dans `repositories/`.
 4. Brancher la route dans `api/v1/` et l'inclure dans `app/main.py`.
 5. Lancer `ruff` et `pytest`, puis ouvrir la pull request.
 
 ### Dépendances à ajouter
 
-`requirements.txt` ne contient pour l'instant que FastAPI, Uvicorn et Pydantic. Les issues à venir demandent d'ajouter, au moment voulu : SQLAlchemy et Alembic (BE-02), un pilote PostgreSQL (le compose utilise `postgresql+psycopg://`), un client MongoDB, et une bibliothèque JWT (BE-03). Ajoutez-les avec une borne de version, comme les lignes existantes.
+`requirements.in` ne contient pour l'instant que FastAPI, Uvicorn et Pydantic. Les issues à venir demandent d'ajouter, au moment voulu : SQLAlchemy et Alembic (BE-02), un pilote PostgreSQL (le compose utilise `postgresql+psycopg://`), un client MongoDB, et une bibliothèque JWT (BE-03). Ajoutez-les avec une borne de version, comme les lignes existantes, **dans le fichier `.in`**, puis lancez `python3 scripts/dev/dev.py lock-deps <service>` : les fichiers `requirements*.txt` sont des verrous générés (versions exactes et empreintes), jamais édités à la main. Procédure : [dependances-verrouillees.md](04-devsecops/dependances-verrouillees.md).
 
 ## 4. Travailler côté frontend
 
@@ -124,11 +125,11 @@ Six contrôles doivent être verts pour fusionner :
 
 | Contrôle | Ce qu'il fait | Équivalent local |
 |---|---|---|
-| `backend` | ruff, format, pytest | `ruff check .`, `ruff format --check .`, `python -m pytest` |
+| `backend` | ruff, format, pytest, pour chaque dossier de `services/` | `ruff check .`, `ruff format --check .`, `python -m pytest` |
 | `frontend` | eslint, prettier, tests, build | `npm run lint`, `npm run format:check`, `npm test`, `npm run build` |
 | `gitleaks` | secrets dans tout l'historique | ne commitez jamais `.env` |
 | `snyk` | vulnérabilités des dépendances, seuil « high » | — |
-| `docker` | construction des images et analyse Snyk | `docker build backend/`, `docker build frontend/` |
+| `docker` | construction des images et analyse Snyk | `docker build services/traitement/`, `docker build frontend/` |
 | `sonarqube` | qualité et couverture du code | — |
 
 Un secret commité dans l'historique fait échouer gitleaks définitivement : si cela arrive, prévenez le binôme avant toute autre action. Les exceptions de sécurité acceptées sont dans `.snyk` et suivies dans [docs/04-devsecops/exceptions.md](04-devsecops/exceptions.md), chacune avec une date d'expiration.
@@ -144,7 +145,8 @@ Dependabot ouvre chaque mois des pull requests groupées de mises à jour, sans 
 | Périmètre et compétences BC05 | `docs/00-cadrage/note-de-cadrage.md` |
 | Kafka local : sujets, publication, relecture | `docs/08-exploitation/kafka-local.md` |
 | Décisions d'architecture (ADR) | `docs/01-architecture/adr/` (modèle : `000-modele.md`) |
-| Contrat d'API | `docs/02-specifications/openapi.yaml` |
+| Contrats d'API (un par service) | `contracts/openapi/` |
+| Contrats d'événements du bus, matrice des sujets, conformité | `contracts/` (`README.md`) |
 | Décisions prises avec le professeur | `docs/07-gestion/decisions-professeur.md` |
 | Risques et changements | `docs/07-gestion/` |
 | Usage de l'IA | `docs/ia/journal-usage-ia.md` : inscrivez-y tout usage significatif |
@@ -172,7 +174,7 @@ Vérifiez les dépendances dans l'issue avant de commencer : une tâche bloquée
 |---|---|
 | `address already in use` au `make up` | Port 5432 ou 27017 occupé : voir la section 2 |
 | `permission denied` sur le socket Docker | Utilisateur absent du groupe `docker` : voir la section 1 |
-| `make test` ou `make lint` : `ruff` ou `pytest` introuvable | Activer l'environnement virtuel : `source backend/.venv/bin/activate` |
+| `make test` ou `make lint` : `ruff` ou `pytest` introuvable | Activer l'environnement virtuel : `source services/traitement/.venv/bin/activate` |
 | `variable is not set` au lancement de Compose | `.env` manquant : `cp .env.example .env` |
-| Le conteneur frontend seul s'arrête (`host not found in upstream "backend"`) | Normal hors Compose : nginx a besoin du service `backend`. Utilisez `make up` |
-| CI rouge sur `docker` après un changement de Dockerfile | Reproduire en local : `docker build backend/` puis `docker build frontend/` |
+| Le conteneur frontend seul s'arrête (`host not found in upstream "passerelle"`) | Normal hors Compose : nginx a besoin de la passerelle. Utilisez `make up` |
+| CI rouge sur `docker` après un changement de Dockerfile | Reproduire en local : `docker build services/traitement/` puis `docker build frontend/` |

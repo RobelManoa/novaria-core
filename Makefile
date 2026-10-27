@@ -3,20 +3,24 @@
 PY ?= python3
 DEV = $(PY) scripts/dev/dev.py
 
-.PHONY: help init-env up down ps logs db-up db-migrate db-status db-check psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts lint format quality-up quality-down hooks
+.PHONY: help init-env up down health lock-deps ps logs db-up db-migrate db-status db-check db-check-events psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts lint format new-service quality-up quality-down hooks
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
 
 init-env:      ## Crée .env avec des mots de passe aléatoires (une seule fois)
 	$(DEV) init-env
-up:            ## Démarre tout : bases, migrations, backend, frontend
+up:            ## Démarre tout (bases, bus, 4 services, simulateur, passerelle, front-end) et vérifie chaque /health
 	$(DEV) up
-down:          ## Arrête tout (données conservées)
+down:          ## Arrête et supprime les conteneurs (données conservées)
 	$(DEV) down
+health:        ## Interroge le /health de chaque conteneur
+	$(DEV) health
+lock-deps:     ## Recalcule les verrous de dépendances (make lock-deps N=alerte pour un seul service)
+	$(DEV) lock-deps $(N)
 ps:            ## État des conteneurs
 	$(DEV) ps
-logs:          ## Journaux (make logs S=backend pour un seul service)
+logs:          ## Journaux (make logs S=collecte pour un seul service Compose)
 	$(DEV) logs $(S)
 
 db-up:         ## Démarre PostgreSQL et MongoDB, applique les migrations
@@ -27,6 +31,8 @@ db-status:     ## État des bases et des migrations
 	$(DEV) db-status
 db-check:      ## Vérifie rôles, droits, collections et index
 	$(DEV) db-check
+db-check-events: ## Insère une mesure conforme (acceptée) et une sans provenance (refusée)
+	$(DEV) db-check-events
 psql:          ## Ouvre psql (administrateur local)
 	$(DEV) psql
 mongosh:       ## Ouvre mongosh (administrateur local)
@@ -47,18 +53,20 @@ kafka-topics:  ## Crée les 6 sujets du bus s'ils manquent et les vérifie
 kafka-roundtrip: ## Publie mesure-valide.json sur iot.raw, le relit et le valide
 	$(DEV) kafka-roundtrip
 
-test:          ## Tests backend + frontend + scripts du poste
-	cd backend && python -m pytest
+test:          ## Tests des services + frontend + scripts du poste
+	@for d in services/*/; do (cd $$d && python -m pytest) || exit 1; done
 	cd frontend && npm test
 	$(PY) -m unittest discover -s scripts/dev
 test-contracts: ## Valide les exemples et les cas invalides des contrats d'événements
 	$(PY) -m unittest discover -s contracts/tests
-lint:
-	cd backend && ruff check . && ruff format --check .
+lint:          ## Ruff sur chaque service, ESLint et Prettier sur le frontend
+	@for d in services/*/; do (cd $$d && ruff check . && ruff format --check .) || exit 1; done
 	cd frontend && npm run lint && npm run format:check
-format:
-	cd backend && ruff check --fix . && ruff format .
+format:        ## Formate chaque service et le frontend
+	@for d in services/*/; do (cd $$d && ruff check --fix . && ruff format .) || exit 1; done
 	cd frontend && npx prettier --write src
+new-service:   ## Crée services/<N> depuis le gabarit (make new-service N=alerte)
+	$(DEV) new-service $(N)
 quality-up:    ## SonarQube Community Build local
 	docker compose -f compose.quality.yml up -d
 quality-down:

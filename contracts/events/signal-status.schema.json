@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RobelManoa/novaria-core/contracts/events/signal-status.schema.json",
+  "title": "État des feux d'un carrefour (novaria.signal.status.v1)",
+  "description": "Publié par la réponse extérieure sur signal.status après chaque décision (recommandation ou commande manuelle appliquée ou refusée, retour au plan fixe, démarrage). Reflète le contrôleur de feux simulé. Grain : un carrefour, une décision.",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "novaria.signal.status.v1"
+        },
+        "subject": {
+          "$ref": "common.schema.json#/$defs/intersection_id"
+        },
+        "domain": {
+          "const": "signal"
+        },
+        "schema_version": {
+          "const": "1.0"
+        },
+        "data": {
+          "$ref": "#/$defs/data"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "intersection_id",
+        "mode",
+        "current_phase_id",
+        "phase_started_at",
+        "phases",
+        "decision",
+        "provenance"
+      ],
+      "properties": {
+        "intersection_id": {
+          "$ref": "common.schema.json#/$defs/intersection_id"
+        },
+        "mode": {
+          "description": "AUTOMATIC : suit les recommandations. MANUAL : commande d'un opérateur en cours. DEGRADED_FIXED_PLAN : plan à durées fixes quand les recommandations manquent.",
+          "enum": [
+            "AUTOMATIC",
+            "MANUAL",
+            "DEGRADED_FIXED_PLAN"
+          ]
+        },
+        "current_phase_id": {
+          "$ref": "common.schema.json#/$defs/signal_phase_id"
+        },
+        "phase_started_at": {
+          "description": "Début de la phase en cours, UTC, antérieur ou égal à time.",
+          "$ref": "common.schema.json#/$defs/utc_datetime"
+        },
+        "phases": {
+          "description": "Plan appliqué, dans l'ordre.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "phase_id",
+              "green_approaches",
+              "min_duration_s",
+              "duration_s"
+            ],
+            "properties": {
+              "phase_id": {
+                "$ref": "common.schema.json#/$defs/signal_phase_id"
+              },
+              "green_approaches": {
+                "description": "Approches au vert pendant cette phase.",
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "$ref": "common.schema.json#/$defs/approach"
+                }
+              },
+              "min_duration_s": {
+                "description": "Durée minimale de sécurité (secondes) : le contrôleur n'écourte jamais une phase en dessous.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 600
+              },
+              "duration_s": {
+                "description": "Durée actuellement appliquée (secondes), au moins égale à min_duration_s.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 600
+              }
+            }
+          }
+        },
+        "decision": {
+          "description": "Décision qui a produit ou laissé cet état.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "origin",
+            "reference_id",
+            "outcome",
+            "refusal_reason"
+          ],
+          "properties": {
+            "origin": {
+              "description": "RECOMMENDATION : recommandation du traitement. MANUAL_COMMAND : commande d'un opérateur. FIXED_PLAN_FALLBACK : retour au plan fixe (recommandations manquantes). STARTUP : état initial au démarrage du service.",
+              "enum": [
+                "RECOMMENDATION",
+                "MANUAL_COMMAND",
+                "FIXED_PLAN_FALLBACK",
+                "STARTUP"
+              ]
+            },
+            "reference_id": {
+              "description": "recommendation_id ou command_id ; null pour FIXED_PLAN_FALLBACK et STARTUP.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            },
+            "outcome": {
+              "description": "APPLIED : appliquée. REFUSED : refusée par les garde-fous, l'état est inchangé.",
+              "enum": [
+                "APPLIED",
+                "REFUSED"
+              ]
+            },
+            "refusal_reason": {
+              "description": "Code du refus (par exemple UNSAFE_COMMAND, COMMAND_IN_PROGRESS) ; null si APPLIED.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[A-Z][A-Z_]{2,59}$"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "outcome": {
+                    "const": "REFUSED"
+                  }
+                },
+                "required": [
+                  "outcome"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "refusal_reason": {
+                    "type": "string"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "refusal_reason": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "origin": {
+                    "enum": [
+                      "RECOMMENDATION",
+                      "MANUAL_COMMAND"
+                    ]
+                  }
+                },
+                "required": [
+                  "origin"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "reference_id": {
+                    "type": "string"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "reference_id": {
+                    "type": "null"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "provenance": {
+          "$ref": "common.schema.json#/$defs/provenance"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "decision": {
+                "properties": {
+                  "origin": {
+                    "const": "FIXED_PLAN_FALLBACK"
+                  }
+                },
+                "required": [
+                  "origin"
+                ]
+              }
+            },
+            "required": [
+              "decision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "mode": {
+                "const": "DEGRADED_FIXED_PLAN"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
