@@ -109,7 +109,7 @@
           "maximum": 9.999
         },
         "sample_count": {
-          "description": "Mesures effectivement reçues dans la fenêtre.",
+          "description": "Mesures retenues dans la fenêtre (qualité VALID ou PARTIAL, doublons exclus).",
           "type": "integer",
           "minimum": 0,
           "maximum": 32767
