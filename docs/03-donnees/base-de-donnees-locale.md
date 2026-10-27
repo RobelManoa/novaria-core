@@ -50,8 +50,9 @@ Prérequis : Docker, Git et Python 3.12. Vérification : `check-tools` liste ce 
 | 2. Créer `.env` (une seule fois) | `python3 scripts/dev/dev.py init-env` | `py -3 scripts/dev/dev.py init-env` |
 | 3. Démarrer les bases et migrer | `python3 scripts/dev/dev.py db-up` | `py -3 scripts/dev/dev.py db-up` |
 | 4. Vérifier rôles et droits | `python3 scripts/dev/dev.py db-check` | `py -3 scripts/dev/dev.py db-check` |
+| 5. Vérifier l'écriture dans MongoDB | `python3 scripts/dev/dev.py db-check-events` | `py -3 scripts/dev/dev.py db-check-events` |
 
-Résultat attendu à l'étape 4 : 21 lignes `[OK]`, puis « Toutes les vérifications passent. ». Sous Linux, `make db-up` et `make db-check` font la même chose.
+Résultat attendu à l'étape 4 : 21 lignes `[OK]`, puis « Toutes les vérifications passent. ». Résultat attendu à l'étape 5 : 3 lignes `[OK]` (mesure conforme acceptée, mesure sans provenance refusée, index de durée de vie de 14 jours). Sous Linux, `make db-up`, `make db-check` et `make db-check-events` font la même chose.
 
 > Docker Desktop doit être **ouvert** avant l'étape 3 sous Windows (icône de la baleine stable dans la barre des tâches).
 
@@ -65,6 +66,7 @@ Résultat attendu à l'étape 4 : 21 lignes `[OK]`, puis « Toutes les vérifica
 | Suivre les journaux d'un service | `logs backend` |
 | Appliquer les nouvelles migrations | `db-migrate` |
 | Voir les migrations appliquées | `db-status` |
+| Vérifier que MongoDB accepte une mesure conforme et refuse une mesure sans provenance | `db-check-events` |
 | Ouvrir une console PostgreSQL | `psql` |
 | Ouvrir une console MongoDB | `mongosh` |
 | Sauvegarder les deux bases | `backup` (voir [sauvegarde et restauration](../08-exploitation/sauvegarde-restauration-locale.md)) |
@@ -165,6 +167,7 @@ Outils graphiques facultatifs : DBeaver (PostgreSQL) et MongoDB Compass, connect
 | Contraintes et droits du modèle sur ces bases : 6 940 jours de calendrier, 6 carrefours, 24 tronçons, 24 capteurs, 3 règles d'alerte ; 9 refus de contraintes de l'entrepôt (vitesse sans véhicule, fenêtre de 120 s, date hors calendrier…) et 4 de contraintes d'alerte (RESOLVED sans date, deuxième alerte ouverte, cause hors liste, événement en double) ; rejeu d'un fait sans doublon ; 11 cas de droits par rôle SQL ; 29 cas de validateurs, d'index uniques et de droits MongoDB | Requêtes exécutées dans ces conteneurs, cas positifs et négatifs | idem |
 | Fins de ligne des scripts `.sh`, `.sql`, `.js` du dossier `db/` | Aucun caractère CR dans les fichiers de l'arbre de travail Windows | idem |
 | Sonde de santé MongoDB de `docker-compose.yml` | Même commande rejouée dans un conteneur à vide : réussit après 23 s | idem |
-| **`db-up` puis `db-check`** (Compose, volumes du projet) | Non relancés pour DAT-02 : ils utilisent les volumes `pgdata` et `mongodata` existants | **À lancer sur chaque poste** après avoir lu l'avertissement de `db-reset` |
+| Premier démarrage réel sous Docker : `db-up` puis `db-check` (21 `[OK]`, dont les 12 de MongoDB), insertion d'une mesure conforme (acceptée) et d'une sans provenance (refusée), index de durée de vie de 14 jours | Volumes neufs dans un projet Compose jetable, fichiers du dépôt sans modification : [preuve LOC-02](preuve-loc-02-mongodb.md) | Poste Windows 11, 27/10/2026 |
+| **`db-up` puis `db-check` sur vos volumes habituels** (Compose, projet `novaria-core`) | Non relancés : ils utilisent les volumes `pgdata` et `mongodata` existants | **À lancer sur chaque poste**, dont le poste Linux, après avoir lu l'avertissement de `db-reset` |
 
 Si `db-check` échoue sur votre poste, copier la sortie dans l'issue [LOC-01](https://github.com/RobelManoa/novaria-core/issues) (PostgreSQL) ou LOC-02 (MongoDB) ; sans secret, car la commande n'en affiche aucun.
