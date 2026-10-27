@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mockHealth } from "./utils/renderApp";
+import { mockApi, signIn } from "./utils/renderApp";
 
 describe("démarrage de l'application", () => {
   afterEach(() => {
@@ -10,7 +10,8 @@ describe("démarrage de l'application", () => {
   });
 
   it("monte l'application dans #root et applique le thème mémorisé", async () => {
-    mockHealth();
+    mockApi();
+    signIn();
     window.localStorage.setItem("novaria-theme", "dark");
     document.body.innerHTML = '<div id="root"></div>';
 

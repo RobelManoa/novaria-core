@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation, useMatches } from "react-router";
 import IconButton from "@/components/IconButton";
 import SkipLink from "@/components/SkipLink";
 import ApiStatus from "@/features/api-status/ApiStatus";
+import UserMenu from "@/features/auth/UserMenu";
 import MainNav from "@/features/navigation/MainNav";
 import ThemeSelector from "@/features/theme/ThemeSelector";
 import { useDisclosure } from "@/hooks/useDisclosure";
@@ -101,6 +102,7 @@ export default function AppShell() {
         <div className={styles.tools}>
           <ApiStatus />
           <ThemeSelector />
+          <UserMenu />
         </div>
       </header>
 
