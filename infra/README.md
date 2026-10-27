@@ -34,4 +34,4 @@ Il reste inactif tant que la variable `AWS_ROLE_ARN` n'existe pas.
 ### Points de conception
 
 - La révision vient de l'image : `deploy.yml` construit avec `--build-arg GIT_SHA=<commit>`, le Dockerfile l'écrit dans la variable `GIT_SHA`, l'API la renvoie. Ne définissez pas `GIT_SHA` dans les définitions de tâche.
-- `nginx.conf` envoie `/api/` vers l'hôte `backend:8000`. Sur ECS, le service frontend doit donc utiliser ECS Service Connect avec l'alias `backend` (les ports sont nommés dans les définitions de tâche pour cela), sinon nginx ne démarre pas.
+- `nginx.conf` envoie `/api/` vers l'hôte `passerelle:8000` (la passerelle d'API, `gateway/`, depuis MS-06 ; c'était `backend:8000` avant). Sur ECS, le service frontend doit donc utiliser ECS Service Connect avec l'alias `passerelle` (les ports sont nommés dans les définitions de tâche pour cela), sinon nginx ne démarre pas. Cible AWS non exécutée, à revoir avec CLD-12.

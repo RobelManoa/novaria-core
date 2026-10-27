@@ -113,7 +113,7 @@ class CommandTests(unittest.TestCase):
     def test_restore_arrete_l_application_puis_restaure_les_deux_bases(self):
         code, calls = self.run_main(["restore", "--yes", "--mongo", "novaria_x.archive.gz"])
         self.assertEqual(code, 0)
-        self.assertEqual(calls[0], ["docker", "compose", "stop", "backend", "frontend"])
+        self.assertEqual(calls[0], ["docker", "compose", "stop", *dev.APP_SERVICES])
         self.assertEqual(calls[1][-3:], ["backup-postgres", "restore", "latest"])
         self.assertEqual(calls[2][-3:], ["backup-mongo", "restore", "novaria_x.archive.gz"])
         self.assertTrue(all("CONFIRM_RESTORE=yes" in c for c in calls[1:]))

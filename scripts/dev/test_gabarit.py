@@ -23,6 +23,7 @@ SERVICES = RACINE / "services"
 GABARIT = SERVICES / "_gabarit"
 FICHIERS_DU_GABARIT = [
     ".dockerignore", "Dockerfile", "README.md", "pyproject.toml", "requirements.txt", "requirements-dev.txt",
+    "requirements.in", "requirements-dev.in",
     "app/__init__.py", "app/main.py", "app/api/v1/health.py", "app/core/config.py", "app/core/logs.py",
     "tests/unit/test_health.py", "tests/unit/test_logs.py",
     "app/schemas/events.py", "tests/contract/conftest.py", "tests/contract/test_event_models.py",
@@ -157,7 +158,9 @@ class ArborescenceDesFichiersDeConfiguration(unittest.TestCase):
         sonar = lire("sonar-project.properties")
         self.assertRegex(sonar, r"(?m)^sonar\.sources=.*\bservices\b")
         self.assertIn("sonar.python.coverage.reportPaths=services/*/coverage.xml", sonar)
-        self.assertIn("sonar.cpd.exclusions=services/_gabarit/**", sonar)
+        exclusions = re.search(r"(?m)^sonar\.cpd\.exclusions=(.*)$", sonar).group(1).split(",")
+        # exactement le gabarit et le code commun que ce test impose identique : rien de plus
+        self.assertEqual(sorted(exclusions), sorted(["services/_gabarit/**", *[f"services/*/{f}" for f in CODE_COMMUN]]))
         self.assertNotIn("backend", sonar)
 
     def test_dependabot_couvre_tous_les_services(self):
