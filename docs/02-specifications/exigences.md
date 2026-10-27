@@ -4,11 +4,7 @@ Issue : DOC-05. Rédaction : Daddy Luciano. Relecture croisée : Manoa Robel (à
 
 Statut : **brouillon pour relecture**. Les exigences viennent des décisions d'architecture (ADR), du [registre des demandes](../07-gestion/registre-des-demandes.md), de la [note de cadrage](../00-cadrage/note-de-cadrage.md) et des critères d'acceptation du backlog. La validation par le professeur du cahier des charges fonctionnel (point 5 de GES-06) reste **à consigner** dans [decisions-professeur.md](../07-gestion/decisions-professeur.md). Les valeurs chiffrées marquées « valeur de départ » ou « proposé » sont des hypothèses à mesurer, pas des engagements.
 
-<<<<<<< HEAD
 Ce fichier répond à la question « que doit faire le système, et comment le prouve-t-on ? ». Les parcours et les cas d'échec sont dans [parcours.md](parcours.md), les règles sur les données dans [regles-de-gestion.md](regles-de-gestion.md), l'interface REST (Representational State Transfer) dans les [contrats OpenAPI](../../contracts/openapi/README.md), un par service.
-=======
-Ce fichier répond à la question « que doit faire le système, et comment le prouve-t-on ? ». Les parcours et les cas d'échec sont dans [parcours.md](parcours.md), les règles sur les données dans [regles-de-gestion.md](regles-de-gestion.md), l'interface REST (Representational State Transfer) dans [openapi.yaml](openapi.yaml).
->>>>>>> origin/main
 
 ## Comment lire
 
@@ -37,11 +33,7 @@ Sigles employés ci-dessous, développés une fois : p95 (95e centile : 95 % des
 | EXG-COL-01 | **Simulateur reproductible.** Sans données de référence, on ne peut ni tester ni entraîner ([ADR-027](../01-architecture/adr/ADR-027-jeux-de-donnees-et-provenance.md)) | Deux runs de même scénario et de même graine produisent des mesures identiques (même empreinte SHA-256 du flux). Les 5 scénarios minimaux (journée calme, pointe du matin, incident ponctuel, capteur muet, messages en retard ou en double) se lancent à la demande | Doit | `simulator/README.md` et test de rejeu à graine fixe | À faire | MS-07 |
 | EXG-COL-02 | **Validation à l'entrée.** Un message hors contrat ne doit jamais atteindre le traitement ([ADR-012](../01-architecture/adr/ADR-012-validation-contrats-zod.md)) | Sur un jeu de test mêlant messages valides, invalides et doublons : 100 % des valides arrivent sur `iot.raw`, 100 % des invalides sur `errors.dlq` avec un motif, 0 doublon publié | Doit | Test d'intégration et `docs/03-donnees/collecte.md` | Partiel : schéma de la mesure et cas invalides testés dans `contracts/tests` ; service absent | MS-08, MS-03 |
 | EXG-COL-03 | **Stock brut rejouable.** Rejouer l'historique et prouver un calcul exigent de garder les mesures reçues ([ADR-011](../01-architecture/adr/ADR-011-temps-reel-et-batch.md)) | Chaque message accepté figure dans `raw_events` avec `received_at` ; un second message de même `id` est refusé par l'index unique ; la purge à 14 jours est configurée | Doit | Test d'intégration et capture MongoDB | Partiel : collection, validateur, index unique et durée de vie créés et vérifiés sous Windows le 27/10/2026 ; service absent | MS-08 |
-<<<<<<< HEAD
 | EXG-COL-04 | **Un contrat par sujet.** Un service ne lit que ce qu'un schéma décrit ([ADR-012](../01-architecture/adr/ADR-012-validation-contrats-zod.md)) | Les 6 sujets Kafka ont un schéma ; chaque exemple valide passe et chaque cas invalide est refusé pour la bonne raison ; un service dont un message viole le contrat fait échouer son test | Doit | `contracts/events/` et `contracts/tests/` | Partiel : les 6 sujets ont leur schéma, leurs exemples et leurs cas invalides (19 exemples, 85 cas refusés pour la bonne raison) ; le banc `contracts/conformance.py` fait échouer le test d'un service qui publie ou consomme un message hors contrat, mais les services eux-mêmes n'existent pas encore (MS-08 à MS-12) | MS-03 |
-=======
-| EXG-COL-04 | **Un contrat par sujet.** Un service ne lit que ce qu'un schéma décrit ([ADR-012](../01-architecture/adr/ADR-012-validation-contrats-zod.md)) | Les 6 sujets Kafka ont un schéma ; chaque exemple valide passe et chaque cas invalide est refusé pour la bonne raison ; un service dont un message viole le contrat fait échouer son test | Doit | `contracts/events/` et `contracts/tests/` | Partiel : 3 sujets sur 6 couverts (`iot.raw`, `traffic.indicators`, `alerts.events`) | MS-03 |
->>>>>>> origin/main
 
 ## 2. Traitement et entrepôt
 
@@ -75,13 +67,8 @@ Sigles employés ci-dessous, développés une fois : p95 (95e centile : 95 % des
 
 | ID | Exigence et contexte | Critère mesurable | Priorité | Preuve attendue | État | Issues |
 |---|---|---|---|---|---|---|
-<<<<<<< HEAD
 | EXG-API-01 | **Authentification et rôles.** Seul un utilisateur connu agit, selon son rôle ([contrats OpenAPI](../../contracts/openapi/README.md)) | Sans jeton valide : 401. Avec un rôle insuffisant : 403. Trois rôles `viewer`, `operator`, `admin` (proposition à valider). Seules `/health` et `/auth/login` sont publiques | Doit | Tests de `services/<nom>/tests/contract/` | Partiel : rôles et sécurité décrits dans le contrat et contrôlés par `scripts/dev/test_openapi.py` | BE-03, MS-13 |
 | EXG-API-02 | **Conformité au contrat.** Le contrat est la source de vérité | Chaque réponse, succès comme erreur, respecte le contrat OpenAPI de son service (`contracts/openapi/`) ; chaque erreur documentée est testée ; le format d'erreur est `application/problem+json` | Doit | Tests de contrat | Partiel : 5 contrats chargés et 27 tests de structure et de découpage ; la sonde `/health` de chaque service est testée contre son contrat ; les autres routes ne sont pas implémentées | BE-04, BE-06 |
-=======
-| EXG-API-01 | **Authentification et rôles.** Seul un utilisateur connu agit, selon son rôle ([openapi.yaml](openapi.yaml)) | Sans jeton valide : 401. Avec un rôle insuffisant : 403. Trois rôles `viewer`, `operator`, `admin` (proposition à valider). Seules `/health` et `/auth/login` sont publiques | Doit | Tests de `backend/tests/contract/` | Partiel : rôles et sécurité décrits dans le contrat et contrôlés par `scripts/dev/test_openapi.py` | BE-03, MS-13 |
-| EXG-API-02 | **Conformité au contrat.** Le contrat est la source de vérité | Chaque réponse, succès comme erreur, respecte `openapi.yaml` ; chaque erreur documentée est testée ; le format d'erreur est `application/problem+json` | Doit | Tests de contrat | Partiel : contrat chargé et 15 tests de structure ; seule la route `/health` est implémentée | BE-04, BE-06 |
->>>>>>> origin/main
 | EXG-API-03 | **Audit et usage.** Savoir qui a fait quoi | Chaque appel authentifié produit une entrée `audit_logs` (acteur, action, résultat, `correlation_id`) sans secret ni donnée personnelle ; les compteurs `usage_stats` s'incrémentent | Devrait | Test et capture MongoDB | Partiel : collections, validateurs et droits vérifiés le 27/10/2026 ; code absent | BE-05 |
 
 ## 6. Tableau de bord
@@ -102,11 +89,7 @@ Sigles employés ci-dessous, développés une fois : p95 (95e centile : 95 % des
 | EXG-DON-02 | **Ingestion idempotente** | Le script d'ingestion exécuté deux fois ne crée aucun doublon | Doit | `data/etl/pipelines/` et test | À faire | DAT-03 |
 | EXG-DON-03 | **Qualité et rejets tracés** | Chaque règle de qualité a un test ; chaque ligne refusée est écrite dans `dwh.etl_reject` avec sa règle et son motif ; le taux de rejet est journalisé | Doit | `data/etl/transforms/` | Partiel : table `etl_reject` créée, règles DQ-01 à DQ-10 décrites | DAT-04 |
 | EXG-DON-04 | **Dictionnaire de données complet.** Il fait foi pour les bases, les événements et les modèles | Chaque table, colonne, collection, champ et index créés par les scripts figure au dictionnaire ; le test échoue sinon | Doit | `scripts/dev/test_dictionnaire.py` | Prouvé : 11 tests, 4 défauts introduits volontairement détectés (27/10/2026) | DAT-02, DAT-10 |
-<<<<<<< HEAD
 | EXG-DON-05 | **Schéma métier migrable.** Le schéma `app` (utilisateurs, rôles) appartient à l'API métier ([ADR-024](../01-architecture/adr/ADR-024-bases-de-donnees-locales.md)) | `alembic upgrade head` crée le schéma sur une base vide ; les colonnes créées sont ajoutées au dictionnaire | Doit | `services/traitement/migrations/` | Partiel : schéma `app` créé vide à l'initialisation ; aucune révision Alembic | BE-02 |
-=======
-| EXG-DON-05 | **Schéma métier migrable.** Le schéma `app` (utilisateurs, rôles) appartient à l'API métier ([ADR-024](../01-architecture/adr/ADR-024-bases-de-donnees-locales.md)) | `alembic upgrade head` crée le schéma sur une base vide ; les colonnes créées sont ajoutées au dictionnaire | Doit | `backend/migrations/` | Partiel : schéma `app` créé vide à l'initialisation ; aucune révision Alembic | BE-02 |
->>>>>>> origin/main
 
 ## 8. Intelligence artificielle
 
