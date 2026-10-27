@@ -11,7 +11,7 @@ Les contrats décrivent exactement ce qui circule entre les composants. Une sour
 | `validate_events.py` | Valide un événement : schéma **et** règles entre champs | outil |
 | `conformance.py` | Banc de conformité par service et par sujet | outil et bibliothèque |
 | `check_compat.py` | Contrôle de compatibilité ascendante entre deux versions des schémas | outil |
-| `tests/` | Tests : 19 exemples valides, 85 cas invalides refusés pour la bonne raison, matrice par service, compatibilité | à lancer avant toute modification |
+| `tests/` | Tests : 19 exemples valides, 92 cas invalides refusés pour la bonne raison, matrice par service, compatibilité | à lancer avant toute modification |
 | `services/_gabarit/app/schemas/events.py` | Modèles Pydantic des six événements, alignés sur les schémas, copiés dans chaque service (test de parité dans `tests/contract/` de chaque service) | MS-03 |
 
 ## Événements v1
@@ -68,9 +68,9 @@ Le validateur applique le schéma **et** les règles que le schéma ne sait pas 
 | Type | Règles entre champs |
 |---|---|
 | tous | `subject` égal à `data.intersection_id` |
-| mesure | identifiant `<run_id>:<sensor_id>:<instant en millisecondes>` |
-| indicateur | fenêtre alignée sur sa taille ; `time` = fin de fenêtre ; `sample_count` au plus deux fois l'attendu |
-| alerte | résolution postérieure à l'ouverture |
+| mesure | identifiant `<run_id>:<sensor_id>:<instant en millisecondes>` ; qualité PARTIAL ⇒ drapeau MISSING_SPEED ou MISSING_OCCUPANCY ; qualité SUSPECT ⇒ drapeau IMPLAUSIBLE_VALUE |
+| indicateur | identifiant `<run_id>:<road_segment_id>:<window_size_s>:<début de fenêtre en millisecondes>` ; fenêtre alignée sur sa taille ; `time` = fin de fenêtre ; `sample_count` au plus deux fois l'attendu |
+| alerte | résolution postérieure à l'ouverture ; `previous_state` null si et seulement si l'état est CREATED, sinon un état antérieur (l'état n'avance que vers l'avant) |
 | recommandation | `id` = `recommendation_id` ; `valid_until` postérieur à `time` ; `cycle_s` = somme des durées de phase ; phases distinctes |
 | état des feux | phases distinctes ; phase courante dans le plan ; début de phase au plus tard à `time` ; `duration_s` ≥ `min_duration_s` |
 | rejet | `time` = `rejected_at` ; `subject` = `intersection_id`, ou `UNKNOWN` s'il est `null` |
