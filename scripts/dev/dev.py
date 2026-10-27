@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Sequence
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NamedTuple
 
@@ -277,6 +278,93 @@ def cmd_db_check(_: argparse.Namespace) -> int:
         ok = succeeded == expect_success
         failures += 0 if ok else 1
         print(f"  [{'OK' if ok else 'KO'}] {service:<8} {label}")
+    print("Toutes les vérifications passent." if failures == 0 else f"{failures} vérification(s) en échec.")
+    return 0 if failures == 0 else 1
+
+
+# --------------------------------------------------------------------------- événements dans MongoDB (LOC-02)
+EVENT_TEST_SUFFIX = ":db-check"  # identifiant des documents d'essai : supprimés avant et après le contrôle
+MONGO_ADMIN = ('mongosh --quiet -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" '
+               '--authenticationDatabase admin "$MONGO_DB"')
+MONGO_COLLECTE = 'mongosh --quiet -u svc_collecte -p "$MONGO_PASSWORD_COLLECTE" --authenticationDatabase "$MONGO_DB" "$MONGO_DB"'
+VALIDATION_FAILED = 121  # code MongoDB « Document failed validation »
+
+
+def raw_event_documents(event: dict, received_at: str) -> tuple[dict, dict]:
+    """Deux documents pour `raw_events` en JSON étendu (les dates sont `{"$date": ...}`) : un conforme, un sans provenance.
+
+    Le service de collecte ajoute `received_at` à l'écriture : il n'est pas dans l'événement publié sur le bus.
+    """
+    valid = {**event, "id": event["id"] + EVENT_TEST_SUFFIX, "time": {"$date": event["time"]},
+             "received_at": {"$date": received_at}}
+    without_provenance = {**valid, "id": valid["id"] + "-sans-provenance",
+                          "data": {k: v for k, v in event["data"].items() if k != "provenance"}}
+    return valid, without_provenance
+
+
+def insert_script(document: dict) -> str:
+    """Script mongosh : insère le document et affiche une ligne JSON {accepted, code} (jamais d'exception brute)."""
+    return ("try { const r = db.raw_events.insertOne(EJSON.deserialize(" + json.dumps(document) + ")); "
+            "print(JSON.stringify({accepted: r.acknowledged})); } "
+            "catch (e) { print(JSON.stringify({accepted: false, code: e.code, name: e.codeName || e.name})); }\n")
+
+
+def parse_result_line(output: str) -> dict | None:
+    """Dernier objet JSON de la sortie ; None s'il n'y en a pas.
+
+    mongosh lit son script sur l'entrée standard et préfixe chaque réponse de son invite (`novaria> {...}`).
+    """
+    for line in reversed(output.splitlines()):
+        start, end = line.find("{"), line.rfind("}")
+        if 0 <= start < end:
+            try:
+                return json.loads(line[start:end + 1])
+            except ValueError:
+                return None
+    return None
+
+
+def run_mongosh(login: str, script: str) -> subprocess.CompletedProcess:
+    return compose("exec", "-T", "mongo", "sh", "-c", login, check=False, capture=True, input_text=script)
+
+
+def cmd_db_check_events(args: argparse.Namespace) -> int:
+    """Insère une mesure conforme (acceptée) puis la même sans provenance (refusée) avec le compte de collecte (LOC-02)."""
+    require_env()
+    try:
+        event = json.loads(args.file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise DevError(f"Événement illisible ({args.file}) : {error}") from error
+    received_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    valid, without_provenance = raw_event_documents(event, received_at)
+    ids = json.dumps([valid["id"], without_provenance["id"]])
+    cleanup = f"db.raw_events.deleteMany({{id: {{$in: {ids}}}}})\n"
+    ttl = ("const i = db.raw_events.getIndexes().find((x) => x.expireAfterSeconds !== undefined); "
+           "print(JSON.stringify({ttl: i && i.expireAfterSeconds, "
+           "expected: Number(process.env.RAW_EVENTS_TTL_SECONDS || 1209600)}))\n")
+    failures = 0
+
+    def report(ok: bool, label: str) -> None:
+        nonlocal failures
+        failures += 0 if ok else 1
+        print(f"  [{'OK' if ok else 'KO'}] mongo    {label}")
+
+    run_mongosh(MONGO_ADMIN, cleanup)
+    try:
+        accepted = run_mongosh(MONGO_COLLECTE, insert_script(valid))
+        result = parse_result_line(accepted.stdout)
+        report(accepted.returncode == 0 and result == {"accepted": True}, "collecte : mesure conforme acceptée")
+        refused = run_mongosh(MONGO_COLLECTE, insert_script(without_provenance))
+        result = parse_result_line(refused.stdout)
+        report(refused.returncode == 0 and result is not None and result.get("accepted") is False
+               and result.get("code") == VALIDATION_FAILED, "collecte : mesure sans provenance refusée (validateur)")
+        index = run_mongosh(MONGO_ADMIN, ttl)
+        result = parse_result_line(index.stdout) or {}
+        days = (result.get("ttl") or 0) / 86400
+        report(index.returncode == 0 and bool(result.get("ttl")) and result.get("ttl") == result.get("expected"),
+               f"raw_events : index de durée de vie de {days:g} jours")
+    finally:
+        run_mongosh(MONGO_ADMIN, cleanup)
     print("Toutes les vérifications passent." if failures == 0 else f"{failures} vérification(s) en échec.")
     return 0 if failures == 0 else 1
 
@@ -549,6 +637,8 @@ def build_parser() -> argparse.ArgumentParser:
     add("db-migrate", cmd_db_migrate, "applique les migrations SQL en attente")
     add("db-status", cmd_db_status, "état des bases et des migrations")
     add("db-check", cmd_db_check, "vérifie rôles, droits, collections et index")
+    events = add("db-check-events", cmd_db_check_events, "insère une mesure conforme (acceptée) et une sans provenance (refusée)")
+    events.add_argument("--file", type=Path, default=EXAMPLE_MEASUREMENT, help="événement de départ (mesure-valide.json)")
     add("kafka-up", cmd_kafka_up, "démarre Kafka (mode KRaft) et attend qu'il soit prêt")
     add("kafka-topics", cmd_kafka_topics, "crée les 6 sujets du bus s'ils manquent et les vérifie")
     trip = add("kafka-roundtrip", cmd_kafka_roundtrip, "publie un événement, le relit et le valide contre le contrat")

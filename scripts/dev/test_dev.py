@@ -3,6 +3,7 @@
 Lancer :  python -m unittest discover -s scripts/dev -v
 """
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -163,6 +164,84 @@ class CommandTests(unittest.TestCase):
             self.assertNotRegex(command, r"change-me|password=\w", "pas de mot de passe en clair")
             if "-p " in command:
                 self.assertRegex(command, r'-p "\$[A-Z_]+"')
+
+
+class EvenementsMongoTests(unittest.TestCase):
+    """LOC-02 : `db-check-events` insère une mesure conforme et une sans provenance dans raw_events."""
+
+    EXEMPLE = json.loads((ROOT / "contracts" / "events" / "examples" / "mesure-valide.json").read_text(encoding="utf-8"))
+
+    def test_le_document_conforme_a_des_dates_et_garde_sa_provenance(self):
+        valide, _ = dev.raw_event_documents(self.EXEMPLE, "2026-10-27T12:00:00Z")
+        self.assertEqual(valide["time"], {"$date": self.EXEMPLE["time"]})
+        self.assertEqual(valide["received_at"], {"$date": "2026-10-27T12:00:00Z"})
+        self.assertTrue(valide["id"].endswith(dev.EVENT_TEST_SUFFIX))
+        self.assertEqual(valide["data"]["provenance"], self.EXEMPLE["data"]["provenance"])
+
+    def test_le_document_refuse_n_a_pas_de_provenance_et_l_exemple_n_est_pas_modifie(self):
+        copie = json.loads(json.dumps(self.EXEMPLE))
+        valide, sans = dev.raw_event_documents(copie, "2026-10-27T12:00:00Z")
+        self.assertNotIn("provenance", sans["data"])
+        self.assertEqual(sans["data"]["sensor_id"], valide["data"]["sensor_id"])
+        self.assertNotEqual(sans["id"], valide["id"])
+        self.assertEqual(copie, self.EXEMPLE)
+
+    def test_la_sortie_de_mongosh_avec_son_invite_est_lue(self):
+        self.assertEqual(dev.parse_result_line('novaria> {"accepted":true}\n\nnovaria> '), {"accepted": True})
+        self.assertEqual(dev.parse_result_line('novaria> {"accepted":false,"code":121}\n'),
+                         {"accepted": False, "code": 121})
+        self.assertIsNone(dev.parse_result_line("MongoServerError: Authentication failed\n"))
+
+    def lancer(self, reponses):
+        """Exécute la commande avec mongosh simulé : `reponses` = sorties dans l'ordre (nettoyage, 2 insertions, index, nettoyage)."""
+        sorties = iter(reponses)
+
+        def faux(login, script):
+            return subprocess.CompletedProcess([], 0, stdout=next(sorties), stderr="")
+
+        with mock.patch.object(dev, "require_env"), mock.patch.object(dev, "run_mongosh", side_effect=faux),                 mock.patch("builtins.print"):
+            return dev.cmd_db_check_events(argparse.Namespace(file=dev.EXAMPLE_MEASUREMENT))
+
+    def test_tout_conforme_donne_zero(self):
+        self.assertEqual(self.lancer(["", '{"accepted":true}', '{"accepted":false,"code":121}',
+                                      '{"ttl":1209600,"expected":1209600}', ""]), 0)
+
+    def test_un_document_sans_provenance_accepte_est_un_echec(self):
+        self.assertEqual(self.lancer(["", '{"accepted":true}', '{"accepted":true}',
+                                      '{"ttl":1209600,"expected":1209600}', ""]), 1)
+
+    def test_un_refus_pour_une_autre_cause_n_est_pas_un_succes(self):
+        self.assertEqual(self.lancer(["", '{"accepted":true}', '{"accepted":false,"code":13}',
+                                      '{"ttl":1209600,"expected":1209600}', ""]), 1)
+
+    def test_un_code_de_refus_sans_refus_n_est_pas_un_succes(self):
+        self.assertEqual(self.lancer(["", '{"accepted":true}', '{"accepted":true,"code":121}',
+                                      '{"ttl":1209600,"expected":1209600}', ""]), 1)
+
+    def test_un_document_conforme_refuse_est_un_echec(self):
+        self.assertEqual(self.lancer(["", '{"accepted":false,"code":121}', '{"accepted":false,"code":121}',
+                                      '{"ttl":1209600,"expected":1209600}', ""]), 1)
+
+    def test_un_index_de_duree_de_vie_absent_ou_different_est_un_echec(self):
+        for index in ('{"expected":1209600}', '{"ttl":3600,"expected":1209600}'):
+            with self.subTest(index=index):
+                self.assertEqual(self.lancer(["", '{"accepted":true}', '{"accepted":false,"code":121}', index, ""]), 1)
+
+    def test_la_commande_est_declaree_et_les_documents_d_essai_sont_supprimes_avant_et_apres(self):
+        args = dev.build_parser().parse_args(["db-check-events"])
+        self.assertEqual(args.command, "db-check-events")
+        appels = []
+
+        def faux(login, script):
+            appels.append(script)
+            return subprocess.CompletedProcess([], 0, stdout='{"accepted":true}', stderr="")
+
+        with mock.patch.object(dev, "require_env"), mock.patch.object(dev, "run_mongosh", side_effect=faux),                 mock.patch("builtins.print"):
+            dev.cmd_db_check_events(args)
+        self.assertEqual(len(appels), 5)
+        for position in (0, 4):
+            self.assertIn("deleteMany", appels[position])
+        self.assertNotIn("password", " ".join(appels).lower())
 
 
 if __name__ == "__main__":

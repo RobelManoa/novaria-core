@@ -115,7 +115,8 @@ Si MongoDB pose un problème de démarrage ou de droits sur un poste, l'applicat
 |---|---|
 | Initialisation, migrations, idempotence, refus d'une migration modifiée, droits, contraintes, sauvegarde, restauration sur PostgreSQL 16 réel | **Exécutés** le 20/10/2026 |
 | Script MongoDB : syntaxe et appels simulés ; exemple de mesure accepté par le validateur | **Exécutés** |
-| Démarrage de MongoDB sous Docker, `db-check` complet, sauvegarde et restauration MongoDB | **À exécuter sur un poste avec Docker** (critère de LOC-02 et LOC-03) |
+| Démarrage de MongoDB sous Docker, `db-check` complet (21 `[OK]`), mesure conforme acceptée, mesure sans provenance refusée, index de durée de vie de 14 jours | **Exécutés** le 27/10/2026 sous Windows, volumes neufs ([preuve LOC-02](../../03-donnees/preuve-loc-02-mongodb.md)) |
+| Sauvegarde et restauration MongoDB ; mêmes contrôles sous Linux | **À exécuter sur un poste avec Docker** (critère de LOC-03 ; poste Linux) |
 | Tests des commandes `dev.py` | 17 tests |
 
 ## 8. Conditions de réexamen

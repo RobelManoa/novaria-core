@@ -24,6 +24,7 @@ Prérequis : Docker, Git, Python 3.12. Le même lanceur sert sous Linux et sous 
 | Créer `.env` (mots de passe aléatoires, une seule fois) | `python3 scripts/dev/dev.py init-env` | `py -3 scripts/dev/dev.py init-env` |
 | Démarrer PostgreSQL, MongoDB et les migrations | `python3 scripts/dev/dev.py db-up` | `py -3 scripts/dev/dev.py db-up` |
 | Vérifier rôles et droits | `python3 scripts/dev/dev.py db-check` | `py -3 scripts/dev/dev.py db-check` |
+| Vérifier l'écriture dans MongoDB | `python3 scripts/dev/dev.py db-check-events` | `py -3 scripts/dev/dev.py db-check-events` |
 | Tout démarrer | `python3 scripts/dev/dev.py up` | `py -3 scripts/dev/dev.py up` |
 
 Sous Linux, `make up`, `make db-up`, `make test`, `make lint` sont des raccourcis (`make help` liste tout). API : <http://localhost:8000/docs> · Front-end : <http://localhost:8080>.
