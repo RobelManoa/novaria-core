@@ -35,6 +35,7 @@ CODE_COMMUN = [
     "tests/contract/conftest.py", "tests/contract/test_event_models.py", "tests/contract/test_openapi_contract.py",
 ]
 JOBS_OBLIGATOIRES = {"backend", "frontend", "gitleaks", "snyk", "docker", "sonarqube"}
+JOBS_D_APPUI = {"services", "service"}  # découverte des services et matrice (MS-05, voir test_ci.py)
 
 
 def lire(chemin: str) -> str:
@@ -150,7 +151,7 @@ class ArborescenceDesFichiersDeConfiguration(unittest.TestCase):
             with self.subTest(interdit=interdit):
                 self.assertNotIn(interdit, ci)
         jobs = set(re.findall(r"(?m)^  ([a-z]+):\n(?:    .*\n)*?    runs-on:", ci))
-        self.assertEqual(jobs, JOBS_OBLIGATOIRES)
+        self.assertEqual(jobs, JOBS_OBLIGATOIRES | JOBS_D_APPUI)
 
     def test_sonar_couvre_tous_les_services(self):
         sonar = lire("sonar-project.properties")
