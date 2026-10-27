@@ -18,30 +18,62 @@ concurrency:
   cancel-in-progress: true
 
 # Les noms de jobs ci-dessous sont les contrôles obligatoires de la branche main :
-# backend, frontend, gitleaks, snyk, docker, sonarqube.
+# backend, frontend, gitleaks, snyk, docker, sonarqube. Ils ne changent jamais de nom et n'ont aucun filtre de
+# chemin : un contrôle ignoré resterait « en attente » et bloquerait la fusion.
+#
+# Les services sont contrôlés en matrice : « services » liste les dossiers de services/, « service » (une exécution
+# par dossier) fait lint, tests et construction de l'image, et « backend » rassemble leurs résultats : il échoue si un
+# seul service échoue. Un service ajouté sous services/ (voir services/_gabarit et CONTRIBUTING.md) est contrôlé sans
+# modifier ce fichier. Les jobs snyk et docker parcourent aussi services/*/.
 jobs:
-  # Les jobs backend, snyk et docker parcourent services/*/ : un service ajouté sous services/ (voir
-  # services/_gabarit et CONTRIBUTING.md) est contrôlé sans modifier ce fichier. Le nom du job reste « backend ».
-  backend:
+  services:
     if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
+    outputs:
+      liste: ${{ steps.liste.outputs.liste }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: liste
+        name: Lister les services (les dossiers de services/ qui ont un requirements-dev.txt)
+        run: |
+          liste=$(for dir in services/*/; do [ -f "${dir}requirements-dev.txt" ] && basename "$dir"; done | jq -R . | jq -sc .)
+          echo "Services : $liste"
+          if [ "$liste" = "[]" ]; then echo "::error::Aucun service trouvé dans services/"; exit 1; fi
+          echo "liste=$liste" >> "$GITHUB_OUTPUT"
+
+  service:
+    needs: services
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # un service en échec n'arrête pas les autres : le rapport montre tous les écarts
+      matrix:
+        service: ${{ fromJSON(needs.services.outputs.liste) }}
+    defaults: { run: { working-directory: "services/${{ matrix.service }}" } }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
-        with: { python-version: "3.12", cache: pip, cache-dependency-path: "services/*/requirements*.txt" }
-      - name: Lint et tests de chaque service
-        run: |
-          for dir in services/*/; do
-            name=$(basename "$dir")
-            echo "::group::$name"
-            python -m venv "$RUNNER_TEMP/venv-$name"
-            py="$RUNNER_TEMP/venv-$name/bin/python"
-            "$py" -m pip install -r "${dir}requirements-dev.txt"
-            (cd "$dir" && "$py" -m ruff check . && "$py" -m ruff format --check . && "$py" -m pytest)
-            echo "::endgroup::"
-          done
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: "services/${{ matrix.service }}/requirements*.txt" }
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest
+      - name: Construire l'image du service
+        run: docker build --build-arg GIT_SHA=${{ github.sha }} -t "novaria-controle:${{ github.sha }}" .
       - uses: actions/upload-artifact@v7
-        with: { name: coverage-backend, path: "services/*/coverage.xml" }
+        with: { name: "coverage-service-${{ matrix.service }}", path: "services/${{ matrix.service }}/coverage.xml" }
+
+  # Contrôle obligatoire « backend » : réussit seulement si la découverte et tous les services ont réussi.
+  # « always() » le fait s'exécuter même quand un service a échoué (sinon il resterait « ignoré », donc en attente).
+  backend:
+    if: ${{ always() && github.event_name != 'schedule' }}
+    needs: [services, service]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tous les services doivent avoir réussi
+        run: |
+          echo "Découverte des services : ${{ needs.services.result }}"
+          echo "Services (matrice)      : ${{ needs.service.result }}"
+          test "${{ needs.services.result }}" = "success" && test "${{ needs.service.result }}" = "success"
 
   frontend:
     if: ${{ github.event_name != 'schedule' }}
@@ -134,7 +166,13 @@ jobs:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - uses: actions/download-artifact@v8
-        with: { name: coverage-backend, path: services }
+        with: { pattern: "coverage-service-*", path: coverage-services }
+      - name: Remettre la couverture de chaque service à sa place (services/<nom>/coverage.xml)
+        run: |
+          for dir in coverage-services/coverage-service-*/; do
+            name=$(basename "$dir"); name=${name#coverage-service-}
+            cp "${dir}coverage.xml" "services/$name/coverage.xml"
+          done
       - uses: actions/download-artifact@v8
         with: { name: coverage-frontend, path: frontend/coverage }
       - uses: SonarSource/sonarqube-scan-action@v8
