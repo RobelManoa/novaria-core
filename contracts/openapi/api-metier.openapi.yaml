@@ -17,9 +17,7 @@ info:
 
 servers:
   - url: http://localhost:8000
-    description: Poste local, API en accès direct (Docker Compose)
-  - url: http://localhost:8080
-    description: Poste local, derrière la passerelle d'API (cible, MS-13)
+    description: Poste local, derrière la passerelle d'API (Docker Compose, MS-06)
 
 tags:
   - name: Santé

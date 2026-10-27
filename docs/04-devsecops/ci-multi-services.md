@@ -105,5 +105,6 @@ La branche `ci/ms-05-preuve-rouge` ne contient qu'un commit : un test qui échou
 | Fusion dans `main` | Les six noms ne changent pas, donc la protection de `main` n'est pas modifiée. Les lignes `service (<nom>)` ne sont **pas** des contrôles obligatoires : seul `backend` les représente |
 | Coût | L'image de chaque service est construite deux fois : dans la matrice (pour vérifier le Dockerfile) puis dans le job `docker` (pour l'analyse Snyk). Acceptable avec deux services ; à revoir (cache de construction) si le temps de CI augmente |
 | Duplication Sonar | Le code commun copié dans chaque service (journaux, modèles d'événements) peut être compté comme duplication quand plusieurs services existeront. Seul le gabarit est exclu (`sonar.cpd.exclusions`) ; ce réglage n'a pas été modifié ici |
+| Simulateur et passerelle | `simulator/` et `gateway/` sont hors de `services/` : la matrice, le job `docker` et Snyk ne les voient pas (leurs images sont construites par `dev.py up`, pas par la CI). À ajouter avec MS-07 et MS-13 ; voir [pile-locale.md](../08-exploitation/pile-locale.md) |
 | Scan hebdomadaire | Inchangé : seuls `snyk` et `docker` tournent le lundi ; `services`, `service` et `backend` sont ignorés (événement `schedule`) |
 | Dépendances de la CI | `jq` est préinstallé sur les machines `ubuntu-latest` de GitHub |

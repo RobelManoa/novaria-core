@@ -22,21 +22,22 @@ Il faut un compte GitHub avec accès au dépôt `RobelManoa/novaria-core`. Aucun
 git clone git@github.com:RobelManoa/novaria-core.git
 cd novaria-core
 cp .env.example .env      # valeurs locales sans danger ; le fichier n'est jamais versionné
-make up                   # PostgreSQL, MongoDB, backend, frontend
+make up                   # tout : bases, bus, 4 services, simulateur, passerelle, front-end (puis vérifie chaque /health)
 ```
 
-| Service | Adresse |
-|---|---|
-| API (documentation interactive) | http://localhost:8000/docs |
-| Sonde de santé | http://localhost:8000/api/v1/health |
-| Frontend | http://localhost:8080 |
-| PostgreSQL | `localhost:5432` |
-| MongoDB | `localhost:27017` |
+| Conteneur | Adresse sur le poste | Sonde de santé |
+|---|---|---|
+| Frontend | http://localhost:8080 | `/` |
+| Passerelle (point d'entrée de l'API) | http://localhost:8000/api/v1/ | http://localhost:8000/health |
+| Collecte, traitement, alerte, reponse | `127.0.0.1:8001`, `8002`, `8003`, `8004` | `/api/v1/health` de chacun |
+| Simulateur | `127.0.0.1:8005` | `/api/v1/health` |
+| PostgreSQL | `localhost:5432` | |
+| MongoDB | `localhost:27017` | |
 | Kafka (bus d'événements) | `127.0.0.1:9094` depuis le poste, `kafka:9092` depuis un conteneur ; sujets : `make kafka-topics` ([kafka-local.md](08-exploitation/kafka-local.md)) |
 
-Le test est réussi quand `/api/v1/health` renvoie `{"status":"ok", ...}`. Pour arrêter : `make down`. Pour suivre les journaux du backend : `make logs`.
+Le test est réussi quand `make up` finit par « Les 9 sondes répondent » (`make health` le refait à tout moment). Pour arrêter : `make down` (les données sont conservées). Pour suivre les journaux d'un service : `make logs S=traitement`. Ordre de démarrage, ports et dépannage : [pile-locale.md](08-exploitation/pile-locale.md).
 
-**Port déjà utilisé** (erreur `address already in use`) : un PostgreSQL ou un MongoDB local occupe le port. Ajoutez dans votre `.env` `POSTGRES_HOST_PORT=5433` et `MONGO_HOST_PORT=27018`, puis relancez `make up`. Les conteneurs continuent de se parler sur les ports internes habituels.
+**Port déjà utilisé** (erreur `address already in use`) : un PostgreSQL, un MongoDB ou un autre programme local occupe le port. Changez la variable correspondante dans votre `.env` (par exemple `POSTGRES_PORT=5433`, `MONGO_PORT=27018` ou `GATEWAY_PORT=8100` ; la liste est dans `.env.example`), puis relancez `make up`. Les conteneurs continuent de se parler sur les ports internes habituels.
 
 Accès aux bases depuis le terminal :
 
@@ -175,5 +176,5 @@ Vérifiez les dépendances dans l'issue avant de commencer : une tâche bloquée
 | `permission denied` sur le socket Docker | Utilisateur absent du groupe `docker` : voir la section 1 |
 | `make test` ou `make lint` : `ruff` ou `pytest` introuvable | Activer l'environnement virtuel : `source services/traitement/.venv/bin/activate` |
 | `variable is not set` au lancement de Compose | `.env` manquant : `cp .env.example .env` |
-| Le conteneur frontend seul s'arrête (`host not found in upstream "backend"`) | Normal hors Compose : nginx a besoin du service `backend`. Utilisez `make up` |
+| Le conteneur frontend seul s'arrête (`host not found in upstream "passerelle"`) | Normal hors Compose : nginx a besoin de la passerelle. Utilisez `make up` |
 | CI rouge sur `docker` après un changement de Dockerfile | Reproduire en local : `docker build services/traitement/` puis `docker build frontend/` |
