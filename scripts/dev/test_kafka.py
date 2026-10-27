@@ -74,7 +74,7 @@ class SujetsTests(unittest.TestCase):
 class ServiceComposeTests(unittest.TestCase):
     def setUp(self):
         compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
-        self.kafka = compose.split("\n  kafka:\n")[1].split("\n  backend:\n")[0]
+        self.kafka = re.split(r"\n  (?=[#a-z])", compose.split("\n  kafka:\n")[1])[0]  # jusqu'au service ou commentaire suivant
 
     def test_image_officielle_a_version_fixee(self):
         image = re.search(r"image: (\S+)", self.kafka).group(1)

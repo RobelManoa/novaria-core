@@ -157,7 +157,9 @@ class ArborescenceDesFichiersDeConfiguration(unittest.TestCase):
         sonar = lire("sonar-project.properties")
         self.assertRegex(sonar, r"(?m)^sonar\.sources=.*\bservices\b")
         self.assertIn("sonar.python.coverage.reportPaths=services/*/coverage.xml", sonar)
-        self.assertIn("sonar.cpd.exclusions=services/_gabarit/**", sonar)
+        exclusions = re.search(r"(?m)^sonar\.cpd\.exclusions=(.*)$", sonar).group(1).split(",")
+        # exactement le gabarit et le code commun que ce test impose identique : rien de plus
+        self.assertEqual(sorted(exclusions), sorted(["services/_gabarit/**", *[f"services/*/{f}" for f in CODE_COMMUN]]))
         self.assertNotIn("backend", sonar)
 
     def test_dependabot_couvre_tous_les_services(self):

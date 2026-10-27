@@ -17,6 +17,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
+import urllib.request
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
@@ -103,15 +106,113 @@ def run_compose_step(*args: str) -> int:
     return compose(*args, check=False).returncode
 
 
+# Conteneurs applicatifs de docker-compose.yml (hors bases, bus et tâches uniques).
+APP_SERVICES = ("collecte", "traitement", "alerte", "reponse", "simulateur", "passerelle", "frontend")
+HEALTH_WAIT_SECONDS = 90
+
+
+class HealthCheck(NamedTuple):
+    name: str
+    port_variable: str  # variable de .env qui fixe le port publié sur 127.0.0.1
+    default_port: int
+    path: str
+    label: str = ""  # précise ce que le chemin prouve quand il traverse plusieurs conteneurs
+
+
+# Un /health par conteneur applicatif, plus deux chemins qui traversent la chaîne : l'API vue par la passerelle puis
+# par le front-end (ils prouvent le routage et le proxy, pas seulement que chaque conteneur tourne).
+HEALTH_CHECKS: tuple[HealthCheck, ...] = (
+    HealthCheck("collecte", "COLLECTE_PORT", 8001, "/api/v1/health"),
+    HealthCheck("traitement", "TRAITEMENT_PORT", 8002, "/api/v1/health"),
+    HealthCheck("alerte", "ALERTE_PORT", 8003, "/api/v1/health"),
+    HealthCheck("reponse", "REPONSE_PORT", 8004, "/api/v1/health"),
+    HealthCheck("simulateur", "SIMULATOR_PORT", 8005, "/api/v1/health"),
+    HealthCheck("passerelle", "GATEWAY_PORT", 8000, "/health"),
+    HealthCheck("frontend", "FRONTEND_PORT", 8080, "/"),
+    HealthCheck("passerelle", "GATEWAY_PORT", 8000, "/api/v1/health", "route vers traitement"),
+    HealthCheck("frontend", "FRONTEND_PORT", 8080, "/api/v1/health", "proxy vers la passerelle"),
+)
+
+
+def published_port(check: HealthCheck, env_values: dict[str, str]) -> int:
+    """Port publié : variable d'environnement du shell, sinon .env, sinon valeur par défaut."""
+    return int(os.environ.get(check.port_variable) or env_values.get(check.port_variable) or check.default_port)
+
+
+def probe(url: str, timeout: float = 5.0) -> tuple[bool, str]:
+    """GET sur `url` : (succès, détail). Un corps JSON doit avoir `status` égal à « ok »."""
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310 : 127.0.0.1 seulement
+            body = response.read().decode("utf-8", errors="replace")
+            if response.status != 200:
+                return False, f"HTTP {response.status}"
+    except urllib.error.HTTPError as error:
+        return False, f"HTTP {error.code}"
+    except (urllib.error.URLError, OSError, TimeoutError) as error:
+        return False, f"injoignable ({getattr(error, 'reason', error)})"
+    try:
+        data = json.loads(body)
+    except ValueError:
+        return True, "HTTP 200"  # page HTML du front-end
+    if isinstance(data, dict) and data.get("status") != "ok":
+        return False, f"statut {data.get('status')!r}"
+    revision = data.get("revision") if isinstance(data, dict) else None
+    return True, f"ok (révision {revision})" if revision else "ok"
+
+
+def check_health(wait_seconds: int = 0) -> tuple[list[str], int]:
+    """Interroge chaque /health (nouvelles tentatives pendant `wait_seconds`) ; rend les lignes et le nombre d'échecs."""
+    env_values = parse_env(ENV_FILE.read_text(encoding="utf-8")) if ENV_FILE.exists() else {}
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        rows, failures = [], 0
+        for check in HEALTH_CHECKS:
+            url = f"http://127.0.0.1:{published_port(check, env_values)}{check.path}"
+            ok, detail = probe(url)
+            failures += 0 if ok else 1
+            what = f"{check.name} ({check.label})" if check.label else check.name
+            rows.append(f"  [{'OK' if ok else 'KO'}] {what:<36} {url:<46} {detail}")
+        if failures == 0 or time.monotonic() >= deadline:
+            return rows, failures
+        time.sleep(3)
+
+
+def print_health(wait_seconds: int = 0) -> int:
+    rows, failures = check_health(wait_seconds)
+    print("\n".join(rows))
+    if failures:
+        print(f"{failures} sonde(s) en échec. Voir les journaux :  python scripts/dev/dev.py logs <service>")
+        return 1
+    print(f"Les {len(rows)} sondes répondent.")
+    return 0
+
+
 def cmd_up(_: argparse.Namespace) -> int:
-    code = run_compose_step("up", "--build", "-d")
+    """Démarre tout (l'ordre vient de depends_on dans docker-compose.yml), puis interroge chaque /health."""
+    code = run_compose_step("up", "--build", "-d", "--remove-orphans")
+    if code != 0:
+        return code
+    code = print_health(HEALTH_WAIT_SECONDS)
     if code == 0:
-        print("API : http://localhost:8000/docs   ·   Front-end : http://localhost:8080")
+        env_values = parse_env(ENV_FILE.read_text(encoding="utf-8")) if ENV_FILE.exists() else {}
+        gateway = next(c for c in HEALTH_CHECKS if c.name == "passerelle")
+        front = next(c for c in HEALTH_CHECKS if c.name == "frontend")
+        print(f"Front-end : http://localhost:{published_port(front, env_values)}   ·   "
+              f"API (passerelle) : http://localhost:{published_port(gateway, env_values)}/api/v1/")
     return code
 
 
+def cmd_health(args: argparse.Namespace) -> int:
+    require_env()
+    return print_health(args.wait)
+
+
 def cmd_down(_: argparse.Namespace) -> int:
-    return run_compose_step("down")
+    """Arrête et supprime les conteneurs et le réseau du projet. Les données (volumes) sont conservées."""
+    code = run_compose_step("down", "--remove-orphans")
+    if code == 0:
+        print("Conteneurs supprimés ; les données sont conservées (les effacer : db-reset).")
+    return code
 
 
 def cmd_db_up(_: argparse.Namespace) -> int:
@@ -184,11 +285,11 @@ def cmd_restore(args: argparse.Namespace) -> int:
     require_env()
     if not args.yes:
         print("ATTENTION : les tables PostgreSQL et les collections MongoDB actuelles seront REMPLACÉES "
-              "par celles de la sauvegarde. Le backend et le front-end sont arrêtés pendant l'opération.")
+              "par celles de la sauvegarde. Les services et le front-end sont arrêtés pendant l'opération.")
         if input("Taper « restaurer » pour confirmer : ").strip().lower() != "restaurer":
             print("Annulé.")
             return 1
-    compose("stop", "backend", "frontend", check=False)
+    compose("stop", *APP_SERVICES, check=False)
     for service, target in (("backup-postgres", args.postgres), ("backup-mongo", args.mongo)):
         code = run_compose_step("--profile", "ops", "run", "--rm", "-e", "CONFIRM_RESTORE=yes",
                                 service, "restore", target)
@@ -631,8 +732,10 @@ def build_parser() -> argparse.ArgumentParser:
     add("check-tools", cmd_check_tools, "vérifie les outils installés sur le poste")
     add("init-env", cmd_init_env, "crée .env avec des mots de passe aléatoires").add_argument(
         "--force", action="store_true", help="recrée .env même s'il existe")
-    add("up", cmd_up, "démarre tout : bases, migrations, backend, frontend")
-    add("down", cmd_down, "arrête tout (les données sont conservées)")
+    add("up", cmd_up, "démarre tout (bases, bus, 4 services, simulateur, passerelle, front-end) et vérifie chaque /health")
+    add("down", cmd_down, "arrête et supprime les conteneurs (les données sont conservées)")
+    health = add("health", cmd_health, "interroge le /health de chaque conteneur")
+    health.add_argument("--wait", type=int, default=0, metavar="SECONDES", help="réessaie pendant ce délai (0 : un seul essai)")
     add("db-up", cmd_db_up, "démarre PostgreSQL et MongoDB, puis applique les migrations")
     add("db-migrate", cmd_db_migrate, "applique les migrations SQL en attente")
     add("db-status", cmd_db_status, "état des bases et des migrations")
