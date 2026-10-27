@@ -21,9 +21,9 @@ Formater : `npx prettier --write src`.
 | `features/` | Fonctionnalités : `navigation/` (entrées du menu), `theme/` (thème et sélecteur), `api-status/` (état de l'API) |
 | `components/` | Composants génériques sans logique métier (`PageHeader`, `SkipLink`, `IconButton`, `Container`, `VisuallyHidden`, `ComingSoon`) |
 | `hooks/` | `useMediaQuery`, `useDisclosure`, `useEscapeKey`, `useFocusTrap`, `useScrollLock` |
-| `services/` | Appels à l'API |
+| `services/` | Tous les appels à l'API : un module par service (`apiMetier`, `traitement`, `alerte`, `reponse`), le client commun (`client.ts`), les erreurs (`errors.ts`) et le jeton de session (`session.ts`) |
 | `styles/` | `tokens.css` (jetons), `global.css` (base), `breakpoints.ts` (points de rupture) |
-| `types/` | Types partagés |
+| `types/` | Types partagés ; `types/api/` est **généré** depuis les contrats OpenAPI : ne pas le modifier à la main |
 
 Les tests sont dans `tests/`, avec la même arborescence que `src/`. L'alias `@/` désigne `src/` (déclaré dans `vite.config.ts` et `tsconfig.json`).
 
@@ -55,6 +55,57 @@ Mobile d'abord, avec `min-width` : **40rem** (tablette) et **64rem** (ordinateur
 2. Ajouter la route dans `src/app/router.tsx` : `{ path: "ma-page", element: <MaPage />, handle: handle("Ma page") }`. Le titre sert à `document.title` et au repère de la page.
 3. Ajouter l'entrée dans `src/features/navigation/entries.ts` : `{ path: "/ma-page", label: "Ma page" }`. Un test vérifie que chaque entrée correspond à une route titrée.
 4. Ajouter un test dans `tests/app/navigation.test.tsx` si la page a un comportement propre.
+
+## Client d'API typé
+
+Les types viennent des contrats de [`contracts/openapi/`](../contracts/openapi/README.md) (un par service). Le contrat est la source de vérité : on ne décrit jamais à la main une réponse de l'API.
+
+```mermaid
+flowchart LR
+    C["contracts/openapi/*.openapi.yaml"] -->|npm run api:generate| T["src/types/api/*.ts<br/>(généré, versionné)"]
+    T --> S["src/services/<br/>client.ts, errors.ts, un module par service"]
+    S --> P["pages et features<br/>(aucun fetch)"]
+    T -. tsc .-> E["erreur de compilation<br/>si le contrat change"]
+```
+
+| Étape | Commande (identique sous Linux et Windows, depuis `frontend/`) |
+|---|---|
+| Régénérer les types après un changement de contrat | `npm run api:generate` |
+| Vérifier que les types correspondent aux contrats | `npm run api:check` |
+| Voir les erreurs de compilation causées par un changement | `npm run build` (ou `npx tsc --noEmit`) |
+
+**Services couverts** : `api-metier`, `traitement`, `alerte`, `reponse`. `collecte` est exclu : son point d'accès reste sur le réseau interne, le tableau de bord ne l'appelle pas. Un nouveau contrat exposé par la passerelle doit être ajouté à `SERVICES` dans `scripts/api-types.mjs` ; un test échoue sinon.
+
+**Un changement de contrat devient une erreur visible**, à deux endroits :
+
+1. `tests/services/api-types.test.ts` (donc `npm test` et la CI) échoue si les types générés ne correspondent plus aux contrats : on a modifié le contrat sans lancer `npm run api:generate`.
+2. Après régénération, `npm run build` (et l'éditeur) signalent chaque ligne qui utilise un champ retiré ou renommé. Exemple vérifié : renommer `version` en `build` dans le schéma `Health` de `contracts/openapi/common.yaml` donne `ApiStatus.tsx: Property 'version' does not exist on type …`. Un code d'erreur ajouté au contrat fait aussi échouer la compilation de `src/services/errors.ts` tant que son message n'est pas écrit.
+
+### Règles
+
+| Règle | Contrôle |
+|---|---|
+| Aucun `fetch` hors de `src/services/` | ESLint (`no-restricted-globals`), testé dans `tests/architecture/dependency-rules.test.ts` |
+| Toute défaillance (HTTP ou réseau) devient une `ApiError` : `status`, `code` du contrat, `correlationId`, `fieldErrors` | `client.ts` (un seul middleware), `tests/services/client.test.ts` |
+| Le message affiché vient de `messageFor(error)`, jamais du détail du serveur | `errors.ts` : un message par code, liste exhaustive vérifiée par le compilateur |
+| Chaque requête porte `X-Correlation-ID` ; la réponse en erreur le rapporte pour un signalement | `client.ts` |
+| Le jeton est gardé en mémoire (`session.ts`), jamais dans `localStorage` | `session.ts` |
+
+### Appeler l'API depuis une page
+
+```tsx
+import { listIndicators } from "@/services/traitement";
+import { isApiError, messageFor } from "@/services/errors";
+
+try {
+  const page = await listIndicators({ congestion_state: "CONGESTED", limit: 20 });
+  // page.items est typé d'après le contrat
+} catch (error) {
+  setMessage(messageFor(error)); // phrase en français ; isApiError(error) donne status et correlationId
+}
+```
+
+Limites connues : le flux `GET /api/v1/events/stream` (SSE, Server-Sent Events) n'est pas un appel `fetch` ordinaire et n'a pas encore de module ; l'authentification complète (écran de connexion, stockage du jeton après `login`) relève d'une autre issue.
 
 ## Vérifier avant une pull request
 

@@ -31,6 +31,25 @@ export default tseslint.config(
     plugins: { "react-hooks": reactHooks },
     rules: { ...reactHooks.configs.recommended.rules },
   },
+  // Tout appel réseau passe par src/services/ : un fetch ailleurs contourne le typage et la gestion d'erreurs.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/services/**"],
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        { name: "fetch", message: "Appeler l'API par une fonction de src/services/." },
+      ],
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "globalThis",
+          property: "fetch",
+          message: "Appeler l'API par une fonction de src/services/.",
+        },
+      ],
+    },
+  },
   // components/ est générique : il n'importe ni features/, ni pages/, ni app/.
   { files: ["src/components/**/*.{ts,tsx}"], rules: forbidImports(["features", "pages", "app"]) },
   // features/ n'importe ni pages/ ni app/.
