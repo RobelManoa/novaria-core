@@ -29,7 +29,7 @@ Chaque service vit dans `services/<nom>/` et naît de `services/_gabarit/`, un v
 
 Le nom : minuscules, chiffres et tirets, deux à trente et un caractères, commençant par une lettre (`alerte`, `reponse-exterieure`).
 
-**Il n'y a rien à modifier dans la CI** : ses jobs `backend`, `snyk` et `docker` parcourent `services/*/`, et `sonar-project.properties` et `.github/dependabot.yml` couvrent `services/`. Le test `scripts/dev/test_gabarit.py` échoue si un chemin de service est écrit en dur.
+**Il n'y a rien à modifier dans la CI** : son job `services` découvre les dossiers de `services/` et lance une exécution `service (<nom>)` par dossier (lint, tests, image), que le contrôle obligatoire `backend` rassemble ; ses jobs `snyk` et `docker` parcourent `services/*/`, et `sonar-project.properties` et `.github/dependabot.yml` couvrent `services/`. Détails : [docs/04-devsecops/ci-multi-services.md](docs/04-devsecops/ci-multi-services.md). Le test `scripts/dev/test_gabarit.py` échoue si un chemin de service est écrit en dur.
 
 Ensuite, et selon l'issue :
 
