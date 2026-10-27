@@ -1,7 +1,9 @@
-import type { operations, paths } from "@/types/api/api-metier";
+import type { components, operations, paths } from "@/types/api/api-metier";
 import { createApiClient, unwrap, type JsonBody, type Query } from "./client";
 
 // API métier : authentification et comptes (contracts/openapi/api-metier.openapi.yaml).
+export type User = components["schemas"]["User"];
+export type Role = components["schemas"]["Role"];
 const client = createApiClient<paths>();
 
 export async function login(credentials: JsonBody<operations["login"]>) {
