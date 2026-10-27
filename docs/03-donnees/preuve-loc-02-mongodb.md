@@ -106,6 +106,97 @@ Contrôles complémentaires, même compte, même session :
 
 ## Limites
 
-- Exécuté sous Windows. Le plan de démarrage ([demarrage-binome.md](../07-gestion/demarrage-binome.md)) prévoit LOC-02 sous Linux : la même commande reste à rejouer sur ce poste (`make db-check` puis `make db-check-events`) pour confirmer l'équivalence.
+- Les sections 1 à 3 sont exécutées sous Windows. Le plan de démarrage ([demarrage-binome.md](../07-gestion/demarrage-binome.md)) prévoit LOC-02 sous Linux : **la section 4 rejoue la preuve sous Linux**, sur des volumes neufs.
 - La suppression effective d'un document par le moniteur de durée de vie (au bout de 14 jours, vérifié toutes les 60 s par MongoDB) n'est pas observée ici : seule la définition de l'index l'est.
 - Sauvegarde et restauration MongoDB : hors périmètre, c'est LOC-03.
+
+## 4. Rejeu sous Linux (27/10/2026)
+
+Même preuve, mêmes fichiers du dépôt sans modification, sur le poste Linux du binôme.
+
+| Élément | Valeur |
+|---|---|
+| Poste | Ubuntu 26.04.1 LTS, noyau 7.0.0, bash |
+| Docker | moteur 29.9.1, Compose v5.6.0 |
+| MongoDB | `mongo:7` : serveur v7.0.45, mongosh 2.13.0 |
+| Volumes | **neufs**, dans un projet Compose à part (`COMPOSE_PROJECT_NAME=novaria-loc02-linux`) avec d'autres ports (`POSTGRES_PORT=5544`, `MONGO_PORT=27118`) : les bases habituelles du poste (`novaria-core_pgdata`, `novaria-core_mongodata`) n'ont pas été touchées |
+| Initialisation | Aucune erreur dans le journal de MongoDB (0 ligne de sévérité `E` ou `F`) ; aucune correction de `db/mongo/init/01-collections-et-utilisateurs.js` |
+
+Les commandes sont celles du poste ; seules les variables d'environnement changent pour isoler le projet.
+
+| Étape | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Isoler le projet | `export COMPOSE_PROJECT_NAME=novaria-loc02-linux POSTGRES_PORT=5544 MONGO_PORT=27118` | `$env:COMPOSE_PROJECT_NAME="novaria-loc02-linux"; $env:POSTGRES_PORT="5544"; $env:MONGO_PORT="27118"` |
+| Démarrer et migrer | `python3 scripts/dev/dev.py db-up` | `py -3 scripts/dev/dev.py db-up` |
+| Contrôler | `python3 scripts/dev/dev.py db-check` | `py -3 scripts/dev/dev.py db-check` |
+| Les insertions | `python3 scripts/dev/dev.py db-check-events` | `py -3 scripts/dev/dev.py db-check-events` |
+
+### 4.1 `db-up` puis `db-check`
+
+`db-up` : « Migrations : 5 appliquée(s), 0 déjà présente(s). » (premier démarrage). `db-check` : les **12 lignes `mongo` sont `[OK]`** (21 au total avec PostgreSQL, « Toutes les vérifications passent. ») :
+
+```text
+  [OK] mongo    administrateur : 6 collections
+  [OK] mongo    administrateur : index de durée de vie sur raw_events
+  [OK] mongo    collecte lit raw_events
+  [OK] mongo    collecte ne lit PAS audit_logs
+  [OK] mongo    traitement lit raw_events
+  [OK] mongo    traitement ne lit PAS model_runs
+  [OK] mongo    réponse lit audit_logs
+  [OK] mongo    réponse ne lit PAS raw_events
+  [OK] mongo    backend lit usage_stats
+  [OK] mongo    backend ne lit PAS raw_events
+  [OK] mongo    ML lit model_runs
+  [OK] mongo    ML ne lit PAS audit_logs
+```
+
+### 4.2 Les deux insertions avec le compte `svc_collecte`
+
+```text
+$ python3 scripts/dev/dev.py db-check-events
+  [OK] mongo    collecte : mesure conforme acceptée
+  [OK] mongo    collecte : mesure sans provenance refusée (validateur)
+  [OK] mongo    raw_events : index de durée de vie de 14 jours
+Toutes les vérifications passent.
+```
+
+Même détail qu'au 2, rejoué à la main dans mongosh avec le compte `svc_collecte` (`time` converti en date) :
+
+```text
+1. mesure-valide.json : acceptée
+{ acknowledged: true, insertedId: ObjectId('6ae0a4afeb66dff409c2314d') }
+
+2. même document sans data.provenance : refusée
+Document failed validation (code 121)
+[{"operatorName":"required","specifiedAs":{"required":["provenance"]},"missingProperties":["provenance"]}]
+
+3. time laissé en texte : refusé  (Document failed validation)
+4. même id deux fois : refusé     (code 11000, index uniq_event_id)
+5. svc_backend insère dans raw_events : refusé
+   Unauthorized : not authorized on novaria to execute command { insert: "raw_events", ... }
+documents dans raw_events : 1
+```
+
+Le document refusé n'a rien écrit : `raw_events` contient seulement le document conforme.
+
+### 4.3 Index de durée de vie
+
+`db.raw_events.getIndexes()` (administrateur), index concerné :
+
+```text
+{ v: 2, key: { received_at: 1 }, name: 'ttl_received_at', expireAfterSeconds: 1209600 }
+```
+
+`expireAfterSeconds: 1209600` = 14 × 86 400 s = **14 jours** ; `RAW_EVENTS_TTL_SECONDS` du conteneur vaut aussi 1209600. Les trois autres index (`_id_`, `uniq_event_id` unique, `subject_time`) sont ceux de la section 3.
+
+### 4.4 Sur les bases habituelles du poste
+
+Les mêmes trois commandes, lancées sur les volumes existants du poste (`novaria-core_*`, créés avant ce jour), donnent aussi 21 lignes `[OK]` pour `db-check` et 3 `[OK]` pour `db-check-events` : l'équivalence avec un premier démarrage est donc confirmée, mais seul le projet jetable ci-dessus prouve le **premier** démarrage.
+
+### Nettoyage du projet jetable
+
+Les conteneurs du projet jetable sont supprimés ; ses deux volumes restent. Pour les supprimer (les bases habituelles ne sont pas concernées) :
+
+| Linux (bash) | Windows (PowerShell) |
+|---|---|
+| `docker compose -p novaria-loc02-linux down -v` | `docker compose -p novaria-loc02-linux down -v` |
