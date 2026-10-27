@@ -5,7 +5,7 @@ WORKDIR /srv
 
 FROM base AS deps
 COPY requirements.txt .
-RUN pip install --prefix=/install -r requirements.txt
+RUN pip install --require-hashes --only-binary :all: --prefix=/install -r requirements.txt
 
 FROM base AS runtime
 RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*

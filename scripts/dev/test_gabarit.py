@@ -23,6 +23,7 @@ SERVICES = RACINE / "services"
 GABARIT = SERVICES / "_gabarit"
 FICHIERS_DU_GABARIT = [
     ".dockerignore", "Dockerfile", "README.md", "pyproject.toml", "requirements.txt", "requirements-dev.txt",
+    "requirements.in", "requirements-dev.in",
     "app/__init__.py", "app/main.py", "app/api/v1/health.py", "app/core/config.py", "app/core/logs.py",
     "tests/unit/test_health.py", "tests/unit/test_logs.py",
     "app/schemas/events.py", "tests/contract/conftest.py", "tests/contract/test_event_models.py",

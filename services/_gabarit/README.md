@@ -25,7 +25,8 @@ Depuis ce dossier.
 | Action | Linux (bash) | Windows (PowerShell) |
 |---|---|---|
 | Environnement | `python3 -m venv .venv && . .venv/bin/activate` | `py -3 -m venv .venv; .\.venv\Scripts\Activate.ps1` |
-| Dépendances | `pip install -r requirements-dev.txt` | `pip install -r requirements-dev.txt` |
+| Dépendances | `pip install -r requirements-dev.txt` (verrou) | `pip install -r requirements-dev.txt` |
+| Ajouter une dépendance | éditer `requirements.in`, puis `python3 scripts/dev/dev.py lock-deps <nom>` (depuis la racine) | `py -3 scripts/dev/dev.py lock-deps <nom>` |
 | Lancer | `uvicorn app.main:app --reload` | `uvicorn app.main:app --reload` |
 | Tests et couverture | `pytest` | `pytest` |
 | Lint | `ruff check . && ruff format --check .` | `ruff check .; ruff format --check .` |

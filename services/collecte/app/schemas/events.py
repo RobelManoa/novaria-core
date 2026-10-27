@@ -81,7 +81,7 @@ class Provenance(_Model):
     source_type: Literal["SIMULATED", "REAL_HISTORICAL", "REAL_LIVE"]
     run_id: _text(min_length=1, max_length=80)
     scenario_id: _text(pattern=r"^[a-z0-9_-]{1,60}$") = None
-    seed: Annotated[int, Field(ge=0)] = None
+    seed: int = Field(default=None, ge=0)
     dataset_id: _text(pattern=r"^[a-z0-9_.-]{1,60}$") = None
 
     @model_validator(mode="after")
@@ -119,7 +119,7 @@ class MeasurementData(_Model):
     vehicle_count: Annotated[int, Field(ge=0, le=100000)]
     average_speed_kmh: Annotated[float, Field(ge=0, le=200)] | None
     occupancy_rate: Annotated[float, Field(ge=0, le=1)] | None
-    queue_length_m: Annotated[float, Field(ge=0, le=10000)] = None
+    queue_length_m: float = Field(default=None, ge=0, le=10000)
     quality: Quality
     provenance: Provenance
 

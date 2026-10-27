@@ -653,6 +653,50 @@ def cmd_kafka_roundtrip(args: argparse.Namespace) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------- dépendances verrouillées (MS-06)
+# Chaque service écrit ses dépendances en intervalles dans requirements.in et requirements-dev.in ; les fichiers
+# requirements.txt et requirements-dev.txt sont le verrou : versions exactes et empreintes de tous les fichiers de
+# chaque version, pour tous les systèmes (--universal). Les images s'installent avec --require-hashes --only-binary.
+UV_VERSION = "0.13.6"  # version de l'outil de résolution : fixée pour que deux postes produisent le même verrou
+LOCK_IMAGE = "python:3.12-slim"  # Python minimal du projet (requires-python)
+LOCK_PAIRS = (("requirements.in", "requirements.txt"), ("requirements-dev.in", "requirements-dev.txt"))
+
+
+def lockable_services(name: str | None = None) -> list[Path]:
+    """Dossiers de services/ qui ont un requirements.in (le gabarit compris), ou celui qui porte le nom `name`."""
+    directories = sorted(p for p in (ROOT / "services").iterdir() if (p / "requirements.in").is_file())
+    if name is not None:
+        directories = [d for d in directories if d.name == name]
+        if not directories:
+            raise DevError(f"Aucun service « {name} » avec un requirements.in dans services/.")
+    return directories
+
+
+def lock_command(directory: Path) -> list[str]:
+    """Commande `docker run` qui recalcule les deux verrous d'un service (aucun outil à installer sur le poste)."""
+    compile_steps = " && ".join(
+        f"uv pip compile --quiet {source} --universal --generate-hashes --python-version 3.12 -o {target}"
+        for source, target in LOCK_PAIRS
+    )
+    user = ["--user", f"{os.getuid()}:{os.getgid()}"] if hasattr(os, "getuid") else []  # fichiers au nom de la personne
+    return ["docker", "run", "--rm", *user, "-e", "HOME=/tmp", "-e", "PIP_DISABLE_PIP_VERSION_CHECK=1", "-e", "PATH=/tmp/.local/bin:/usr/local/bin:/usr/bin:/bin",
+            "-v", f"{directory}:/work", "-w", "/work", LOCK_IMAGE, "sh", "-c",
+            f"pip install --quiet --user uv=={UV_VERSION} && {compile_steps}"]
+
+
+def cmd_lock_deps(args: argparse.Namespace) -> int:
+    """Recalcule requirements.txt et requirements-dev.txt depuis les fichiers .in (réseau nécessaire)."""
+    require_docker()
+    for directory in lockable_services(args.service):
+        print(f"Verrou de {directory.name} …")
+        code = subprocess.run(lock_command(directory), check=False).returncode
+        if code != 0:
+            print(f"ERREUR : le verrou de {directory.name} a échoué (code {code}).", file=sys.stderr)
+            return code
+    print("Verrous à jour. Relire le diff, lancer les tests du service, puis commiter .in et .txt ensemble.")
+    return 0
+
+
 # --------------------------------------------------------------------------- vérification du poste
 def tool_version(command: Sequence[str]) -> str | None:
     executable = shutil.which(command[0])
@@ -734,6 +778,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--force", action="store_true", help="recrée .env même s'il existe")
     add("up", cmd_up, "démarre tout (bases, bus, 4 services, simulateur, passerelle, front-end) et vérifie chaque /health")
     add("down", cmd_down, "arrête et supprime les conteneurs (les données sont conservées)")
+    lock = add("lock-deps", cmd_lock_deps, "recalcule les verrous de dépendances (requirements*.txt) depuis les .in")
+    lock.add_argument("service", nargs="?", help="un seul service (tous par défaut)")
     health = add("health", cmd_health, "interroge le /health de chaque conteneur")
     health.add_argument("--wait", type=int, default=0, metavar="SECONDES", help="réessaie pendant ce délai (0 : un seul essai)")
     add("db-up", cmd_db_up, "démarre PostgreSQL et MongoDB, puis applique les migrations")

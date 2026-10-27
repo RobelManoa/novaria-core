@@ -94,7 +94,7 @@ python -m pytest                         # tests + couverture (coverage.xml)
 
 ### Dépendances à ajouter
 
-`requirements.txt` ne contient pour l'instant que FastAPI, Uvicorn et Pydantic. Les issues à venir demandent d'ajouter, au moment voulu : SQLAlchemy et Alembic (BE-02), un pilote PostgreSQL (le compose utilise `postgresql+psycopg://`), un client MongoDB, et une bibliothèque JWT (BE-03). Ajoutez-les avec une borne de version, comme les lignes existantes.
+`requirements.in` ne contient pour l'instant que FastAPI, Uvicorn et Pydantic. Les issues à venir demandent d'ajouter, au moment voulu : SQLAlchemy et Alembic (BE-02), un pilote PostgreSQL (le compose utilise `postgresql+psycopg://`), un client MongoDB, et une bibliothèque JWT (BE-03). Ajoutez-les avec une borne de version, comme les lignes existantes, **dans le fichier `.in`**, puis lancez `python3 scripts/dev/dev.py lock-deps <service>` : les fichiers `requirements*.txt` sont des verrous générés (versions exactes et empreintes), jamais édités à la main. Procédure : [dependances-verrouillees.md](04-devsecops/dependances-verrouillees.md).
 
 ## 4. Travailler côté frontend
 

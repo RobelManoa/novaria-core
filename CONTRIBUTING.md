@@ -26,8 +26,11 @@ Chaque service vit dans `services/<nom>/` et naît de `services/_gabarit/`, un v
 | 3. Préparer l'environnement | `cd services/<nom> && python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements-dev.txt` | `cd services/<nom>; py -3 -m venv .venv; .\.venv\Scripts\Activate.ps1; pip install -r requirements-dev.txt` |
 | 4. Vérifier | `ruff check . && ruff format --check . && pytest` | `ruff check .; ruff format --check .; pytest` |
 | 5. Construire l'image | `docker build -t novaria-<nom> .` | `docker build -t novaria-<nom> .` |
+| Ajouter une dépendance | éditer `requirements.in`, puis `python3 scripts/dev/dev.py lock-deps <nom>` | éditer `requirements.in`, puis `py -3 scripts/dev/dev.py lock-deps <nom>` |
 
 Le nom : minuscules, chiffres et tirets, deux à trente et un caractères, commençant par une lettre (`alerte`, `reponse-exterieure`).
+
+Les dépendances s'écrivent dans `requirements.in` ; `requirements.txt` est un **verrou généré** (versions exactes et empreintes) que l'image installe avec `--require-hashes --only-binary :all:` : voir [dependances-verrouillees.md](docs/04-devsecops/dependances-verrouillees.md).
 
 **Il n'y a rien à modifier dans la CI** : son job `services` découvre les dossiers de `services/` et lance une exécution `service (<nom>)` par dossier (lint, tests, image), que le contrôle obligatoire `backend` rassemble ; ses jobs `snyk` et `docker` parcourent `services/*/`, et `sonar-project.properties` et `.github/dependabot.yml` couvrent `services/`. Détails : [docs/04-devsecops/ci-multi-services.md](docs/04-devsecops/ci-multi-services.md). Le test `scripts/dev/test_gabarit.py` échoue si un chemin de service est écrit en dur.
 

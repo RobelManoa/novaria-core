@@ -3,7 +3,7 @@
 PY ?= python3
 DEV = $(PY) scripts/dev/dev.py
 
-.PHONY: help init-env up down health ps logs db-up db-migrate db-status db-check db-check-events psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts lint format new-service quality-up quality-down hooks
+.PHONY: help init-env up down health lock-deps ps logs db-up db-migrate db-status db-check db-check-events psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts lint format new-service quality-up quality-down hooks
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -16,6 +16,8 @@ down:          ## Arrête et supprime les conteneurs (données conservées)
 	$(DEV) down
 health:        ## Interroge le /health de chaque conteneur
 	$(DEV) health
+lock-deps:     ## Recalcule les verrous de dépendances (make lock-deps N=alerte pour un seul service)
+	$(DEV) lock-deps $(N)
 ps:            ## État des conteneurs
 	$(DEV) ps
 logs:          ## Journaux (make logs S=collecte pour un seul service Compose)
