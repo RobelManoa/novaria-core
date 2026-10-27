@@ -1,6 +1,6 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import { ApiError } from "./errors";
-import { getAccessToken } from "./session";
+import { clearSession, getAccessToken } from "./session";
 
 /**
  * Les chemins du contrat commencent par `/api/v1` : on appelle l'origine de la page (proxy de Vite ou
@@ -31,8 +31,11 @@ const middleware: Middleware = {
     return request;
   },
   async onResponse({ request, response }) {
-    if (!response.ok) throw await ApiError.fromResponse(response, correlationIds.get(request));
-    return response;
+    if (response.ok) return response;
+    const error = await ApiError.fromResponse(response, correlationIds.get(request));
+    // Jeton refusé ou expiré : la session se ferme ici, une seule fois, et l'interface revient à la connexion.
+    if (error.code === "UNAUTHENTICATED") clearSession();
+    throw error;
   },
   onError({ request, error }) {
     return error instanceof ApiError ? error : ApiError.network(error, correlationIds.get(request));

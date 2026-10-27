@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getHealth } from "@/services/api";
 import { ApiError, isApiError, messageFor, type ErrorCode } from "@/services/errors";
-import { setAccessToken } from "@/services/session";
+import { getAccessToken, setAccessToken } from "@/services/session";
 
 const problem = (overrides: Record<string, unknown> = {}) => ({
   type: "https://novaria.local/problems/validation-error",
@@ -156,5 +156,39 @@ describe("messageFor", () => {
   it("traite toute autre erreur comme une réponse inattendue", () => {
     expect(messageFor(new Error("boom"))).toBe("La réponse du serveur est inattendue.");
     expect(messageFor("texte")).toBe("La réponse du serveur est inattendue.");
+  });
+});
+
+describe("fin de session sur refus du jeton", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    setAccessToken(null);
+  });
+
+  it("ferme la session quand l'API répond 401 UNAUTHENTICATED", async () => {
+    setAccessToken("jeton-de-test", 1800);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      respond(401, problem({ status: 401, code: "UNAUTHENTICATED" })),
+    );
+    expect(await failure()).toMatchObject({ code: "UNAUTHENTICATED" });
+    expect(getAccessToken()).toBeNull();
+  });
+
+  it("ferme aussi la session sur un 401 sans corps de Problem (passerelle)", async () => {
+    setAccessToken("jeton-de-test", 1800);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(respond(401, "Unauthorized"));
+    await failure();
+    expect(getAccessToken()).toBeNull();
+  });
+
+  it.each([
+    [401, "INVALID_CREDENTIALS"],
+    [403, "FORBIDDEN"],
+    [503, "UPSTREAM_UNAVAILABLE"],
+  ])("garde la session sur %i %s", async (status, code) => {
+    setAccessToken("jeton-de-test", 1800);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(respond(status, problem({ status, code })));
+    await failure();
+    expect(getAccessToken()).toBe("jeton-de-test");
   });
 });
