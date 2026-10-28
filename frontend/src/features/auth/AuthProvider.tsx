@@ -20,7 +20,7 @@ import { AuthContext } from "./AuthContext";
 /** Plus grand délai accepté par `setTimeout` (au-delà, il se déclencherait aussitôt). */
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 
-export default function AuthProvider({ children }: { children: ReactNode }) {
+export default function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   // Le jeton vit dans services/session.ts ; on s'y abonne pour réagir à une ouverture, une fermeture,
   // une expiration, ou un 401 reçu par n'importe quel appel d'API.
   const token = useSyncExternalStore(subscribeToSession, peekAccessToken);

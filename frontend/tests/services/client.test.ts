@@ -192,3 +192,34 @@ describe("fin de session sur refus du jeton", () => {
     expect(getAccessToken()).toBe("jeton-de-test");
   });
 });
+
+describe("identifiant de corrélation sans randomUUID", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  async function sentIds(count: number): Promise<Array<string | null>> {
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => respond(200, {}));
+    for (let i = 0; i < count; i += 1) await getHealth();
+    return spy.mock.calls.map(([request]) => (request as Request).headers.get("X-Correlation-ID"));
+  }
+
+  it("utilise getRandomValues dans un contexte non sécurisé (HTTP sur le réseau local)", async () => {
+    vi.stubGlobal("crypto", {
+      getRandomValues: <T extends ArrayBufferView>(array: T) => {
+        new Uint8Array(array.buffer).fill(171);
+        return array;
+      },
+    });
+    expect(await sentIds(1)).toEqual(["ab".repeat(16)]);
+  });
+
+  it("se rabat sur un compteur sans crypto, avec un identifiant différent à chaque requête", async () => {
+    vi.stubGlobal("crypto", undefined);
+    const [premier, second] = await sentIds(2);
+    expect(premier).toMatch(/^web-\d+-\d+$/);
+    expect(second).toMatch(/^web-\d+-\d+$/);
+    expect(premier).not.toBe(second);
+  });
+});

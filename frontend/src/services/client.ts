@@ -8,10 +8,22 @@ import { clearSession, getAccessToken } from "./session";
  */
 const BASE_URL = globalThis.location?.origin ?? "";
 
+let fallbackCounter = 0;
+
+/**
+ * Identifiant de corrélation d'une requête. `randomUUID` n'existe que dans un contexte sécurisé (HTTPS ou
+ * localhost) : sur une adresse HTTP du réseau local, on se rabat sur `getRandomValues`. Sans `crypto`,
+ * un compteur suffit : l'identifiant sert à retrouver une requête dans les journaux, pas à la protéger.
+ */
 function newCorrelationId(): string {
-  return (
-    globalThis.crypto?.randomUUID?.() ?? `web-${Date.now()}-${Math.random().toString(16).slice(2)}`
-  );
+  const crypto = globalThis.crypto;
+  if (typeof crypto?.randomUUID === "function") return crypto.randomUUID();
+  if (typeof crypto?.getRandomValues === "function") {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+  fallbackCounter += 1;
+  return `web-${Date.now()}-${fallbackCounter}`;
 }
 
 /** Les identifiants de corrélation des requêtes en cours, pour rattacher une erreur réseau à sa requête. */

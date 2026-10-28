@@ -9,11 +9,11 @@ interface LoginFormProps {
 }
 
 /** Formulaire de connexion : identifiant, mot de passe, message d'erreur annoncé aux lecteurs d'écran. */
-export default function LoginForm({ onSuccess }: LoginFormProps) {
+export default function LoginForm({ onSuccess }: Readonly<LoginFormProps>) {
   const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const usernameId = useId();
   const passwordId = useId();
@@ -22,12 +22,12 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     event.preventDefault();
     if (submitting) return;
     setSubmitting(true);
-    setError(null);
+    setMessage(null);
     try {
       await login(username.trim(), password);
       onSuccess();
-    } catch (failure) {
-      setError(messageFor(failure));
+    } catch (error) {
+      setMessage(messageFor(error));
       setPassword("");
       setSubmitting(false);
     }
@@ -37,11 +37,11 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     <form
       className={styles.form}
       onSubmit={handleSubmit}
-      aria-describedby={error ? "login-erreur" : undefined}
+      aria-describedby={message ? "login-erreur" : undefined}
     >
-      {error && (
+      {message && (
         <p id="login-erreur" role="alert" className={styles.error}>
-          {error}
+          {message}
         </p>
       )}
       <div className={styles.field}>
