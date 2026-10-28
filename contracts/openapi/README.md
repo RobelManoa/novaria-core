@@ -123,3 +123,7 @@ Le test charge chaque fichier, résout toutes les références (locales, vers `c
 | 10 | Format d'erreur | FastAPI renvoie `{"detail": ...}` par défaut : un gestionnaire d'exceptions doit produire `application/problem+json` (BE-06) | Daddy |
 | 11 | Authentification de la collecte | Le dépôt des mesures n'est pas protégé en v1 (réseau interne) ; authentification de service à décider (CLD-18) | Daddy |
 | 12 | Client typé du tableau de bord (FE-02) | Un client par service, ou une génération à partir des cinq contrats avec les références de `common.yaml` ; non tranché | Manoa |
+
+## Client TypeScript du tableau de bord
+
+Le front-end génère ses types depuis ces fichiers (`npm run api:generate` dans `frontend/`) et un test échoue si les types ne suivent pas un changement de contrat. Pour modifier un contrat : changer le YAML, lancer `npm run api:generate`, puis corriger les erreurs de compilation signalées. Voir [frontend/README.md](../../frontend/README.md#client-dapi-typé).

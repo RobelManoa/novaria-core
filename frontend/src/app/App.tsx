@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { type DataRouter, RouterProvider } from "react-router";
+import AuthProvider from "@/features/auth/AuthProvider";
 import ThemeProvider from "@/features/theme/ThemeProvider";
 import { createAppRouter } from "./router";
 
@@ -12,7 +13,9 @@ export default function App({ router }: AppProps) {
   const [activeRouter] = useState(() => router ?? createAppRouter());
   return (
     <ThemeProvider>
-      <RouterProvider router={activeRouter} />
+      <AuthProvider>
+        <RouterProvider router={activeRouter} />
+      </AuthProvider>
     </ThemeProvider>
   );
 }

@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach } from "vitest";
+import { clearSession } from "@/services/session";
 import { installMatchMedia, resetMatchMedia } from "./matchMedia";
 
 // react-router crée des Request avec le AbortSignal de jsdom, que le Request natif de Node refuse.
@@ -31,9 +32,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  clearSession();
   if (!hasDom) return;
   cleanup();
   window.localStorage.clear();
+  window.sessionStorage.clear();
   document.documentElement.removeAttribute("data-theme");
   document.body.className = "";
   document.title = "";
