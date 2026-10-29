@@ -495,6 +495,8 @@ def cmd_etl_paris(args: argparse.Namespace) -> int:
     if importlib.util.find_spec("pymongo") is None:
         raise DevError(f"pymongo est absent. L'installer :  {Path(sys.executable).name} -m pip install -r {ETL_REQUIREMENTS}")
     env = parse_env(ENV_FILE.read_text(encoding="utf-8"))
+    # Comme Docker Compose : une variable déjà définie dans le shell (projet jetable, autre port) l'emporte sur .env.
+    env.update({name: os.environ[name] for name in env if name in os.environ})
     command = [sys.executable, "-m", "pipelines.ingerer_paris"]
     for option, value in (("--day", args.day), ("--start", args.start), ("--end", args.end)):
         if value:

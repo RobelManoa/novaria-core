@@ -81,23 +81,45 @@ Réconciliation (ADR-013, section 4.4) à ce stade : lignes reçues = lignes con
 | Pipeline lancé deux fois sur le **vrai portail** (heure du 18/10/2026 à 10:00 UTC, journal en mémoire) | 1re exécution : fichier écrit, 982 821 octets, 2 978 lignes, `66bb1a4e…`. 2e exécution : fichier non réécrit, aucune nouvelle entrée, `executions` = 2. Un seul fichier sur le disque ; son SHA-256 égale celui du journal ; `source_modified_at` = 19/10/2026 01:02:43 UTC relevé auprès du portail |
 | Deux téléchargements successifs de la même fenêtre triée | Empreintes identiques (`66bb1a4e…`) : l'export est reproductible tant que le portail ne change pas ses données |
 | Dictionnaire (11 tests), `dev.py` (commande `etl-paris`, 8 tests ajoutés), 283 tests de `scripts/dev` | Verts, sauf 2 tests de `test_ci.py`, déjà en échec sur `main` (le `bash` du poste Windows est le lanceur WSL, sans distribution) |
-| `db-check` : 23 contrôles, dont 2 nouveaux sur `ingestion_runs` (le traitement la lit, la collecte ne la lit pas) | **Non exécutés** (voir 5.2) : seule leur liste est testée |
+| `db-check` : 23 contrôles, dont 2 nouveaux sur `ingestion_runs` (le traitement la lit, la collecte ne la lit pas) | Exécutés sous Docker : voir 5.2 |
 
-### 5.2 Reste à rejouer : la seconde exécution contre un vrai MongoDB
+### 5.2 Rejouée sous Docker avec un vrai MongoDB (29/10/2026, poste Windows 11)
 
-Le moteur Docker du poste ne répondait pas pendant la session (Docker Desktop « en arrêt »), donc le journal n'a été essayé que contre un faux (tests) et contre le validateur lu dans le script d'initialisation, pas contre un serveur MongoDB. À faire sur chaque poste (le volume doit être neuf : le script d'initialisation ne s'exécute qu'au premier démarrage, voir la section 6) :
+Projet Compose jetable à volumes neufs (`COMPOSE_PROJECT_NAME=novaria-dat03`, ports 5546 et 27120), fichiers du dépôt sans modification, MongoDB 7. Les bases habituelles du poste n'ont pas été touchées. À refaire sur le poste Linux (le volume doit être neuf : le script d'initialisation ne s'exécute qu'au premier démarrage, voir la section 6) :
 
 | Étape | Linux (bash) | Windows (PowerShell) |
 |---|---|---|
 | Projet jetable | `export COMPOSE_PROJECT_NAME=novaria-dat03 POSTGRES_PORT=5546 MONGO_PORT=27120` | `$env:COMPOSE_PROJECT_NAME="novaria-dat03"; $env:POSTGRES_PORT="5546"; $env:MONGO_PORT="27120"` |
 | Démarrer et vérifier | `python3 scripts/dev/dev.py db-up` puis `db-check` : 23 lignes `[OK]` | `py -3 scripts/dev/dev.py db-up` puis `db-check` |
 | Ingérer deux fois | `python3 scripts/dev/dev.py etl-paris --start 2026-10-18T10:00:00Z --end 2026-10-18T11:00:00Z` (deux fois de suite) | `py -3 scripts/dev/dev.py etl-paris --start 2026-10-18T10:00:00Z --end 2026-10-18T11:00:00Z` (deux fois) |
-| Compter | `python3 scripts/dev/dev.py mongosh` puis `db.ingestion_runs.find({}, {sha256:1, bytes:1, rows:1, executions:1})` | `py -3 scripts/dev/dev.py mongosh` puis la même requête |
+| Lire le journal | `python3 scripts/dev/dev.py mongosh` puis `db.ingestion_runs.find({}, {sha256:1, bytes:1, rows:1, executions:1})` | `py -3 scripts/dev/dev.py mongosh` puis la même requête |
 | Nettoyer | `docker compose -p novaria-dat03 down -v` | `docker compose -p novaria-dat03 down -v` |
 
-Résultat attendu : 1re exécution « nouvelle entrée (reçu 1 fois) », 2e « déjà journalisé (reçu 2 fois) », un seul document avec `executions: 2`, `bytes: 982821`, `rows: 2978`.
+Résultats obtenus :
 
-Résultat obtenu sous Docker : [À COMPLÉTER : sorties des deux exécutions et du `find`, poste et date. Passer ensuite l'état d'EXG-DON-02 à « Prouvé » dans `docs/02-specifications/exigences.md` et le bilan de la même page à 2 / 23 / 28.]
+```text
+> db-check
+  [OK] mongo    administrateur : 7 collections
+  [OK] mongo    traitement lit ingestion_runs
+  [OK] mongo    collecte ne lit PAS ingestion_runs
+  (23 lignes [OK], 0 [KO])  Toutes les vérifications passent.
+
+> etl-paris --start 2026-10-18T10:00:00Z --end 2026-10-18T11:00:00Z      (1re exécution)
+Volume    : 982821 octets, 2978 lignes de données
+Empreinte : sha256 66bb1a4eacb8120ec02a2204cc35056025b23452372c24e798eae631eae1eae4
+Journal   : nouvelle entrée (reçu 1 fois)
+
+> etl-paris ...                                                          (2e exécution)
+Journal   : déjà journalisé (reçu 2 fois)
+
+> db.ingestion_runs  (administrateur)
+1 document : executions: 2, bytes: 982821, rows: 2978, source_type: 'REAL_HISTORICAL',
+  ingested_at 2026-10-29T18:05:06Z, last_seen_at 2026-10-29T18:05:13Z, source_modified_at 2026-10-19T01:02:43Z
+```
+
+Le SHA-256 du fichier sur le disque (`Get-FileHash`) égale celui du document. Deux tentatives précédentes avaient échoué sur `MongoDB injoignable` : `etl-paris` lisait `MONGO_PORT` dans `.env` et ignorait la valeur du shell, alors que Docker Compose donne la priorité au shell. Corrigé (test `test_une_variable_du_shell_l_emporte_sur_env_comme_pour_compose`). Ces deux échecs ont aussi servi de preuve : le fichier avait été rangé avant l'échec du journal, et la tentative suivante a écrit l'entrée manquante sans réécrire le fichier (« déjà présent, identique »).
+
+Reste à faire : la même preuve sur le poste Linux (Manoa).
 
 ## 6. Limites et suite
 

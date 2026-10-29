@@ -209,6 +209,11 @@ class EtlTests(unittest.TestCase):
         self.assertTrue(options["env"]["MONGO_URL"].startswith("mongodb://svc_traitement:"))
         self.assertNotIn("p@ss", " ".join(commande), "le mot de passe ne figure pas sur la ligne de commande")
 
+    def test_une_variable_du_shell_l_emporte_sur_env_comme_pour_compose(self):
+        with mock.patch.dict("os.environ", {"MONGO_PORT": "27120"}):
+            _, appels = self.lancer(["etl-paris", "--day", "2026-10-18"])
+        self.assertIn("@127.0.0.1:27120/", appels[0][1]["env"]["MONGO_URL"])
+
     def test_start_et_end_sont_transmis(self):
         _, appels = self.lancer(["etl-paris", "--start", "2026-10-18T10:00:00Z", "--end", "2026-10-18T11:00:00Z"])
         self.assertEqual(appels[0][0][3:], ["--start", "2026-10-18T10:00:00Z", "--end", "2026-10-18T11:00:00Z"])
