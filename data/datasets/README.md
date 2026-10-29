@@ -150,7 +150,7 @@ La correspondance détaillée et l'effet sur l'entrepôt relèvent de DAT-02 et 
 |---|---|
 | `curl -s "https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/comptages-routiers-permanents/records?limit=3"` | `curl.exe -s "https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/comptages-routiers-permanents/records?limit=3"` |
 
-Cette commande renvoie trois lignes du jeu courant au format JSON. Le script de téléchargement complet avec contrôle d'empreinte relève de DAT-03 : il n'existe pas encore.
+Cette commande renvoie trois lignes du jeu courant au format JSON. Le script de téléchargement par fenêtre de temps, avec calcul de l'empreinte et journal dans MongoDB, est celui de DAT-03 : [ingestion du comptage routier de Paris](../../docs/03-donnees/ingestion-paris.md) (`dev.py etl-paris`).
 
 | Rubrique | Contenu |
 |---|---|

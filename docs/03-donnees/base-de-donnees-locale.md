@@ -18,7 +18,7 @@ flowchart LR
             R[raw_events]
             J[rejects]
             U[audit_logs<br/>usage_stats]
-            P[processing_stats]
+            P[processing_stats<br/>ingestion_runs]
             M[model_runs]
         end
     end
@@ -52,7 +52,7 @@ Prérequis : Docker, Git et Python 3.12. Vérification : `check-tools` liste ce 
 | 4. Vérifier rôles et droits | `python3 scripts/dev/dev.py db-check` | `py -3 scripts/dev/dev.py db-check` |
 | 5. Vérifier l'écriture dans MongoDB | `python3 scripts/dev/dev.py db-check-events` | `py -3 scripts/dev/dev.py db-check-events` |
 
-Résultat attendu à l'étape 4 : 21 lignes `[OK]`, puis « Toutes les vérifications passent. ». Résultat attendu à l'étape 5 : 3 lignes `[OK]` (mesure conforme acceptée, mesure sans provenance refusée, index de durée de vie de 14 jours). Sous Linux, `make db-up`, `make db-check` et `make db-check-events` font la même chose.
+Résultat attendu à l'étape 4 : 23 lignes `[OK]`, puis « Toutes les vérifications passent. ». Résultat attendu à l'étape 5 : 3 lignes `[OK]` (mesure conforme acceptée, mesure sans provenance refusée, index de durée de vie de 14 jours). Sous Linux, `make db-up`, `make db-check` et `make db-check-events` font la même chose.
 
 > Docker Desktop doit être **ouvert** avant l'étape 3 sous Windows (icône de la baleine stable dans la barre des tâches).
 
@@ -106,6 +106,7 @@ Aucun rôle de service ne peut créer d'objet dans le schéma `public`. L'applic
 | `audit_logs` | Qui a fait quoi, quand, avec quel résultat | réponse extérieure, backend | illimitée en local |
 | `usage_stats` | Compteurs d'usage de l'API par point d'accès | backend | illimitée en local |
 | `processing_stats` | Qualité, retards, rejets par fenêtre | traitement | illimitée en local |
+| `ingestion_runs` | Un document par fichier brut reçu d'un jeu ouvert : source, date, volume, empreinte ([ingestion de Paris](ingestion-paris.md)) | pipelines ETL (compte `svc_traitement`) | illimitée en local |
 | `model_runs` | Un document par entraînement (version du code, empreinte du jeu de données, graine, métriques) | ML (Machine Learning, apprentissage automatique) | illimitée en local |
 
 Chaque collection a un **validateur** : un document mal formé est refusé à l'écriture, l'erreur est visible tout de suite. Les champs inconnus restent permis pour accepter les ajouts compatibles du contrat d'événement.
@@ -113,7 +114,7 @@ Chaque collection a un **validateur** : un document mal formé est refusé à l'
 | Utilisateur | Rôle | Droits |
 |---|---|---|
 | `svc_collecte` | `role_collecte` | `raw_events` et `rejects` : lire, insérer |
-| `svc_traitement` | `role_traitement` | `raw_events` : lire ; `rejects` : lire, insérer ; `processing_stats` : lire, insérer, modifier |
+| `svc_traitement` | `role_traitement` | `raw_events` : lire ; `rejects` : lire, insérer ; `processing_stats` et `ingestion_runs` : lire, insérer, modifier |
 | `svc_reponse` | `role_reponse` | `audit_logs` : lire, insérer |
 | `svc_backend` | `role_backend` | `audit_logs` : lire, insérer ; `usage_stats` : lire, insérer, modifier |
 | `svc_ml` | `role_ml` | `model_runs` : lire, insérer, modifier ; `raw_events` et `processing_stats` : lire |

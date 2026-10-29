@@ -161,8 +161,8 @@ class DictionnaireMongo(unittest.TestCase):
         for correspondance in re.finditer(r"^### 10\.\d+ `(\w+)`\n(.*?)(?=^### |\Z)", texte[debut:fin] + "\n### fin", re.S | re.M):
             cls.sections[correspondance.group(1)] = correspondance.group(2)
 
-    def test_le_script_cree_six_collections(self):
-        self.assertEqual(len(self.mongo["collections"]), 6)
+    def test_le_script_cree_sept_collections(self):
+        self.assertEqual(len(self.mongo["collections"]), 7)
 
     def test_chaque_collection_a_sa_section(self):
         self.assertEqual(sorted(self.sections), sorted(self.mongo["collections"]))

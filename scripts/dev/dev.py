@@ -19,6 +19,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Sequence
 from datetime import datetime, timezone
@@ -349,10 +350,10 @@ def build_checks() -> list[Check]:
          pg_as("svc_lecture", "PG_PASSWORD_LECTURE", "DELETE FROM dwh.dim_source WHERE false"), False),
         ("postgres", "API métier n'accède PAS à l'entrepôt",
          pg_as("svc_app", "PG_PASSWORD_APP", "SELECT count(*) FROM dwh.dim_date"), False),
-        ("mongo", "administrateur : 6 collections",
+        ("mongo", "administrateur : 7 collections",
          'mongosh --quiet -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" '
          '--authenticationDatabase admin "$MONGO_DB" --eval '
-         '"if (db.getCollectionNames().length < 6) throw new Error(\'collections manquantes\')"', True),
+         '"if (db.getCollectionNames().length < 7) throw new Error(\'collections manquantes\')"', True),
         ("mongo", "administrateur : index de durée de vie sur raw_events",
          'mongosh --quiet -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" '
          '--authenticationDatabase admin "$MONGO_DB" --eval '
@@ -361,6 +362,8 @@ def build_checks() -> list[Check]:
         ("mongo", "collecte ne lit PAS audit_logs", mongo_as("svc_collecte", "MONGO_PASSWORD_COLLECTE", "db.audit_logs.findOne()"), False),
         ("mongo", "traitement lit raw_events", mongo_as("svc_traitement", "MONGO_PASSWORD_TRAITEMENT", "db.raw_events.findOne()"), True),
         ("mongo", "traitement ne lit PAS model_runs", mongo_as("svc_traitement", "MONGO_PASSWORD_TRAITEMENT", "db.model_runs.findOne()"), False),
+        ("mongo", "traitement lit ingestion_runs", mongo_as("svc_traitement", "MONGO_PASSWORD_TRAITEMENT", "db.ingestion_runs.findOne()"), True),
+        ("mongo", "collecte ne lit PAS ingestion_runs", mongo_as("svc_collecte", "MONGO_PASSWORD_COLLECTE", "db.ingestion_runs.findOne()"), False),
         ("mongo", "réponse lit audit_logs", mongo_as("svc_reponse", "MONGO_PASSWORD_REPONSE", "db.audit_logs.findOne()"), True),
         ("mongo", "réponse ne lit PAS raw_events", mongo_as("svc_reponse", "MONGO_PASSWORD_REPONSE", "db.raw_events.findOne()"), False),
         ("mongo", "backend lit usage_stats", mongo_as("svc_backend", "MONGO_PASSWORD_BACKEND", "db.usage_stats.findOne()"), True),
@@ -468,6 +471,37 @@ def cmd_db_check_events(args: argparse.Namespace) -> int:
         run_mongosh(MONGO_ADMIN, cleanup)
     print("Toutes les vérifications passent." if failures == 0 else f"{failures} vérification(s) en échec.")
     return 0 if failures == 0 else 1
+
+
+# --------------------------------------------------------------------------- ETL (DAT-03)
+ETL_DIR = ROOT / "data" / "etl"
+ETL_REQUIREMENTS = "data/etl/requirements.txt"
+
+
+def mongo_url(env: dict[str, str], user: str, password_variable: str) -> str:
+    """Adresse MongoDB du poste pour un compte de service ; le mot de passe est encodé pour l'adresse."""
+    missing = [name for name in (password_variable, "MONGO_DB") if not env.get(name)]
+    if missing:
+        raise DevError(f"Variable absente de .env : {', '.join(missing)} (init-env --force puis db-reset).")
+    database = env["MONGO_DB"]
+    password = urllib.parse.quote(env[password_variable], safe="")
+    port = env.get("MONGO_PORT") or "27017"
+    return f"mongodb://{user}:{password}@127.0.0.1:{port}/{database}?authSource={database}"
+
+
+def cmd_etl_paris(args: argparse.Namespace) -> int:
+    """Ingère une fenêtre du comptage routier de Paris : fichier brut dans data/datasets/, entrée dans MongoDB (DAT-03)."""
+    require_env()
+    if importlib.util.find_spec("pymongo") is None:
+        raise DevError(f"pymongo est absent. L'installer :  {Path(sys.executable).name} -m pip install -r {ETL_REQUIREMENTS}")
+    env = parse_env(ENV_FILE.read_text(encoding="utf-8"))
+    command = [sys.executable, "-m", "pipelines.ingerer_paris"]
+    for option, value in (("--day", args.day), ("--start", args.start), ("--end", args.end)):
+        if value:
+            command += [option, value]
+    # L'adresse (donc le mot de passe) passe par l'environnement du processus, pas par sa ligne de commande.
+    environment = {**os.environ, "MONGO_URL": mongo_url(env, "svc_traitement", "MONGO_PASSWORD_TRAITEMENT")}
+    return subprocess.run(command, cwd=ETL_DIR, env=environment, check=False).returncode
 
 
 # --------------------------------------------------------------------------- Kafka (ADR-009, LOC-04)
@@ -788,6 +822,10 @@ def build_parser() -> argparse.ArgumentParser:
     add("db-check", cmd_db_check, "vérifie rôles, droits, collections et index")
     events = add("db-check-events", cmd_db_check_events, "insère une mesure conforme (acceptée) et une sans provenance (refusée)")
     events.add_argument("--file", type=Path, default=EXAMPLE_MEASUREMENT, help="événement de départ (mesure-valide.json)")
+    etl = add("etl-paris", cmd_etl_paris, "ingère une fenêtre du comptage routier de Paris : fichier brut + journal MongoDB")
+    etl.add_argument("--day", metavar="AAAA-MM-JJ", help="un jour entier en UTC")
+    etl.add_argument("--start", metavar="INSTANT", help="début inclus avec fuseau (2026-10-18T10:00:00Z), avec --end")
+    etl.add_argument("--end", metavar="INSTANT", help="fin exclue avec fuseau")
     add("kafka-up", cmd_kafka_up, "démarre Kafka (mode KRaft) et attend qu'il soit prêt")
     add("kafka-topics", cmd_kafka_topics, "crée les 6 sujets du bus s'ils manquent et les vérifie")
     trip = add("kafka-roundtrip", cmd_kafka_roundtrip, "publie un événement, le relit et le valide contre le contrat")

@@ -119,6 +119,36 @@ const collections = {
       },
     },
   },
+  // Journal des ingestions de jeux de données ouverts (DAT-03) : un document par fichier brut téléchargé.
+  ingestion_runs: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: [
+        "load_key", "run_id", "last_run_id", "dataset_id", "source_type", "source_url", "license",
+        "window_start", "window_end", "file_path", "sha256", "bytes", "rows", "ingested_at", "last_seen_at",
+        "executions",
+      ],
+      properties: {
+        load_key: { bsonType: "string", minLength: 1 },
+        run_id: { bsonType: "string", minLength: 1 },
+        last_run_id: { bsonType: "string", minLength: 1 },
+        dataset_id: { bsonType: "string", minLength: 1 },
+        source_type: { enum: SOURCES },
+        source_url: { bsonType: "string", pattern: "^https://" },
+        source_modified_at: { bsonType: "date" },
+        license: { bsonType: "string", minLength: 1 },
+        window_start: { bsonType: "date" },
+        window_end: { bsonType: "date" },
+        file_path: { bsonType: "string", minLength: 1 },
+        sha256: { bsonType: "string", pattern: "^[0-9a-f]{64}$" },
+        bytes: { bsonType: "number", minimum: 0 },
+        rows: { bsonType: "number", minimum: 0 },
+        ingested_at: { bsonType: "date" },
+        last_seen_at: { bsonType: "date" },
+        executions: { bsonType: "number", minimum: 1 },
+      },
+    },
+  },
   // Suivi des entraînements (MLOps, ADR-017) : un document par exécution.
   model_runs: {
     $jsonSchema: {
@@ -162,6 +192,9 @@ database.usage_stats.createIndex({ endpoint: 1, bucket_start: -1 }, { unique: tr
 
 database.processing_stats.createIndex({ kind: 1, window_start: -1 }, { name: "kind_window" });
 
+database.ingestion_runs.createIndex({ load_key: 1 }, { unique: true, name: "uniq_load_key" }); // idempotence
+database.ingestion_runs.createIndex({ dataset_id: 1, ingested_at: -1 }, { name: "dataset_time" });
+
 database.model_runs.createIndex({ run_id: 1 }, { unique: true, name: "uniq_run_id" });
 database.model_runs.createIndex({ created_at: -1 }, { name: "created_desc" });
 
@@ -173,6 +206,7 @@ const roles = {
     grant("raw_events", ["find"]),
     grant("rejects", ["find", "insert"]),
     grant("processing_stats", ["find", "insert", "update"]),
+    grant("ingestion_runs", ["find", "insert", "update"]), // pipelines ETL de data/etl (DAT-03)
   ],
   role_reponse: [grant("audit_logs", ["find", "insert"])],
   role_backend: [grant("audit_logs", ["find", "insert"]), grant("usage_stats", ["find", "insert", "update"])],

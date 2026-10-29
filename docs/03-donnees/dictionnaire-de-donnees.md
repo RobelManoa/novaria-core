@@ -425,7 +425,7 @@ Un jeu = un ensemble de runs, enregistré en Parquet sous `data/datasets/`, acco
 
 ## 10. Collections MongoDB
 
-Six collections, créées avec un validateur strict par `db/mongo/init/01-collections-et-utilisateurs.js` : un document mal formé est refusé à l'écriture (erreur de validation, code 121). Les champs inconnus restent permis, pour accepter les ajouts compatibles du contrat d'événement. Les droits par utilisateur de service sont dans [bases locales](base-de-donnees-locale.md).
+Sept collections, créées avec un validateur strict par `db/mongo/init/01-collections-et-utilisateurs.js` : un document mal formé est refusé à l'écriture (erreur de validation, code 121). Les champs inconnus restent permis, pour accepter les ajouts compatibles du contrat d'événement. Les droits par utilisateur de service sont dans [bases locales](base-de-donnees-locale.md).
 
 | Collection | Contenu | Conservation |
 |---|---|---|
@@ -434,6 +434,7 @@ Six collections, créées avec un validateur strict par `db/mongo/init/01-collec
 | `audit_logs` | Qui a fait quoi, quand, avec quel résultat | illimitée en local |
 | `usage_stats` | Compteurs d'usage de l'API | illimitée en local |
 | `processing_stats` | Qualité, retards, rejets par fenêtre | illimitée en local |
+| `ingestion_runs` | Un document par fichier brut reçu d'un jeu ouvert | illimitée en local |
 | `model_runs` | Un document par entraînement | illimitée en local |
 
 Les dates sont des dates MongoDB (UTC), jamais du texte. La colonne « Obligatoire » indique ce que le validateur exige.
@@ -553,6 +554,35 @@ Suivi des entraînements (MLOps, ADR-017) : un document par exécution. Écrit p
 |---|---|---|
 | `uniq_run_id` | `run_id`, unique | Un entraînement, un document |
 | `created_desc` | `created_at` décroissant | Derniers entraînements |
+
+### 10.7 `ingestion_runs`
+
+Journal des ingestions d'un jeu ouvert (DAT-03) : un document par **fichier brut reçu**, reconnu par son empreinte. Écrit par les pipelines de `data/etl` avec le compte `svc_traitement` ; le fichier lui-même reste sous `data/datasets/` (non versionné). Recevoir une seconde fois le même fichier ne crée aucun document : `executions` augmente et `last_seen_at` avance. Une donnée corrigée à la source change l'empreinte, donc crée un nouveau document. Procédure et garanties : [ingestion du comptage routier de Paris](ingestion-paris.md).
+
+| Champ | Type | Obligatoire | Règle | Sens |
+|---|---|---|---|---|
+| `load_key` | texte | oui | non vide ; unique | `<dataset_id>:<début AAAAMMJJTHHMMSSZ>:<fin>:<sha256>` : identifie ce fichier |
+| `run_id` | texte | oui | non vide | Exécution qui a reçu ce fichier la première fois (`ing-<horodate>-<hasard>`) |
+| `last_run_id` | texte | oui | non vide | Dernière exécution qui l'a reçu |
+| `dataset_id` | texte | oui | non vide | Jeu ouvert (`paris-comptages-routiers`) |
+| `source_type` | texte | oui | SIMULATED, REAL_HISTORICAL, REAL_LIVE | Provenance (ADR-027) ; `REAL_HISTORICAL` pour Paris |
+| `source_url` | texte | oui | commence par `https://` | Adresse exacte demandée au portail, fenêtre comprise |
+| `source_modified_at` | date | non | | Dernière mise à jour des données annoncée par le portail ; absente si le portail n'a pas répondu |
+| `license` | texte | oui | non vide | Licence du jeu (`ODbL`) |
+| `window_start` | date | oui | | Début de la fenêtre demandée, inclus |
+| `window_end` | date | oui | | Fin de la fenêtre demandée, exclue |
+| `file_path` | texte | oui | non vide | Fichier brut, relatif à `data/datasets/` |
+| `sha256` | texte | oui | 64 caractères hexadécimaux minuscules | Empreinte du fichier reçu, octet pour octet |
+| `bytes` | nombre | oui | ≥ 0 | Taille du fichier |
+| `rows` | nombre | oui | ≥ 0 | Lignes de données, hors en-tête (aucune n'est écartée à ce stade) |
+| `ingested_at` | date | oui | | Première réception de ce fichier |
+| `last_seen_at` | date | oui | | Dernière réception de ce fichier |
+| `executions` | nombre | oui | ≥ 1 | Nombre de fois où ce fichier a été reçu |
+
+| Index | Clés | Rôle |
+|---|---|---|
+| `uniq_load_key` | `load_key`, unique | Un fichier, un document : idempotence de l'ingestion |
+| `dataset_time` | `dataset_id`, `ingested_at` décroissant | Dernières ingestions d'un jeu |
 
 ## 11. Schémas `ops` et `app`
 

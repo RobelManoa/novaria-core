@@ -3,7 +3,7 @@
 PY ?= python3
 DEV = $(PY) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs db-up db-migrate db-status db-check db-check-events psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts lint format new-service quality-up quality-down hooks
+.PHONY: help init-env up down health lock-deps ps logs db-up db-migrate db-status db-check db-check-events etl-paris psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts test-etl lint format new-service quality-up quality-down hooks
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -33,6 +33,8 @@ db-check:      ## Vérifie rôles, droits, collections et index
 	$(DEV) db-check
 db-check-events: ## Insère une mesure conforme (acceptée) et une sans provenance (refusée)
 	$(DEV) db-check-events
+etl-paris:     ## Ingère le comptage routier de Paris (make etl-paris DAY=2026-10-18) : fichier brut + journal MongoDB
+	$(DEV) etl-paris --day $(DAY)
 psql:          ## Ouvre psql (administrateur local)
 	$(DEV) psql
 mongosh:       ## Ouvre mongosh (administrateur local)
@@ -57,8 +59,11 @@ test:          ## Tests des services + frontend + scripts du poste
 	@for d in services/*/; do (cd $$d && python -m pytest) || exit 1; done
 	cd frontend && npm test
 	$(PY) -m unittest discover -s scripts/dev
+	$(PY) -m unittest discover -s data/etl/tests
 test-contracts: ## Valide les exemples et les cas invalides des contrats d'événements
 	$(PY) -m unittest discover -s contracts/tests
+test-etl:      ## Tests des pipelines d'ingestion (sans réseau ni base)
+	$(PY) -m unittest discover -s data/etl/tests
 lint:          ## Ruff sur chaque service, ESLint et Prettier sur le frontend
 	@for d in services/*/; do (cd $$d && ruff check . && ruff format --check .) || exit 1; done
 	cd frontend && npm run lint && npm run format:check

@@ -166,6 +166,75 @@ class CommandTests(unittest.TestCase):
                 self.assertRegex(command, r'-p "\$[A-Z_]+"')
 
 
+class EtlTests(unittest.TestCase):
+    """DAT-03 : `etl-paris` lance le pipeline d'ingestion avec le compte svc_traitement, sans mot de passe en argument."""
+
+    ENV = {"MONGO_DB": "novaria", "MONGO_PORT": "27117", "MONGO_PASSWORD_TRAITEMENT": "p@ss/w:rd#1"}
+
+    def lancer(self, argv, *, pymongo=True, env_text=None):
+        appels = []
+
+        def fake_run(cmd, **kwargs):
+            appels.append((cmd, kwargs))
+            return subprocess.CompletedProcess(cmd, 3, stdout="", stderr="")
+
+        texte = env_text if env_text is not None else "".join(f"{k}={v}\n" for k, v in self.ENV.items())
+        with tempfile.TemporaryDirectory() as tmp:
+            env = Path(tmp) / ".env"
+            env.write_text(texte, encoding="utf-8")
+            with mock.patch.object(dev, "ENV_FILE", env), mock.patch("subprocess.run", side_effect=fake_run), \
+                    mock.patch("importlib.util.find_spec", return_value=object() if pymongo else None), \
+                    mock.patch("sys.stderr"):
+                code = dev.main(argv)
+        return code, appels
+
+    def test_l_adresse_encode_le_mot_de_passe_et_vise_le_port_du_poste(self):
+        url = dev.mongo_url(self.ENV, "svc_traitement", "MONGO_PASSWORD_TRAITEMENT")
+        self.assertEqual(url, "mongodb://svc_traitement:p%40ss%2Fw%3Ard%231@127.0.0.1:27117/novaria?authSource=novaria")
+
+    def test_le_port_par_defaut_est_celui_de_mongodb(self):
+        url = dev.mongo_url({"MONGO_DB": "novaria", "MONGO_PASSWORD_TRAITEMENT": "x"}, "svc_traitement", "MONGO_PASSWORD_TRAITEMENT")
+        self.assertIn("@127.0.0.1:27017/", url)
+
+    def test_une_variable_absente_est_nommee(self):
+        with self.assertRaisesRegex(dev.DevError, "MONGO_PASSWORD_TRAITEMENT"):
+            dev.mongo_url({"MONGO_DB": "novaria"}, "svc_traitement", "MONGO_PASSWORD_TRAITEMENT")
+
+    def test_le_pipeline_est_lance_depuis_data_etl_avec_l_adresse_dans_l_environnement(self):
+        code, appels = self.lancer(["etl-paris", "--day", "2026-10-18"])
+        (commande, options), = appels
+        self.assertEqual(code, 3, "le code de retour du pipeline est transmis")
+        self.assertEqual(commande, [sys.executable, "-m", "pipelines.ingerer_paris", "--day", "2026-10-18"])
+        self.assertEqual(options["cwd"], ROOT / "data" / "etl")
+        self.assertTrue(options["env"]["MONGO_URL"].startswith("mongodb://svc_traitement:"))
+        self.assertNotIn("p@ss", " ".join(commande), "le mot de passe ne figure pas sur la ligne de commande")
+
+    def test_start_et_end_sont_transmis(self):
+        _, appels = self.lancer(["etl-paris", "--start", "2026-10-18T10:00:00Z", "--end", "2026-10-18T11:00:00Z"])
+        self.assertEqual(appels[0][0][3:], ["--start", "2026-10-18T10:00:00Z", "--end", "2026-10-18T11:00:00Z"])
+
+    def test_sans_pymongo_le_message_donne_la_commande_d_installation(self):
+        with mock.patch("builtins.print") as imprime:
+            code, appels = self.lancer(["etl-paris", "--day", "2026-10-18"], pymongo=False)
+        self.assertEqual((code, appels), (2, []))
+        self.assertIn("data/etl/requirements.txt", " ".join(str(c.args[0]) for c in imprime.call_args_list))
+
+    def test_sans_mot_de_passe_dans_env_rien_n_est_lance(self):
+        code, appels = self.lancer(["etl-paris", "--day", "2026-10-18"], env_text="MONGO_DB=novaria\n")
+        self.assertEqual((code, appels), (2, []))
+
+    def test_le_script_d_initialisation_donne_au_traitement_le_droit_d_ecrire_dans_le_journal(self):
+        script = (ROOT / "db" / "mongo" / "init" / "01-collections-et-utilisateurs.js").read_text(encoding="utf-8")
+        role = script.split("role_traitement:", 1)[1].split("role_reponse:", 1)[0]
+        self.assertIn('grant("ingestion_runs", ["find", "insert", "update"])', role)
+        self.assertNotIn("ingestion_runs", script.split("role_collecte:", 1)[1].split("role_traitement:", 1)[0])
+
+    def test_le_db_check_attend_sept_collections(self):
+        commandes = [c for _, label, c, _ in dev.build_checks() if "collections" in label]
+        self.assertEqual(len(commandes), 1)
+        self.assertIn("< 7", commandes[0])
+
+
 class EvenementsMongoTests(unittest.TestCase):
     """LOC-02 : `db-check-events` insère une mesure conforme et une sans provenance dans raw_events."""
 

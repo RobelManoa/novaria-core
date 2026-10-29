@@ -1,0 +1,4 @@
+# Dépendances des pipelines d'ingestion (data/etl). Le téléchargement n'utilise que la bibliothèque standard ;
+# pymongo ne sert qu'à écrire le journal dans MongoDB. Version exacte, comme les services.
+#   python -m pip install -r data/etl/requirements.txt
+pymongo==4.19.0
