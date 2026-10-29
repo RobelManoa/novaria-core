@@ -1,10 +1,6 @@
 # Dictionnaire de données
 
-<<<<<<< HEAD
 Une définition par terme, une unité par grandeur, une règle par calcul. Ce document fait foi pour les bases (`db/`), les événements (`contracts/`), le simulateur et le modèle. Version du 27/10/2026 (relue et complétée : issues DAT-02 et DAT-10 ; compte rendu de la relecture croisée : [revue DAT-10](revue-croisee-dat-10.md)) ; toute modification passe par pull request et met à jour les trois endroits à la fois.
-=======
-Une définition par terme, une unité par grandeur, une règle par calcul. Ce document fait foi pour les bases (`db/`), les événements (`contracts/`), le simulateur et le modèle. Version du 27/10/2026 (relue et complétée : issues DAT-02 et DAT-10) ; toute modification passe par pull request et met à jour les trois endroits à la fois.
->>>>>>> origin/main
 
 **Complétude vérifiée par un test** : chaque table et chaque colonne des migrations `db/postgres/migrations/`, chaque collection, champ et index de `db/mongo/init/` doivent figurer ici (`scripts/dev/test_dictionnaire.py`, voir « Vérifier » en fin de document). Ajouter une colonne sans la décrire fait échouer le test.
 
@@ -353,7 +349,6 @@ Les trois règles ci-dessus sont chargées par la migration `0003`.
 | `payload` | jsonb | obligatoire | Événement complet, conforme à `contracts/events/` |
 | `created_at` | date et heure | défaut maintenant, UTC | Écrit dans la même transaction que le changement d'état |
 | `published_at` | date et heure | `null` tant que non publié | Publication confirmée par Kafka ; l'index partiel sur les lignes à `null` sert le relais |
-<<<<<<< HEAD
 
 ### 7.3.1 Événement d'alerte (`novaria.alert.state_changed.v1`, sujet `alerts.events`)
 
@@ -373,8 +368,6 @@ Grain : un changement d'état d'une alerte. Publié par le service d'alerte via 
 | `provenance` | `alert.run_id`, `alert.source_type` (+ `scenario_id`, `seed` ou `dataset_id`) | comme la section 5 | Origine |
 
 Volontairement **absents** de l'événement : `acknowledged_by` (texte libre, qui peut désigner une personne), `notified_at`, `acknowledged_at` et `updated_at` (lisibles dans l'API et dans `alert_history`).
-=======
->>>>>>> origin/main
 
 ## 8. Règles de qualité
 
@@ -457,11 +450,7 @@ Grain : un événement de mesure (section 5). Écrit par la collecte.
 | `subject` | texte | non | | `intersection_id` |
 | `time` | date | oui | | Instant de l'observation |
 | `schema_version` | texte | oui | | `majeure.mineure` |
-<<<<<<< HEAD
 | `domain` | texte | oui | | iot, traffic, alert, signal ou error (ici `iot`, seul domaine publié sur `iot.raw`) |
-=======
-| `domain` | texte | oui | | iot, traffic, alert ou signal |
->>>>>>> origin/main
 | `correlation_id` | texte | non | | Trace de bout en bout |
 | `received_at` | date | oui | | Réception par la collecte ; sert à la durée de vie |
 | `data` | objet | oui | contient `provenance` | Charge utile de l'événement |
@@ -579,15 +568,9 @@ Créée par `db/postgres/migrate.sh`, qui l'écrit seul : aucun rôle de service
 
 ### 11.2 Schéma `app`
 
-<<<<<<< HEAD
 Le schéma est créé vide à l'initialisation. Ses tables sont créées par Alembic dans `services/traitement/` ([ADR-024](../01-architecture/adr/ADR-024-bases-de-donnees-locales.md)), **pas par un fichier SQL de `db/postgres/migrations/`**. À ce jour `services/traitement/migrations/` ne contient aucune révision : le schéma n'a pas de table (BE-02).
 
 Cible, déduite du contrat [OpenAPI](../../contracts/openapi/api-metier.openapi.yaml) (schéma `User`), à confirmer par BE-02 :
-=======
-Le schéma est créé vide à l'initialisation. Ses tables sont créées par Alembic dans `backend/` ([ADR-024](../01-architecture/adr/ADR-024-bases-de-donnees-locales.md)), **pas par un fichier SQL de `db/postgres/migrations/`**. À ce jour `backend/migrations/` ne contient aucune révision : le schéma n'a pas de table (BE-02).
-
-Cible, déduite du contrat [OpenAPI](../02-specifications/openapi.yaml) (schéma `User`), à confirmer par BE-02 :
->>>>>>> origin/main
 
 | Colonne visée | Règle visée | Sens |
 |---|---|---|
@@ -609,17 +592,12 @@ Le dictionnaire sera complété avec les colonnes réelles au moment où BE-02 l
 | Vitesse en circulation fluide des données réelles | Estimée par un quantile des vitesses nocturnes | Fiche de provenance de chaque jeu |
 | Jours fériés | Non chargés (`is_holiday` faux) | DAT-10, si le jeu de données le justifie |
 | Durée de conservation de `raw_events` (14 jours) | Valeur de départ | Volume observé |
-<<<<<<< HEAD
 | Bornes des contrats `traffic.recommendations` et `signal.status` (durée de phase 1 à 600 s, plan de 2 à 8 phases) | Valeurs de départ (section 13), à remplacer par les règles de sécurité des feux | MS-12 |
-=======
-| Contrats `traffic.recommendations` et `signal.status` | Non écrits | MS-11 |
->>>>>>> origin/main
 | Tables du schéma `app` | Aucune révision Alembic (section 11.2) | BE-02 |
 | Transitions d'une alerte | Ordre non contrôlé par la base : c'est le service d'alerte qui le garantit (section 7.3). Une contrainte supplémentaire serait une nouvelle migration. | MS-11 |
 | Calendrier `dim_date` | 2012 à 2030 : un fait daté hors de cette période est refusé. L'étendre = nouvelle migration. | Choix du jeu de données (DAT-01) |
 | Contenu de `etl_reject` | Colonnes créées, valeurs non fixées (section 8.1) | DAT-04 |
 | Durée de la tranche de `usage_stats` | Non fixée | BE-05 |
-<<<<<<< HEAD
 | Drapeau `LATE` d'une mesure et rejet `LATE` (DQ-04) | Un message trop tardif est rejeté (DQ-04), mais le drapeau `LATE` existe dans la qualité d'une mesure acceptée. Proposition : le drapeau marque une mesure en retard **dans la tolérance** (entre le délai de désordre de 10 s et le retard autorisé de 30 s) ; au-delà, rejet | Les deux membres, puis MS-15 |
 | État d'une fenêtre de 5 minutes | Le schéma impose `congestion_state` aussi pour 300 s, alors que l'état se calcule sur 1 minute (section 7.1). Proposition : l'état stabilisé à la fin de la fenêtre de 5 minutes | Manoa (traitement), IA-01 |
 | Retour de `UNKNOWN` et épisodes | Le diagramme 7.1 revient de `UNKNOWN` à `FREE_FLOW`, ce qui **clôturerait** un épisode (7.2) alors que la route peut rester bloquée : alerte résolue puis recréée. Proposition : `UNKNOWN` ne clôt pas l'épisode ; au retour des données, l'état est reclassé d'après le ratio avec les seuils d'entrée | MS-09, MS-11 |
@@ -682,8 +660,6 @@ Grain : un message rejeté. Publié par le service qui rejette (`source`), aprè
 | `original_key` | texte ou `null` | au plus 200 caractères | Clé du message d'origine |
 | `intersection_id` | texte ou `null` | motif `INT_xx` ; `subject` vaut ce carrefour, ou `UNKNOWN` si `null` | Carrefour du message d'origine, s'il est identifiable |
 | `original_payload` | tout type | un texte si `reason_code` est UNREADABLE | Message tel que reçu, pour analyse et rejeu |
-=======
->>>>>>> origin/main
 
 ## Vérifier
 

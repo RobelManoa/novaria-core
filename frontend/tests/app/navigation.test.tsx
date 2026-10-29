@@ -63,7 +63,11 @@ describe("navigation sur ordinateur", () => {
   });
 
   it("chaque entrée du menu correspond à une route titrée", () => {
-    const children = routes[0].children ?? [];
+    // La coque (chemin "/") est enfant de la route de garde RequireAuth.
+    const shell = routes
+      .flatMap((route) => [route, ...(route.children ?? [])])
+      .find((route) => route.path === "/");
+    const children = shell?.children ?? [];
     for (const entry of NAV_ENTRIES) {
       const route = children.find((child) =>
         entry.path === "/" ? child.index : `/${child.path}` === entry.path,

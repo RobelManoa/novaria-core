@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { getHealth, type Health } from "@/services/api";
+import { isApiError, messageFor } from "@/services/errors";
 import styles from "./ApiStatus.module.css";
+
+/** Texte de l'indicateur quand l'appel échoue : le code HTTP aide à diagnostiquer, la phrase explique. */
+function describeFailure(error: unknown): string {
+  if (isApiError(error) && error.status > 0) return `API indisponible (${error.status})`;
+  return `API injoignable : ${messageFor(error)}`;
+}
 
 /** Indicateur de l'état de l'API : en ligne (status), indisponible (alert) ou vérification en cours. */
 export default function ApiStatus() {
@@ -10,7 +17,7 @@ export default function ApiStatus() {
   useEffect(() => {
     getHealth()
       .then(setHealth)
-      .catch((e: Error) => setError(e.message));
+      .catch((e: unknown) => setError(describeFailure(e)));
   }, []);
 
   if (error) {
