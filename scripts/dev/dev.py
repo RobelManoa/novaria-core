@@ -489,21 +489,55 @@ def mongo_url(env: dict[str, str], user: str, password_variable: str) -> str:
     return f"mongodb://{user}:{password}@127.0.0.1:{port}/{database}?authSource={database}"
 
 
+def postgres_url(env: dict[str, str], user: str, password_variable: str) -> str:
+    """Adresse PostgreSQL du poste pour un compte de service ; le mot de passe est encodé pour l'adresse."""
+    missing = [name for name in (password_variable, "POSTGRES_DB") if not env.get(name)]
+    if missing:
+        raise DevError(f"Variable absente de .env : {', '.join(missing)} (init-env --force puis db-reset).")
+    password = urllib.parse.quote(env[password_variable], safe="")
+    return f"postgresql://{user}:{password}@127.0.0.1:{env.get('POSTGRES_PORT') or '5432'}/{env['POSTGRES_DB']}"
+
+
+def etl_environment() -> dict[str, str]:
+    """Variables de .env, recouvertes par celles du shell comme le fait Docker Compose (projet jetable, autre port)."""
+    env = parse_env(ENV_FILE.read_text(encoding="utf-8"))
+    env.update({name: os.environ[name] for name in env if name in os.environ})
+    return env
+
+
+def run_etl(module: str, options: list[str], drivers: tuple[str, ...], extra: dict[str, str]) -> int:
+    """Lance un pipeline de data/etl depuis son dossier. L'adresse des bases (donc les mots de passe) passe par
+    l'environnement du processus, pas par sa ligne de commande."""
+    require_env()
+    for driver in drivers:
+        if importlib.util.find_spec(driver) is None:
+            raise DevError(f"{driver} est absent. L'installer :  {Path(sys.executable).name} -m pip install -r {ETL_REQUIREMENTS}")
+    environment = {**os.environ, **extra, "PYTHONUTF8": "1"}
+    return subprocess.run([sys.executable, "-m", module, *options], cwd=ETL_DIR, env=environment, check=False).returncode
+
+
+def window_options(args: argparse.Namespace, names: tuple[str, ...]) -> list[str]:
+    return [item for name in names if getattr(args, name) for item in (f"--{name.replace('_', '-')}", str(getattr(args, name)))]
+
+
 def cmd_etl_paris(args: argparse.Namespace) -> int:
     """Ingère une fenêtre du comptage routier de Paris : fichier brut dans data/datasets/, entrée dans MongoDB (DAT-03)."""
     require_env()
-    if importlib.util.find_spec("pymongo") is None:
-        raise DevError(f"pymongo est absent. L'installer :  {Path(sys.executable).name} -m pip install -r {ETL_REQUIREMENTS}")
-    env = parse_env(ENV_FILE.read_text(encoding="utf-8"))
-    # Comme Docker Compose : une variable déjà définie dans le shell (projet jetable, autre port) l'emporte sur .env.
-    env.update({name: os.environ[name] for name in env if name in os.environ})
-    command = [sys.executable, "-m", "pipelines.ingerer_paris"]
-    for option, value in (("--day", args.day), ("--start", args.start), ("--end", args.end)):
-        if value:
-            command += [option, value]
-    # L'adresse (donc le mot de passe) passe par l'environnement du processus, pas par sa ligne de commande.
-    environment = {**os.environ, "MONGO_URL": mongo_url(env, "svc_traitement", "MONGO_PASSWORD_TRAITEMENT")}
-    return subprocess.run(command, cwd=ETL_DIR, env=environment, check=False).returncode
+    env = etl_environment()
+    url = mongo_url(env, "svc_traitement", "MONGO_PASSWORD_TRAITEMENT")
+    return run_etl("pipelines.ingerer_paris", window_options(args, ("day", "start", "end")), ("pymongo",), {"MONGO_URL": url})
+
+
+def cmd_etl_nettoyer_paris(args: argparse.Namespace) -> int:
+    """Nettoie un fichier brut de Paris : lignes propres, rejets dans dwh.etl_reject, taux de rejet dans MongoDB (DAT-04)."""
+    require_env()
+    env = etl_environment()
+    extra = {"MONGO_URL": mongo_url(env, "svc_traitement", "MONGO_PASSWORD_TRAITEMENT"),
+             "POSTGRES_URL": postgres_url(env, "svc_traitement", "PG_PASSWORD_TRAITEMENT")}
+    if args.file:
+        args.file = args.file.resolve()  # le pipeline s'exécute depuis data/etl : un chemin relatif au dépôt n'y mènerait nulle part
+    options = window_options(args, ("day", "file", "alert_threshold"))
+    return run_etl("pipelines.nettoyer_paris", options, ("pymongo", "psycopg"), extra)
 
 
 # --------------------------------------------------------------------------- Kafka (ADR-009, LOC-04)
@@ -828,6 +862,10 @@ def build_parser() -> argparse.ArgumentParser:
     etl.add_argument("--day", metavar="AAAA-MM-JJ", help="un jour entier en UTC")
     etl.add_argument("--start", metavar="INSTANT", help="début inclus avec fuseau (2026-10-18T10:00:00Z), avec --end")
     etl.add_argument("--end", metavar="INSTANT", help="fin exclue avec fuseau")
+    clean = add("etl-nettoyer-paris", cmd_etl_nettoyer_paris, "nettoie un fichier brut de Paris : propres, rejets (dwh.etl_reject), taux de rejet (MongoDB)")
+    clean.add_argument("--day", metavar="AAAA-MM-JJ", help="le fichier brut du jour entier (ingéré par etl-paris --day)")
+    clean.add_argument("--file", type=Path, help="un fichier brut précis")
+    clean.add_argument("--alert-threshold", metavar="TAUX", help="taux de rejet au-delà duquel alerter, de 0 à 1 (0.5)")
     add("kafka-up", cmd_kafka_up, "démarre Kafka (mode KRaft) et attend qu'il soit prêt")
     add("kafka-topics", cmd_kafka_topics, "crée les 6 sujets du bus s'ils manquent et les vérifie")
     trip = add("kafka-roundtrip", cmd_kafka_roundtrip, "publie un événement, le relit et le valide contre le contrat")

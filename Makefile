@@ -3,7 +3,7 @@
 PY ?= python3
 DEV = $(PY) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs db-up db-migrate db-status db-check db-check-events etl-paris psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts test-etl lint format new-service quality-up quality-down hooks
+.PHONY: help init-env up down health lock-deps ps logs db-up db-migrate db-status db-check db-check-events etl-paris etl-nettoyer-paris psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts test-etl lint format new-service quality-up quality-down hooks
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -35,6 +35,8 @@ db-check-events: ## Insère une mesure conforme (acceptée) et une sans provenan
 	$(DEV) db-check-events
 etl-paris:     ## Ingère le comptage routier de Paris (make etl-paris DAY=2026-10-18) : fichier brut + journal MongoDB
 	$(DEV) etl-paris --day $(DAY)
+etl-nettoyer-paris: ## Nettoie le brut de Paris (make etl-nettoyer-paris DAY=2026-10-17) : propres, rejets, taux de rejet
+	$(DEV) etl-nettoyer-paris --day $(DAY)
 psql:          ## Ouvre psql (administrateur local)
 	$(DEV) psql
 mongosh:       ## Ouvre mongosh (administrateur local)

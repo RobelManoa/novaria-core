@@ -169,9 +169,10 @@ class CommandTests(unittest.TestCase):
 class EtlTests(unittest.TestCase):
     """DAT-03 : `etl-paris` lance le pipeline d'ingestion avec le compte svc_traitement, sans mot de passe en argument."""
 
-    ENV = {"MONGO_DB": "novaria", "MONGO_PORT": "27117", "MONGO_PASSWORD_TRAITEMENT": "p@ss/w:rd#1"}
+    ENV = {"MONGO_DB": "novaria", "MONGO_PORT": "27117", "MONGO_PASSWORD_TRAITEMENT": "p@ss/w:rd#1",
+           "POSTGRES_DB": "novaria", "POSTGRES_PORT": "5543", "PG_PASSWORD_TRAITEMENT": "s3cr:t/pg#2"}
 
-    def lancer(self, argv, *, pymongo=True, env_text=None):
+    def lancer(self, argv, *, pymongo=True, env_text=None, absent=None):
         appels = []
 
         def fake_run(cmd, **kwargs):
@@ -183,7 +184,7 @@ class EtlTests(unittest.TestCase):
             env = Path(tmp) / ".env"
             env.write_text(texte, encoding="utf-8")
             with mock.patch.object(dev, "ENV_FILE", env), mock.patch("subprocess.run", side_effect=fake_run), \
-                    mock.patch("importlib.util.find_spec", return_value=object() if pymongo else None), \
+                    mock.patch("importlib.util.find_spec", side_effect=lambda nom: None if not pymongo or nom == absent else object()), \
                     mock.patch("sys.stderr"):
                 code = dev.main(argv)
         return code, appels
@@ -213,6 +214,38 @@ class EtlTests(unittest.TestCase):
         with mock.patch.dict("os.environ", {"MONGO_PORT": "27120"}):
             _, appels = self.lancer(["etl-paris", "--day", "2026-10-18"])
         self.assertIn("@127.0.0.1:27120/", appels[0][1]["env"]["MONGO_URL"])
+
+    def test_l_adresse_postgresql_encode_le_mot_de_passe_et_vise_le_port_du_poste(self):
+        url = dev.postgres_url(self.ENV, "svc_traitement", "PG_PASSWORD_TRAITEMENT")
+        self.assertEqual(url, "postgresql://svc_traitement:s3cr%3At%2Fpg%232@127.0.0.1:5543/novaria")
+        self.assertIn("@127.0.0.1:5432/", dev.postgres_url({"POSTGRES_DB": "novaria", "PG_PASSWORD_TRAITEMENT": "x"}, "u", "PG_PASSWORD_TRAITEMENT"))
+        with self.assertRaisesRegex(dev.DevError, "PG_PASSWORD_TRAITEMENT"):
+            dev.postgres_url({"POSTGRES_DB": "novaria"}, "u", "PG_PASSWORD_TRAITEMENT")
+
+    def test_le_nettoyage_recoit_les_deux_adresses_par_l_environnement_et_pas_en_argument(self):
+        code, appels = self.lancer(["etl-nettoyer-paris", "--day", "2026-10-17", "--alert-threshold", "0.4"])
+        (commande, options), = appels
+        self.assertEqual(code, 3)
+        self.assertEqual(commande, [sys.executable, "-m", "pipelines.nettoyer_paris", "--day", "2026-10-17", "--alert-threshold", "0.4"])
+        self.assertEqual(options["cwd"], ROOT / "data" / "etl")
+        self.assertTrue(options["env"]["MONGO_URL"].startswith("mongodb://svc_traitement:"))
+        self.assertTrue(options["env"]["POSTGRES_URL"].startswith("postgresql://svc_traitement:"))
+        self.assertNotIn("s3cr", " ".join(commande))
+
+    def test_un_fichier_precis_est_transmis_au_nettoyage(self):
+        _, appels = self.lancer(["etl-nettoyer-paris", "--file", "data/datasets/x.csv"])
+        self.assertEqual(appels[0][0][3:], ["--file", str(Path("data/datasets/x.csv").resolve())], "chemin absolu : le pipeline part de data/etl")
+
+    def test_le_nettoyage_exige_les_deux_pilotes(self):
+        for absent in ("pymongo", "psycopg"):
+            with self.subTest(absent=absent), mock.patch("builtins.print") as imprime:
+                code, appels = self.lancer(["etl-nettoyer-paris", "--day", "2026-10-17"], absent=absent)
+            self.assertEqual((code, appels), (2, []))
+            self.assertIn(absent, " ".join(str(c.args[0]) for c in imprime.call_args_list))
+
+    def test_les_pipelines_sont_lances_en_utf8(self):
+        _, appels = self.lancer(["etl-paris", "--day", "2026-10-18"])
+        self.assertEqual(appels[0][1]["env"]["PYTHONUTF8"], "1")
 
     def test_start_et_end_sont_transmis(self):
         _, appels = self.lancer(["etl-paris", "--start", "2026-10-18T10:00:00Z", "--end", "2026-10-18T11:00:00Z"])

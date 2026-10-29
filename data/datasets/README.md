@@ -130,7 +130,7 @@ Les stations de taux d'occupation seul n'ont pas de débit (notice, section 1.2)
 | `etat_trafic` est une fonction de `k` | Les états viennent des seuils de la section 3.3 : ce n'est **pas** une vérité terrain indépendante. L'utiliser comme réponse d'un modèle apprenant à partir de `k` mesurerait la règle des seuils (ADR-027, section 3.3) |
 | Une heure par ligne | Le simulateur produit une mesure toutes les 10 secondes : le jeu ne remplace pas les runs simulés |
 | Réseau réel de Paris | Il ne se mélange pas au réseau fictif du simulateur (`INT_01`, `ROAD_001`) : chaque ligne porte sa provenance |
-| Taux d'absence élevés | Le pipeline ETL doit les rejeter ou les marquer, avec un taux de rejet journalisé (DAT-04) |
+| Taux d'absence élevés | Le pipeline ETL doit les rejeter ou les marquer, avec un taux de rejet journalisé (DAT-04) : fait, [nettoyage du comptage de Paris](../../docs/03-donnees/nettoyage-paris.md) (`dev.py etl-nettoyer-paris`) ; 40,94 % de refus le 17/10/2026, presque tous par absence de débit |
 
 ### 3.7 Correspondance avec le contrat `iot-measurement`
 
