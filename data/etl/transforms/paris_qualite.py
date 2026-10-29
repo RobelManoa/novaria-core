@@ -39,6 +39,7 @@ ETATS_TRAFIC = ("Inconnu", "Fluide", "Pré-saturé", "Saturé", "Bloqué")
 ETATS_BARRE = ("Inconnu", "Ouvert", "Barré", "Invalide")
 # Seuils officiels du taux d'occupation k (en %) : < 15 fluide, 15 à 30 pré-saturé, 30 à 50 saturé, 50 et plus bloqué.
 SEUILS_OCCUPATION = (15.0, 30.0, 50.0)
+FAMILLE_COHERENCE = "cohérence"
 OBLIGATOIRES = ("iu_ac", "t_1h", "q")
 
 # --- Bornes (valeurs de départ, à ajuster après mesure sur plusieurs jours) ---------------------------------------
@@ -48,9 +49,9 @@ CALENDRIER_DEBUT = datetime(2012, 1, 1, tzinfo=UTC)  # calendrier dwh.dim_date :
 CALENDRIER_FIN = datetime(2031, 1, 1, tzinfo=UTC)  # exclue
 TOLERANCE_FUTUR = timedelta(seconds=5)  # même tolérance que DQ-10
 
-ENTIER = re.compile(r"[0-9]{1,9}", re.ASCII)
-NOMBRE = re.compile(r"[+-]?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?", re.ASCII)
-DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", re.ASCII)
+ENTIER = re.compile(r"\d{1,9}", re.ASCII)
+NOMBRE = re.compile(r"[+-]?\d+(\.\d+)?([eE][+-]?\d+)?", re.ASCII)
+DATE = re.compile(r"\d{4}-\d{2}-\d{2}", re.ASCII)
 
 
 @dataclass(frozen=True)
@@ -142,21 +143,25 @@ def regle_valeur_manquante(brut: Mapping[str, str], maintenant: datetime) -> Vio
     return Violation(MISSING_REQUIRED, motif)
 
 
+def _est_un_etat(liste: tuple[str, ...]) -> Callable[[str], bool]:
+    return lambda texte: _etat(texte, liste) is not None
+
+
+# (champ, forme valide, message) : un champ vide n'est pas jugé ici, c'est la règle des valeurs manquantes.
+CONTROLES_DE_TYPE: tuple[tuple[str, Callable[[str], bool], str], ...] = (
+    ("iu_ac", lambda texte: ENTIER.fullmatch(texte) is not None, "iu_ac n'est pas un entier"),
+    ("t_1h", lambda texte: _instant(texte) is not None, "t_1h n'est pas un horodatage ISO 8601 avec fuseau"),
+    ("q", lambda texte: _nombre(texte) is not None, "q n'est pas un nombre fini"),
+    ("k", lambda texte: _nombre(texte) is not None, "k n'est pas un nombre fini"),
+    ("date_debut", lambda texte: _date(texte) is not None, "date_debut n'est pas une date AAAA-MM-JJ"),
+    ("date_fin", lambda texte: _date(texte) is not None, "date_fin n'est pas une date AAAA-MM-JJ"),
+    ("etat_trafic", _est_un_etat(ETATS_TRAFIC), f"etat_trafic hors de la liste ({', '.join(ETATS_TRAFIC)}, ou leur rang)"),
+    ("etat_barre", _est_un_etat(ETATS_BARRE), f"etat_barre hors de la liste ({', '.join(ETATS_BARRE)}, ou leur rang)"),
+)
+
+
 def regle_type(brut: Mapping[str, str], maintenant: datetime) -> Violation | None:
-    problemes = []
-    if _texte(brut, "iu_ac") and not ENTIER.fullmatch(_texte(brut, "iu_ac")):
-        problemes.append("iu_ac n'est pas un entier")
-    if _texte(brut, "t_1h") and _instant(_texte(brut, "t_1h")) is None:
-        problemes.append("t_1h n'est pas un horodatage ISO 8601 avec fuseau")
-    for champ in ("q", "k"):
-        if _texte(brut, champ) and _nombre(_texte(brut, champ)) is None:
-            problemes.append(f"{champ} n'est pas un nombre fini")
-    for champ in ("date_debut", "date_fin"):
-        if _texte(brut, champ) and _date(_texte(brut, champ)) is None:
-            problemes.append(f"{champ} n'est pas une date AAAA-MM-JJ")
-    for champ, liste in (("etat_trafic", ETATS_TRAFIC), ("etat_barre", ETATS_BARRE)):
-        if _texte(brut, champ) and _etat(_texte(brut, champ), liste) is None:
-            problemes.append(f"{champ} hors de la liste ({', '.join(liste)}, ou leur rang)")
+    problemes = [message for champ, valide, message in CONTROLES_DE_TYPE if _texte(brut, champ) and not valide(_texte(brut, champ))]
     return Violation(TYPE_INVALID, "; ".join(problemes)) if problemes else None
 
 
@@ -218,9 +223,9 @@ REGLES = (
     Regle(MISSING_REQUIRED, "valeur manquante", "iu_ac, t_1h ou q vide : la ligne ne peut pas devenir un fait horaire", regle_valeur_manquante),
     Regle(TYPE_INVALID, "type", "iu_ac entier, t_1h horodatage avec fuseau, q et k nombres finis, dates AAAA-MM-JJ, états dans leur liste", regle_type),
     Regle(OUT_OF_RANGE, "borne", f"q de 0 à {DEBIT_MAX:g}, k de 0 à {OCCUPATION_MAX:g}, t_1h dans le calendrier 2012 à 2030", regle_borne),
-    Regle(NOT_ON_THE_HOUR, "cohérence", "t_1h est une heure pleine", regle_heure_pleine),
-    Regle(FUTURE_TIMESTAMP, "cohérence", "t_1h n'est pas postérieur à l'horloge (tolérance 5 s)", regle_futur),
-    Regle(STATE_MISMATCH, "cohérence", "etat_trafic s'accorde avec k selon les seuils officiels", regle_etat),
+    Regle(NOT_ON_THE_HOUR, FAMILLE_COHERENCE, "t_1h est une heure pleine", regle_heure_pleine),
+    Regle(FUTURE_TIMESTAMP, FAMILLE_COHERENCE, "t_1h n'est pas postérieur à l'horloge (tolérance 5 s)", regle_futur),
+    Regle(STATE_MISMATCH, FAMILLE_COHERENCE, "etat_trafic s'accorde avec k selon les seuils officiels", regle_etat),
     Regle(DUPLICATE_KEY, "doublon", "un seul enregistrement par (iu_ac, t_1h) dans un fichier : le premier est gardé", None),
 )
 REGLES_DE_LIGNE = tuple(regle for regle in REGLES if regle.verifier is not None)

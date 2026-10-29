@@ -92,6 +92,22 @@ jobs:
       - uses: actions/upload-artifact@v7
         with: { name: coverage-frontend, path: frontend/coverage/lcov.info }
 
+  # Pipelines d'ingestion et de nettoyage (data/etl) : tests sans réseau ni base, couverture remise à SonarQube
+  # (data/etl/coverage.xml). Job d'appui : seul « sonarqube » l'attend, aucun contrôle obligatoire ne change de nom.
+  etl:
+    if: ${{ github.event_name != 'schedule' }}
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: data/etl } }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: "data/etl/requirements*.txt" }
+      - run: pip install -r requirements-dev.txt
+      - run: coverage run --source=pipelines,transforms -m unittest discover -s tests
+      - run: coverage xml -o coverage.xml
+      - uses: actions/upload-artifact@v7
+        with: { name: coverage-etl, path: data/etl/coverage.xml }
+
   gitleaks:
     if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
@@ -160,7 +176,7 @@ jobs:
 
   sonarqube:
     if: ${{ github.event_name != 'schedule' }}
-    needs: [backend, frontend]
+    needs: [backend, frontend, etl]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -175,6 +191,8 @@ jobs:
           done
       - uses: actions/download-artifact@v8
         with: { name: coverage-frontend, path: frontend/coverage }
+      - uses: actions/download-artifact@v8
+        with: { name: coverage-etl, path: data/etl }
       - uses: SonarSource/sonarqube-scan-action@v8
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

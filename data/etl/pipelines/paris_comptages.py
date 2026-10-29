@@ -175,6 +175,6 @@ def date_de_modification_source(*, ouvrir: Ouvrir = ouvrir_par_defaut) -> dateti
         if octets[:2] == b"\x1f\x8b":  # le portail compresse ses métadonnées même quand on ne le demande pas
             octets = gzip.decompress(octets)
         modifiee = datetime.fromisoformat(json.loads(octets)["metas"]["default"]["data_processed"])
-    except (urllib.error.URLError, TimeoutError, ConnectionError, OSError, EOFError, ValueError, KeyError, TypeError):
+    except (OSError, EOFError, ValueError, KeyError, TypeError):  # OSError couvre URLError, le délai dépassé et la coupure réseau
         return None
     return modifiee.astimezone(UTC) if modifiee.tzinfo else None

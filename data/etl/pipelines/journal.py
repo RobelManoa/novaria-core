@@ -48,8 +48,7 @@ class JournalMongo:
         return cls(base[COLLECTION])
 
     def enregistrer(self, entree: dict, *, maintenant: datetime, run_id: str) -> Passage:
-        from pymongo import ReturnDocument
-        from pymongo.errors import DuplicateKeyError, OperationFailure, PyMongoError
+        from pymongo.errors import DuplicateKeyError
 
         document = {cle: valeur for cle, valeur in entree.items() if cle != "load_key"}
         mise_a_jour = {
@@ -59,21 +58,34 @@ class JournalMongo:
         }
         for essai in (1, 2):
             try:
-                resultat = self._collection.find_one_and_update(
-                    {"load_key": entree["load_key"]}, mise_a_jour, upsert=True, return_document=ReturnDocument.AFTER
-                )
+                resultat = self._ecrire(entree["load_key"], mise_a_jour)
                 break
             except DuplicateKeyError:
                 # Deux exécutions simultanées sur le même fichier : la seconde retrouve le document de la première.
                 if essai == 2:
                     raise ErreurJournal("Clé load_key déjà prise par une autre exécution : relancer.") from None
-            except OperationFailure as erreur:
-                if erreur.code == CODE_NON_AUTORISE:
-                    raise ErreurJournal(MESSAGE_DROITS) from erreur
-                if erreur.code == CODE_VALIDATION:
-                    raise ErreurJournal("Le validateur de ingestion_runs refuse l'entrée : " + str(erreur)) from erreur
-                raise ErreurJournal(f"MongoDB a refusé l'écriture (code {erreur.code}).") from erreur
-            except PyMongoError as erreur:
-                raise ErreurJournal(f"MongoDB injoignable ({type(erreur).__name__}) : lancer db-up.") from erreur
         executions = int(resultat["executions"])
         return Passage(nouveau=executions == 1, executions=executions)
+
+    def _ecrire(self, cle: str, mise_a_jour: dict) -> dict:
+        """Une écriture atomique (créer ou incrémenter). Les erreurs du pilote deviennent des ErreurJournal explicites ;
+        seule la collision de clé (DuplicateKeyError) est relayée, pour que l'appelant retente."""
+        from pymongo import ReturnDocument
+        from pymongo.errors import DuplicateKeyError, OperationFailure, PyMongoError
+
+        try:
+            return self._collection.find_one_and_update({"load_key": cle}, mise_a_jour, upsert=True, return_document=ReturnDocument.AFTER)
+        except DuplicateKeyError:
+            raise
+        except OperationFailure as erreur:
+            raise ErreurJournal(message_operation(erreur)) from erreur
+        except PyMongoError as erreur:
+            raise ErreurJournal(f"MongoDB injoignable ({type(erreur).__name__}) : lancer db-up.") from erreur
+
+
+def message_operation(erreur) -> str:
+    if erreur.code == CODE_NON_AUTORISE:
+        return MESSAGE_DROITS
+    if erreur.code == CODE_VALIDATION:
+        return "Le validateur de ingestion_runs refuse l'entrée : " + str(erreur)
+    return f"MongoDB a refusé l'écriture (code {erreur.code})."

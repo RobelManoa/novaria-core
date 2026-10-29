@@ -236,6 +236,10 @@ class EtlTests(unittest.TestCase):
         _, appels = self.lancer(["etl-nettoyer-paris", "--file", "data/datasets/x.csv"])
         self.assertEqual(appels[0][0][3:], ["--file", str(Path("data/datasets/x.csv").resolve())], "chemin absolu : le pipeline part de data/etl")
 
+    def test_un_nom_de_fichier_seul_reste_un_nom(self):
+        _, appels = self.lancer(["etl-nettoyer-paris", "--file", "20261017T000000Z_20261018T000000Z_b10505cca6f6.csv"])
+        self.assertEqual(appels[0][0][3:], ["--file", "20261017T000000Z_20261018T000000Z_b10505cca6f6.csv"])
+
     def test_le_nettoyage_exige_les_deux_pilotes(self):
         for absent in ("pymongo", "psycopg"):
             with self.subTest(absent=absent), mock.patch("builtins.print") as imprime:

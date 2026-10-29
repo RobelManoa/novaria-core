@@ -65,7 +65,9 @@ def lire_lignes(chemin: Path) -> Iterator[tuple[int, dict[str, str]]]:
 
 def ligne_csv(ligne: qualite.LignePropre) -> list[str]:
     def texte(valeur) -> str:
-        return "" if valeur is None else repr(valeur) if isinstance(valeur, float) else str(valeur)
+        if valeur is None:
+            return ""
+        return repr(valeur) if isinstance(valeur, float) else str(valeur)
 
     return [
         ligne.road_segment_id, ligne.libelle, ligne.heure.strftime("%Y-%m-%dT%H:%M:%SZ"), texte(ligne.vehicle_count),
@@ -160,6 +162,23 @@ def retrouver_brut(donnees: Path, jour: date) -> Path:
     return trouves[0]
 
 
+def fichier_brut_nomme(donnees: Path, texte: str) -> Path:
+    """Un fichier brut du dossier des données, désigné par son nom.
+
+    Seul le nom (`os.path.basename`) sert à construire le chemin, et il doit être un nom de fichier brut de DAT-03 : un
+    chemin donné en argument ne peut pas faire ouvrir un autre fichier (`../`, chemin absolu, lien vers ailleurs). Si la
+    valeur contient un dossier, ce dossier doit être celui des fichiers bruts.
+    """
+    nom = os.path.basename(texte)
+    if NOM_BRUT.fullmatch(nom) is None:
+        raise ErreurNettoyage(f"Nom inattendu : {nom!r} (attendu : <début>_<fin>_<12 caractères du SHA-256>.csv, voir DAT-03).")
+    dossier = donnees / paris.DATASET_ID
+    dossier_donne = os.path.dirname(texte)
+    if dossier_donne and Path(dossier_donne).resolve() != dossier.resolve():
+        raise ErreurNettoyage(f"Fichier hors du dossier des fichiers bruts ({dossier}) : {texte!r}.")
+    return dossier / nom
+
+
 def lire_jour(texte: str) -> date:
     try:
         return date.fromisoformat(texte)
@@ -171,8 +190,7 @@ def construire_parseur() -> argparse.ArgumentParser:
     parseur = argparse.ArgumentParser(prog="pipelines.nettoyer_paris", description=__doc__.splitlines()[0])
     source = parseur.add_mutually_exclusive_group(required=True)
     source.add_argument("--day", type=lire_jour, metavar="AAAA-MM-JJ", help="le fichier brut du jour entier ingéré par DAT-03")
-    source.add_argument("--file", type=Path, help="un fichier brut précis")
-    parseur.add_argument("--data-dir", type=Path, default=DONNEES, help=f"dossier des fichiers ({DONNEES})")
+    source.add_argument("--file", help=f"un fichier brut précis du dossier {DONNEES / paris.DATASET_ID} (son nom suffit)")
     parseur.add_argument("--mongo-url", default=os.environ.get("MONGO_URL"), help="adresse MongoDB du bilan (sinon variable MONGO_URL)")
     parseur.add_argument("--postgres-url", default=os.environ.get("POSTGRES_URL"), help="adresse PostgreSQL des rejets (sinon variable POSTGRES_URL)")
     parseur.add_argument("--alert-threshold", type=float, default=SEUIL_ALERTE, metavar="TAUX",
@@ -180,13 +198,15 @@ def construire_parseur() -> argparse.ArgumentParser:
     return parseur
 
 
-def principal(argv: Sequence[str] | None = None, *, rejets_pg: SortieRejets | None = None, bilan_mongo: SortieBilan | None = None) -> int:
+def principal(argv: Sequence[str] | None = None, *, donnees: Path = DONNEES, rejets_pg: SortieRejets | None = None,
+              bilan_mongo: SortieBilan | None = None) -> int:
+    """`donnees` (le dossier des fichiers) n'est pas une option de la ligne de commande : seuls les tests le changent."""
     arguments = construire_parseur().parse_args(argv)
     if not 0 <= arguments.alert_threshold <= 1:
         print("ERREUR : --alert-threshold doit être entre 0 et 1.", file=sys.stderr)
         return 1
     try:
-        brut = arguments.file or retrouver_brut(arguments.data_dir, arguments.day)
+        brut = fichier_brut_nomme(donnees, arguments.file) if arguments.file else retrouver_brut(donnees, arguments.day)
         if rejets_pg is None and arguments.postgres_url:
             rejets_pg = RejetsPostgres.depuis_url(arguments.postgres_url)
         if bilan_mongo is None and arguments.mongo_url:

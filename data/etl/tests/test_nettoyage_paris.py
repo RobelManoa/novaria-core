@@ -312,7 +312,7 @@ class LigneDeCommande(AvecDossier):
         sortie, erreur = io.StringIO(), io.StringIO()
         environnement = {"MONGO_URL": "", "POSTGRES_URL": ""}
         with unittest.mock.patch.dict("os.environ", environnement), redirect_stdout(sortie), redirect_stderr(erreur):
-            code = np_.principal(list(arguments), rejets_pg=pg, bilan_mongo=mongo)
+            code = np_.principal(list(arguments), donnees=self.racine, rejets_pg=pg, bilan_mongo=mongo)
         return code, sortie.getvalue(), erreur.getvalue()
 
     def test_le_resume_donne_les_volumes_les_regles_et_ou_le_taux_est_journalise(self):
@@ -337,14 +337,44 @@ class LigneDeCommande(AvecDossier):
 
     def test_le_jour_est_retrouve_dans_le_dossier_des_donnees(self):
         brut, _ = ranger_brut(self.racine)
-        code, sortie, _ = self.lancer("--day", "2026-10-17", "--data-dir", str(self.racine))
+        code, sortie, _ = self.lancer("--day", "2026-10-17")
         self.assertEqual(code, 0)
         self.assertIn(brut.name, sortie)
+
+    def test_le_nom_du_fichier_suffit(self):
+        brut, _ = ranger_brut(self.racine)
+        code, sortie, _ = self.lancer("--file", brut.name)
+        self.assertEqual(code, 0)
+        self.assertIn(str(brut), sortie)
+
+    def test_un_chemin_ne_peut_pas_faire_ouvrir_un_autre_fichier(self):
+        brut, _ = ranger_brut(self.racine)
+        ailleurs = self.racine / "ailleurs"
+        ailleurs.mkdir()
+        copie = ailleurs / brut.name
+        copie.write_bytes(brut.read_bytes())
+        for valeur, fragment in (
+            (str(copie), "hors du dossier des fichiers bruts"),  # un vrai fichier brut, mais d'un autre dossier
+            (str(self.racine / ".." / ".." / "etc" / "passwd"), "Nom inattendu"),
+            ("../../../etc/passwd", "Nom inattendu"),
+            ("..\\..\\secret.csv", "Nom inattendu"),
+            (str(self.racine / "paris-comptages-routiers" / ".." / ".." / brut.name), "hors du dossier"),
+        ):
+            with self.subTest(valeur=valeur):
+                code, _, erreur = self.lancer("--file", valeur)
+                self.assertEqual(code, 1)
+                self.assertIn(fragment, erreur)
+        self.assertFalse((ailleurs / "propre").exists(), "rien n'est écrit à côté d'un fichier hors du dossier")
+
+    def test_le_dossier_des_donnees_n_est_pas_une_option_de_la_ligne_de_commande(self):
+        brut, _ = ranger_brut(self.racine)
+        with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
+            np_.principal(["--file", brut.name, "--data-dir", str(self.racine)])
 
     def test_les_erreurs_donnent_un_message_et_le_code_1(self):
         brut, _ = ranger_brut(self.racine)
         for arguments, fragment in (
-            (("--day", "2026-10-01", "--data-dir", str(self.racine)), "Aucun fichier brut"),
+            (("--day", "2026-10-01"), "Aucun fichier brut"),
             (("--file", str(brut), "--alert-threshold", "2"), "entre 0 et 1"),
             (("--file", str(self.racine / "x.csv")), "Nom inattendu"),
         ):

@@ -36,9 +36,11 @@ Prérequis : bases démarrées (`db-up`), l'ingestion du jour faite (`etl-paris 
 | Action | Linux (bash) | Windows (PowerShell) |
 |---|---|---|
 | Nettoyer le fichier d'un jour entier | `python3 scripts/dev/dev.py etl-nettoyer-paris --day 2026-10-17` ou `make etl-nettoyer-paris DAY=2026-10-17` | `py -3 scripts/dev/dev.py etl-nettoyer-paris --day 2026-10-17` |
-| Nettoyer un fichier précis | `python3 scripts/dev/dev.py etl-nettoyer-paris --file data/datasets/paris-comptages-routiers/<fichier>.csv` | `py -3 scripts/dev/dev.py etl-nettoyer-paris --file data/datasets/paris-comptages-routiers/<fichier>.csv` (les barres obliques passent aussi sous Windows) |
+| Nettoyer un fichier précis | `python3 scripts/dev/dev.py etl-nettoyer-paris --file <fichier>.csv` | `py -3 scripts/dev/dev.py etl-nettoyer-paris --file <fichier>.csv` |
 | Changer le seuil d'alerte | ajouter `--alert-threshold 0.6` | ajouter `--alert-threshold 0.6` |
 | Tests (sans réseau ni base) | `make test-etl` | `py -3 -m unittest discover -s data/etl/tests` |
+
+`--file` désigne un fichier brut **du dossier `data/datasets/paris-comptages-routiers/`** : son nom suffit, et un chemin n'est accepté que s'il mène à ce dossier. Le nom doit être celui d'un fichier brut de DAT-03 ; un chemin ailleurs, un `../` ou un fichier de nom quelconque est refusé avant toute ouverture. Le dossier des données n'est pas une option de la ligne de commande.
 
 La commande se connecte avec le compte `svc_traitement` (droits : lire et écrire `dwh`, lire et écrire `processing_stats`) ; les adresses passent par l'environnement du processus, jamais par la ligne de commande. Une variable du shell (par exemple un autre port pour un projet Docker jetable) l'emporte sur `.env`, comme avec Docker Compose. Le pipeline n'écrit dans une base que si on lui donne son adresse (`--postgres-url`, `--mongo-url`) : sans adresse il écrit les fichiers, affiche le bilan et le dit.
 
@@ -118,7 +120,7 @@ Le taux réel du 17/10/2026 est de **40,94 %**, presque entièrement structurel 
 
 ## 6. Garanties et tests
 
-100 tests dans `data/etl/tests/` (dont 38 pour l'ingestion DAT-03). Pour DAT-04 :
+103 tests dans `data/etl/tests/` (dont 38 pour l'ingestion DAT-03). Pour DAT-04 :
 
 | Garantie | Test |
 |---|---|
@@ -140,7 +142,7 @@ Le taux réel du 17/10/2026 est de **40,94 %**, presque entièrement structurel 
 
 | Preuve | Résultat |
 |---|---|
-| `python -m unittest discover -s data/etl/tests` | 100 tests OK (4 ignorés sans psycopg) ; ruff sans remarque |
+| `python -m unittest discover -s data/etl/tests` | 103 tests OK (4 ignorés sans psycopg) ; ruff sans remarque ; couverture de 95 % de `pipelines/` et `transforms/` (coverage.py) |
 | 31 défauts introduits volontairement (une règle affaiblie ou retirée, un seuil déplacé, un rejet non écrit, un `upsert` retiré, un mauvais `kind`, la réconciliation désactivée…) | Tous détectés par les tests ; deux mutants d'abord survivants ont conduit à renforcer deux tests |
 | Règles lancées sur **71 472 lignes réelles** (17/10/2026, ingérées par `etl-paris`) | Voir le paragraphe 3 ; bilan juste ; 7 s pour les règles |
 
@@ -161,6 +163,10 @@ dwh.etl_reject : 29259 lignes écrites                                         2
 
 Droits vérifiés : `svc_lecture` ne peut pas écrire dans `dwh.etl_reject` (`permission denied`). Reste à faire : la même preuve sur le poste Linux (Manoa).
 
+### 7.3 Contrôle SonarQube de la pull request
+
+La première pull request a échoué à la porte de qualité (couverture des nouvelles lignes à 0 % : `data/etl` n'avait aucun rapport de couverture ; une vulnérabilité « Path Traversal » sur l'argument `--file` ; 14 défauts de maintenabilité). Corrigé : le job CI `etl` mesure la couverture et la dépose, `--file` ne construit plus le chemin qu'à partir d'un nom de fichier brut dans le dossier des données (tests `test_un_chemin_ne_peut_pas_faire_ouvrir_un_autre_fichier`), et les défauts sont résolus (complexité de deux fonctions réduite, classes de caractères simplifiées, constante pour la famille « cohérence », exceptions redondantes retirées). Le résultat de la nouvelle analyse est visible sur la pull request après le prochain push.
+
 ## 8. Choix à valider et limites
 
 | N° | Sujet | Position actuelle | Autre option |
@@ -171,4 +177,4 @@ Droits vérifiés : `svc_lecture` ne peut pas écrire dans `dwh.etl_reject` (`pe
 | 4 | Fuseau de `t_1h` | Gardé tel quel (`+00:00`). Si le portail veut dire l'heure de Paris, toutes les heures seraient décalées d'une ou deux heures | À vérifier avant DAT-05 |
 | 5 | `payload` complet | 22 Mo de JSON Lines pour 29 259 rejets d'un jour (géométrie comprise), autant dans PostgreSQL | Retirer `geo_point_2d` et `geo_shape` du `payload` (ils sont dans le brut, retrouvable par `source_ref`) |
 
-Limites : les doublons ne se détectent que **dans un fichier** (deux fichiers qui se chevauchent sont départagés par la clé du chargement, DAT-05). Le ratio de vitesse de l'ADR-028 ne se calcule pas sur ce jeu (pas de vitesse). Les règles propres à d'autres jeux (UCI, METR-LA) ne sont pas écrites. Le contrôle obligatoire `backend` de la CI ne parcourt que `services/` : les tests de `data/etl` ne tournent qu'avec `make test` ou `make test-etl`, un job dédié reste à ajouter.
+Limites : les doublons ne se détectent que **dans un fichier** (deux fichiers qui se chevauchent sont départagés par la clé du chargement, DAT-05). Le ratio de vitesse de l'ADR-028 ne se calcule pas sur ce jeu (pas de vitesse). Les règles propres à d'autres jeux (UCI, METR-LA) ne sont pas écrites. Les tests de `data/etl` tournent dans la CI par le job d'appui `etl` (couverture remise à SonarQube) ; le contrôle obligatoire `backend` ne parcourt que `services/`.

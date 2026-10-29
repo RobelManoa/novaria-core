@@ -534,8 +534,10 @@ def cmd_etl_nettoyer_paris(args: argparse.Namespace) -> int:
     env = etl_environment()
     extra = {"MONGO_URL": mongo_url(env, "svc_traitement", "MONGO_PASSWORD_TRAITEMENT"),
              "POSTGRES_URL": postgres_url(env, "svc_traitement", "PG_PASSWORD_TRAITEMENT")}
-    if args.file:
-        args.file = args.file.resolve()  # le pipeline s'exécute depuis data/etl : un chemin relatif au dépôt n'y mènerait nulle part
+    if args.file and args.file.parent != Path("."):
+        # Le pipeline s'exécute depuis data/etl : un chemin relatif au dépôt n'y mènerait nulle part. Un nom seul reste un nom
+        # (le pipeline le cherche dans le dossier des fichiers bruts) ; un chemin doit mener à ce dossier, sinon il est refusé.
+        args.file = args.file.resolve()
     options = window_options(args, ("day", "file", "alert_threshold"))
     return run_etl("pipelines.nettoyer_paris", options, ("pymongo", "psycopg"), extra)
 

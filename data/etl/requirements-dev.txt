@@ -1,0 +1,4 @@
+# Dépendances de test des pipelines (data/etl), utilisées par le job « etl » de la CI :
+#   python -m pip install -r data/etl/requirements-dev.txt
+-r requirements.txt
+coverage==7.17.0
