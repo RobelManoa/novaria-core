@@ -109,7 +109,7 @@ Pour limiter coût et charge d'exploitation, il y a **une instance** de chaque m
 | Propriétaire | PostgreSQL (schéma et compte) | MongoDB (collections et compte) |
 |---|---|---|
 | Collecte | aucun | `raw_events`, `rejects` : lire, insérer (`svc_collecte`) |
-| Traitement | `dwh` : lire, écrire (`svc_traitement`) | `processing_stats` : lire, insérer, modifier ; `rejects` : lire, insérer ; `raw_events` : lire (`svc_traitement`) |
+| Traitement | `dwh` : lire, écrire (`svc_traitement`) | `processing_stats`, `ingestion_runs` (journal des pipelines ETL, DAT-03) : lire, insérer, modifier ; `rejects` : lire, insérer ; `raw_events` : lire (`svc_traitement`) |
 | Alerte usager | `alertes` : lire, écrire (`svc_alerte`) | aucune |
 | Réponse extérieure | aucun | `audit_logs` : lire, insérer (`svc_reponse`) |
 | API métier (hors des quatre services) | `app` (`svc_app`) | `audit_logs` : lire, insérer ; `usage_stats` : lire, insérer, modifier (`svc_backend`) |

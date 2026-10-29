@@ -28,7 +28,7 @@ except ImportError:  # pragma: no cover - dépend du poste
 RACINE = Path(__file__).resolve().parents[2]
 CI = RACINE / ".github" / "workflows" / "ci.yml"
 OBLIGATOIRES = {"backend", "frontend", "gitleaks", "snyk", "docker", "sonarqube"}
-JOBS_D_APPUI = {"services", "service"}  # découverte et matrice : ce ne sont pas des contrôles obligatoires
+JOBS_D_APPUI = {"services", "service", "etl"}  # découverte, matrice et tests de data/etl : ce ne sont pas des contrôles obligatoires
 BASH = shutil.which("bash")
 JQ = shutil.which("jq")
 
@@ -228,8 +228,25 @@ class SonarRecoitLaCouvertureDeTousLesServices(unittest.TestCase):
     def setUpClass(cls):
         cls.doc = charger()
 
-    def test_sonarqube_attend_backend_et_frontend(self):
-        self.assertEqual(sorted(self.doc["jobs"]["sonarqube"]["needs"]), ["backend", "frontend"])
+    def test_sonarqube_attend_backend_frontend_et_etl(self):
+        self.assertEqual(sorted(self.doc["jobs"]["sonarqube"]["needs"]), ["backend", "etl", "frontend"])
+
+    def test_le_job_etl_mesure_la_couverture_de_data_etl_et_la_depose(self):
+        job = self.doc["jobs"]["etl"]
+        self.assertEqual(job["defaults"]["run"]["working-directory"], "data/etl")
+        commandes = [str(e.get("run", "")) for e in job["steps"]]
+        self.assertTrue(any("coverage run --source=pipelines,transforms" in c and "unittest discover -s tests" in c for c in commandes))
+        self.assertTrue(any("coverage xml -o coverage.xml" in c for c in commandes))
+        depot = next(e["with"] for e in job["steps"] if str(e.get("uses", "")).startswith("actions/upload-artifact"))
+        self.assertEqual((depot["name"], depot["path"]), ("coverage-etl", "data/etl/coverage.xml"))
+
+    def test_sonarqube_remet_le_rapport_de_data_etl_la_ou_sonar_le_cherche(self):
+        telechargement = next(e["with"] for e in self.doc["jobs"]["sonarqube"]["steps"]
+                              if str(e.get("uses", "")).startswith("actions/download-artifact") and e["with"].get("name") == "coverage-etl")
+        self.assertEqual(telechargement["path"], "data/etl")
+        sonar = (RACINE / "sonar-project.properties").read_text(encoding="utf-8")
+        self.assertIn("sonar.python.coverage.reportPaths=services/*/coverage.xml,data/etl/coverage.xml", sonar)
+        self.assertRegex(sonar, r"(?m)^sonar\.sources=.*,data,")
 
     def test_il_telecharge_les_rapports_de_tous_les_services(self):
         telechargements = [e["with"] for e in self.doc["jobs"]["sonarqube"]["steps"]

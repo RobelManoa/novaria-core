@@ -86,8 +86,8 @@ Sigles employés ci-dessous, développés une fois : p95 (95e centile : 95 % des
 | ID | Exigence et contexte | Critère mesurable | Priorité | Preuve attendue | État | Issues |
 |---|---|---|---|---|---|---|
 | EXG-DON-01 | **Indicateurs décisionnels définis.** Un indicateur sans définition écrite n'est pas défendable ([ADR-014](../01-architecture/adr/ADR-014-architecture-decisionnelle.md)) | Chaque indicateur a une définition, une source, un calcul et une limite connue ; il se recalcule à partir de sa source annoncée ; sa valeur au tableau de bord égale celle de l'API | Doit | `data/dwh/sql/kpi/` et `docs/03-donnees/kpi.md` | À faire | DAT-07 |
-| EXG-DON-02 | **Ingestion idempotente** | Le script d'ingestion exécuté deux fois ne crée aucun doublon | Doit | `data/etl/pipelines/` et test | À faire | DAT-03 |
-| EXG-DON-03 | **Qualité et rejets tracés** | Chaque règle de qualité a un test ; chaque ligne refusée est écrite dans `dwh.etl_reject` avec sa règle et son motif ; le taux de rejet est journalisé | Doit | `data/etl/transforms/` | Partiel : table `etl_reject` créée, règles DQ-01 à DQ-10 décrites | DAT-04 |
+| EXG-DON-02 | **Ingestion idempotente** | Le script d'ingestion exécuté deux fois ne crée aucun doublon | Doit | `data/etl/pipelines/` et test | Prouvé : 38 tests, 8 défauts introduits volontairement détectés ; seconde exécution sur le vrai portail et contre un vrai MongoDB sous Docker : un fichier, un document, `executions` = 2 (29/10/2026, poste Windows ; poste Linux à rejouer, [ingestion](../03-donnees/ingestion-paris.md) section 5) | DAT-03 |
+| EXG-DON-03 | **Qualité et rejets tracés** | Chaque règle de qualité a un test ; chaque ligne refusée est écrite dans `dwh.etl_reject` avec sa règle et son motif ; le taux de rejet est journalisé | Doit | `data/etl/transforms/` | Prouvé : 7 règles, chacune avec son tableau de cas (31 défauts introduits volontairement détectés) ; 71 472 lignes réelles nettoyées sous Docker, 29 259 refus écrits avec règle et motif dans `dwh.etl_reject`, taux de rejet de 40,94 % journalisé dans MongoDB, seconde exécution sans doublon (29/10/2026, poste Windows ; poste Linux à rejouer, [nettoyage](../03-donnees/nettoyage-paris.md)) | DAT-04 |
 | EXG-DON-04 | **Dictionnaire de données complet.** Il fait foi pour les bases, les événements et les modèles | Chaque table, colonne, collection, champ et index créés par les scripts figure au dictionnaire ; le test échoue sinon | Doit | `scripts/dev/test_dictionnaire.py` | Prouvé : 11 tests, 4 défauts introduits volontairement détectés (27/10/2026) | DAT-02, DAT-10 |
 | EXG-DON-05 | **Schéma métier migrable.** Le schéma `app` (utilisateurs, rôles) appartient à l'API métier ([ADR-024](../01-architecture/adr/ADR-024-bases-de-donnees-locales.md)) | `alembic upgrade head` crée le schéma sur une base vide ; les colonnes créées sont ajoutées au dictionnaire | Doit | `services/traitement/migrations/` | Partiel : schéma `app` créé vide à l'initialisation ; aucune révision Alembic | BE-02 |
 
@@ -132,6 +132,6 @@ Ces chiffres sont contrôlés par `scripts/dev/test_specifications.py` : il éch
 |---|---|
 | Exigences | 53 |
 | Doit / Devrait / Pourrait | 38 / 14 / 1 |
-| Prouvé / Partiel / À faire | 1 / 23 / 29 |
+| Prouvé / Partiel / À faire | 3 / 22 / 28 |
 
 Lecture : la plupart des exigences sont « Doit » parce qu'elles reprennent les critères d'acceptation de tâches P0 du backlog ; ce qui se discute, ce sont les 14 « Devrait » et le « Pourrait », à abandonner en premier si le planning glisse. Le socle de données (bases, contrats d'événements, contrat d'API) est avancé ; **aucun des quatre services métier ni le simulateur n'existe encore**. C'est le gros du travail des jalons M2 et M3.

@@ -36,7 +36,7 @@ CODE_COMMUN = [
     "tests/contract/conftest.py", "tests/contract/test_event_models.py", "tests/contract/test_openapi_contract.py",
 ]
 JOBS_OBLIGATOIRES = {"backend", "frontend", "gitleaks", "snyk", "docker", "sonarqube"}
-JOBS_D_APPUI = {"services", "service"}  # découverte des services et matrice (MS-05, voir test_ci.py)
+JOBS_D_APPUI = {"services", "service", "etl"}  # découverte des services, matrice (MS-05) et tests de data/etl, voir test_ci.py
 
 
 def lire(chemin: str) -> str:

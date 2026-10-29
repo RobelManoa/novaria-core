@@ -390,17 +390,33 @@ Le taux de rejet, la complétude moyenne et le nombre de mesures `SUSPECT` par r
 
 ### 8.1 Table `dwh.etl_reject`
 
-Une ligne par ligne refusée lors d'un chargement par lots (DQ-09). Le taux de rejet d'un chargement se calcule ici. Aucun code n'écrit encore dans cette table : le contenu exact de `dataset`, `source_ref` et `rule` sera fixé avec l'ETL (DAT-04) ; les exemples ci-dessous sont une proposition.
+Une ligne par ligne refusée lors d'un chargement par lots (DQ-09). Écrite par le nettoyage de `data/etl` avec le compte `svc_traitement` ([nettoyage du comptage de Paris](nettoyage-paris.md)). Un fichier nettoyé de nouveau **remplace** ses rejets (suppression puis insertion dans une transaction) : rejouer ne les duplique pas. Le taux de rejet d'un chargement se calcule ici (`count(*)` du fichier) et se retrouve dans MongoDB `processing_stats` (section 10.5).
 
 | Colonne | Type | Règle | Sens |
 |---|---|---|---|
 | `reject_id` | entier long | clé primaire, générée | Identifiant du rejet |
 | `rejected_at` | date et heure | défaut maintenant, UTC | Moment du refus |
-| `dataset` | texte | obligatoire | Jeu chargé (identifiant du jeu ou du run) |
-| `source_ref` | texte | facultatif | Où retrouver la ligne dans la source (fichier, numéro de ligne) |
-| `rule` | texte | obligatoire | Règle de qualité ou contrainte violée (par exemple `DQ-09`, nom de la contrainte) |
-| `reason` | texte | obligatoire | Motif lisible |
-| `payload` | jsonb | facultatif | Ligne d'origine, pour la corriger et la rejouer |
+| `dataset` | texte | obligatoire | Identifiant du jeu (`paris-comptages-routiers`) |
+| `source_ref` | texte | facultatif, toujours renseigné par le nettoyage | `<nom du fichier brut>#<rang de la ligne de données>` ; le rang 1 est la première ligne après l'en-tête. Retrouve la ligne dans le fichier rangé par DAT-03 |
+| `rule` | texte | obligatoire | Code de la règle violée : l'un des sept codes de la section 8.2 |
+| `reason` | texte | obligatoire | Motif lisible, avec les valeurs en cause (par exemple `q = -1 hors de 0 à 15000 véhicules par heure`) |
+| `payload` | jsonb | facultatif, toujours renseigné par le nettoyage | La ligne d'origine, colonne par colonne, valeurs textuelles telles que reçues |
+
+### 8.2 Règles de qualité de l'ETL (DAT-04)
+
+Sept règles pour le comptage routier de Paris, évaluées dans cet ordre ; une ligne est refusée pour la **première** règle violée. Détail, seuils, justification et chiffres observés : [nettoyage du comptage de Paris](nettoyage-paris.md).
+
+| Code | Famille (ADR-013) | Règle | Sort |
+|---|---|---|---|
+| `MISSING_REQUIRED` | valeur manquante | `iu_ac`, `t_1h` ou `q` vide | Rejet |
+| `TYPE_INVALID` | type | `iu_ac` entier ; `t_1h` horodatage ISO 8601 avec fuseau ; `q` et `k` nombres finis ; `date_debut` et `date_fin` au format AAAA-MM-JJ ; `etat_trafic` et `etat_barre` dans leur liste (ou leur rang) | Rejet |
+| `OUT_OF_RANGE` | borne | `q` de 0 à 15 000 véhicules par heure ; `k` de 0 à 100 % ; `t_1h` de 2012 à 2030 (calendrier de `dwh.dim_date`) | Rejet |
+| `NOT_ON_THE_HOUR` | cohérence | `t_1h` est une heure pleine en UTC (pas de temps : 1 h) | Rejet |
+| `FUTURE_TIMESTAMP` | cohérence | `t_1h` n'est pas postérieur à l'horloge (tolérance de 5 s, comme DQ-10) | Rejet |
+| `STATE_MISMATCH` | cohérence | `etat_trafic` s'accorde avec `k` selon les seuils officiels (moins de 15 %, 15 à 30, 30 à 50, 50 et plus) ; `Inconnu` si et seulement si `k` est vide | Rejet |
+| `DUPLICATE_KEY` | doublon | un seul enregistrement par (`iu_ac`, `t_1h`) dans un fichier | Rejet de la seconde ligne ; la première est gardée |
+
+Une ligne retenue dont `k` est vide porte le drapeau `MISSING_OCCUPANCY` : ce n'est pas un rejet (DQ-06), mais le décompte est publié avec le taux de rejet.
 
 ## 9. Jeu d'entraînement (IA-08)
 
@@ -425,7 +441,7 @@ Un jeu = un ensemble de runs, enregistré en Parquet sous `data/datasets/`, acco
 
 ## 10. Collections MongoDB
 
-Six collections, créées avec un validateur strict par `db/mongo/init/01-collections-et-utilisateurs.js` : un document mal formé est refusé à l'écriture (erreur de validation, code 121). Les champs inconnus restent permis, pour accepter les ajouts compatibles du contrat d'événement. Les droits par utilisateur de service sont dans [bases locales](base-de-donnees-locale.md).
+Sept collections, créées avec un validateur strict par `db/mongo/init/01-collections-et-utilisateurs.js` : un document mal formé est refusé à l'écriture (erreur de validation, code 121). Les champs inconnus restent permis, pour accepter les ajouts compatibles du contrat d'événement. Les droits par utilisateur de service sont dans [bases locales](base-de-donnees-locale.md).
 
 | Collection | Contenu | Conservation |
 |---|---|---|
@@ -434,6 +450,7 @@ Six collections, créées avec un validateur strict par `db/mongo/init/01-collec
 | `audit_logs` | Qui a fait quoi, quand, avec quel résultat | illimitée en local |
 | `usage_stats` | Compteurs d'usage de l'API | illimitée en local |
 | `processing_stats` | Qualité, retards, rejets par fenêtre | illimitée en local |
+| `ingestion_runs` | Un document par fichier brut reçu d'un jeu ouvert | illimitée en local |
 | `model_runs` | Un document par entraînement | illimitée en local |
 
 Les dates sont des dates MongoDB (UTC), jamais du texte. La colonne « Obligatoire » indique ce que le validateur exige.
@@ -527,11 +544,23 @@ Statistiques de traitement par fenêtre. Écrit par le service de traitement.
 | `kind` | texte | oui | quality, lateness, rejects | Famille de statistique |
 | `window_start` | date | oui | | Début de la fenêtre |
 | `road_segment_id` | texte | non | | Tronçon, si la statistique est par tronçon |
-| `values` | objet | oui | | Valeurs mesurées (doublons, retards, rejets…) |
+| `values` | objet | oui | | Valeurs mesurées (doublons, retards, rejets…) ; contenu pour `rejects` ci-dessous |
 
 | Index | Clés | Rôle |
 |---|---|---|
 | `kind_window` | `kind`, `window_start` décroissant | Relire une famille de statistiques dans le temps |
+
+**`kind` = `rejects` pour un fichier nettoyé** (DAT-04) : un document par fichier brut (clé : `kind`, `window_start` = début de la fenêtre du fichier, `values.source_sha256`) ; nettoyer de nouveau le même fichier met le document à jour sur place. Contenu de `values` :
+
+| Clé de `values` | Type | Sens |
+|---|---|---|
+| `dataset`, `source_file`, `source_sha256` | texte | Jeu, fichier brut nettoyé et son empreinte entière |
+| `rows_read`, `rows_clean`, `rows_rejected` | nombre | Lignes lues, retenues, refusées : `rows_read` = `rows_clean` + `rows_rejected` |
+| `reject_rate` | nombre | `rows_rejected` / `rows_read` (0 pour un fichier vide) |
+| `by_rule` | objet | Nombre de rejets par code de règle (section 8.2) |
+| `flags` | objet | Lignes retenues avec un drapeau (`MISSING_OCCUPANCY`) |
+| `alert_threshold`, `alert` | nombre, booléen | Seuil de taux de rejet (0,5 au départ) et dépassement |
+| `cleaned_at`, `run_id` | date, texte | Dernière exécution (`net-<horodate>-<hasard>`) |
 
 ### 10.6 `model_runs`
 
@@ -553,6 +582,35 @@ Suivi des entraînements (MLOps, ADR-017) : un document par exécution. Écrit p
 |---|---|---|
 | `uniq_run_id` | `run_id`, unique | Un entraînement, un document |
 | `created_desc` | `created_at` décroissant | Derniers entraînements |
+
+### 10.7 `ingestion_runs`
+
+Journal des ingestions d'un jeu ouvert (DAT-03) : un document par **fichier brut reçu**, reconnu par son empreinte. Écrit par les pipelines de `data/etl` avec le compte `svc_traitement` ; le fichier lui-même reste sous `data/datasets/` (non versionné). Recevoir une seconde fois le même fichier ne crée aucun document : `executions` augmente et `last_seen_at` avance. Une donnée corrigée à la source change l'empreinte, donc crée un nouveau document. Procédure et garanties : [ingestion du comptage routier de Paris](ingestion-paris.md).
+
+| Champ | Type | Obligatoire | Règle | Sens |
+|---|---|---|---|---|
+| `load_key` | texte | oui | non vide ; unique | `<dataset_id>:<début AAAAMMJJTHHMMSSZ>:<fin>:<sha256>` : identifie ce fichier |
+| `run_id` | texte | oui | non vide | Exécution qui a reçu ce fichier la première fois (`ing-<horodate>-<hasard>`) |
+| `last_run_id` | texte | oui | non vide | Dernière exécution qui l'a reçu |
+| `dataset_id` | texte | oui | non vide | Jeu ouvert (`paris-comptages-routiers`) |
+| `source_type` | texte | oui | SIMULATED, REAL_HISTORICAL, REAL_LIVE | Provenance (ADR-027) ; `REAL_HISTORICAL` pour Paris |
+| `source_url` | texte | oui | commence par `https://` | Adresse exacte demandée au portail, fenêtre comprise |
+| `source_modified_at` | date | non | | Dernière mise à jour des données annoncée par le portail ; absente si le portail n'a pas répondu |
+| `license` | texte | oui | non vide | Licence du jeu (`ODbL`) |
+| `window_start` | date | oui | | Début de la fenêtre demandée, inclus |
+| `window_end` | date | oui | | Fin de la fenêtre demandée, exclue |
+| `file_path` | texte | oui | non vide | Fichier brut, relatif à `data/datasets/` |
+| `sha256` | texte | oui | 64 caractères hexadécimaux minuscules | Empreinte du fichier reçu, octet pour octet |
+| `bytes` | nombre | oui | ≥ 0 | Taille du fichier |
+| `rows` | nombre | oui | ≥ 0 | Lignes de données, hors en-tête (aucune n'est écartée à ce stade) |
+| `ingested_at` | date | oui | | Première réception de ce fichier |
+| `last_seen_at` | date | oui | | Dernière réception de ce fichier |
+| `executions` | nombre | oui | ≥ 1 | Nombre de fois où ce fichier a été reçu |
+
+| Index | Clés | Rôle |
+|---|---|---|
+| `uniq_load_key` | `load_key`, unique | Un fichier, un document : idempotence de l'ingestion |
+| `dataset_time` | `dataset_id`, `ingested_at` décroissant | Dernières ingestions d'un jeu |
 
 ## 11. Schémas `ops` et `app`
 
@@ -596,7 +654,9 @@ Le dictionnaire sera complété avec les colonnes réelles au moment où BE-02 l
 | Tables du schéma `app` | Aucune révision Alembic (section 11.2) | BE-02 |
 | Transitions d'une alerte | Ordre non contrôlé par la base : c'est le service d'alerte qui le garantit (section 7.3). Une contrainte supplémentaire serait une nouvelle migration. | MS-11 |
 | Calendrier `dim_date` | 2012 à 2030 : un fait daté hors de cette période est refusé. L'étendre = nouvelle migration. | Choix du jeu de données (DAT-01) |
-| Contenu de `etl_reject` | Colonnes créées, valeurs non fixées (section 8.1) | DAT-04 |
+| Lignes de Paris sans débit (`q` vide) | Refusées (`MISSING_REQUIRED`), conformément à la fiche du jeu (« rejet si absent ») : 41 % des lignes du 17/10/2026. Celles qui ont un taux d'occupation (stations de taux d'occupation seul) ne rejoignent donc pas l'entrepôt, qui exige un comptage | Les deux membres (DAT-05, IA-10) |
+| Bornes de départ du nettoyage | Débit de 0 à 15 000 véhicules par heure (maximum observé le 17/10/2026 : 6 648) ; taux de rejet d'alerte à 0,5 | Les deux membres, après quelques jours de mesure |
+| Doublon dans un fichier | Écrit comme rejet `DUPLICATE_KEY` (la première ligne est gardée), alors que l'ADR-013 dit « ignorée, comptée ». Les doublons entre deux fichiers ne sont pas détectés au nettoyage : c'est la clé du chargement (DAT-05) | Les deux membres |
 | Durée de la tranche de `usage_stats` | Non fixée | BE-05 |
 | Drapeau `LATE` d'une mesure et rejet `LATE` (DQ-04) | Un message trop tardif est rejeté (DQ-04), mais le drapeau `LATE` existe dans la qualité d'une mesure acceptée. Proposition : le drapeau marque une mesure en retard **dans la tolérance** (entre le délai de désordre de 10 s et le retard autorisé de 30 s) ; au-delà, rejet | Les deux membres, puis MS-15 |
 | État d'une fenêtre de 5 minutes | Le schéma impose `congestion_state` aussi pour 300 s, alors que l'état se calcule sur 1 minute (section 7.1). Proposition : l'état stabilisé à la fin de la fenêtre de 5 minutes | Manoa (traitement), IA-01 |

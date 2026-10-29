@@ -70,6 +70,8 @@ flowchart LR
 | Fraîcheur | Capteur muet depuis N minutes | Signal d'état du capteur, pas un rejet |
 | Cohérence | Horodatage dans le futur | Rejet `horloge` |
 
+Mise en œuvre pour le comptage routier de Paris (DAT-04) : sept règles, codes `MISSING_REQUIRED`, `TYPE_INVALID`, `OUT_OF_RANGE`, `NOT_ON_THE_HOUR`, `FUTURE_TIMESTAMP`, `STATE_MISMATCH` et `DUPLICATE_KEY`, motifs et chiffres observés dans [le nettoyage de Paris](../../03-donnees/nettoyage-paris.md). Écart assumé : un doublon est écrit comme un rejet `DUPLICATE_KEY` (la première ligne est gardée) au lieu d'être seulement compté.
+
 ### 4.4 Garanties
 
 - **Idempotence** : clé naturelle (`event_id`, ou carrefour + début de fenêtre + taille) et écriture par « insérer ou mettre à jour » ; rejouer un chargement ne change pas les totaux (critère de DAT-05).

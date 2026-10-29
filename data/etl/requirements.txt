@@ -1,0 +1,6 @@
+# Dépendances des pipelines d'ingestion et de nettoyage (data/etl). Le téléchargement et les règles de qualité n'utilisent que
+# la bibliothèque standard ; pymongo écrit les journaux dans MongoDB, psycopg les rejets dans PostgreSQL. Versions exactes,
+# comme les services.
+#   python -m pip install -r data/etl/requirements.txt
+pymongo==4.19.0
+psycopg[binary]==3.3.6

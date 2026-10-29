@@ -58,7 +58,7 @@ flowchart TB
     end
     subgraph MGI["Instance MongoDB 7"]
         direction LR
-        C1["raw_events, rejects<br/>svc_collecte"] ~~~ C2["processing_stats<br/>svc_traitement"]
+        C1["raw_events, rejects<br/>svc_collecte"] ~~~ C2["processing_stats, ingestion_runs<br/>svc_traitement"]
         C2 ~~~ C3["audit_logs<br/>svc_reponse, svc_backend"]
         C3 ~~~ C4["model_runs<br/>svc_ml"]
     end
@@ -83,7 +83,7 @@ flowchart TB
 
 **Positives**
 
-- `python3 scripts/dev/dev.py db-up` (Linux) ou `py -3 scripts/dev/dev.py db-up` (Windows) suffit ; `db-check` rejoue 21 vérifications de droits, positives et négatives.
+- `python3 scripts/dev/dev.py db-up` (Linux) ou `py -3 scripts/dev/dev.py db-up` (Windows) suffit ; `db-check` rejoue 23 vérifications de droits, positives et négatives.
 - Les droits sont testables : un service qui lit ce qui ne le concerne pas est refusé.
 - L'historique des migrations est protégé contre les modifications silencieuses.
 - La restauration est exercée, pas supposée.
