@@ -355,16 +355,9 @@ class ConfinementDesChemins(AvecDossier):
         with self.assertRaises(ce.ErreurChargement):
             ce.fichier_fenetres(self.dossier, "x/../../f.csv")
 
-    def test_le_rapport_est_ecrit_sous_un_nom_de_rapport_dans_son_dossier_et_nulle_part_ailleurs(self):
-        self.assertEqual(rejouer.fichier_rapport(self.dossier, "rapport-essai-1.md"), self.dossier / "rapport-essai-1.md")
-        for texte in ("rapport.md", "Rapport-x.md", "rapport-x.txt", "../rapport-x.md", "sous/rapport-x.md", "/srv/rapport-x.md",
-                      str(self.dossier / "rapport-x.md"), "rapport-" + "a" * 61 + ".md", "rapport-é.md", "rapport-x.md\n"):
-            with self.subTest(texte=texte), self.assertRaisesRegex(ce.ErreurChargement, "Nom de rapport refusé"):
-                rejouer.fichier_rapport(self.dossier, texte)
-
     def test_les_dossiers_par_defaut_sont_ceux_de_la_documentation(self):
         self.assertEqual(ce.FENETRES, RACINE / "data" / "datasets" / "fenetres")
-        self.assertEqual(rejouer.RAPPORTS, RACINE / "docs" / "03-donnees")
+        self.assertEqual(rejouer.RAPPORT, RACINE / "docs" / "03-donnees" / "rapport-rejeu-etl.md")
         gitignore = (RACINE / ".gitignore").read_text(encoding="utf-8")
         self.assertIn("data/datasets/*", gitignore)
 
@@ -376,11 +369,14 @@ class ConfinementDesChemins(AvecDossier):
         code, _, erreur = self.executer(ce.principal, ["--file", str(autre / "f.csv"), "--run-id", "run-1"], entrepot=entrepot, dossier=self.dossier)
         self.assertEqual((code, entrepot.lignes), (1, {}))
         self.assertIn("hors du dossier", erreur)
-        code, _, erreur = self.executer(rejouer.principal, ["--file", "f.csv", "--run-id", "run-1", "--report", "../rapport-x.md"],
-                                        entrepot=entrepot, dossier=autre, rapports=self.dossier)
+        code, _, erreur = self.executer(rejouer.principal, ["--file", str(autre / "f.csv"), "--run-id", "run-1", "--report"],
+                                        entrepot=entrepot, dossier=self.dossier, rapport_md=self.dossier / "rapport-x.md")
         self.assertEqual(code, 1)
-        self.assertIn("Nom de rapport refusé", erreur)
-        self.assertFalse((self.dossier.parent / "rapport-x.md").exists())
+        self.assertFalse((self.dossier / "rapport-x.md").exists())  # un rejeu refusé n'écrit aucun rapport
+
+    def test_le_rapport_n_a_pas_de_chemin_en_argument(self):
+        with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
+            rejouer.principal(["--file", "f.csv", "--run-id", "run-1", "--report", "autre.md"], entrepot=FauxEntrepot(), dossier=self.dossier)
 
 
 class LigneDeCommandeDuChargement(AvecDossier):
@@ -669,8 +665,8 @@ class RejeuDuChargement(AvecDossier):
     def test_la_ligne_de_commande_ecrit_le_rapport_et_rend_0(self):
         rapport = self.dossier / "rapport-essai.md"
         code, sortie, _ = self.executer(
-            rejouer.principal, ["--file", self.fichier().name, "--run-id", "run-1", "--from-scratch", "--report", "rapport-essai.md"],
-            entrepot=FauxEntrepot(), maintenant=MAINTENANT, dossier=self.dossier, rapports=self.dossier)
+            rejouer.principal, ["--file", self.fichier().name, "--run-id", "run-1", "--from-scratch", "--report"],
+            entrepot=FauxEntrepot(), maintenant=MAINTENANT, dossier=self.dossier, rapport_md=rapport)
         self.assertEqual(code, 0)
         self.assertEqual(sortie, rapport.read_text(encoding="utf-8") + "\n")  # le rapport écrit est celui qui est affiché
         self.assertNotIn("\r", rapport.read_text(encoding="utf-8"))

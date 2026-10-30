@@ -1,7 +1,7 @@
 """Rejeu du chargement et rapport de comparaison (DAT-06) : mêmes totaux avant et après, par la clé d'idempotence.
 
     cd data/etl
-    python -m pipelines.rejouer --file fenetres.csv --run-id demo-2026-10-30 --from-scratch --report rapport-rejeu.md
+    python -m pipelines.rejouer --file fenetres.csv --run-id demo-2026-10-30 --from-scratch --report
 
 Trois passes sur le même fichier et le même run_id, totaux relevés dans l'entrepôt après chacune :
 1. chargement initial ;
@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -37,8 +36,7 @@ from pipelines.charger_entrepot import (
 )
 from pipelines.sorties import ErreurSortie, RejetsPostgres, SortieRejets
 
-RAPPORTS = RACINE / "docs" / "03-donnees"  # dossier des rapports de comparaison
-NOM_RAPPORT = re.compile(r"rapport-[a-z0-9-]{1,60}\.md", re.ASCII)
+RAPPORT = RACINE / "docs" / "03-donnees" / "rapport-rejeu-etl.md"  # emplacement fixe du rapport : aucun chemin n'est donné en argument
 PART_RETIREE = 10  # la reprise retire un dixième des lignes du run (au moins une)
 
 
@@ -135,31 +133,22 @@ class EntrepotPostgresRejouable(EntrepotPostgres):
             raise ErreurSortie(f"Suppression des lignes du run impossible ({type(erreur).__name__}).") from erreur
 
 
-def fichier_rapport(dossier: Path, texte: str) -> Path:
-    """Un rapport du dossier prévu, désigné par son nom (même confinement que `fichier_fenetres`)."""
-    nom = os.path.basename(texte)
-    if NOM_RAPPORT.fullmatch(nom) is None or os.path.dirname(texte):
-        raise ErreurChargement(f"Nom de rapport refusé : {texte!r} (attendu : rapport-….md, minuscules, chiffres et tirets, sans dossier).")
-    return dossier / nom
-
-
 def construire_parseur() -> argparse.ArgumentParser:
     parseur = argparse.ArgumentParser(description="Charge un fichier de fenêtres trois fois et compare les totaux de l'entrepôt.")
     parseur.add_argument("--file", required=True, help="fichier CSV de fenêtres, dans data/datasets/fenetres/ (son nom suffit)")
     parseur.add_argument("--run-id", required=True, help="identifiant du run (les lignes des autres runs ne sont jamais touchées)")
     parseur.add_argument("--from-scratch", action="store_true", help="supprime d'abord les lignes de ce run (première passe sur base vide)")
-    parseur.add_argument("--report", metavar="NOM", help="écrit le rapport de comparaison (Markdown) sous ce nom dans docs/03-donnees/ (rapport-….md)")
+    parseur.add_argument("--report", action="store_true", help="écrit aussi le rapport de comparaison dans docs/03-donnees/rapport-rejeu-etl.md")
     parseur.add_argument("--postgres-url", default=os.environ.get("POSTGRES_URL"), help="adresse PostgreSQL (sinon variable POSTGRES_URL)")
     return parseur
 
 
 def principal(argv: Sequence[str] | None = None, *, entrepot: EntrepotRejouable | None = None, rejets_pg: SortieRejets | None = None,
-              maintenant: datetime | None = None, dossier: Path = FENETRES, rapports: Path = RAPPORTS) -> int:
-    """`dossier` et `rapports` ne sont pas des options de la ligne de commande : seuls les tests les changent."""
+              maintenant: datetime | None = None, dossier: Path = FENETRES, rapport_md: Path = RAPPORT) -> int:
+    """`dossier` et `rapport_md` ne sont pas des options de la ligne de commande : seuls les tests les changent."""
     arguments = construire_parseur().parse_args(argv)
     try:
         fichier = fichier_fenetres(dossier, arguments.file)
-        sortie = fichier_rapport(rapports, arguments.report) if arguments.report else None
         if entrepot is None:
             if not arguments.postgres_url:
                 raise ErreurChargement("Adresse PostgreSQL absente : variable POSTGRES_URL ou option --postgres-url "
@@ -174,8 +163,8 @@ def principal(argv: Sequence[str] | None = None, *, entrepot: EntrepotRejouable 
         if hasattr(entrepot, "fermer"):
             entrepot.fermer()
     texte = rapport(comparaison, fichier=fichier, run_id=arguments.run_id, instant=maintenant or datetime.now(UTC))
-    if sortie is not None:
-        sortie.write_text(texte, encoding="utf-8", newline="\n")
+    if arguments.report:
+        rapport_md.write_text(texte, encoding="utf-8", newline="\n")
     print(texte)
     return 0 if comparaison.identiques else 2
 

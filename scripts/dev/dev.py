@@ -574,7 +574,7 @@ def cmd_etl_replay(args: argparse.Namespace) -> int:
     if args.from_scratch:
         options.append("--from-scratch")
     if args.report:
-        options += ["--report", args.report]
+        options.append("--report")
     return run_etl("pipelines.rejouer", options, ("psycopg",), etl_database_urls())
 
 
@@ -920,7 +920,7 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("--file", type=Path, required=True, help="fichier CSV de fenêtres")
     replay.add_argument("--run-id", required=True, help="identifiant du run : seules ses lignes sont touchées")
     replay.add_argument("--from-scratch", action="store_true", help="supprime d'abord les lignes de ce run")
-    replay.add_argument("--report", metavar="NOM", help="écrit le rapport sous ce nom dans docs/03-donnees/ (rapport-….md)")
+    replay.add_argument("--report", action="store_true", help="écrit aussi le rapport dans docs/03-donnees/rapport-rejeu-etl.md")
     package = add("etl-package", cmd_etl_package, "empaquette la logique ETL en dist/novaria-etl-<version>.zip (reproductible)")
     add("kafka-up", cmd_kafka_up, "démarre Kafka (mode KRaft) et attend qu'il soit prêt")
     add("kafka-topics", cmd_kafka_topics, "crée les 6 sujets du bus s'ils manquent et les vérifie")

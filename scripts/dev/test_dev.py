@@ -304,10 +304,10 @@ class EtlTests(unittest.TestCase):
         self.assertEqual(commande[2:], ["pipelines.charger_entrepot", "--file", str(Path("var/f.csv").resolve()), "--run-id", "demo-1"])
         self.assertTrue(options["env"]["POSTGRES_URL"].startswith("postgresql://svc_traitement:"))
 
-    def test_le_rejeu_transmet_ses_options_le_rapport_par_son_nom_et_un_nom_de_fichier_seul_reste_un_nom(self):
-        _, appels = self.lancer(["etl-rejouer", "--file", "var/f.csv", "--run-id", "demo-1", "--from-scratch", "--report", "rapport-x.md"])
+    def test_le_rejeu_transmet_ses_options_et_un_nom_de_fichier_seul_reste_un_nom(self):
+        _, appels = self.lancer(["etl-rejouer", "--file", "var/f.csv", "--run-id", "demo-1", "--from-scratch", "--report"])
         self.assertEqual(appels[0][0][2:], ["pipelines.rejouer", "--file", str(Path("var/f.csv").resolve()), "--run-id", "demo-1", "--from-scratch",
-                                            "--report", "rapport-x.md"])
+                                            "--report"])
         _, appels = self.lancer(["etl-rejouer", "--file", "f.csv", "--run-id", "demo-1"])
         self.assertEqual(appels[0][0][2:5], ["pipelines.rejouer", "--file", "f.csv"])
         self.assertNotIn("--from-scratch", appels[0][0])

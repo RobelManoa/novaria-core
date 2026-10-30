@@ -95,13 +95,13 @@ relance à la main avec `--day`).
 ## 5. Rejouer et comparer
 
 ```bash
-python3 scripts/dev/dev.py etl-rejouer --file fenetres-demo.csv --run-id preuve-dat06 --from-scratch --report rapport-rejeu-etl.md
+python3 scripts/dev/dev.py etl-rejouer --file fenetres-demo.csv --run-id preuve-dat06 --from-scratch --report
 ```
 
 Trois passes sur le même fichier et le même `run_id`, avec les totaux relevés **dans la table** après chacune : (1) chargement
 initial ; (2) rejeu à l'identique ; (3) reprise après incident : un dixième des lignes du run est supprimé, puis le fichier est
 rechargé. Les totaux comparés : nombre de lignes, somme des véhicules, somme du débit et **empreinte MD5 des lignes triées**
-(sans `loaded_at`), qui détecte aussi une valeur modifiée à nombre de lignes égal. Le rapport s'écrit dans `docs/03-donnees/` sous un nom `rapport-….md` (rien d'autre n'est accepté) ; l'archive de l'étape 2 va toujours dans `dist/`. `--from-scratch` ne supprime que les lignes
+(sans `loaded_at`), qui détecte aussi une valeur modifiée à nombre de lignes égal. `--report` écrit le rapport à un emplacement fixe, `docs/03-donnees/rapport-rejeu-etl.md` (aucun chemin n'est accepté en argument) ; l'archive de l'étape 2 va toujours dans `dist/`. `--from-scratch` ne supprime que les lignes
 du `run_id` donné. Code de sortie : 0 si les trois relevés sont égaux, 2 sinon. Le résultat est dans le
 [rapport de comparaison](rapport-rejeu-etl.md).
 
