@@ -3,7 +3,7 @@
 PY ?= python3
 DEV = $(PY) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs db-up db-migrate db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts test-etl lint format new-service quality-up quality-down hooks
+.PHONY: help init-env up down health lock-deps ps logs db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts test-etl lint format new-service quality-up quality-down hooks
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -27,6 +27,8 @@ db-up:         ## Démarre PostgreSQL et MongoDB, applique les migrations
 	$(DEV) db-up
 db-migrate:    ## Applique les migrations SQL en attente
 	$(DEV) db-migrate
+db-migrate-app: ## Applique les migrations Alembic du schéma app (compte svc_app)
+	$(DEV) db-migrate-app
 db-status:     ## État des bases et des migrations
 	$(DEV) db-status
 db-check:      ## Vérifie rôles, droits, collections et index

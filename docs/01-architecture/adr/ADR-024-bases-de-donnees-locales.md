@@ -92,6 +92,7 @@ flowchart TB
 
 - Une seule instance par moteur : pas d'isolation de ressources entre services.
 - Deux mécanismes de migration (Alembic et exécuteur SQL).
+- Mise en œuvre de BE-02 (30/10/2026) : la révision Alembic `0001` crée `app.users` ; la table de versions est dans `app` (`svc_app` ne peut rien créer dans `public`) ; détail dans le [dictionnaire](../../03-donnees/dictionnaire-de-donnees.md), section 11.2.
 - Ajouter une collection MongoDB sur une base existante demande une procédure dédiée (le script d'initialisation ne s'exécute qu'une fois).
 - Pas de journal de transactions : la sauvegarde est un instantané.
 - Le comportement de MongoDB sous Docker n'a pas pu être exécuté pendant la rédaction (voir section 7).

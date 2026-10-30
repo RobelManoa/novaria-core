@@ -386,6 +386,26 @@ def cmd_db_check(_: argparse.Namespace) -> int:
     return 0 if failures == 0 else 1
 
 
+# --------------------------------------------------------------------------- schéma app : migrations Alembic (BE-02)
+APP_SERVICE_DIR = ROOT / "services" / "traitement"
+APP_MIGRATION_PACKAGES = ("alembic", "sqlalchemy", "psycopg")
+
+
+def app_database_url(env: dict[str, str]) -> str:
+    """Adresse SQLAlchemy du compte `svc_app` (propriétaire du schéma `app`) ; le mot de passe est encodé pour l'adresse."""
+    return postgres_url(env, "svc_app", "PG_PASSWORD_APP").replace("postgresql://", "postgresql+psycopg://", 1)
+
+
+def cmd_db_migrate_app(_: argparse.Namespace) -> int:
+    """Applique les migrations Alembic du schéma `app` (utilisateurs) avec le compte `svc_app` (BE-02)."""
+    require_env()
+    for package in APP_MIGRATION_PACKAGES:
+        if importlib.util.find_spec(package) is None:
+            raise DevError(f"{package} est absent. L'installer :  {Path(sys.executable).name} -m pip install -r services/traitement/requirements-dev.txt")
+    environment = {**os.environ, "APP_DATABASE_URL": app_database_url(etl_environment()), "PYTHONUTF8": "1"}
+    return subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], cwd=APP_SERVICE_DIR, env=environment, check=False).returncode
+
+
 # --------------------------------------------------------------------------- indicateurs décisionnels (DAT-07)
 KPI_VERIFICATION = ROOT / "data" / "dwh" / "sql" / "kpi" / "controle" / "verifier.sql"
 
@@ -922,6 +942,7 @@ def build_parser() -> argparse.ArgumentParser:
     health.add_argument("--wait", type=int, default=0, metavar="SECONDES", help="réessaie pendant ce délai (0 : un seul essai)")
     add("db-up", cmd_db_up, "démarre PostgreSQL et MongoDB, puis applique les migrations")
     add("db-migrate", cmd_db_migrate, "applique les migrations SQL en attente")
+    add("db-migrate-app", cmd_db_migrate_app, "applique les migrations Alembic du schéma app (compte svc_app)")
     add("db-status", cmd_db_status, "état des bases et des migrations")
     add("db-check", cmd_db_check, "vérifie rôles, droits, collections et index")
     events = add("db-check-events", cmd_db_check_events, "insère une mesure conforme (acceptée) et une sans provenance (refusée)")

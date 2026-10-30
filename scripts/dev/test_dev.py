@@ -170,7 +170,8 @@ class EtlTests(unittest.TestCase):
     """DAT-03 : `etl-paris` lance le pipeline d'ingestion avec le compte svc_traitement, sans mot de passe en argument."""
 
     ENV = {"MONGO_DB": "novaria", "MONGO_PORT": "27117", "MONGO_PASSWORD_TRAITEMENT": "p@ss/w:rd#1",
-           "POSTGRES_DB": "novaria", "POSTGRES_PORT": "5543", "PG_PASSWORD_TRAITEMENT": "s3cr:t/pg#2"}
+           "POSTGRES_DB": "novaria", "POSTGRES_PORT": "5543", "PG_PASSWORD_TRAITEMENT": "s3cr:t/pg#2",
+           "PG_PASSWORD_APP": "app/pw:9#"}
 
     def lancer(self, argv, *, pymongo=True, env_text=None, absent=None, retour=3, stdout=""):
         appels = []
@@ -337,6 +338,32 @@ class EtlTests(unittest.TestCase):
         self.assertEqual(code, 3)
         self.assertEqual(commande, [sys.executable, str(ROOT / "data" / "etl" / "pipelines" / "empaqueter.py")])
         self.assertEqual(options["cwd"], ROOT)
+
+    def test_les_migrations_du_schema_app_sont_lancees_depuis_le_service_avec_le_compte_svc_app(self):
+        code, appels = self.lancer(["db-migrate-app"])
+        (commande, options), = appels
+        self.assertEqual(code, 3, "le code de retour d'Alembic est transmis")
+        self.assertEqual(commande, [sys.executable, "-m", "alembic", "upgrade", "head"])
+        self.assertEqual(options["cwd"], ROOT / "services" / "traitement")
+        adresse = options["env"]["APP_DATABASE_URL"]
+        self.assertEqual(adresse, "postgresql+psycopg://svc_app:app%2Fpw%3A9%23@127.0.0.1:5543/novaria")
+        self.assertNotIn("app%2Fpw", " ".join(commande), "le mot de passe ne figure pas sur la ligne de commande")
+        self.assertEqual(options["env"]["PYTHONUTF8"], "1")
+
+    def test_les_migrations_du_schema_app_exigent_alembic_sqlalchemy_et_psycopg(self):
+        for absent in ("alembic", "sqlalchemy", "psycopg"):
+            with self.subTest(absent=absent), mock.patch("builtins.print") as imprime:
+                code, appels = self.lancer(["db-migrate-app"], absent=absent)
+            self.assertEqual((code, appels), (2, []))
+            sortie = " ".join(str(c.args[0]) for c in imprime.call_args_list)
+            self.assertIn(absent, sortie)
+            self.assertIn("services/traitement/requirements-dev.txt", sortie)
+
+    def test_le_compte_des_migrations_app_est_svc_app_et_pas_celui_du_traitement(self):
+        adresse = dev.app_database_url(self.ENV)
+        self.assertTrue(adresse.startswith("postgresql+psycopg://svc_app:"))
+        with self.assertRaisesRegex(dev.DevError, "PG_PASSWORD_APP"):
+            dev.app_database_url({"POSTGRES_DB": "novaria"})
 
 
 class EvenementsMongoTests(unittest.TestCase):
