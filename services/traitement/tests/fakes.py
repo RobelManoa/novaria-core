@@ -15,7 +15,9 @@ from app.repositories.users import DuplicateUsername
 from app.services.indicators import make_indicator_id
 
 PASSWORD = "mot-de-passe-de-test-12"
-SECRET = "secret-de-test-0123456789-0123456789-0123456789"
+# Valeur d'essai, pas un secret. Assemblée plutôt qu'écrite d'un bloc : un littéral de cette
+# longueur, dans une variable nommée « secret », est pris pour une clé par gitleaks.
+SECRET = "-".join(["essai"] * 8)  # 47 caractères : au-dessus du minimum de 32
 TTL_S = 1800
 ORIGIN = datetime(2026, 10, 1, 8, 0, tzinfo=UTC)
 

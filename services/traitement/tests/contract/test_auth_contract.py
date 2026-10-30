@@ -18,7 +18,7 @@ import pytest
 from app.main import app
 from app.models import Role
 from app.services.auth import ROLE_LEVEL
-from tests.fakes import PASSWORD, FakeUserRepository, bearer
+from tests.fakes import PASSWORD, SECRET, FakeUserRepository, bearer
 from tests.openapi_checks import API, PROBLEM, check, schema
 
 HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
@@ -430,7 +430,7 @@ def test_the_error_bodies_carry_no_trace_and_no_secret(client, repo):
     for reponse in reponses:
         assert "Traceback" not in reponse.text
         assert "argon2" not in reponse.text
-        assert "secret-de-test" not in reponse.text
+        assert SECRET not in reponse.text
 
 
 def test_the_fake_repository_is_the_one_the_tests_use(repo):
