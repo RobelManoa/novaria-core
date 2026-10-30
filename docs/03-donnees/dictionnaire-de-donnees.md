@@ -654,20 +654,24 @@ Créée par `db/postgres/migrate.sh`, qui l'écrit seul : aucun rôle de service
 
 ### 11.2 Schéma `app`
 
-Le schéma est créé vide à l'initialisation. Ses tables sont créées par Alembic dans `services/traitement/` ([ADR-024](../01-architecture/adr/ADR-024-bases-de-donnees-locales.md)), **pas par un fichier SQL de `db/postgres/migrations/`**. À ce jour `services/traitement/migrations/` ne contient aucune révision : le schéma n'a pas de table (BE-02).
+Le schéma est créé vide à l'initialisation. Ses tables sont créées par **Alembic** dans [`services/traitement/migrations/`](../../services/traitement/migrations/) ([ADR-024](../01-architecture/adr/ADR-024-bases-de-donnees-locales.md)), **pas par un fichier SQL de `db/postgres/migrations/`**. Le compte `svc_app` en est propriétaire. Commande : `python3 scripts/dev/dev.py db-migrate-app` (Windows : `py -3 ...`) ; en direct : `APP_DATABASE_URL=… python -m alembic upgrade head` depuis `services/traitement/`.
 
-Cible, déduite du contrat [OpenAPI](../../contracts/openapi/api-metier.openapi.yaml) (schéma `User`), à confirmer par BE-02 :
+La révision `0001` (BE-02) crée la table `app.users` et la table de versions `app.alembic_version` (dans `app` : `svc_app` ne peut rien créer dans `public`).
 
-| Colonne visée | Règle visée | Sens |
-|---|---|---|
-| `user_id` | uuid, clé primaire | Identifiant exposé par l'API |
-| `username` | texte unique, 3 à 64 caractères | Identifiant de connexion |
-| mot de passe | **empreinte seulement**, jamais le mot de passe en clair | Authentification (BE-03) |
-| `role` | viewer, operator ou admin | Droit d'accès |
-| `is_active` | booléen | Compte utilisable |
-| `created_at` | date et heure, UTC | Création |
+| Colonne `app.users` | Type | Règle | Sens |
+|---|---|---|---|
+| `user_id` | uuid | clé primaire (`pk_users`) ; défaut `gen_random_uuid()` | Identifiant exposé par l'API |
+| `username` | texte (64) | obligatoire ; unique (`uq_users_username`) ; 3 à 64 caractères parmi a-z, 0-9, `_`, `.`, `-` (`ck_users_username_format`) | Identifiant de connexion |
+| `password_hash` | texte | obligatoire ; commence par `$` (`ck_users_password_hash_is_a_hash`) | **Empreinte** du mot de passe, jamais le mot de passe : l'algorithme est choisi par BE-03 |
+| `role` | texte (16) | obligatoire ; `viewer`, `operator` ou `admin` (`ck_users_role_valid`) ; aucun défaut | Droit d'accès (valeurs de `Role` dans le contrat [OpenAPI](../../contracts/openapi/api-metier.openapi.yaml)) |
+| `is_active` | booléen | obligatoire ; défaut vrai | Faux : le compte ne peut plus se connecter |
+| `created_at` | date et heure | obligatoire ; défaut maintenant ; UTC | Création du compte |
 
-Le dictionnaire sera complété avec les colonnes réelles au moment où BE-02 les crée.
+| Colonne `app.alembic_version` | Type | Règle | Sens |
+|---|---|---|---|
+| `version_num` | texte (32) | clé primaire | Révision Alembic appliquée (`0001`) |
+
+La table suit le schéma `User` du contrat : `user_id`, `username`, `role`, `is_active` et `created_at` sont exposés par l'API ; `password_hash` reste interne. Les noms de contraintes viennent d'une convention (`pk_`, `uq_`, `ck_`) : ils sont les mêmes dans le modèle SQLAlchemy et dans la migration.
 
 ## 12. Points ouverts
 
@@ -679,7 +683,7 @@ Le dictionnaire sera complété avec les colonnes réelles au moment où BE-02 l
 | Jours fériés | Non chargés (`is_holiday` faux) | DAT-10, si le jeu de données le justifie |
 | Durée de conservation de `raw_events` (14 jours) | Valeur de départ | Volume observé |
 | Bornes des contrats `traffic.recommendations` et `signal.status` (durée de phase 1 à 600 s, plan de 2 à 8 phases) | Valeurs de départ (section 13), à remplacer par les règles de sécurité des feux | MS-12 |
-| Tables du schéma `app` | Aucune révision Alembic (section 11.2) | BE-02 |
+| Algorithme d'empreinte du mot de passe | Non choisi : la base impose seulement que `password_hash` soit une empreinte (commence par `$`) | BE-03 |
 | Transitions d'une alerte | Ordre non contrôlé par la base : c'est le service d'alerte qui le garantit (section 7.3). Une contrainte supplémentaire serait une nouvelle migration. | MS-11 |
 | Calendrier `dim_date` | 2012 à 2030 : un fait daté hors de cette période est refusé. L'étendre = nouvelle migration. | Choix du jeu de données (DAT-01) |
 | Lignes de Paris sans débit (`q` vide) | Refusées (`MISSING_REQUIRED`), conformément à la fiche du jeu (« rejet si absent ») : 41 % des lignes du 17/10/2026. Celles qui ont un taux d'occupation (stations de taux d'occupation seul) ne rejoignent donc pas l'entrepôt, qui exige un comptage | Les deux membres (DAT-05, IA-10) |

@@ -15,4 +15,4 @@ select = ["E", "F", "I", "B", "UP", "S"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=app --cov-report=term-missing --cov-report=xml:coverage.xml"
+addopts = "--cov=app --cov=migrations --cov-report=term-missing --cov-report=xml:coverage.xml"
