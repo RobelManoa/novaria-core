@@ -4,9 +4,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
-from app.db.session import get_user_repository
+from app.db.session import get_indicator_repository, get_user_repository
 from app.main import app
-from tests.fakes import SECRET, FakeUserRepository
+from tests.fakes import SECRET, FakeIndicatorRepository, FakeUserRepository
 
 
 @pytest.fixture
@@ -25,8 +25,14 @@ def repo() -> FakeUserRepository:
 
 
 @pytest.fixture
-def client(secret, repo):
+def indicators() -> FakeIndicatorRepository:
+    return FakeIndicatorRepository()
+
+
+@pytest.fixture
+def client(secret, repo, indicators):
     app.dependency_overrides[get_user_repository] = lambda: repo
+    app.dependency_overrides[get_indicator_repository] = lambda: indicators
     try:
         yield TestClient(app)
     finally:

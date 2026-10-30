@@ -18,6 +18,10 @@ Depuis ce dossier.
 | Tests et couverture | `pytest` (écrit `coverage.xml`) | `pytest` |
 | Lint | `ruff check . && ruff format --check .` | `ruff check .; ruff format --check .` |
 
+## Indicateurs lus depuis l'entrepôt (BE-04)
+
+`GET /api/v1/indicators` (filtres de période et de zone, pagination par curseur), `GET /api/v1/indicators/{indicator_id}` et `GET /api/v1/indicators/latest`, en lecture seule sur la vue `dwh.v_indicator` avec la variable `POSTGRES_URL` (déjà fournie par Compose). Une exécution doit être enregistrée dans `dwh.dim_run` pour être servie. Détail : [API des indicateurs](../../docs/03-donnees/api-indicateurs.md). Preuve : `tests/contract/test_indicators_contract.py`.
+
 ## Authentification et rôles (BE-03)
 
 Ce service porte aussi le rôle « API métier » : `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, `GET` et `POST /api/v1/users`, `GET /api/v1/users/{user_id}`. Jetons JWT signés HS256 (secret `JWT_SECRET`, 32 caractères au moins), mots de passe en argon2id, trois rôles hiérarchiques. Sans jeton : 401 ; rôle insuffisant : 403.

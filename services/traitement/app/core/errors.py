@@ -9,6 +9,7 @@ général (validation, 404, 500) est l'objet de BE-06.
 from dataclasses import dataclass, field
 
 from fastapi import Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.core.logs import correlation_id_var
@@ -68,3 +69,48 @@ async def problem_handler(_: Request, error: ProblemError) -> JSONResponse:
         headers=error.headers,
         media_type=PROBLEM_MEDIA_TYPE,
     )
+
+
+def french_message(error: dict) -> str:
+    """Message pour une personne, sans reprendre la valeur saisie (peut-être un mot de passe)."""
+    context = error.get("ctx", {})
+    match error["type"]:
+        case "missing":
+            return "Champ obligatoire."
+        case "string_too_short":
+            return f"Au moins {context.get('min_length')} caractères."
+        case "string_too_long":
+            return f"Au plus {context.get('max_length')} caractères."
+        case "string_pattern_mismatch":
+            return "Format invalide."
+        case "greater_than_equal":
+            return f"Doit être supérieur ou égal à {context.get('ge')}."
+        case "less_than_equal":
+            return f"Doit être inférieur ou égal à {context.get('le')}."
+        case "literal_error" | "enum":
+            return f"Valeur non admise : {context.get('expected', 'voir le contrat')}."
+        case "int_parsing" | "int_from_float" | "int_type":
+            return "Entier attendu."
+        case "extra_forbidden":
+            return "Champ non prévu."
+        case "uuid_parsing":
+            return "Identifiant UUID attendu."
+        case "json_invalid":
+            return "JSON invalide."
+        case _:
+            return "Valeur invalide."
+
+
+def validation_problem(error: RequestValidationError) -> ProblemError:
+    fields = [
+        {"field": ".".join(str(part) for part in item["loc"]), "message": french_message(item)}
+        for item in error.errors()
+    ]
+    plural = "s" if len(fields) > 1 else ""
+    return ProblemError(
+        VALIDATION_ERROR, f"{len(fields)} champ{plural} invalide{plural}.", errors=fields
+    )
+
+
+async def validation_handler(request: Request, error: RequestValidationError) -> JSONResponse:
+    return await problem_handler(request, validation_problem(error))

@@ -5,7 +5,7 @@ Un contrat par service ([ADR-008](../../docs/01-architecture/adr/ADR-008-microse
 | Fichier | Service | Rôle | Opérations |
 |---|---|---|---|
 | `api-metier.openapi.yaml` | API métier (portée par `services/traitement` tant que le point ouvert n° 1 des diagrammes C4 n'est pas tranché ; BE-02 et BE-03) | Santé, authentification, comptes | 7 |
-| `traitement.openapi.yaml` | Traitement | Référentiel, indicateurs, prévisions | 8 |
+| `traitement.openapi.yaml` | Traitement | Référentiel, indicateurs, prévisions | 8 (les trois d'indicateurs existent : [API des indicateurs](../../docs/03-donnees/api-indicateurs.md)) |
 | `alerte.openapi.yaml` | Alerte usager | Alertes, règles, flux SSE (Server-Sent Events) | 8 |
 | `reponse.openapi.yaml` | Réponse extérieure | État des feux, commande manuelle | 5 |
 | `collecte.openapi.yaml` | Collecte | Dépôt des mesures par le simulateur (réseau interne) | 2 |

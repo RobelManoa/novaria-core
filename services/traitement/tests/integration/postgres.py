@@ -19,6 +19,7 @@ from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine import make_url
 
 SERVICE = Path(__file__).resolve().parents[2]
+MIGRATIONS = SERVICE.parents[1] / "db" / "postgres" / "migrations"
 ADMIN_URL = os.environ.get("NOVARIA_TEST_POSTGRES_ADMIN_URL")
 needs_postgres = pytest.mark.skipif(
     not ADMIN_URL, reason="NOVARIA_TEST_POSTGRES_ADMIN_URL absent : PostgreSQL local requis"
@@ -57,3 +58,21 @@ def temporary_database() -> Iterator[Engine]:
         with admin.connect() as connection:
             connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
         admin.dispose()
+
+
+def apply_sql_migrations(engine: Engine) -> None:
+    """Crée les schémas `dwh` et `alertes`, puis applique `db/postgres/migrations/*.sql`.
+
+    C'est ce que font l'initialisation du conteneur (schémas) et `db-migrate` (fichiers).
+    """
+    with engine.begin() as connection:
+        connection.execute(text("CREATE SCHEMA dwh"))
+        connection.execute(text("CREATE SCHEMA alertes"))
+    raw = engine.raw_connection()
+    try:
+        with raw.cursor() as cursor:
+            for fichier in sorted(MIGRATIONS.glob("*.sql")):
+                cursor.execute(fichier.read_text(encoding="utf-8"))
+        raw.commit()
+    finally:
+        raw.close()

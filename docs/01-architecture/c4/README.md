@@ -112,7 +112,7 @@ Les deux noms sont déduits de [ADR-008](../adr/ADR-008-microservices.md) et de 
 
 | Nom | Responsabilité | Couche | État |
 |---|---|---|---|
-| API de lecture | Sert indicateurs et prévisions en lecture seule | Adaptateur d'entrée | Planifié (MS-10) |
+| API de lecture | Sert indicateurs et prévisions en lecture seule | Adaptateur d'entrée | Partiel : les trois routes d'indicateurs existent (BE-04, `app/api/v1/indicators.py`) ; prévisions et référentiel planifiés (MS-10) |
 | Consommateur de mesures | Lit `iot.raw` | Adaptateur d'entrée | Planifié (MS-09) |
 | Cas d'usage de traitement | Orchestre nettoyage, agrégation, recommandation | Application | Planifié |
 | Nettoyage et qualité | Types, bornes, doublons, rejets avec motif | Domaine | Planifié (DAT-04) |

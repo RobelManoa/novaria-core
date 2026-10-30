@@ -1,4 +1,4 @@
-"""Validation de corps de réponse contre les schémas des contrats OpenAPI (BE-03)."""
+"""Validation de corps de réponse contre les schémas des contrats OpenAPI (BE-03, BE-04)."""
 
 from pathlib import Path
 
@@ -17,10 +17,12 @@ def load(path: Path) -> dict:
 
 
 API = load(OPENAPI / "api-metier.openapi.yaml")
+TRAITEMENT = load(OPENAPI / "traitement.openapi.yaml")
 REGISTRY = Registry().with_resources(
     [
         ("common.yaml", Resource.from_contents(load(OPENAPI / "common.yaml"), DRAFT202012)),
         ("api-metier.openapi.yaml", Resource.from_contents(API, DRAFT202012)),
+        ("traitement.openapi.yaml", Resource.from_contents(TRAITEMENT, DRAFT202012)),
     ]
 )
 
@@ -34,8 +36,8 @@ def check(body, reference: str) -> None:
     assert erreurs == [], erreurs
 
 
-def schema(name: str) -> str:
-    return f"api-metier.openapi.yaml#/components/schemas/{name}"
+def schema(name: str, contract: str = "api-metier") -> str:
+    return f"{contract}.openapi.yaml#/components/schemas/{name}"
 
 
 PROBLEM = "common.yaml#/components/schemas/Problem"
