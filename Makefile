@@ -3,7 +3,7 @@
 PY ?= python3
 DEV = $(PY) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs db-up db-migrate db-status db-check db-check-events etl-paris etl-nettoyer-paris psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts test-etl lint format new-service quality-up quality-down hooks
+.PHONY: help init-env up down health lock-deps ps logs db-up db-migrate db-status db-check db-check-events etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts test-etl lint format new-service quality-up quality-down hooks
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -37,6 +37,10 @@ etl-paris:     ## Ingère le comptage routier de Paris (make etl-paris DAY=2026-
 	$(DEV) etl-paris --day $(DAY)
 etl-nettoyer-paris: ## Nettoie le brut de Paris (make etl-nettoyer-paris DAY=2026-10-17) : propres, rejets, taux de rejet
 	$(DEV) etl-nettoyer-paris --day $(DAY)
+etl-lot:       ## Lot ETL planifié (make etl-lot DAY=2026-10-17 ; sans DAY : la veille) : ingestion, nettoyage de Paris
+	$(DEV) etl-lot $(if $(DAY),--day $(DAY),)
+etl-package:   ## Empaquette la logique ETL en dist/novaria-etl-<version>.zip (reproductible)
+	$(DEV) etl-package
 psql:          ## Ouvre psql (administrateur local)
 	$(DEV) psql
 mongosh:       ## Ouvre mongosh (administrateur local)

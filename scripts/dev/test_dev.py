@@ -276,6 +276,49 @@ class EtlTests(unittest.TestCase):
         self.assertEqual(len(commandes), 1)
         self.assertIn("< 7", commandes[0])
 
+    def test_le_lot_est_lance_avec_les_deux_adresses_et_ses_options(self):
+        code, appels = self.lancer(["etl-lot", "--day", "2026-10-29", "--windows", "var/f.csv", "--run-id", "demo-1"])
+        (commande, options), = appels
+        self.assertEqual(code, 3)
+        fenetres = str(Path("var/f.csv").resolve())
+        self.assertEqual(commande, [sys.executable, "-m", "pipelines.lot", "--day", "2026-10-29", "--windows", fenetres, "--run-id", "demo-1"])
+        self.assertEqual(options["cwd"], ROOT / "data" / "etl")
+        self.assertTrue(options["env"]["MONGO_URL"].startswith("mongodb://svc_traitement:"))
+        self.assertTrue(options["env"]["POSTGRES_URL"].startswith("postgresql://svc_traitement:"))
+        self.assertNotIn("s3cr", " ".join(commande))
+
+    def test_le_lot_sans_option_traite_la_veille_choisie_par_le_pipeline(self):
+        _, appels = self.lancer(["etl-lot"])
+        self.assertEqual(appels[0][0], [sys.executable, "-m", "pipelines.lot"])
+
+    def test_le_lot_exige_les_deux_pilotes(self):
+        for absent in ("pymongo", "psycopg"):
+            with self.subTest(absent=absent), mock.patch("builtins.print"):
+                code, appels = self.lancer(["etl-lot"], absent=absent)
+            self.assertEqual((code, appels), (2, []))
+
+    def test_le_chargement_ne_demande_que_psycopg_et_transmet_fichier_et_run(self):
+        code, appels = self.lancer(["etl-charger", "--file", "var/f.csv", "--run-id", "demo-1"], absent="pymongo")
+        (commande, options), = appels
+        self.assertEqual(code, 3)
+        self.assertEqual(commande[2:], ["pipelines.charger_entrepot", "--file", str(Path("var/f.csv").resolve()), "--run-id", "demo-1"])
+        self.assertTrue(options["env"]["POSTGRES_URL"].startswith("postgresql://svc_traitement:"))
+
+    def test_le_rejeu_transmet_ses_options_et_un_chemin_de_rapport_absolu(self):
+        _, appels = self.lancer(["etl-rejouer", "--file", "var/f.csv", "--run-id", "demo-1", "--from-scratch", "--report", "docs/r.md"])
+        self.assertEqual(appels[0][0][2:], ["pipelines.rejouer", "--file", str(Path("var/f.csv").resolve()), "--run-id", "demo-1", "--from-scratch",
+                                            "--report", str(Path("docs/r.md").resolve())])
+        _, appels = self.lancer(["etl-rejouer", "--file", "f.csv", "--run-id", "demo-1"])
+        self.assertNotIn("--from-scratch", appels[0][0])
+        self.assertNotIn("--report", appels[0][0])
+
+    def test_l_empaquetage_lance_le_script_sans_base_ni_pilote(self):
+        code, appels = self.lancer(["etl-package", "--out", "var/dist"], pymongo=False)
+        (commande, options), = appels
+        self.assertEqual(code, 3)
+        self.assertEqual(commande, [sys.executable, str(ROOT / "data" / "etl" / "pipelines" / "empaqueter.py"), "--out", str(Path("var/dist").resolve())])
+        self.assertEqual(options["cwd"], ROOT)
+
 
 class EvenementsMongoTests(unittest.TestCase):
     """LOC-02 : `db-check-events` insère une mesure conforme et une sans provenance dans raw_events."""

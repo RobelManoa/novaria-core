@@ -1,0 +1,9 @@
+# Lot ETL de Novaria Core sous Linux (DAT-06) : équivalent local d'un déclencheur planifié AWS (EventBridge Scheduler / Glue).
+# Installation (une fois) :
+#   1. remplacer /CHEMIN/VERS/novaria-core par le dossier du dépôt (chemin absolu) ;
+#   2. avoir lancé `python3 scripts/dev/dev.py db-up` : le lot a besoin de PostgreSQL et de MongoDB, et d'un fichier .env ;
+#   3. crontab -e, coller la ligne ci-dessous (ou : crontab -l ; cat data/etl/planification/novaria-etl.cron) | crontab - ).
+# Retrait : crontab -e, supprimer la ligne.
+# Chaque jour à 02:30, heure du poste : traite la veille en UTC (journée complète). Rejouer le lot est sans effet de bord.
+# Le journal du lot est ajouté à var/log/etl-lot.log (dossier ignoré par git) ; le code de sortie 1 signale une étape en échec.
+30 2 * * * cd /CHEMIN/VERS/novaria-core && mkdir -p var/log && python3 scripts/dev/dev.py etl-lot >> var/log/etl-lot.log 2>&1

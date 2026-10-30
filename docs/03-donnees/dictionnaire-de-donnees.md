@@ -418,6 +418,20 @@ Sept règles pour le comptage routier de Paris, évaluées dans cet ordre ; une 
 
 Une ligne retenue dont `k` est vide porte le drapeau `MISSING_OCCUPANCY` : ce n'est pas un rejet (DQ-06), mais le décompte est publié avec le taux de rejet.
 
+### 8.3 Contrôle des fenêtres avant chargement (DAT-06)
+
+Sept règles évaluées dans cet ordre avant l'écriture dans `dwh.fact_traffic_window` ; une ligne refusée va dans `dwh.etl_reject` avec `dataset` = `fenetres_trafic` et `source_ref` = `<fichier>#<rang>`. Détail : [ETL planifié en local](etl-planifie-local.md), section 3.
+
+| Code | Refus si |
+|---|---|
+| `MISSING_REQUIRED` | une colonne obligatoire de la table est vide |
+| `TYPE_INVALID` | tronçon hors `ROAD_nnn`, instant sans fuseau ou illisible, nombre illisible |
+| `OUT_OF_RANGE` | valeur hors des bornes de la table, taille de fenêtre autre que 60 ou 300 s |
+| `NOT_ALIGNED` | début de fenêtre non multiple de sa taille |
+| `SPEED_WITHOUT_VEHICLE` | vitesse donnée avec 0 véhicule |
+| `UNKNOWN_REFERENCE` | tronçon, état ou source absent des dimensions |
+| `DUPLICATE_KEY` | même tronçon et même fenêtre qu'une ligne précédente du fichier (la première est gardée) |
+
 ## 9. Jeu d'entraînement (IA-08)
 
 Un jeu = un ensemble de runs, enregistré en Parquet sous `data/datasets/`, accompagné de sa fiche de provenance et de son empreinte SHA-256 (*Secure Hash Algorithm*, algorithme de hachage) consignée dans MongoDB `model_runs`.

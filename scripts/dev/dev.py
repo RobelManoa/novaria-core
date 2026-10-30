@@ -542,6 +542,43 @@ def cmd_etl_nettoyer_paris(args: argparse.Namespace) -> int:
     return run_etl("pipelines.nettoyer_paris", options, ("pymongo", "psycopg"), extra)
 
 
+def etl_database_urls() -> dict[str, str]:
+    env = etl_environment()
+    return {"MONGO_URL": mongo_url(env, "svc_traitement", "MONGO_PASSWORD_TRAITEMENT"),
+            "POSTGRES_URL": postgres_url(env, "svc_traitement", "PG_PASSWORD_TRAITEMENT")}
+
+
+def cmd_etl_lot(args: argparse.Namespace) -> int:
+    """Lot planifié : ingestion et nettoyage de Paris, puis chargement de fenêtres si demandé (DAT-06). Commande du cron et de la tâche Windows."""
+    require_env()
+    if args.windows:
+        args.windows = args.windows.resolve()
+    options = [item for flag, value in (("--day", args.day), ("--windows", args.windows), ("--run-id", args.run_id)) if value for item in (flag, str(value))]
+    return run_etl("pipelines.lot", options, ("pymongo", "psycopg"), etl_database_urls())
+
+
+def cmd_etl_load(args: argparse.Namespace) -> int:
+    """Charge un fichier de fenêtres dans dwh.fact_traffic_window ; rejouable sans changer les totaux (DAT-06)."""
+    require_env()
+    return run_etl("pipelines.charger_entrepot", ["--file", str(args.file.resolve()), "--run-id", args.run_id], ("psycopg",), etl_database_urls())
+
+
+def cmd_etl_replay(args: argparse.Namespace) -> int:
+    """Charge un fichier de fenêtres trois fois (initial, rejeu, reprise) et écrit le rapport de comparaison des totaux (DAT-06)."""
+    require_env()
+    options = ["--file", str(args.file.resolve()), "--run-id", args.run_id]
+    if args.from_scratch:
+        options.append("--from-scratch")
+    if args.report:
+        options += ["--report", str(args.report.resolve())]
+    return run_etl("pipelines.rejouer", options, ("psycopg",), etl_database_urls())
+
+
+def cmd_etl_package(args: argparse.Namespace) -> int:
+    """Empaquette la logique ETL en une archive reproductible (dist/novaria-etl-<version>.zip), la forme d'un job AWS Glue (DAT-06)."""
+    return subprocess.run([sys.executable, str(ETL_DIR / "pipelines" / "empaqueter.py"), "--out", str(args.out.resolve())], cwd=ROOT, check=False).returncode
+
+
 # --------------------------------------------------------------------------- Kafka (ADR-009, LOC-04)
 # Les outils en ligne de commande de Kafka sont dans le conteneur : aucun client Kafka à installer sur le poste.
 KAFKA_BIN = "/opt/kafka/bin"
@@ -868,6 +905,20 @@ def build_parser() -> argparse.ArgumentParser:
     clean.add_argument("--day", metavar="AAAA-MM-JJ", help="le fichier brut du jour entier (ingéré par etl-paris --day)")
     clean.add_argument("--file", type=Path, help="un fichier brut précis")
     clean.add_argument("--alert-threshold", metavar="TAUX", help="taux de rejet au-delà duquel alerter, de 0 à 1 (0.5)")
+    lot = add("etl-lot", cmd_etl_lot, "lot ETL planifié : ingestion et nettoyage de Paris, chargement de fenêtres (cron, Planificateur de tâches)")
+    lot.add_argument("--day", metavar="AAAA-MM-JJ", help="jour UTC à traiter (la veille par défaut)")
+    lot.add_argument("--windows", type=Path, metavar="FICHIER", help="fichier CSV de fenêtres à charger dans l'entrepôt, avec --run-id")
+    lot.add_argument("--run-id", help="identifiant du run des fenêtres")
+    load = add("etl-charger", cmd_etl_load, "charge un fichier de fenêtres dans dwh.fact_traffic_window (idempotent)")
+    load.add_argument("--file", type=Path, required=True, help="fichier CSV de fenêtres")
+    load.add_argument("--run-id", required=True, help="identifiant du run (partie de la clé d'idempotence)")
+    replay = add("etl-rejouer", cmd_etl_replay, "charge trois fois le même fichier et compare les totaux (rapport de comparaison)")
+    replay.add_argument("--file", type=Path, required=True, help="fichier CSV de fenêtres")
+    replay.add_argument("--run-id", required=True, help="identifiant du run : seules ses lignes sont touchées")
+    replay.add_argument("--from-scratch", action="store_true", help="supprime d'abord les lignes de ce run")
+    replay.add_argument("--report", type=Path, help="écrit le rapport (Markdown) dans ce fichier")
+    package = add("etl-package", cmd_etl_package, "empaquette la logique ETL en dist/novaria-etl-<version>.zip (reproductible)")
+    package.add_argument("--out", type=Path, default=Path("dist"), help="dossier de l'archive (dist)")
     add("kafka-up", cmd_kafka_up, "démarre Kafka (mode KRaft) et attend qu'il soit prêt")
     add("kafka-topics", cmd_kafka_topics, "crée les 6 sujets du bus s'ils manquent et les vérifie")
     trip = add("kafka-roundtrip", cmd_kafka_roundtrip, "publie un événement, le relit et le valide contre le contrat")
