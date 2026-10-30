@@ -45,7 +45,7 @@ BORNES = {
     "speed_ratio": (Decimal(0), Decimal("9.999")),  # numeric(4, 3)
 }
 ENTIERS = {"vehicle_count": (0, 2_147_483_647), "sample_count": (0, SMALLINT_MAX), "expected_sample_count": (1, SMALLINT_MAX)}
-SEGMENT = re.compile(r"ROAD_[0-9]{3,}", re.ASCII)
+SEGMENT = re.compile(r"ROAD_\d{3,}", re.ASCII)
 NOMBRE = re.compile(r"[+-]?\d+(\.\d+)?", re.ASCII)
 ENTIER = re.compile(r"[+-]?\d{1,12}", re.ASCII)
 

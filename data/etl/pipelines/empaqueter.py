@@ -1,10 +1,11 @@
 """Empaquette la logique ETL en une archive reproductible : `dist/novaria-etl-<version>.zip` (DAT-06).
 
-    python data/etl/pipelines/empaqueter.py [--out dist]
+    python data/etl/pipelines/empaqueter.py
 
 L'archive contient les paquets `pipelines` et `transforms`, `requirements.txt` et un `MANIFEST.txt` (SHA-256 de chaque
-fichier). Elle est déterministe : mêmes sources, même octets, même empreinte (ordre fixe, dates fixes, pas de cache
-Python). C'est la forme que prend le code pour un job AWS Glue (`--extra-py-files`, docs/03-donnees/etl-planifie-local.md),
+fichier). Elle est écrite dans `dist/` à la racine du dépôt. Elle est déterministe : mêmes sources, même octets, même empreinte
+(ordre fixe, dates fixes, pas de cache Python).
+C'est la forme que prend le code pour un job AWS Glue (`--extra-py-files`, docs/03-donnees/etl-planifie-local.md),
 et pour un déploiement local sans copier le dépôt. Bibliothèque standard seulement.
 """
 
@@ -22,6 +23,7 @@ PAQUETS = ("pipelines", "transforms")
 FICHIERS = ("requirements.txt",)
 DATE_FIXE = (1980, 1, 1, 0, 0, 0)  # plus ancienne date qu'une archive zip sache représenter
 MANIFESTE = "MANIFEST.txt"
+SORTIE = RACINE_ETL.parents[1] / "dist"  # à la racine du dépôt, dossier ignoré par git
 
 
 def version(racine: Path = RACINE_ETL) -> str:
@@ -35,7 +37,7 @@ def fichiers_a_empaqueter(racine: Path = RACINE_ETL) -> list[Path]:
     return sorted(retenus, key=lambda chemin: chemin.as_posix())
 
 
-def construire(racine: Path = RACINE_ETL, sortie: Path = Path("dist")) -> Path:
+def construire(racine: Path = RACINE_ETL, sortie: Path = SORTIE) -> Path:
     contenus = {chemin.as_posix(): (racine / chemin).read_bytes() for chemin in fichiers_a_empaqueter(racine)}
     manifeste = "".join(f"{hashlib.sha256(octets).hexdigest()}  {nom}\n" for nom, octets in contenus.items())
     sortie.mkdir(parents=True, exist_ok=True)
@@ -55,9 +57,8 @@ def empreinte(archive: Path) -> str:
 
 def principal(argv: list[str] | None = None) -> int:
     parseur = argparse.ArgumentParser(description="Empaquette la logique ETL (pipelines, transforms) en une archive reproductible.")
-    parseur.add_argument("--out", type=Path, default=Path("dist"), help="dossier de l'archive (dist)")
-    arguments = parseur.parse_args(argv)
-    archive = construire(sortie=arguments.out)
+    parseur.parse_args(argv)
+    archive = construire(sortie=SORTIE)
     with zipfile.ZipFile(archive) as zip_:
         nombre = len(zip_.namelist())
     print(f"{archive} : {nombre} fichiers, sha256 {empreinte(archive)}")

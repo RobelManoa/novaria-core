@@ -548,35 +548,39 @@ def etl_database_urls() -> dict[str, str]:
             "POSTGRES_URL": postgres_url(env, "svc_traitement", "PG_PASSWORD_TRAITEMENT")}
 
 
+def etl_file_argument(path: Path) -> str:
+    """Un nom seul reste un nom (le pipeline le cherche dans son dossier) ; un chemin devient absolu, car le pipeline part de data/etl."""
+    return str(path.resolve()) if path.parent != Path(".") else str(path)
+
+
 def cmd_etl_lot(args: argparse.Namespace) -> int:
     """Lot planifié : ingestion et nettoyage de Paris, puis chargement de fenêtres si demandé (DAT-06). Commande du cron et de la tâche Windows."""
     require_env()
-    if args.windows:
-        args.windows = args.windows.resolve()
-    options = [item for flag, value in (("--day", args.day), ("--windows", args.windows), ("--run-id", args.run_id)) if value for item in (flag, str(value))]
+    windows = etl_file_argument(args.windows) if args.windows else None
+    options = [item for flag, value in (("--day", args.day), ("--windows", windows), ("--run-id", args.run_id)) if value for item in (flag, str(value))]
     return run_etl("pipelines.lot", options, ("pymongo", "psycopg"), etl_database_urls())
 
 
 def cmd_etl_load(args: argparse.Namespace) -> int:
     """Charge un fichier de fenêtres dans dwh.fact_traffic_window ; rejouable sans changer les totaux (DAT-06)."""
     require_env()
-    return run_etl("pipelines.charger_entrepot", ["--file", str(args.file.resolve()), "--run-id", args.run_id], ("psycopg",), etl_database_urls())
+    return run_etl("pipelines.charger_entrepot", ["--file", etl_file_argument(args.file), "--run-id", args.run_id], ("psycopg",), etl_database_urls())
 
 
 def cmd_etl_replay(args: argparse.Namespace) -> int:
     """Charge un fichier de fenêtres trois fois (initial, rejeu, reprise) et écrit le rapport de comparaison des totaux (DAT-06)."""
     require_env()
-    options = ["--file", str(args.file.resolve()), "--run-id", args.run_id]
+    options = ["--file", etl_file_argument(args.file), "--run-id", args.run_id]
     if args.from_scratch:
         options.append("--from-scratch")
     if args.report:
-        options += ["--report", str(args.report.resolve())]
+        options += ["--report", args.report]
     return run_etl("pipelines.rejouer", options, ("psycopg",), etl_database_urls())
 
 
 def cmd_etl_package(args: argparse.Namespace) -> int:
     """Empaquette la logique ETL en une archive reproductible (dist/novaria-etl-<version>.zip), la forme d'un job AWS Glue (DAT-06)."""
-    return subprocess.run([sys.executable, str(ETL_DIR / "pipelines" / "empaqueter.py"), "--out", str(args.out.resolve())], cwd=ROOT, check=False).returncode
+    return subprocess.run([sys.executable, str(ETL_DIR / "pipelines" / "empaqueter.py")], cwd=ROOT, check=False).returncode
 
 
 # --------------------------------------------------------------------------- Kafka (ADR-009, LOC-04)
@@ -916,9 +920,8 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("--file", type=Path, required=True, help="fichier CSV de fenêtres")
     replay.add_argument("--run-id", required=True, help="identifiant du run : seules ses lignes sont touchées")
     replay.add_argument("--from-scratch", action="store_true", help="supprime d'abord les lignes de ce run")
-    replay.add_argument("--report", type=Path, help="écrit le rapport (Markdown) dans ce fichier")
+    replay.add_argument("--report", metavar="NOM", help="écrit le rapport sous ce nom dans docs/03-donnees/ (rapport-….md)")
     package = add("etl-package", cmd_etl_package, "empaquette la logique ETL en dist/novaria-etl-<version>.zip (reproductible)")
-    package.add_argument("--out", type=Path, default=Path("dist"), help="dossier de l'archive (dist)")
     add("kafka-up", cmd_kafka_up, "démarre Kafka (mode KRaft) et attend qu'il soit prêt")
     add("kafka-topics", cmd_kafka_topics, "crée les 6 sujets du bus s'ils manquent et les vérifie")
     trip = add("kafka-roundtrip", cmd_kafka_roundtrip, "publie un événement, le relit et le valide contre le contrat")

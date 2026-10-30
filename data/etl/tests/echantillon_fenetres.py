@@ -4,7 +4,7 @@ Valeurs inventées par une formule déterministe (aucune graine aléatoire : le 
 donc son empreinte aussi). Source `SIMULATED`, jamais présentée comme une mesure (ADR-027). Ce n'est pas le générateur
 de scénarios de l'ADR-027 (issue séparée) : seulement de quoi remplir `fact_traffic_window` pour prouver le chargement.
 
-    python data/etl/tests/echantillon_fenetres.py --out var/fenetres-demo.csv [--defects]
+    python data/etl/tests/echantillon_fenetres.py --out data/datasets/fenetres/fenetres-demo.csv [--defects]
 """
 
 import argparse

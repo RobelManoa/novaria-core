@@ -31,6 +31,9 @@ from transforms.paris_qualite import Rejet
 
 from pipelines.sorties import ErreurSortie, RejetsPostgres, SortieRejets
 
+RACINE = Path(__file__).resolve().parents[3]
+FENETRES = RACINE / "data" / "datasets" / "fenetres"  # dossier des fichiers de fenêtres (ignoré par git avec data/datasets/)
+NOM_FENETRES = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}\.csv", re.ASCII)
 DATASET = "fenetres_trafic"
 LOT = 5000
 RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,79}", re.ASCII)  # CHECK de la table : 1 à 80 caractères
@@ -38,6 +41,22 @@ RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,79}", re.ASCII)  # CHECK de l
 
 class ErreurChargement(Exception):
     """Le chargement n'a pas eu lieu (fichier, paramètre ou base)."""
+
+
+def fichier_fenetres(dossier: Path, texte: str) -> Path:
+    """Un fichier de fenêtres du dossier prévu, désigné par son nom.
+
+    Seul le nom (`os.path.basename`) sert à construire le chemin, et il doit être un nom de CSV simple : un chemin donné en
+    argument ne peut pas faire ouvrir un autre fichier (`../`, chemin absolu, lien vers ailleurs). Si la valeur contient un
+    dossier, ce dossier doit être celui des fichiers de fenêtres.
+    """
+    nom = os.path.basename(texte)
+    if NOM_FENETRES.fullmatch(nom) is None:
+        raise ErreurChargement(f"Nom de fichier refusé : {nom!r} (attendu : un nom de fichier .csv simple, lettres, chiffres, . _ -).")
+    dossier_donne = os.path.dirname(texte)
+    if dossier_donne and Path(dossier_donne).resolve() != dossier.resolve():
+        raise ErreurChargement(f"Fichier hors du dossier des fichiers de fenêtres ({dossier}) : {texte!r}.")
+    return dossier / nom
 
 
 @dataclass(frozen=True)
@@ -84,8 +103,9 @@ COLONNES_SQL = (
 )
 A_METTRE_A_JOUR = COLONNES_SQL[3:]  # tout sauf la clé primaire
 # Le WHERE du DO UPDATE fait d'un rejeu une absence d'écriture : une ligne identique n'est pas réécrite (loaded_at reste celui du premier chargement).
+# Noms de colonnes constants, valeurs par paramètres (S608 ne s'applique pas).
 SQL_ECRITURE = (
-    f"INSERT INTO dwh.fact_traffic_window AS f (road_segment_key, {', '.join(COLONNES_SQL)}) "  # noqa: S608 - noms de colonnes constants
+    f"INSERT INTO dwh.fact_traffic_window AS f (road_segment_key, {', '.join(COLONNES_SQL)}) "  # noqa: S608
     f"SELECT s.road_segment_key, {', '.join(['%s'] * len(COLONNES_SQL))} FROM dwh.dim_road_segment s WHERE s.road_segment_id = %s "
     "ON CONFLICT (road_segment_key, window_start, window_size_s, run_id) DO UPDATE SET "
     + ", ".join(f"{colonne} = EXCLUDED.{colonne}" for colonne in A_METTRE_A_JOUR)
@@ -257,22 +277,25 @@ def afficher(resultat: Resultat) -> None:
 
 def construire_parseur() -> argparse.ArgumentParser:
     parseur = argparse.ArgumentParser(description="Charge un fichier de fenêtres de trafic dans dwh.fact_traffic_window (rejouable).")
-    parseur.add_argument("--file", type=Path, required=True, help="fichier CSV de fenêtres")
+    parseur.add_argument("--file", required=True, help="fichier CSV de fenêtres, dans data/datasets/fenetres/ (son nom suffit)")
     parseur.add_argument("--run-id", required=True, help="identifiant de l'exécution d'origine (partie de la clé d'idempotence)")
     parseur.add_argument("--postgres-url", default=os.environ.get("POSTGRES_URL"), help="adresse PostgreSQL (sinon variable POSTGRES_URL)")
     return parseur
 
 
-def principal(argv: Sequence[str] | None = None, *, entrepot: Entrepot | None = None, rejets_pg: SortieRejets | None = None) -> int:
+def principal(argv: Sequence[str] | None = None, *, entrepot: Entrepot | None = None, rejets_pg: SortieRejets | None = None,
+              dossier: Path = FENETRES) -> int:
+    """`dossier` n'est pas une option de la ligne de commande : seuls les tests le changent."""
     arguments = construire_parseur().parse_args(argv)
     try:
+        fichier = fichier_fenetres(dossier, arguments.file)
         if entrepot is None:
             if not arguments.postgres_url:
                 raise ErreurChargement("Adresse PostgreSQL absente : variable POSTGRES_URL ou option --postgres-url "
                                        "(python scripts/dev/dev.py etl-charger la construit depuis .env).")
             entrepot = EntrepotPostgres.depuis_url(arguments.postgres_url)
             rejets_pg = RejetsPostgres(entrepot.connexion)
-        resultat = charger_fichier(arguments.file, arguments.run_id, entrepot=entrepot, rejets_pg=rejets_pg)
+        resultat = charger_fichier(fichier, arguments.run_id, entrepot=entrepot, rejets_pg=rejets_pg)
     except (ErreurChargement, ErreurSortie) as erreur:
         print(f"ERREUR : {erreur}", file=sys.stderr)
         return 1

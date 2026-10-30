@@ -333,10 +333,61 @@ class Chargement(AvecDossier):
         self.assertEqual(entrepot.lignes, {})
 
 
+class ConfinementDesChemins(AvecDossier):
+    """Un chemin donné en argument ne peut pas faire lire ou écrire un autre fichier que ceux du dossier prévu."""
+
+    def test_un_fichier_est_designe_par_son_nom_ou_par_un_chemin_qui_mene_au_dossier(self):
+        self.assertEqual(ce.fichier_fenetres(self.dossier, "f.csv"), self.dossier / "f.csv")
+        self.assertEqual(ce.fichier_fenetres(self.dossier, str(self.dossier / "f.csv")), self.dossier / "f.csv")
+
+    def test_un_chemin_vers_un_autre_dossier_est_refuse(self):
+        for texte in (str(self.dossier.parent / "f.csv"), "../f.csv", "sous/f.csv", "/etc/passwd.csv", str(self.dossier / ".." / "f.csv")):
+            with self.subTest(texte=texte), self.assertRaisesRegex(ce.ErreurChargement, "hors du dossier"):
+                ce.fichier_fenetres(self.dossier, texte)
+
+    def test_un_nom_qui_n_est_pas_un_csv_simple_est_refuse(self):
+        for texte in ("", "f.txt", "f", ".f.csv", "f csv.csv", "é.csv", "f.csv\n", "a" * 101 + ".csv", "..", "con:.csv"):
+            with self.subTest(texte=texte), self.assertRaisesRegex(ce.ErreurChargement, "Nom de fichier refusé"):
+                ce.fichier_fenetres(self.dossier, texte)
+        self.assertEqual(ce.fichier_fenetres(self.dossier, "a" * 99 + ".csv").name, "a" * 99 + ".csv")
+
+    def test_un_lien_ne_sort_pas_du_dossier_par_le_nom(self):
+        with self.assertRaises(ce.ErreurChargement):
+            ce.fichier_fenetres(self.dossier, "x/../../f.csv")
+
+    def test_le_rapport_est_ecrit_sous_un_nom_de_rapport_dans_son_dossier_et_nulle_part_ailleurs(self):
+        self.assertEqual(rejouer.fichier_rapport(self.dossier, "rapport-essai-1.md"), self.dossier / "rapport-essai-1.md")
+        for texte in ("rapport.md", "Rapport-x.md", "rapport-x.txt", "../rapport-x.md", "sous/rapport-x.md", "/srv/rapport-x.md",
+                      str(self.dossier / "rapport-x.md"), "rapport-" + "a" * 61 + ".md", "rapport-é.md", "rapport-x.md\n"):
+            with self.subTest(texte=texte), self.assertRaisesRegex(ce.ErreurChargement, "Nom de rapport refusé"):
+                rejouer.fichier_rapport(self.dossier, texte)
+
+    def test_les_dossiers_par_defaut_sont_ceux_de_la_documentation(self):
+        self.assertEqual(ce.FENETRES, RACINE / "data" / "datasets" / "fenetres")
+        self.assertEqual(rejouer.RAPPORTS, RACINE / "docs" / "03-donnees")
+        gitignore = (RACINE / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("data/datasets/*", gitignore)
+
+    def test_la_ligne_de_commande_refuse_un_chemin_hors_du_dossier_sans_rien_lire(self):
+        autre = self.dossier / "autre"
+        autre.mkdir()
+        (autre / "f.csv").write_bytes(ef.fabriquer_fenetres())
+        entrepot = FauxEntrepot()
+        code, _, erreur = self.executer(ce.principal, ["--file", str(autre / "f.csv"), "--run-id", "run-1"], entrepot=entrepot, dossier=self.dossier)
+        self.assertEqual((code, entrepot.lignes), (1, {}))
+        self.assertIn("hors du dossier", erreur)
+        code, _, erreur = self.executer(rejouer.principal, ["--file", "f.csv", "--run-id", "run-1", "--report", "../rapport-x.md"],
+                                        entrepot=entrepot, dossier=autre, rapports=self.dossier)
+        self.assertEqual(code, 1)
+        self.assertIn("Nom de rapport refusé", erreur)
+        self.assertFalse((self.dossier.parent / "rapport-x.md").exists())
+
+
 class LigneDeCommandeDuChargement(AvecDossier):
     def test_le_chargement_affiche_le_resume_et_ferme_l_entrepot(self):
         entrepot = FauxEntrepot()
-        code, sortie, _ = self.executer(ce.principal, ["--file", str(self.fichier(True)), "--run-id", "run-1"], entrepot=entrepot, rejets_pg=FauxRejets())
+        code, sortie, _ = self.executer(ce.principal, ["--file", self.fichier(True).name, "--run-id", "run-1"], entrepot=entrepot,
+                                        rejets_pg=FauxRejets(), dossier=self.dossier)
         self.assertEqual(code, 0)
         self.assertIn("868 lues = 864 chargées + 4 rejetées", sortie)
         self.assertIn("864 créées, 0 déjà présentes", sortie)
@@ -345,14 +396,14 @@ class LigneDeCommandeDuChargement(AvecDossier):
         self.assertTrue(entrepot.fermee)
 
     def test_une_erreur_donne_le_code_1_et_un_message_sur_stderr(self):
-        code, sortie, erreur = self.executer(ce.principal, ["--file", str(self.dossier / "absent.csv"), "--run-id", "run-1"], entrepot=FauxEntrepot())
+        code, sortie, erreur = self.executer(ce.principal, ["--file", "absent.csv", "--run-id", "run-1"], entrepot=FauxEntrepot(), dossier=self.dossier)
         self.assertEqual((code, sortie), (1, ""))
         self.assertIn("ERREUR : Fichier de fenêtres introuvable", erreur)
 
     def test_sans_adresse_postgresql_le_message_nomme_la_commande_dev(self):
         with unittest.mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("POSTGRES_URL", None)
-            code, _, erreur = self.executer(ce.principal, ["--file", str(self.fichier()), "--run-id", "run-1"])
+            code, _, erreur = self.executer(ce.principal, ["--file", self.fichier().name, "--run-id", "run-1"], dossier=self.dossier)
         self.assertEqual(code, 1)
         self.assertIn("dev.py etl-charger", erreur)
 
@@ -361,7 +412,7 @@ class LigneDeCommandeDuChargement(AvecDossier):
             def charger(self, run_id, lot_):
                 raise ErreurSortie("PostgreSQL a refusé l'écriture")
 
-        code, _, erreur = self.executer(ce.principal, ["--file", str(self.fichier()), "--run-id", "run-1"], entrepot=EnPanne())
+        code, _, erreur = self.executer(ce.principal, ["--file", self.fichier().name, "--run-id", "run-1"], entrepot=EnPanne(), dossier=self.dossier)
         self.assertEqual((code, "refusé l'écriture" in erreur), (1, True))
 
 
@@ -616,11 +667,10 @@ class RejeuDuChargement(AvecDossier):
         self.assertEqual(texte.count(f"`{empreinte}`"), 3)
 
     def test_la_ligne_de_commande_ecrit_le_rapport_et_rend_0(self):
-        rapport = self.dossier / "sous" / "rapport.md"
-        rapport.parent.mkdir()
+        rapport = self.dossier / "rapport-essai.md"
         code, sortie, _ = self.executer(
-            rejouer.principal, ["--file", str(self.fichier()), "--run-id", "run-1", "--from-scratch", "--report", str(rapport)],
-            entrepot=FauxEntrepot(), maintenant=MAINTENANT)
+            rejouer.principal, ["--file", self.fichier().name, "--run-id", "run-1", "--from-scratch", "--report", "rapport-essai.md"],
+            entrepot=FauxEntrepot(), maintenant=MAINTENANT, dossier=self.dossier, rapports=self.dossier)
         self.assertEqual(code, 0)
         self.assertEqual(sortie, rapport.read_text(encoding="utf-8") + "\n")  # le rapport écrit est celui qui est affiché
         self.assertNotIn("\r", rapport.read_text(encoding="utf-8"))
@@ -631,17 +681,18 @@ class RejeuDuChargement(AvecDossier):
                 self.lignes[("x", datetime.now(UTC), 300, run_id)] = ("SIMULATED", 1, Decimal(1), None, None, None, None, 1, 1, "SLOW", "v")
                 return super().charger(run_id, lot_)
 
-        code, sortie, _ = self.executer(rejouer.principal, ["--file", str(self.fichier()), "--run-id", "run-1"], entrepot=Duplicateur(), maintenant=MAINTENANT)
+        code, sortie, _ = self.executer(rejouer.principal, ["--file", self.fichier().name, "--run-id", "run-1"], entrepot=Duplicateur(), maintenant=MAINTENANT,
+                                         dossier=self.dossier)
         self.assertEqual(code, 2)
         self.assertIn("Totaux DIFFÉRENTS", sortie)
 
     def test_les_erreurs_donnent_le_code_1(self):
-        code, _, erreur = self.executer(rejouer.principal, ["--file", str(self.dossier / "absent.csv"), "--run-id", "run-1"], entrepot=FauxEntrepot())
+        code, _, erreur = self.executer(rejouer.principal, ["--file", "absent.csv", "--run-id", "run-1"], entrepot=FauxEntrepot(), dossier=self.dossier)
         self.assertEqual(code, 1)
         self.assertIn("introuvable", erreur)
         with unittest.mock.patch.dict(os.environ):
             os.environ.pop("POSTGRES_URL", None)
-            code, _, erreur = self.executer(rejouer.principal, ["--file", str(self.fichier()), "--run-id", "run-1"])
+            code, _, erreur = self.executer(rejouer.principal, ["--file", self.fichier().name, "--run-id", "run-1"], dossier=self.dossier)
         self.assertEqual(code, 1)
         self.assertIn("dev.py etl-rejouer", erreur)
 
@@ -767,11 +818,17 @@ class Empaquetage(AvecDossier):
                 self.assertTrue(callable(getattr(importlib.import_module(module), fonction)))
 
     def test_la_ligne_de_commande_affiche_le_chemin_et_l_empreinte(self):
-        code, sortie, _ = self.executer(empaqueter.principal, ["--out", str(self.dossier)])
-        self.assertEqual(code, 0)
-        archive = self.dossier / f"novaria-etl-{empaqueter.version()}.zip"
-        self.assertIn(f"sha256 {empaqueter.empreinte(archive)}", sortie)
-        self.assertRegex(sortie, r": \d+ fichiers,")
+        with unittest.mock.patch.object(empaqueter, "SORTIE", self.dossier):
+            code, sortie, _ = self.executer(empaqueter.principal, [])
+            self.assertEqual(code, 0)
+            archive = self.dossier / f"novaria-etl-{empaqueter.version()}.zip"
+            self.assertIn(f"sha256 {empaqueter.empreinte(archive)}", sortie)
+            self.assertRegex(sortie, r": \d+ fichiers,")
+
+    def test_la_sortie_de_l_archive_n_est_pas_un_argument_de_la_ligne_de_commande(self):
+        with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
+            empaqueter.principal(["--out", str(self.dossier)])
+        self.assertEqual(empaqueter.SORTIE, RACINE / "dist")
 
 
 # --- Planification ---------------------------------------------------------------------------------------------------------

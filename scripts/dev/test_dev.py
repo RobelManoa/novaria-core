@@ -304,19 +304,20 @@ class EtlTests(unittest.TestCase):
         self.assertEqual(commande[2:], ["pipelines.charger_entrepot", "--file", str(Path("var/f.csv").resolve()), "--run-id", "demo-1"])
         self.assertTrue(options["env"]["POSTGRES_URL"].startswith("postgresql://svc_traitement:"))
 
-    def test_le_rejeu_transmet_ses_options_et_un_chemin_de_rapport_absolu(self):
-        _, appels = self.lancer(["etl-rejouer", "--file", "var/f.csv", "--run-id", "demo-1", "--from-scratch", "--report", "docs/r.md"])
+    def test_le_rejeu_transmet_ses_options_le_rapport_par_son_nom_et_un_nom_de_fichier_seul_reste_un_nom(self):
+        _, appels = self.lancer(["etl-rejouer", "--file", "var/f.csv", "--run-id", "demo-1", "--from-scratch", "--report", "rapport-x.md"])
         self.assertEqual(appels[0][0][2:], ["pipelines.rejouer", "--file", str(Path("var/f.csv").resolve()), "--run-id", "demo-1", "--from-scratch",
-                                            "--report", str(Path("docs/r.md").resolve())])
+                                            "--report", "rapport-x.md"])
         _, appels = self.lancer(["etl-rejouer", "--file", "f.csv", "--run-id", "demo-1"])
+        self.assertEqual(appels[0][0][2:5], ["pipelines.rejouer", "--file", "f.csv"])
         self.assertNotIn("--from-scratch", appels[0][0])
         self.assertNotIn("--report", appels[0][0])
 
     def test_l_empaquetage_lance_le_script_sans_base_ni_pilote(self):
-        code, appels = self.lancer(["etl-package", "--out", "var/dist"], pymongo=False)
+        code, appels = self.lancer(["etl-package"], pymongo=False)
         (commande, options), = appels
         self.assertEqual(code, 3)
-        self.assertEqual(commande, [sys.executable, str(ROOT / "data" / "etl" / "pipelines" / "empaqueter.py"), "--out", str(Path("var/dist").resolve())])
+        self.assertEqual(commande, [sys.executable, str(ROOT / "data" / "etl" / "pipelines" / "empaqueter.py")])
         self.assertEqual(options["cwd"], ROOT)
 
 

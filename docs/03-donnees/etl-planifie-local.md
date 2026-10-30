@@ -30,7 +30,7 @@ dossier installable (`pip install data/etl`) et déclare trois commandes (`novar
 `python3 scripts/dev/dev.py etl-charger --file fenetres.csv --run-id <run>` contrôle un fichier de fenêtres puis l'écrit dans
 `dwh.fact_traffic_window` avec le compte `svc_traitement`.
 
-**Fichier d'entrée.** CSV UTF-8 séparé par des virgules, une fenêtre par ligne, colonnes de
+**Fichier d'entrée.** Placé dans `data/datasets/fenetres/` (dossier ignoré par git) et désigné par son nom : un chemin vers un autre dossier est refusé, comme pour le nettoyage de Paris. CSV UTF-8 séparé par des virgules, une fenêtre par ligne, colonnes de
 `transforms/fenetres_trafic.py` (`road_segment_id, window_start, window_size_s, source_type, vehicle_count, flow_veh_per_min,
 average_speed_kmh, occupancy_rate, max_queue_length_m, speed_ratio, sample_count, expected_sample_count, congestion_state,
 classifier_version`). Le `run_id` est un paramètre du chargement, pas une colonne : c'est l'exécution d'origine.
@@ -65,7 +65,7 @@ prouver le chargement : 24 tronçons du réseau de démonstration × 36 fenêtre
 présentées comme mesures.
 
 ```bash
-python3 data/etl/tests/echantillon_fenetres.py --out var/fenetres-demo.csv --defects   # 868 lignes dont 4 à refuser
+python3 data/etl/tests/echantillon_fenetres.py --out data/datasets/fenetres/fenetres-demo.csv --defects   # 868 lignes dont 4 à refuser
 ```
 
 ## 4. Planifier le lot en local
@@ -95,17 +95,17 @@ relance à la main avec `--day`).
 ## 5. Rejouer et comparer
 
 ```bash
-python3 scripts/dev/dev.py etl-rejouer --file var/fenetres-demo.csv --run-id preuve-dat06 --from-scratch --report docs/03-donnees/rapport-rejeu-etl.md
+python3 scripts/dev/dev.py etl-rejouer --file fenetres-demo.csv --run-id preuve-dat06 --from-scratch --report rapport-rejeu-etl.md
 ```
 
 Trois passes sur le même fichier et le même `run_id`, avec les totaux relevés **dans la table** après chacune : (1) chargement
 initial ; (2) rejeu à l'identique ; (3) reprise après incident : un dixième des lignes du run est supprimé, puis le fichier est
 rechargé. Les totaux comparés : nombre de lignes, somme des véhicules, somme du débit et **empreinte MD5 des lignes triées**
-(sans `loaded_at`), qui détecte aussi une valeur modifiée à nombre de lignes égal. `--from-scratch` ne supprime que les lignes
+(sans `loaded_at`), qui détecte aussi une valeur modifiée à nombre de lignes égal. Le rapport s'écrit dans `docs/03-donnees/` sous un nom `rapport-….md` (rien d'autre n'est accepté) ; l'archive de l'étape 2 va toujours dans `dist/`. `--from-scratch` ne supprime que les lignes
 du `run_id` donné. Code de sortie : 0 si les trois relevés sont égaux, 2 sinon. Le résultat est dans le
 [rapport de comparaison](rapport-rejeu-etl.md).
 
-**Lot entier, deux fois de suite** (30/10/2026, Windows, bases neuves sous Docker, `etl-lot --day 2026-10-17 --windows var/fenetres-demo.csv --run-id lot-dat06`, 54 s) :
+**Lot entier, deux fois de suite** (30/10/2026, Windows, bases neuves sous Docker, `etl-lot --day 2026-10-17 --windows fenetres-demo.csv --run-id lot-dat06`, 54 s) :
 
 | | 1re exécution | 2e exécution |
 |---|---|---|
