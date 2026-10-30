@@ -111,6 +111,8 @@ Un indicateur = une définition écrite, une vue SQL, un point d'accès d'API (A
 | Part de capteurs muets | `fait_trafic_fenetre` | Fiabilité du réseau de capteurs | Dépend de la règle de silence |
 | Taux de rejet de qualité | Couche des rejets ([ADR-013](ADR-013-integration-donnees.md)) | Confiance dans les chiffres | Dépend des règles de nettoyage |
 
+> **Définition finale (DAT-07, 30/10/2026).** Cinq indicateurs, dont les quatre de congestion demandés par l'issue #61, sont définis dans [`docs/03-donnees/kpi.md`](../../03-donnees/kpi.md) avec leurs vues SQL (`data/dwh/sql/kpi/`) et un recalcul indépendant sur les sources. Trois propositions du tableau ci-dessus ne sont pas retenues (délai de résolution, part de capteurs muets, taux de rejet) : raisons dans la section 5 de la fiche. Les vues matérialisées ne sont pas introduites : à ce volume, des vues simples suffisent.
+
 ### 4.3 Séparation écriture / lecture (CQRS)
 
 Le **pipeline** écrit dans les faits ; l'**API de consultation** lit des vues (ou vues matérialisées rafraîchies par le pipeline) en lecture seule. Le tableau de bord ne lit jamais les tables d'écriture.
