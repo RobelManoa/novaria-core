@@ -88,6 +88,8 @@ Mise en œuvre pour le comptage routier de Paris (DAT-04) : sept règles, codes 
 | Lots et rattrapage | Tâches Python planifiées (EventBridge Scheduler et ECS (Elastic Container Service) en cible ; une commande de `dev.py` ou le planificateur du système en local) |
 | AWS Glue (DAT-06) | Même logique empaquetée, exécution comparée au local : mêmes totaux exigés |
 
+> **Mise en œuvre de DAT-06 (30/10/2026).** La logique est empaquetée (archive reproductible), planifiée en local (`dev.py etl-lot`, `cron`, Planificateur de tâches) et son chargement est rejoué à totaux identiques ([rapport](../../03-donnees/rapport-rejeu-etl.md)). Glue est décrit comme un job Spark géré, **non exécuté** : [ETL planifié en local et équivalent Glue](../../03-donnees/etl-planifie-local.md). La pile proposée pour le projet (Spark pour l'ETL par lots, NiFi, SeaweedFS, Kubeflow) s'écarte de cet ADR sur NiFi (option E écartée) ; SeaweedFS et Kubeflow n'ont pas d'ADR : à décider avant mise en œuvre.
+
 ## 5. Conséquences
 
 **Positives**

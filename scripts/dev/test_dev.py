@@ -172,12 +172,12 @@ class EtlTests(unittest.TestCase):
     ENV = {"MONGO_DB": "novaria", "MONGO_PORT": "27117", "MONGO_PASSWORD_TRAITEMENT": "p@ss/w:rd#1",
            "POSTGRES_DB": "novaria", "POSTGRES_PORT": "5543", "PG_PASSWORD_TRAITEMENT": "s3cr:t/pg#2"}
 
-    def lancer(self, argv, *, pymongo=True, env_text=None, absent=None):
+    def lancer(self, argv, *, pymongo=True, env_text=None, absent=None, retour=3, stdout=""):
         appels = []
 
         def fake_run(cmd, **kwargs):
             appels.append((cmd, kwargs))
-            return subprocess.CompletedProcess(cmd, 3, stdout="", stderr="")
+            return subprocess.CompletedProcess(cmd, retour, stdout=stdout, stderr="")
 
         texte = env_text if env_text is not None else "".join(f"{k}={v}\n" for k, v in self.ENV.items())
         with tempfile.TemporaryDirectory() as tmp:
@@ -275,6 +275,68 @@ class EtlTests(unittest.TestCase):
         commandes = [c for _, label, c, _ in dev.build_checks() if "collections" in label]
         self.assertEqual(len(commandes), 1)
         self.assertIn("< 7", commandes[0])
+
+    def test_le_lot_est_lance_avec_les_deux_adresses_et_ses_options(self):
+        code, appels = self.lancer(["etl-lot", "--day", "2026-10-29", "--windows", "var/f.csv", "--run-id", "demo-1"])
+        (commande, options), = appels
+        self.assertEqual(code, 3)
+        fenetres = str(Path("var/f.csv").resolve())
+        self.assertEqual(commande, [sys.executable, "-m", "pipelines.lot", "--day", "2026-10-29", "--windows", fenetres, "--run-id", "demo-1"])
+        self.assertEqual(options["cwd"], ROOT / "data" / "etl")
+        self.assertTrue(options["env"]["MONGO_URL"].startswith("mongodb://svc_traitement:"))
+        self.assertTrue(options["env"]["POSTGRES_URL"].startswith("postgresql://svc_traitement:"))
+        self.assertNotIn("s3cr", " ".join(commande))
+
+    def test_le_lot_sans_option_traite_la_veille_choisie_par_le_pipeline(self):
+        _, appels = self.lancer(["etl-lot"])
+        self.assertEqual(appels[0][0], [sys.executable, "-m", "pipelines.lot"])
+
+    def test_le_lot_exige_les_deux_pilotes(self):
+        for absent in ("pymongo", "psycopg"):
+            with self.subTest(absent=absent), mock.patch("builtins.print"):
+                code, appels = self.lancer(["etl-lot"], absent=absent)
+            self.assertEqual((code, appels), (2, []))
+
+    def test_le_chargement_ne_demande_que_psycopg_et_transmet_fichier_et_run(self):
+        code, appels = self.lancer(["etl-charger", "--file", "var/f.csv", "--run-id", "demo-1"], absent="pymongo")
+        (commande, options), = appels
+        self.assertEqual(code, 3)
+        self.assertEqual(commande[2:], ["pipelines.charger_entrepot", "--file", str(Path("var/f.csv").resolve()), "--run-id", "demo-1"])
+        self.assertTrue(options["env"]["POSTGRES_URL"].startswith("postgresql://svc_traitement:"))
+
+    def test_le_rejeu_transmet_ses_options_et_un_nom_de_fichier_seul_reste_un_nom(self):
+        _, appels = self.lancer(["etl-rejouer", "--file", "var/f.csv", "--run-id", "demo-1", "--from-scratch"])
+        self.assertEqual(appels[0][0][2:], ["pipelines.rejouer", "--file", str(Path("var/f.csv").resolve()), "--run-id", "demo-1", "--from-scratch"])
+        _, appels = self.lancer(["etl-rejouer", "--file", "f.csv", "--run-id", "demo-1"])
+        self.assertEqual(appels[0][0][2:5], ["pipelines.rejouer", "--file", "f.csv"])
+        self.assertNotIn("--from-scratch", appels[0][0])
+        self.assertNotIn("--report", appels[0][0], "le pipeline n'écrit jamais le rapport lui-même")
+        self.assertNotIn("stdout", appels[0][1], "sans --report la sortie va au terminal")
+
+    def test_le_rapport_est_enregistre_par_dev_py_a_son_emplacement_fixe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rapport = Path(tmp) / "rapport.md"
+            for retour, ecrit in ((0, True), (2, True), (1, False)):
+                rapport.unlink(missing_ok=True)
+                with self.subTest(retour=retour), mock.patch.object(dev, "REPLAY_REPORT", rapport), mock.patch("builtins.print") as imprime:
+                    code, appels = self.lancer(["etl-rejouer", "--file", "f.csv", "--run-id", "demo-1", "--report"],
+                                               retour=retour, stdout="# Rapport\nligne é\n")
+                    self.assertEqual(code, retour)
+                    self.assertEqual(rapport.exists(), ecrit)
+                    self.assertNotIn("--report", appels[0][0])
+                    self.assertEqual(appels[0][1]["stdout"], subprocess.PIPE)
+                    self.assertEqual(appels[0][1]["encoding"], "utf-8")
+                    imprime.assert_called_with("# Rapport\nligne é\n", end="")
+                    if ecrit:
+                        self.assertEqual(rapport.read_bytes(), "# Rapport\nligne é\n".encode())
+        self.assertEqual(dev.REPLAY_REPORT, ROOT / "docs" / "03-donnees" / "rapport-rejeu-etl.md")
+
+    def test_l_empaquetage_lance_le_script_sans_base_ni_pilote(self):
+        code, appels = self.lancer(["etl-package"], pymongo=False)
+        (commande, options), = appels
+        self.assertEqual(code, 3)
+        self.assertEqual(commande, [sys.executable, str(ROOT / "data" / "etl" / "pipelines" / "empaqueter.py")])
+        self.assertEqual(options["cwd"], ROOT)
 
 
 class EvenementsMongoTests(unittest.TestCase):

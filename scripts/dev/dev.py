@@ -476,6 +476,7 @@ def cmd_db_check_events(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- ETL (DAT-03)
 ETL_DIR = ROOT / "data" / "etl"
 ETL_REQUIREMENTS = "data/etl/requirements.txt"
+REPLAY_REPORT = ROOT / "docs" / "03-donnees" / "rapport-rejeu-etl.md"  # emplacement fixe du rapport de comparaison
 
 
 def mongo_url(env: dict[str, str], user: str, password_variable: str) -> str:
@@ -508,12 +509,18 @@ def etl_environment() -> dict[str, str]:
 def run_etl(module: str, options: list[str], drivers: tuple[str, ...], extra: dict[str, str]) -> int:
     """Lance un pipeline de data/etl depuis son dossier. L'adresse des bases (donc les mots de passe) passe par
     l'environnement du processus, pas par sa ligne de commande."""
+    return run_etl_process(module, options, drivers, extra).returncode
+
+
+def run_etl_process(module: str, options: list[str], drivers: tuple[str, ...], extra: dict[str, str], *, capture: bool = False) -> subprocess.CompletedProcess:
+    """Comme `run_etl`, en rendant le processus ; avec `capture`, sa sortie standard est lue (UTF-8) au lieu d'aller au terminal."""
     require_env()
     for driver in drivers:
         if importlib.util.find_spec(driver) is None:
             raise DevError(f"{driver} est absent. L'installer :  {Path(sys.executable).name} -m pip install -r {ETL_REQUIREMENTS}")
     environment = {**os.environ, **extra, "PYTHONUTF8": "1"}
-    return subprocess.run([sys.executable, "-m", module, *options], cwd=ETL_DIR, env=environment, check=False).returncode
+    sortie = {"stdout": subprocess.PIPE, "text": True, "encoding": "utf-8"} if capture else {}
+    return subprocess.run([sys.executable, "-m", module, *options], cwd=ETL_DIR, env=environment, check=False, **sortie)
 
 
 def window_options(args: argparse.Namespace, names: tuple[str, ...]) -> list[str]:
@@ -540,6 +547,50 @@ def cmd_etl_nettoyer_paris(args: argparse.Namespace) -> int:
         args.file = args.file.resolve()
     options = window_options(args, ("day", "file", "alert_threshold"))
     return run_etl("pipelines.nettoyer_paris", options, ("pymongo", "psycopg"), extra)
+
+
+def etl_database_urls() -> dict[str, str]:
+    env = etl_environment()
+    return {"MONGO_URL": mongo_url(env, "svc_traitement", "MONGO_PASSWORD_TRAITEMENT"),
+            "POSTGRES_URL": postgres_url(env, "svc_traitement", "PG_PASSWORD_TRAITEMENT")}
+
+
+def etl_file_argument(path: Path) -> str:
+    """Un nom seul reste un nom (le pipeline le cherche dans son dossier) ; un chemin devient absolu, car le pipeline part de data/etl."""
+    return str(path.resolve()) if path.parent != Path(".") else str(path)
+
+
+def cmd_etl_lot(args: argparse.Namespace) -> int:
+    """Lot planifié : ingestion et nettoyage de Paris, puis chargement de fenêtres si demandé (DAT-06). Commande du cron et de la tâche Windows."""
+    require_env()
+    windows = etl_file_argument(args.windows) if args.windows else None
+    options = [item for flag, value in (("--day", args.day), ("--windows", windows), ("--run-id", args.run_id)) if value for item in (flag, str(value))]
+    return run_etl("pipelines.lot", options, ("pymongo", "psycopg"), etl_database_urls())
+
+
+def cmd_etl_load(args: argparse.Namespace) -> int:
+    """Charge un fichier de fenêtres dans dwh.fact_traffic_window ; rejouable sans changer les totaux (DAT-06)."""
+    require_env()
+    return run_etl("pipelines.charger_entrepot", ["--file", etl_file_argument(args.file), "--run-id", args.run_id], ("psycopg",), etl_database_urls())
+
+
+def cmd_etl_replay(args: argparse.Namespace) -> int:
+    """Charge un fichier de fenêtres trois fois (initial, rejeu, reprise) et écrit le rapport de comparaison des totaux (DAT-06)."""
+    require_env()
+    options = ["--file", etl_file_argument(args.file), "--run-id", args.run_id]
+    if args.from_scratch:
+        options.append("--from-scratch")
+    done = run_etl_process("pipelines.rejouer", options, ("psycopg",), etl_database_urls(), capture=args.report)
+    if args.report:
+        print(done.stdout, end="")
+        if done.returncode in (0, 2):  # rapport rendu : totaux identiques (0) ou différents (2), à lire dans les deux cas
+            REPLAY_REPORT.write_text(done.stdout, encoding="utf-8", newline="\n")
+    return done.returncode
+
+
+def cmd_etl_package(args: argparse.Namespace) -> int:
+    """Empaquette la logique ETL en une archive reproductible (dist/novaria-etl-<version>.zip), la forme d'un job AWS Glue (DAT-06)."""
+    return subprocess.run([sys.executable, str(ETL_DIR / "pipelines" / "empaqueter.py")], cwd=ROOT, check=False).returncode
 
 
 # --------------------------------------------------------------------------- Kafka (ADR-009, LOC-04)
@@ -868,6 +919,19 @@ def build_parser() -> argparse.ArgumentParser:
     clean.add_argument("--day", metavar="AAAA-MM-JJ", help="le fichier brut du jour entier (ingéré par etl-paris --day)")
     clean.add_argument("--file", type=Path, help="un fichier brut précis")
     clean.add_argument("--alert-threshold", metavar="TAUX", help="taux de rejet au-delà duquel alerter, de 0 à 1 (0.5)")
+    lot = add("etl-lot", cmd_etl_lot, "lot ETL planifié : ingestion et nettoyage de Paris, chargement de fenêtres (cron, Planificateur de tâches)")
+    lot.add_argument("--day", metavar="AAAA-MM-JJ", help="jour UTC à traiter (la veille par défaut)")
+    lot.add_argument("--windows", type=Path, metavar="FICHIER", help="fichier CSV de fenêtres à charger dans l'entrepôt, avec --run-id")
+    lot.add_argument("--run-id", help="identifiant du run des fenêtres")
+    load = add("etl-charger", cmd_etl_load, "charge un fichier de fenêtres dans dwh.fact_traffic_window (idempotent)")
+    load.add_argument("--file", type=Path, required=True, help="fichier CSV de fenêtres")
+    load.add_argument("--run-id", required=True, help="identifiant du run (partie de la clé d'idempotence)")
+    replay = add("etl-rejouer", cmd_etl_replay, "charge trois fois le même fichier et compare les totaux (rapport de comparaison)")
+    replay.add_argument("--file", type=Path, required=True, help="fichier CSV de fenêtres")
+    replay.add_argument("--run-id", required=True, help="identifiant du run : seules ses lignes sont touchées")
+    replay.add_argument("--from-scratch", action="store_true", help="supprime d'abord les lignes de ce run")
+    replay.add_argument("--report", action="store_true", help="enregistre aussi le rapport dans docs/03-donnees/rapport-rejeu-etl.md")
+    package = add("etl-package", cmd_etl_package, "empaquette la logique ETL en dist/novaria-etl-<version>.zip (reproductible)")
     add("kafka-up", cmd_kafka_up, "démarre Kafka (mode KRaft) et attend qu'il soit prêt")
     add("kafka-topics", cmd_kafka_topics, "crée les 6 sujets du bus s'ils manquent et les vérifie")
     trip = add("kafka-roundtrip", cmd_kafka_roundtrip, "publie un événement, le relit et le valide contre le contrat")
