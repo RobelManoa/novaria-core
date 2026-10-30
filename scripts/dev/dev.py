@@ -386,6 +386,21 @@ def cmd_db_check(_: argparse.Namespace) -> int:
     return 0 if failures == 0 else 1
 
 
+# --------------------------------------------------------------------------- indicateurs décisionnels (DAT-07)
+KPI_VERIFICATION = ROOT / "data" / "dwh" / "sql" / "kpi" / "controle" / "verifier.sql"
+
+
+def cmd_db_check_kpi(_: argparse.Namespace) -> int:
+    """Insère un jeu fabriqué dans une transaction annulée et compare chaque indicateur à son recalcul sur les sources (DAT-07)."""
+    require_env()
+    script = KPI_VERIFICATION.read_text(encoding="utf-8")
+    result = compose("exec", "-T", "postgres", "sh", "-c",
+                     'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -q', check=False, capture=True, input_text=script)
+    print(result.stdout, end="")
+    print(result.stderr.replace("psql:<stdin>", "verifier.sql"), end="", file=sys.stderr)
+    return result.returncode
+
+
 # --------------------------------------------------------------------------- événements dans MongoDB (LOC-02)
 EVENT_TEST_SUFFIX = ":db-check"  # identifiant des documents d'essai : supprimés avant et après le contrôle
 MONGO_ADMIN = ('mongosh --quiet -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" '
@@ -932,6 +947,7 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("--from-scratch", action="store_true", help="supprime d'abord les lignes de ce run")
     replay.add_argument("--report", action="store_true", help="enregistre aussi le rapport dans docs/03-donnees/rapport-rejeu-etl.md")
     package = add("etl-package", cmd_etl_package, "empaquette la logique ETL en dist/novaria-etl-<version>.zip (reproductible)")
+    add("db-check-kpi", cmd_db_check_kpi, "recalcule les 5 indicateurs sur un jeu fabriqué (transaction annulée) et les compare aux vues")
     add("kafka-up", cmd_kafka_up, "démarre Kafka (mode KRaft) et attend qu'il soit prêt")
     add("kafka-topics", cmd_kafka_topics, "crée les 6 sujets du bus s'ils manquent et les vérifie")
     trip = add("kafka-roundtrip", cmd_kafka_roundtrip, "publie un événement, le relit et le valide contre le contrat")

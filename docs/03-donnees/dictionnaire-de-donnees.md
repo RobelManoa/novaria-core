@@ -369,6 +369,20 @@ Grain : un changement d'état d'une alerte. Publié par le service d'alerte via 
 
 Volontairement **absents** de l'événement : `acknowledged_by` (texte libre, qui peut désigner une personne), `notified_at`, `acknowledged_at` et `updated_at` (lisibles dans l'API et dans `alert_history`).
 
+### 7.4 Vues d'indicateurs (`dwh.kpi_*`, DAT-07)
+
+Cinq vues en lecture seule, créées par la migration `0006` à partir de [`data/dwh/sql/kpi/`](../../data/dwh/sql/kpi/). Définition, source, calcul et limites de chacune : [KPI](kpi.md). Elles ne stockent rien : elles se recalculent à chaque lecture depuis `fact_traffic_window`, `fact_congestion_episode` et `alertes.alert`.
+
+| Vue | Grain | Colonnes de mesure |
+|---|---|---|
+| `kpi_part_temps_congestionne` | exécution, tronçon, jour UTC, taille de fenêtre | `congestionne_s`, `observe_s`, `inconnu_s`, `part_congestionne` |
+| `kpi_duree_episodes` | exécution, tronçon, jour UTC de début, `peak_state` | `episodes_clos`, `episodes_en_cours`, `duree_moyenne_s`, `duree_max_s` |
+| `kpi_delai_detection` | exécution, jour UTC d'ouverture de l'alerte | `alertes`, `alertes_mesurees`, `delai_moyen_s`, `delai_median_s`, `delai_max_s` |
+| `kpi_alertes_par_jour` | exécution, jour UTC, type d'alerte (`kind`) | `alertes`, `resolues`, `non_resolues` |
+| `kpi_vitesse_relative_horaire` | exécution, tronçon, jour UTC, heure UTC, taille de fenêtre | `fenetres`, `fenetres_avec_vitesse`, `vehicules`, `vitesse_relative` |
+
+Toutes portent `run_id` et `source_type` (provenance) ; `svc_lecture` les lit.
+
 ## 8. Règles de qualité
 
 | Code | Règle | Action | Où se voit le résultat |
