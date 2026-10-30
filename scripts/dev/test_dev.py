@@ -365,6 +365,25 @@ class EtlTests(unittest.TestCase):
         with self.assertRaisesRegex(dev.DevError, "PG_PASSWORD_APP"):
             dev.app_database_url({"POSTGRES_DB": "novaria"})
 
+    def test_la_creation_de_compte_est_lancee_depuis_le_service_sans_mot_de_passe_en_argument(self):
+        code, appels = self.lancer(["user-create", "alice", "--role", "admin"])
+        (commande, options), = appels
+        self.assertEqual(code, 3)
+        self.assertEqual(commande, [sys.executable, "-m", "app.cli", "create-user", "alice", "--role", "admin"])
+        self.assertEqual(options["cwd"], ROOT / "services" / "traitement")
+        self.assertTrue(options["env"]["APP_DATABASE_URL"].startswith("postgresql+psycopg://svc_app:"))
+        self.assertNotIn("--password", commande)
+        self.assertNotIn("stdin", options, "la saisie du mot de passe reste au terminal")
+
+    def test_la_creation_de_compte_exige_un_role_connu_et_les_paquets_du_service(self):
+        for argv in (["user-create", "alice"], ["user-create", "alice", "--role", "root"]):
+            with self.subTest(argv=argv), mock.patch("sys.stderr"), self.assertRaises(SystemExit):
+                self.lancer(argv)
+        for absent in ("argon2", "pydantic", "sqlalchemy"):
+            with self.subTest(absent=absent), mock.patch("builtins.print"):
+                code, appels = self.lancer(["user-create", "alice", "--role", "viewer"], absent=absent)
+            self.assertEqual((code, appels), (2, []))
+
 
 class EvenementsMongoTests(unittest.TestCase):
     """LOC-02 : `db-check-events` insère une mesure conforme et une sans provenance dans raw_events."""

@@ -18,6 +18,19 @@ Depuis ce dossier.
 | Tests et couverture | `pytest` (écrit `coverage.xml`) | `pytest` |
 | Lint | `ruff check . && ruff format --check .` | `ruff check .; ruff format --check .` |
 
+## Authentification et rôles (BE-03)
+
+Ce service porte aussi le rôle « API métier » : `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, `GET` et `POST /api/v1/users`, `GET /api/v1/users/{user_id}`. Jetons JWT signés HS256 (secret `JWT_SECRET`, 32 caractères au moins), mots de passe en argon2id, trois rôles hiérarchiques. Sans jeton : 401 ; rôle insuffisant : 403.
+Détail, parcours, codes d'erreur et limites : [authentification](../../docs/02-specifications/authentification.md). Le contrat de ces routes est `contracts/openapi/api-metier.openapi.yaml` (second contrat déclaré dans `pyproject.toml`).
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Premier administrateur (mot de passe saisi sans écho) | `python3 scripts/dev/dev.py user-create alice --role admin` | `py -3 scripts/dev/dev.py user-create alice --role admin` |
+| Tests sans base (comme la CI) | `pytest` | `pytest` |
+| Tests contre PostgreSQL | `NOVARIA_TEST_POSTGRES_ADMIN_URL=postgresql+psycopg://novaria_admin:…@127.0.0.1:5432/novaria pytest` | `$env:NOVARIA_TEST_POSTGRES_ADMIN_URL="…"; pytest` |
+
+Protéger une nouvelle route : `Depends(require_role(Role.OPERATOR))` et `openapi_extra={"x-required-role": "operator"}` ; le test de contrat échoue si la route n'est pas protégée ou si le rôle diffère du contrat.
+
 ## Migrations du schéma `app` (BE-02)
 
 Le schéma `app` (utilisateurs, rôles) appartient à l'API métier : ses tables sont décrites par des modèles SQLAlchemy (`app/models/`) et créées par **Alembic** (`migrations/`), pas par `db/postgres/migrations/` ([ADR-024](../../docs/01-architecture/adr/ADR-024-bases-de-donnees-locales.md)). Le compte est `svc_app` ; l'adresse de la base est dans la variable `APP_DATABASE_URL`, jamais dans un fichier.

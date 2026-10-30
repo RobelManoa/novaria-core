@@ -10,9 +10,19 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]
 
+[tool.ruff.lint.flake8-bugbear]
+# Idiome FastAPI : `Depends(...)` et `Query(...)` en valeur par défaut d'un paramètre.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "app.api.deps.require_role"]
+
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+# S105 et S106 : les mots de passe et secrets des tests sont des valeurs d'essai écrites en clair.
+"tests/**" = ["S101", "S105", "S106"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=app --cov=migrations --cov-report=term-missing --cov-report=xml:coverage.xml"
+
+[tool.novaria]
+# Ce service porte aussi le rôle « API métier » (authentification, comptes) tant que le point ouvert n° 1
+# des diagrammes C4 n'est pas tranché : ses routes sont décrites par ces deux contrats.
+contrats = ["traitement", "api-metier"]

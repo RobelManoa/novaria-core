@@ -35,6 +35,9 @@ SERVICES_DU_DEPOT = sorted(p.name for p in (RACINE / "services").iterdir() if p.
 APPLICATIFS = {"collecte", "traitement", "alerte", "reponse", "simulateur", "passerelle", "frontend"}
 TACHES_UNIQUES = {"db-migrate", "kafka-init"}
 # service -> (compte PostgreSQL, compte MongoDB) : un compte par service, aux droits minimaux (ADR-024)
+# Services qui portent le rôle « API métier » (schéma app, jetons) en plus du leur, tant que le point ouvert n° 1
+# des diagrammes C4 n'est pas tranché.
+PORTE_L_API_METIER = {"traitement"}
 COMPTES = {"collecte": (None, "svc_collecte"), "traitement": ("svc_traitement", "svc_traitement"),
            "alerte": ("svc_alerte", None), "reponse": (None, "svc_reponse")}
 VARIABLES_DE_PORT = {"GATEWAY_PORT": 8000, "FRONTEND_PORT": 8080, "COLLECTE_PORT": 8001, "TRAITEMENT_PORT": 8002,
@@ -118,8 +121,23 @@ class ServicesDeLaPile(unittest.TestCase):
                 if compte_mongo:
                     self.assertIn(f"//{compte_mongo}:", mongo)
                 texte = json.dumps(environnement)
-                for interdit in ("POSTGRES_PASSWORD", "MONGO_ROOT", "svc_app", "svc_lecture", "JWT_SECRET"):
+                interdits = ["POSTGRES_PASSWORD", "MONGO_ROOT", "svc_lecture"]
+                if nom not in PORTE_L_API_METIER:
+                    interdits += ["svc_app", "JWT_SECRET", "APP_DATABASE_URL"]
+                for interdit in interdits:
                     self.assertNotIn(interdit, texte, "un service n'a ni le compte administrateur ni celui d'un autre")
+
+    def test_le_service_qui_porte_l_api_metier_a_en_plus_le_compte_du_schema_app_et_le_secret_des_jetons(self):
+        # Exception assumée (BE-03, point ouvert n° 1 des diagrammes C4) : seul ce service, et pas les autres.
+        for nom in PORTE_L_API_METIER:
+            environnement = self.services[nom]["environment"]
+            with self.subTest(service=nom):
+                self.assertIn("//svc_app:", environnement["APP_DATABASE_URL"])
+                self.assertIn("${PG_PASSWORD_APP}", environnement["APP_DATABASE_URL"])
+                self.assertEqual(environnement["JWT_SECRET"], "${JWT_SECRET:-}", "pas de secret en clair dans le fichier")
+        for nom in COMPTES:
+            if nom not in PORTE_L_API_METIER:
+                self.assertNotIn("APP_DATABASE_URL", self.services[nom]["environment"])
 
     def test_les_services_recoivent_l_adresse_du_bus_et_leur_nom(self):
         for nom in COMPTES:
@@ -264,10 +282,10 @@ class PasserelleRouteLesContrats(unittest.TestCase):
     def test_la_sonde_de_l_api_est_servie_par_le_traitement_en_attendant_l_api_metier(self):
         self.assertEqual(route("/api/v1/health", self.table), "traitement")
 
-    def test_l_api_metier_n_existe_pas_encore_la_passerelle_le_dit(self):
+    def test_l_api_metier_est_servie_par_le_traitement_qui_porte_son_role(self):
         for chemin in self.chemins("api-metier"):
             with self.subTest(chemin=chemin):
-                self.assertEqual(route(chemin, self.table), "503")
+                self.assertEqual(route(chemin, self.table), "traitement")
 
     def test_le_depot_des_mesures_n_est_pas_expose(self):
         for chemin in self.chemins("collecte"):

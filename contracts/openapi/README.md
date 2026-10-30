@@ -4,7 +4,7 @@ Un contrat par service ([ADR-008](../../docs/01-architecture/adr/ADR-008-microse
 
 | Fichier | Service | Rôle | Opérations |
 |---|---|---|---|
-| `api-metier.openapi.yaml` | API métier (service à créer depuis le gabarit, BE-02 et BE-03) | Santé, authentification, comptes | 7 |
+| `api-metier.openapi.yaml` | API métier (portée par `services/traitement` tant que le point ouvert n° 1 des diagrammes C4 n'est pas tranché ; BE-02 et BE-03) | Santé, authentification, comptes | 7 |
 | `traitement.openapi.yaml` | Traitement | Référentiel, indicateurs, prévisions | 8 |
 | `alerte.openapi.yaml` | Alerte usager | Alertes, règles, flux SSE (Server-Sent Events) | 8 |
 | `reponse.openapi.yaml` | Réponse extérieure | État des feux, commande manuelle | 5 |
@@ -87,8 +87,8 @@ Proposition à valider : trois rôles hiérarchiques. Un rôle inclut les droits
 | Service | Étiquette | Point d'accès | Rôle minimal | Issue d'implémentation |
 |---|---|---|---|---|
 | tous | Santé | `GET /health` | public | existe (API métier) |
-| API métier | Authentification | `POST /auth/login` (public), `GET /auth/me` | `viewer` | BE-03 |
-| API métier | Utilisateurs | `GET`, `POST /users` ; `GET`, `PATCH /users/{user_id}` | `admin` | BE-02, BE-03 |
+| API métier | Authentification | `POST /auth/login` (public), `GET /auth/me` | `viewer` | existe (BE-03) |
+| API métier | Utilisateurs | `GET`, `POST /users` ; `GET`, `PATCH /users/{user_id}` | `admin` | `GET`, `POST /users` et `GET /users/{user_id}` existent (BE-03) ; `PATCH` à faire |
 | Traitement | Référentiel | `GET /intersections`, `/intersections/{id}`, `/road-segments` | `viewer` | MS-10 |
 | Traitement | Indicateurs | `GET /indicators`, `/indicators/latest`, `/indicators/{id}` | `viewer` | BE-04, MS-10 |
 | Traitement | Prévisions | `GET /forecasts` | `viewer` | IA-06 |

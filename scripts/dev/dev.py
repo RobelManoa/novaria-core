@@ -396,14 +396,24 @@ def app_database_url(env: dict[str, str]) -> str:
     return postgres_url(env, "svc_app", "PG_PASSWORD_APP").replace("postgresql://", "postgresql+psycopg://", 1)
 
 
-def cmd_db_migrate_app(_: argparse.Namespace) -> int:
-    """Applique les migrations Alembic du schéma `app` (utilisateurs) avec le compte `svc_app` (BE-02)."""
+def run_app_service(command: list[str], packages: tuple[str, ...]) -> int:
+    """Lance `python -m ...` depuis services/traitement avec l'adresse de la base du compte `svc_app` (jamais sur la ligne de commande)."""
     require_env()
-    for package in APP_MIGRATION_PACKAGES:
+    for package in packages:
         if importlib.util.find_spec(package) is None:
             raise DevError(f"{package} est absent. L'installer :  {Path(sys.executable).name} -m pip install -r services/traitement/requirements-dev.txt")
     environment = {**os.environ, "APP_DATABASE_URL": app_database_url(etl_environment()), "PYTHONUTF8": "1"}
-    return subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], cwd=APP_SERVICE_DIR, env=environment, check=False).returncode
+    return subprocess.run([sys.executable, "-m", *command], cwd=APP_SERVICE_DIR, env=environment, check=False).returncode
+
+
+def cmd_db_migrate_app(_: argparse.Namespace) -> int:
+    """Applique les migrations Alembic du schéma `app` (utilisateurs) avec le compte `svc_app` (BE-02)."""
+    return run_app_service(["alembic", "upgrade", "head"], APP_MIGRATION_PACKAGES)
+
+
+def cmd_user_create(args: argparse.Namespace) -> int:
+    """Crée un compte de l'API métier, par exemple le premier administrateur ; le mot de passe est saisi sans écho (BE-03)."""
+    return run_app_service(["app.cli", "create-user", args.username, "--role", args.role], (*APP_MIGRATION_PACKAGES, "argon2", "pydantic"))
 
 
 # --------------------------------------------------------------------------- indicateurs décisionnels (DAT-07)
@@ -943,6 +953,9 @@ def build_parser() -> argparse.ArgumentParser:
     add("db-up", cmd_db_up, "démarre PostgreSQL et MongoDB, puis applique les migrations")
     add("db-migrate", cmd_db_migrate, "applique les migrations SQL en attente")
     add("db-migrate-app", cmd_db_migrate_app, "applique les migrations Alembic du schéma app (compte svc_app)")
+    user = add("user-create", cmd_user_create, "crée un compte de l'API (premier administrateur) ; mot de passe saisi sans écho")
+    user.add_argument("username", help="3 à 64 caractères parmi a-z, 0-9, _ . -")
+    user.add_argument("--role", required=True, choices=["viewer", "operator", "admin"], help="droit d'accès")
     add("db-status", cmd_db_status, "état des bases et des migrations")
     add("db-check", cmd_db_check, "vérifie rôles, droits, collections et index")
     events = add("db-check-events", cmd_db_check_events, "insère une mesure conforme (acceptée) et une sans provenance (refusée)")

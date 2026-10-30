@@ -9,7 +9,7 @@
 | `/api/v1/intersections`, `/road-segments`, `/indicators`, `/forecasts` | `traitement` |
 | `/api/v1/alerts`, `/alert-rules`, `/events/stream` (SSE) | `alerte` |
 | `/api/v1/signals` | `reponse` |
-| `/api/v1/auth`, `/users` | 503 `UPSTREAM_UNAVAILABLE` : pas encore de service API métier |
+| `/api/v1/auth`, `/users` | `traitement` (provisoire : il porte le rôle « API métier » ; il contrôle lui-même le jeton, BE-03) |
 | `/api/v1/measurements` | 404 : dépôt des mesures interne (simulateur vers collecte) |
 | le reste | 404 au format `application/problem+json` |
 
