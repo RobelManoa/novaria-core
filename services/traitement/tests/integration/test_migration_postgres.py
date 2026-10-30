@@ -6,66 +6,24 @@ PostgreSQL local, par exemple `postgresql+psycopg://novaria_admin:…@127.0.0.1:
 ensuite : la base du projet n'est pas touchée.
 """
 
-import os
 import uuid
-from pathlib import Path
 
 import pytest
-from alembic import command
 from alembic.autogenerate import compare_metadata
-from alembic.config import Config
 from alembic.migration import MigrationContext
-from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.engine import make_url
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import DataError, IntegrityError
 
 from app.models import SCHEMA, Base
+from tests.integration.postgres import downgrade, needs_postgres, upgrade
 
-SERVICE = Path(__file__).resolve().parents[2]
-ADMIN_URL = os.environ.get("NOVARIA_TEST_POSTGRES_ADMIN_URL")
-pytestmark = pytest.mark.skipif(
-    not ADMIN_URL, reason="NOVARIA_TEST_POSTGRES_ADMIN_URL absent : PostgreSQL local requis"
-)
+pytestmark = needs_postgres
 
 EMPREINTE = "$argon2id$v=19$m=65536,t=3,p=4$exemple$exemple"
 INSERTION = text(
     "INSERT INTO app.users (username, password_hash, role) "
     "VALUES (:username, :password_hash, :role) RETURNING user_id"
 )
-
-
-def alembic_on(connection) -> Config:
-    config = Config(str(SERVICE / "alembic.ini"))
-    config.attributes["configure_logger"] = False
-    config.attributes["connection"] = connection
-    return config
-
-
-@pytest.fixture
-def empty_database():
-    """Une base vide (aucun schéma `app`), créée pour le test puis supprimée."""
-    admin = create_engine(ADMIN_URL, isolation_level="AUTOCOMMIT")
-    name = f"novaria_test_be02_{uuid.uuid4().hex[:8]}"
-    with admin.connect() as connection:
-        connection.execute(text(f'CREATE DATABASE "{name}"'))
-    engine = create_engine(make_url(ADMIN_URL).set(database=name))
-    try:
-        yield engine
-    finally:
-        engine.dispose()
-        with admin.connect() as connection:
-            connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
-        admin.dispose()
-
-
-def upgrade(engine, revision: str = "head") -> None:
-    with engine.begin() as connection:
-        command.upgrade(alembic_on(connection), revision)
-
-
-def downgrade(engine, revision: str) -> None:
-    with engine.begin() as connection:
-        command.downgrade(alembic_on(connection), revision)
 
 
 def tables(engine) -> set[str]:
