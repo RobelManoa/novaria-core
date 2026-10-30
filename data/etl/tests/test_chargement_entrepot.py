@@ -357,7 +357,6 @@ class ConfinementDesChemins(AvecDossier):
 
     def test_les_dossiers_par_defaut_sont_ceux_de_la_documentation(self):
         self.assertEqual(ce.FENETRES, RACINE / "data" / "datasets" / "fenetres")
-        self.assertEqual(rejouer.RAPPORT, RACINE / "docs" / "03-donnees" / "rapport-rejeu-etl.md")
         gitignore = (RACINE / ".gitignore").read_text(encoding="utf-8")
         self.assertIn("data/datasets/*", gitignore)
 
@@ -369,14 +368,14 @@ class ConfinementDesChemins(AvecDossier):
         code, _, erreur = self.executer(ce.principal, ["--file", str(autre / "f.csv"), "--run-id", "run-1"], entrepot=entrepot, dossier=self.dossier)
         self.assertEqual((code, entrepot.lignes), (1, {}))
         self.assertIn("hors du dossier", erreur)
-        code, _, erreur = self.executer(rejouer.principal, ["--file", str(autre / "f.csv"), "--run-id", "run-1", "--report"],
-                                        entrepot=entrepot, dossier=self.dossier, rapport_md=self.dossier / "rapport-x.md")
-        self.assertEqual(code, 1)
-        self.assertFalse((self.dossier / "rapport-x.md").exists())  # un rejeu refusé n'écrit aucun rapport
+        code, _, erreur = self.executer(rejouer.principal, ["--file", str(autre / "f.csv"), "--run-id", "run-1"], entrepot=entrepot, dossier=self.dossier)
+        self.assertEqual((code, entrepot.lignes), (1, {}))
+        self.assertIn("hors du dossier", erreur)
 
-    def test_le_rapport_n_a_pas_de_chemin_en_argument(self):
+    def test_le_pipeline_n_ecrit_aucun_rapport_et_n_accepte_aucune_option_de_rapport(self):
         with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
-            rejouer.principal(["--file", "f.csv", "--run-id", "run-1", "--report", "autre.md"], entrepot=FauxEntrepot(), dossier=self.dossier)
+            rejouer.principal(["--file", "f.csv", "--run-id", "run-1", "--report"], entrepot=FauxEntrepot(), dossier=self.dossier)
+        self.assertFalse(hasattr(rejouer, "RAPPORT"))
 
 
 class LigneDeCommandeDuChargement(AvecDossier):
@@ -662,14 +661,15 @@ class RejeuDuChargement(AvecDossier):
         empreinte = c.totaux[0].empreinte
         self.assertEqual(texte.count(f"`{empreinte}`"), 3)
 
-    def test_la_ligne_de_commande_ecrit_le_rapport_et_rend_0(self):
-        rapport = self.dossier / "rapport-essai.md"
+    def test_la_ligne_de_commande_affiche_le_rapport_sans_rien_ecrire_et_rend_0(self):
+        avant = {p.name for p in self.dossier.iterdir()}
         code, sortie, _ = self.executer(
-            rejouer.principal, ["--file", self.fichier().name, "--run-id", "run-1", "--from-scratch", "--report"],
-            entrepot=FauxEntrepot(), maintenant=MAINTENANT, dossier=self.dossier, rapport_md=rapport)
+            rejouer.principal, ["--file", self.fichier().name, "--run-id", "run-1", "--from-scratch"],
+            entrepot=FauxEntrepot(), maintenant=MAINTENANT, dossier=self.dossier)
         self.assertEqual(code, 0)
-        self.assertEqual(sortie, rapport.read_text(encoding="utf-8") + "\n")  # le rapport écrit est celui qui est affiché
-        self.assertNotIn("\r", rapport.read_text(encoding="utf-8"))
+        self.assertTrue(sortie.startswith("# Rapport de comparaison"))
+        self.assertIn("- Date : 2026-10-30 00:30 UTC", sortie)
+        self.assertEqual({p.name for p in self.dossier.iterdir()} - avant, {"fenetres.csv"})  # seul le fichier de test lui-même
 
     def test_des_totaux_differents_donnent_le_code_2(self):
         class Duplicateur(FauxEntrepot):
