@@ -18,9 +18,9 @@ Formater : `npx prettier --write src`.
 |---|---|
 | `app/` | Assemblage : `App.tsx`, `router.tsx` (tableau de routes exporté), `bootstrap.tsx` (montage), `AppShell/` (mise en page) |
 | `pages/` | Une page par route (`LoginPage`, `DashboardPage`, `AlertsPage`, `TrafficLightsPage`, `ForecastsPage`, `ReportsPage`, `NotFoundPage`) |
-| `features/` | Fonctionnalités : `navigation/` (entrées du menu), `theme/` (thème et sélecteur), `api-status/` (état de l'API), `auth/` (connexion, session, routes protégées), `dashboard/` (tableau de bord des indicateurs) |
+| `features/` | Fonctionnalités : `navigation/` (entrées du menu), `theme/` (thème et sélecteur), `api-status/` (état de l'API), `auth/` (connexion, session, routes protégées), `dashboard/` (tableau de bord des indicateurs), `forecasts/` (page des prévisions) |
 | `components/` | Composants génériques sans logique métier (`PageHeader`, `SkipLink`, `IconButton`, `Container`, `VisuallyHidden`, `ComingSoon`, `StatCard`, `StateMessage`) |
-| `hooks/` | `useMediaQuery`, `useDisclosure`, `useEscapeKey`, `useFocusTrap`, `useScrollLock` |
+| `hooks/` | `useMediaQuery`, `useDisclosure`, `useEscapeKey`, `useFocusTrap`, `useScrollLock`, `useAsyncResource` (chargement asynchrone avec clé) |
 | `services/` | Tous les appels à l'API : un module par service (`apiMetier`, `traitement`, `alerte`, `reponse`), le client commun (`client.ts`), les erreurs (`errors.ts`) et le jeton de session (`session.ts`) |
 | `styles/` | `tokens.css` (jetons), `global.css` (base), `breakpoints.ts` (points de rupture) |
 | `types/` | Types partagés ; `types/api/` est **généré** depuis les contrats OpenAPI : ne pas le modifier à la main |
@@ -205,6 +205,42 @@ Régénérer l'enregistrement (API locale démarrée, compte de lecture existant
 | `python3 scripts/dev/dashboard_fixture.py --user <compte> --out frontend/tests/fixtures/dashboard-api.json` | `py -3 scripts/dev/dashboard_fixture.py --user <compte> --out frontend/tests/fixtures/dashboard-api.json` |
 
 Limites : le jeu de démonstration n'a que des tronçons fluides à sa dernière fenêtre, donc « Tronçons congestionnés » vaut 0 sur les données enregistrées ; le comptage par état est couvert par les tests unitaires de `summary.ts`. Les captures de `docs/Capture d'ecran/FE-04-*.png` viennent de Chrome sur la pile locale.
+
+## Page des prévisions (FE-05)
+
+Page `Prévisions` (`features/forecasts/`) : la courbe **prévue contre observée** d'un tronçon, le modèle qui a produit la prévision, et un tableau prévu / observé / écart par horizon. Critère de l'issue : **la page affiche la prévision renvoyée par l'API** (`GET /api/v1/forecasts`, opération `listForecasts`).
+
+> **État du serveur (31/10/2026) : la route `/api/v1/forecasts` n'est pas implémentée** (issue IA-06, #82). Le contrat la décrit, la page est écrite contre ce contrat, mais **le critère n'est pas vérifié sur l'API réelle**. Sur la pile locale actuelle, la page affiche « le service de prévision n'est pas encore disponible sur ce serveur » (404). Pour l'essayer, une **maquette** locale sert la route (voir plus bas).
+
+| Élément | Règle |
+|---|---|
+| Lecture | Un premier appel (`horizon_min=15`, tous les tronçons) donne la liste des tronçons prévus. Pour le tronçon choisi : un appel par horizon (5, 10, 15, 30, 45, 60 minutes), car l'API rend une prévision par tronçon et par horizon ; puis les indicateurs observés du même tronçon et du même run (`provenance.run_id`), de 2 h avant l'émission à la fin du dernier horizon |
+| Courbe | Ratio de vitesse (vitesse ÷ vitesse fluide) sur un axe de temps proportionnel : observé en trait plein et ronds, prévu en pointillés et losanges, repère d'émission. Les valeurs sont reprises dans « Voir les valeurs » |
+| Prévu contre observé | Une ligne par horizon. L'écart (prévu − observé) n'existe que si l'instant prévu est déjà passé et observé : sinon « Pas encore observé » ou « Non disponible » ; jamais de valeur supposée |
+| Modèle | `model.kind`, `name`, `version`, `run_id`, `provenance` et `issued_at`, tels que l'API les rend |
+| Date du dernier entraînement et métrique | **Le contrat n'a aucun champ pour eux** (`model` = `kind`, `name`, `version`, `run_id`). La carte écrit « Sans objet » pour un modèle de référence (pas d'entraînement) et « Non communiqué par l'API » pour un modèle entraîné. Les afficher suppose d'ajouter des champs au contrat (décision du 31/10 : contrat inchangé, à reprendre avec IA-04 et IA-06) |
+| Erreurs | 503 `FORECAST_UNAVAILABLE` : message du contrat. 404 : route non servie, dite comme telle. Réseau coupé : serveur injoignable. « Réessayer » relit l'API |
+
+### Essayer la page avec la maquette
+
+`scripts/dev/forecast_stub.py` se place devant l'API : tout passe tel quel sauf `/api/v1/forecasts`, servie par **persistance** (dernier ratio connu, `model.kind` = `REFERENCE`, nom « persistance (maquette locale) », en-tête `X-Novaria-Maquette`). Les données de démonstration s'arrêtent dans le passé : la maquette émet donc ses prévisions 60 minutes avant la fin des données (`--back-minutes`), pour que la page ait un observé à comparer. **Ce n'est pas un service du produit** ; elle ne prouve pas le serveur.
+
+| Étape | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| API (terminal 1) | `make api-run` | `py -3 scripts/dev/dev.py api-run` |
+| Maquette des prévisions (terminal 2) | `make forecast-stub` | `py -3 scripts/dev/dev.py forecast-stub` |
+| Front-end vers la maquette (terminal 3) | `make front-dev-stub` | `py -3 scripts/dev/dev.py front-dev --stub` |
+
+Puis ouvrir http://localhost:5173/, menu **Prévisions**. Sur des fenêtres d'une minute, le jeu de démonstration n'a pas d'observé : la page le dit et propose les fenêtres de 5 minutes.
+
+### Preuves
+
+| Preuve | Contenu |
+|---|---|
+| `tests/features/forecasts/Forecasts.test.tsx` | Rend la page sur des réponses construites d'après le contrat (types générés : un champ manquant ne compile pas) et compare chaque horizon, le ratio prévu, l'instant, l'état, le modèle et l'origine aux valeurs de l'API ; états de chargement, vide et erreur |
+| `compare.test.ts`, `load.test.ts`, `ForecastChart.test.tsx` | Écart prévu − observé (borne exclue, fenêtre sans vitesse, pas de « -0 »), requêtes envoyées (un appel par horizon, run et période de l'observé), échelle de temps et libellés de l'axe |
+| `scripts/dev/test_forecast_stub.py` | La maquette contre une fausse API : persistance, champs du contrat, transmission du jeton et des autres routes, aucun jeton dans les journaux |
+| Chrome, API réelle, maquette | 26 vérifications, 0 écart : tableau prévu/observé, 6 horizons, valeurs du graphique, carte du modèle, deux tronçons ; valeurs attendues recalculées en Python sur les réponses HTTP. Captures : `docs/Capture d'ecran/FE-05-*.png` |
 
 ## Vérifier avant une pull request
 

@@ -1,3 +1,4 @@
+import { niceStep, TICK_COUNT, tickDigits } from "./axis";
 import { formatNumber, formatTime } from "./format";
 import styles from "./TimeSeriesChart.module.css";
 
@@ -23,30 +24,8 @@ const HEIGHT = 240;
 const MARGIN = { top: 12, right: 12, bottom: 28, left: 44 };
 const PLOT_WIDTH = WIDTH - MARGIN.left - MARGIN.right;
 const PLOT_HEIGHT = HEIGHT - MARGIN.top - MARGIN.bottom;
-const TICK_COUNT = 4;
 /** Au-delà, les points ronds noieraient le trait : on ne garde que la ligne. */
 const MAX_MARKERS = 60;
-
-/** Mantisses des pas de graduation : l'axe avance par pas « ronds » (0,5 ; 1,5 ; 20 ; 25…). */
-const STEPS = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
-
-/** Plus petit pas rond tel que `TICK_COUNT` pas depuis zéro contiennent `max`. */
-function niceStep(max: number): number {
-  if (max <= 0) return 0.25;
-  const raw = max / TICK_COUNT;
-  const magnitude = 10 ** Math.floor(Math.log10(raw));
-  const mantissa = STEPS.find((step) => step >= raw / magnitude - 1e-9) ?? 10;
-  return mantissa * magnitude;
-}
-
-/** Nombre de décimales qu'il faut pour écrire les multiples de `step` sans les arrondir (au plus 2). */
-function tickDigits(step: number): number {
-  for (let digits = 0; digits < 2; digits += 1) {
-    const scaled = step * 10 ** digits;
-    if (Math.abs(scaled - Math.round(scaled)) < 1e-9) return digits;
-  }
-  return 2;
-}
 
 /** Un tracé par suite de valeurs consécutives : une fenêtre sans valeur coupe le trait. */
 function splitIntoRuns(

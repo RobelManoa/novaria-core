@@ -3,6 +3,7 @@ import { createApiClient, unwrap, type Query } from "./client";
 
 export type Indicator = components["schemas"]["Indicator"];
 export type CongestionState = components["schemas"]["CongestionState"];
+export type Forecast = components["schemas"]["Forecast"];
 export type SourceType = components["schemas"]["SourceType"];
 
 // Traitement : référentiel, indicateurs, prévisions (contracts/openapi/traitement.openapi.yaml).

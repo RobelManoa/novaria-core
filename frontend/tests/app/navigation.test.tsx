@@ -59,8 +59,8 @@ describe("navigation sur ordinateur", () => {
       "aria-current",
       "page",
     );
-    // Le tableau de bord a un vrai contenu : seules les autres pages sont encore des encarts « prochainement ».
-    if (path !== "/") {
+    // Le tableau de bord et les prévisions ont un vrai contenu : seules les autres pages sont encore des encarts « prochainement ».
+    if (!["/", "/previsions"].includes(path)) {
       expect(screen.getByText("Cette section sera disponible prochainement.")).toBeInTheDocument();
     }
   });

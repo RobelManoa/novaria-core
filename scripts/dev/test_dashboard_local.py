@@ -2,6 +2,7 @@
 
 Lancer :  python3 -m unittest discover -s scripts/dev -p "test_dashboard_local.py" -v
 """
+import argparse
 import re
 import sys
 import tempfile
@@ -20,8 +21,8 @@ ENV = {
 
 
 class CommandesTests(unittest.TestCase):
-    def test_les_trois_commandes_existent(self):
-        for nom in ("dev-deps", "api-run", "front-dev"):
+    def test_les_commandes_existent(self):
+        for nom in ("dev-deps", "api-run", "front-dev", "forecast-stub"):
             self.assertEqual(dev.build_parser().parse_args([nom]).command, nom)
 
     def test_dev_deps_installe_les_deux_fichiers_l_un_apres_l_autre(self):
@@ -105,27 +106,61 @@ class FrontDevTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as dossier, self.avec_front(dossier, node_modules=False), \
                 mock.patch.object(dev.shutil, "which", return_value="/usr/bin/npm"), \
                 mock.patch.object(dev.subprocess, "run", return_value=mock.Mock(returncode=0)) as run:
-            self.assertEqual(dev.cmd_front_dev(mock.Mock()), 0)
+            self.assertEqual(dev.cmd_front_dev(argparse.Namespace(stub=False)), 0)
         self.assertEqual([appel.args[0] for appel in run.call_args_list], [["/usr/bin/npm", "ci"], ["/usr/bin/npm", "run", "dev"]])
 
     def test_n_installe_rien_quand_node_modules_existe(self):
         with tempfile.TemporaryDirectory() as dossier, self.avec_front(dossier, node_modules=True), \
                 mock.patch.object(dev.shutil, "which", return_value="/usr/bin/npm"), \
                 mock.patch.object(dev.subprocess, "run", return_value=mock.Mock(returncode=0)) as run:
-            dev.cmd_front_dev(mock.Mock())
+            dev.cmd_front_dev(argparse.Namespace(stub=False))
         self.assertEqual([appel.args[0] for appel in run.call_args_list], [["/usr/bin/npm", "run", "dev"]])
 
     def test_s_arrete_si_l_installation_echoue(self):
         with tempfile.TemporaryDirectory() as dossier, self.avec_front(dossier, node_modules=False), \
                 mock.patch.object(dev.shutil, "which", return_value="/usr/bin/npm"), \
                 mock.patch.object(dev.subprocess, "run", return_value=mock.Mock(returncode=4)) as run:
-            self.assertEqual(dev.cmd_front_dev(mock.Mock()), 4)
+            self.assertEqual(dev.cmd_front_dev(argparse.Namespace(stub=False)), 4)
         self.assertEqual(run.call_count, 1)
+
+    def test_avec_stub_le_proxy_de_vite_vise_la_maquette(self):
+        with tempfile.TemporaryDirectory() as dossier, self.avec_front(dossier, node_modules=True), \
+                mock.patch.object(dev.shutil, "which", return_value="/usr/bin/npm"), \
+                mock.patch.object(dev.subprocess, "run", return_value=mock.Mock(returncode=0)) as run:
+            dev.cmd_front_dev(argparse.Namespace(stub=True))
+        self.assertEqual(run.call_args.kwargs["env"]["API_TARGET"], "http://localhost:8001")
+
+    def test_sans_stub_le_proxy_garde_l_api(self):
+        with tempfile.TemporaryDirectory() as dossier, self.avec_front(dossier, node_modules=True), \
+                mock.patch.dict(dev.os.environ, {}, clear=False), \
+                mock.patch.object(dev.shutil, "which", return_value="/usr/bin/npm"), \
+                mock.patch.object(dev.subprocess, "run", return_value=mock.Mock(returncode=0)) as run:
+            dev.os.environ.pop("API_TARGET", None)
+            dev.cmd_front_dev(argparse.Namespace(stub=False))
+        self.assertNotIn("API_TARGET", run.call_args.kwargs["env"])
+
+    def test_le_port_de_la_maquette_est_celui_que_vise_le_front(self):
+        self.assertEqual(dev.STUB_PORT, 8001)
+        self.assertEqual(dev.build_parser().parse_args(["front-dev", "--stub"]).stub, True)
+        self.assertEqual(dev.build_parser().parse_args(["front-dev"]).stub, False)
 
     def test_dit_que_npm_manque(self):
         with mock.patch.object(dev.shutil, "which", return_value=None):
             with self.assertRaisesRegex(dev.DevError, "npm"):
-                dev.cmd_front_dev(mock.Mock())
+                dev.cmd_front_dev(argparse.Namespace(stub=False))
+
+
+class ForecastStubTests(unittest.TestCase):
+    def test_lance_la_maquette_devant_l_api_sur_le_port_du_proxy(self):
+        import forecast_stub
+
+        with mock.patch.object(forecast_stub, "main", return_value=0) as main:
+            args = dev.build_parser().parse_args(["forecast-stub", "--back-minutes", "30"])
+            self.assertEqual(dev.cmd_forecast_stub(args), 0)
+        main.assert_called_once_with(["--upstream", "http://127.0.0.1:8000", "--port", "8001", "--back-minutes", "30"])
+
+    def test_emission_decalee_d_une_heure_par_defaut(self):
+        self.assertEqual(dev.build_parser().parse_args(["forecast-stub"]).back_minutes, 60)
 
 
 class MakefileTests(unittest.TestCase):
@@ -137,11 +172,13 @@ class MakefileTests(unittest.TestCase):
         self.assertRegex(self.makefile, r"(?m)^dev-deps:.*\n\t\$\(DEV_API\) dev-deps$")
         self.assertRegex(self.makefile, r"(?m)^api-run:.*\n\t\$\(DEV_API\) api-run$")
         self.assertRegex(self.makefile, r"(?m)^front-dev:.*\n\t\$\(DEV\) front-dev$")
+        self.assertRegex(self.makefile, r"(?m)^forecast-stub:.*\n\t\$\(DEV\) forecast-stub$")
+        self.assertRegex(self.makefile, r"(?m)^front-dev-stub:.*\n\t\$\(DEV\) front-dev --stub$")
         self.assertRegex(self.makefile, r"(?m)^user-create:.*\n\t\$\(if \$\(U\),,.*\n\t\$\(DEV_API\) user-create \$\(U\) --role \$\(or \$\(ROLE\),viewer\)$")
 
     def test_les_cibles_sont_declarees_phony_et_documentees(self):
         phony = re.search(r"(?m)^\.PHONY:(.*)$", self.makefile).group(1).split()
-        for cible in ("dev-deps", "user-create", "api-run", "front-dev"):
+        for cible in ("dev-deps", "user-create", "api-run", "front-dev", "forecast-stub", "front-dev-stub"):
             self.assertIn(cible, phony)
             self.assertRegex(self.makefile, rf"(?m)^{cible}:\s+##")
 

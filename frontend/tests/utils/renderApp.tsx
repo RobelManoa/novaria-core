@@ -25,6 +25,8 @@ const DEFAULTS: Record<string, Handler> = {
   "GET /api/v1/auth/me": () => json(USER),
   // Le tableau de bord (page d'accueil) lit les indicateurs : sans donnée, il affiche son état vide.
   "GET /api/v1/indicators": () => json({ items: [], next_cursor: null }),
+  // La page des prévisions : l'API ne rend aucune prévision, la page affiche son état vide.
+  "GET /api/v1/forecasts": () => json({ items: [] }),
   "POST /api/v1/auth/login": () => json(TOKEN),
 };
 

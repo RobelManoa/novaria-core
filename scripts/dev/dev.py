@@ -977,7 +977,17 @@ def cmd_api_run(_: argparse.Namespace) -> int:
         return 0
 
 
-def cmd_front_dev(_: argparse.Namespace) -> int:
+STUB_PORT = 8001  # la maquette des prévisions : le proxy de Vite la vise avec `front-dev --stub`
+
+
+def cmd_forecast_stub(args: argparse.Namespace) -> int:
+    """Lance la MAQUETTE de GET /api/v1/forecasts (FE-05) devant l'API : la route n'est pas encore implémentée côté serveur."""
+    import forecast_stub
+
+    return forecast_stub.main(["--upstream", f"http://127.0.0.1:{API_PORT}", "--port", str(STUB_PORT), "--back-minutes", str(args.back_minutes)])
+
+
+def cmd_front_dev(args: argparse.Namespace) -> int:
     """Lance le front-end (Vite, http://localhost:5173) ; installe les dépendances npm la première fois."""
     npm = shutil.which("npm")
     if npm is None:
@@ -986,9 +996,13 @@ def cmd_front_dev(_: argparse.Namespace) -> int:
         code = subprocess.run([npm, "ci"], cwd=FRONTEND_DIR, check=False).returncode
         if code:
             return code
+    environment = dict(os.environ)
+    if args.stub:
+        environment["API_TARGET"] = f"http://localhost:{STUB_PORT}"
+        print(f"Les appels /api passent par la maquette des prévisions (forecast-stub, port {STUB_PORT}).")
     print(f"Front-end : http://localhost:5173  (Ctrl+C pour arrêter ; l'API doit tourner : api-run, sur le port {API_PORT})")
     try:
-        return subprocess.run([npm, "run", "dev"], cwd=FRONTEND_DIR, check=False).returncode
+        return subprocess.run([npm, "run", "dev"], cwd=FRONTEND_DIR, env=environment, check=False).returncode
     except KeyboardInterrupt:
         return 0
 
@@ -1020,7 +1034,10 @@ def build_parser() -> argparse.ArgumentParser:
     user.add_argument("--role", required=True, choices=["viewer", "operator", "admin"], help="droit d'accès")
     add("dev-deps", cmd_dev_deps, "installe les paquets Python de l'API de traitement et de l'ETL dans l'interpréteur courant")
     add("api-run", cmd_api_run, "lance l'API de traitement sur http://127.0.0.1:8000 (tableau de bord en local)")
-    add("front-dev", cmd_front_dev, "lance le front-end (Vite) sur http://localhost:5173")
+    front = add("front-dev", cmd_front_dev, "lance le front-end (Vite) sur http://localhost:5173")
+    front.add_argument("--stub", action="store_true", help="les appels /api passent par la maquette des prévisions (forecast-stub)")
+    stub = add("forecast-stub", cmd_forecast_stub, "lance la MAQUETTE de GET /api/v1/forecasts devant l'API (route non implémentée côté serveur)")
+    stub.add_argument("--back-minutes", type=int, default=60, help="émission décalée avant la fin des données, pour avoir un observé à comparer (60)")
     add("db-status", cmd_db_status, "état des bases et des migrations")
     add("db-check", cmd_db_check, "vérifie rôles, droits, collections et index")
     events = add("db-check-events", cmd_db_check_events, "insère une mesure conforme (acceptée) et une sans provenance (refusée)")

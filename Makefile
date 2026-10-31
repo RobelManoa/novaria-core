@@ -6,7 +6,7 @@ DEV = $(PY) scripts/dev/dev.py
 PY_API ?= $(if $(wildcard venv/bin/python),venv/bin/python,$(PY))
 DEV_API = $(PY_API) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts test-etl lint format new-service quality-up quality-down hooks
+.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts test-etl lint format new-service quality-up quality-down hooks
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -35,6 +35,11 @@ api-run:       ## Lance l'API de traitement sur http://127.0.0.1:8000 (bases : d
 	$(DEV_API) api-run
 front-dev:     ## Lance le front-end sur http://localhost:5173 (l'API doit tourner : api-run)
 	$(DEV) front-dev
+
+forecast-stub: ## MAQUETTE de GET /api/v1/forecasts devant l'API (route non implémentée) sur http://127.0.0.1:8001
+	$(DEV) forecast-stub
+front-dev-stub: ## Front-end dont les appels /api passent par la maquette des prévisions (page Prévisions)
+	$(DEV) front-dev --stub
 
 db-up:         ## Démarre PostgreSQL et MongoDB, applique les migrations
 	$(DEV) db-up
