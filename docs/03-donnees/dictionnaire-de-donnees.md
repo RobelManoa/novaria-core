@@ -161,6 +161,12 @@ flowchart LR
 | | `reporting_interval_s` | entier | 1 à 3600, défaut 10 | Durée couverte par chaque mesure |
 | `dim_source` | `source_type` | texte | SIMULATED, REAL_HISTORICAL, REAL_LIVE | Provenance (voir [ADR-027](../01-architecture/adr/ADR-027-jeux-de-donnees-et-provenance.md)) |
 | | `description` | texte | obligatoire | Sens de l'origine, en français |
+| `dim_run` | `run_id` | texte | clé primaire ; 1 à 80 caractères | Exécution qui produit des faits : `live`, run du simulateur ou jeu historique. **Une exécution non enregistrée ici n'est pas servie par l'API** ([API des indicateurs](api-indicateurs.md)) |
+| | `source_type` | texte | obligatoire ; clé étrangère vers `dim_source` | Doit être celui des faits de l'exécution, sinon ils ne sont pas servis |
+| | `scenario_id` | texte | `^[a-z0-9_-]{1,60}$` ; **obligatoire si SIMULATED** | Scénario du simulateur |
+| | `seed` | entier long | ≥ 0 ; **obligatoire si SIMULATED** | Graine : rend le run reproductible |
+| | `dataset_id` | texte | `^[a-z0-9_.-]{1,60}$` ; **obligatoire si REAL_HISTORICAL** | Jeu historique d'origine |
+| | `registered_at` | date et heure | défaut maintenant, UTC | Enregistrement de l'exécution |
 | `dim_congestion_state` | `state_code`, `severity_rank` | texte, 0 à 3 | UNKNOWN 0, FREE_FLOW 1, SLOW 2, CONGESTED 3 ; rang unique | États ordonnés par gravité |
 | | `label_fr` | texte | obligatoire | Libellé affiché : Inconnu, Fluide, Ralenti, Congestionné |
 | `dim_date` | `date_key` | entier | AAAAMMJJ ; la contrainte accepte 2000 à 2099, la migration `0004` charge 2012 à 2030 (6 940 jours) | Clé du calendrier, en UTC. Un fait daté hors du calendrier chargé est **refusé** (clé étrangère). |
@@ -240,6 +246,17 @@ Grain : un tronçon, une fenêtre, un run. **Clé primaire** (`road_segment_key`
 | (système) | `loaded_at` | Date de chargement |
 
 Une ligne peut être refusée par ses contraintes (vitesse sans véhicule, fenêtre de 2 minutes, état inconnu…) : l'erreur est visible à l'écriture, pas plus loin.
+
+### 6.1 Lecture par l'API : la vue `dwh.v_indicator`
+
+Vue en lecture seule (migration `0007`) que l'API des indicateurs interroge ([API des indicateurs](api-indicateurs.md)). Une ligne = une ligne de `fact_traffic_window` jointe à son tronçon, son carrefour et son exécution (`dim_run`, jointure interne sur `run_id` **et** `source_type`).
+
+| Colonne de la vue | Origine | Sens |
+|---|---|---|
+| `indicator_id` | calculée | `run_id:tronçon:taille:début en ms depuis 1970` ; égal à l'`id` de l'événement `novaria.traffic.indicator.v1` |
+| `road_segment_id`, `intersection_id` | `dim_road_segment`, `dim_intersection` | Identifiants métier |
+| `window_start`, `window_size_s`, `vehicle_count`, `flow_veh_per_min`, `average_speed_kmh`, `occupancy_rate`, `max_queue_length_m`, `speed_ratio`, `sample_count`, `expected_sample_count`, `completeness`, `congestion_state`, `classifier_version` | `fact_traffic_window` | Voir le tableau ci-dessus |
+| `run_id`, `source_type`, `scenario_id`, `seed`, `dataset_id` | `fact_traffic_window` et `dim_run` | Provenance complète, telle que le contrat la décrit |
 
 ## 7. Règles de calcul et d'états
 
@@ -369,6 +386,20 @@ Grain : un changement d'état d'une alerte. Publié par le service d'alerte via 
 
 Volontairement **absents** de l'événement : `acknowledged_by` (texte libre, qui peut désigner une personne), `notified_at`, `acknowledged_at` et `updated_at` (lisibles dans l'API et dans `alert_history`).
 
+### 7.4 Vues d'indicateurs (`dwh.kpi_*`, DAT-07)
+
+Cinq vues en lecture seule, créées par la migration `0006` à partir de [`data/dwh/sql/kpi/`](../../data/dwh/sql/kpi/). Définition, source, calcul et limites de chacune : [KPI](kpi.md). Elles ne stockent rien : elles se recalculent à chaque lecture depuis `fact_traffic_window`, `fact_congestion_episode` et `alertes.alert`.
+
+| Vue | Grain | Colonnes de mesure |
+|---|---|---|
+| `kpi_part_temps_congestionne` | exécution, tronçon, jour UTC, taille de fenêtre | `congestionne_s`, `observe_s`, `inconnu_s`, `part_congestionne` |
+| `kpi_duree_episodes` | exécution, tronçon, jour UTC de début, `peak_state` | `episodes_clos`, `episodes_en_cours`, `duree_moyenne_s`, `duree_max_s` |
+| `kpi_delai_detection` | exécution, jour UTC d'ouverture de l'alerte | `alertes`, `alertes_mesurees`, `delai_moyen_s`, `delai_median_s`, `delai_max_s` |
+| `kpi_alertes_par_jour` | exécution, jour UTC, type d'alerte (`kind`) | `alertes`, `resolues`, `non_resolues` |
+| `kpi_vitesse_relative_horaire` | exécution, tronçon, jour UTC, heure UTC, taille de fenêtre | `fenetres`, `fenetres_avec_vitesse`, `vehicules`, `vitesse_relative` |
+
+Toutes portent `run_id` et `source_type` (provenance) ; `svc_lecture` les lit.
+
 ## 8. Règles de qualité
 
 | Code | Règle | Action | Où se voit le résultat |
@@ -417,6 +448,20 @@ Sept règles pour le comptage routier de Paris, évaluées dans cet ordre ; une 
 | `DUPLICATE_KEY` | doublon | un seul enregistrement par (`iu_ac`, `t_1h`) dans un fichier | Rejet de la seconde ligne ; la première est gardée |
 
 Une ligne retenue dont `k` est vide porte le drapeau `MISSING_OCCUPANCY` : ce n'est pas un rejet (DQ-06), mais le décompte est publié avec le taux de rejet.
+
+### 8.3 Contrôle des fenêtres avant chargement (DAT-06)
+
+Sept règles évaluées dans cet ordre avant l'écriture dans `dwh.fact_traffic_window` ; une ligne refusée va dans `dwh.etl_reject` avec `dataset` = `fenetres_trafic` et `source_ref` = `<fichier>#<rang>`. Détail : [ETL planifié en local](etl-planifie-local.md), section 3.
+
+| Code | Refus si |
+|---|---|
+| `MISSING_REQUIRED` | une colonne obligatoire de la table est vide |
+| `TYPE_INVALID` | tronçon hors `ROAD_nnn`, instant sans fuseau ou illisible, nombre illisible |
+| `OUT_OF_RANGE` | valeur hors des bornes de la table, taille de fenêtre autre que 60 ou 300 s |
+| `NOT_ALIGNED` | début de fenêtre non multiple de sa taille |
+| `SPEED_WITHOUT_VEHICLE` | vitesse donnée avec 0 véhicule |
+| `UNKNOWN_REFERENCE` | tronçon, état ou source absent des dimensions |
+| `DUPLICATE_KEY` | même tronçon et même fenêtre qu'une ligne précédente du fichier (la première est gardée) |
 
 ## 9. Jeu d'entraînement (IA-08)
 
@@ -626,20 +671,24 @@ Créée par `db/postgres/migrate.sh`, qui l'écrit seul : aucun rôle de service
 
 ### 11.2 Schéma `app`
 
-Le schéma est créé vide à l'initialisation. Ses tables sont créées par Alembic dans `services/traitement/` ([ADR-024](../01-architecture/adr/ADR-024-bases-de-donnees-locales.md)), **pas par un fichier SQL de `db/postgres/migrations/`**. À ce jour `services/traitement/migrations/` ne contient aucune révision : le schéma n'a pas de table (BE-02).
+Le schéma est créé vide à l'initialisation. Ses tables sont créées par **Alembic** dans [`services/traitement/migrations/`](../../services/traitement/migrations/) ([ADR-024](../01-architecture/adr/ADR-024-bases-de-donnees-locales.md)), **pas par un fichier SQL de `db/postgres/migrations/`**. Le compte `svc_app` en est propriétaire. Commande : `python3 scripts/dev/dev.py db-migrate-app` (Windows : `py -3 ...`) ; en direct : `APP_DATABASE_URL=… python -m alembic upgrade head` depuis `services/traitement/`.
 
-Cible, déduite du contrat [OpenAPI](../../contracts/openapi/api-metier.openapi.yaml) (schéma `User`), à confirmer par BE-02 :
+La révision `0001` (BE-02) crée la table `app.users` et la table de versions `app.alembic_version` (dans `app` : `svc_app` ne peut rien créer dans `public`).
 
-| Colonne visée | Règle visée | Sens |
-|---|---|---|
-| `user_id` | uuid, clé primaire | Identifiant exposé par l'API |
-| `username` | texte unique, 3 à 64 caractères | Identifiant de connexion |
-| mot de passe | **empreinte seulement**, jamais le mot de passe en clair | Authentification (BE-03) |
-| `role` | viewer, operator ou admin | Droit d'accès |
-| `is_active` | booléen | Compte utilisable |
-| `created_at` | date et heure, UTC | Création |
+| Colonne `app.users` | Type | Règle | Sens |
+|---|---|---|---|
+| `user_id` | uuid | clé primaire (`pk_users`) ; défaut `gen_random_uuid()` | Identifiant exposé par l'API |
+| `username` | texte (64) | obligatoire ; unique (`uq_users_username`) ; 3 à 64 caractères parmi a-z, 0-9, `_`, `.`, `-` (`ck_users_username_format`) | Identifiant de connexion |
+| `password_hash` | texte | obligatoire ; commence par `$` (`ck_users_password_hash_is_a_hash`) | **Empreinte** du mot de passe, jamais le mot de passe : l'algorithme est choisi par BE-03 |
+| `role` | texte (16) | obligatoire ; `viewer`, `operator` ou `admin` (`ck_users_role_valid`) ; aucun défaut | Droit d'accès (valeurs de `Role` dans le contrat [OpenAPI](../../contracts/openapi/api-metier.openapi.yaml)) |
+| `is_active` | booléen | obligatoire ; défaut vrai | Faux : le compte ne peut plus se connecter |
+| `created_at` | date et heure | obligatoire ; défaut maintenant ; UTC | Création du compte |
 
-Le dictionnaire sera complété avec les colonnes réelles au moment où BE-02 les crée.
+| Colonne `app.alembic_version` | Type | Règle | Sens |
+|---|---|---|---|
+| `version_num` | texte (32) | clé primaire | Révision Alembic appliquée (`0001`) |
+
+La table suit le schéma `User` du contrat : `user_id`, `username`, `role`, `is_active` et `created_at` sont exposés par l'API ; `password_hash` reste interne. Les noms de contraintes viennent d'une convention (`pk_`, `uq_`, `ck_`) : ils sont les mêmes dans le modèle SQLAlchemy et dans la migration.
 
 ## 12. Points ouverts
 
@@ -651,7 +700,7 @@ Le dictionnaire sera complété avec les colonnes réelles au moment où BE-02 l
 | Jours fériés | Non chargés (`is_holiday` faux) | DAT-10, si le jeu de données le justifie |
 | Durée de conservation de `raw_events` (14 jours) | Valeur de départ | Volume observé |
 | Bornes des contrats `traffic.recommendations` et `signal.status` (durée de phase 1 à 600 s, plan de 2 à 8 phases) | Valeurs de départ (section 13), à remplacer par les règles de sécurité des feux | MS-12 |
-| Tables du schéma `app` | Aucune révision Alembic (section 11.2) | BE-02 |
+| Algorithme d'empreinte du mot de passe | Non choisi : la base impose seulement que `password_hash` soit une empreinte (commence par `$`) | BE-03 |
 | Transitions d'une alerte | Ordre non contrôlé par la base : c'est le service d'alerte qui le garantit (section 7.3). Une contrainte supplémentaire serait une nouvelle migration. | MS-11 |
 | Calendrier `dim_date` | 2012 à 2030 : un fait daté hors de cette période est refusé. L'étendre = nouvelle migration. | Choix du jeu de données (DAT-01) |
 | Lignes de Paris sans débit (`q` vide) | Refusées (`MISSING_REQUIRED`), conformément à la fiche du jeu (« rejet si absent ») : 41 % des lignes du 17/10/2026. Celles qui ont un taux d'occupation (stations de taux d'occupation seul) ne rejoignent donc pas l'entrepôt, qui exige un comptage | Les deux membres (DAT-05, IA-10) |

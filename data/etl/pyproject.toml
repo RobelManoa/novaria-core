@@ -1,0 +1,15 @@
+[project]
+name = "novaria-core-etl"
+version = "0.1.0"
+description = "Logique ETL de Novaria Core : ingestion, nettoyage et chargement idempotent (empaquetée pour l'exécution locale et pour AWS Glue)."
+requires-python = ">=3.12"
+# Mêmes versions exactes que requirements.txt (un test les compare).
+dependencies = ["pymongo==4.19.0", "psycopg[binary]==3.3.6"]
+
+[project.scripts]
+novaria-etl-lot = "pipelines.lot:principal"
+novaria-etl-charger = "pipelines.charger_entrepot:principal"
+novaria-etl-rejouer = "pipelines.rejouer:principal"
+
+[tool.setuptools]
+packages = ["pipelines", "transforms"]

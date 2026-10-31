@@ -164,6 +164,9 @@ services:
       <<: *environnement-service
       SERVICE_NAME: traitement
       POSTGRES_URL: postgresql+psycopg://svc_traitement:${PG_PASSWORD_TRAITEMENT}@postgres:5432/${POSTGRES_DB}
+      # Rôle « API métier » (BE-03) : comptes dans le schéma app (svc_app) et secret de signature des jetons.
+      APP_DATABASE_URL: postgresql+psycopg://svc_app:${PG_PASSWORD_APP}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET:-}
       MONGO_URL: mongodb://svc_traitement:${MONGO_PASSWORD_TRAITEMENT}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
       MONGO_DB: ${MONGO_DB}
     ports: ["127.0.0.1:${TRAITEMENT_PORT:-8002}:8000"]

@@ -100,19 +100,19 @@ Les deux noms sont déduits de [ADR-008](../adr/ADR-008-microservices.md) et de 
 |---|---|---|---|
 | Configuration | Lit les variables d'environnement, aucun secret dans le code | `app/core/config.py` | Existe |
 | Sonde de santé | Répond à `/api/v1/health` avec version et révision | `app/api/v1/health.py` | Existe |
-| Authentification JWT | Vérifie les identifiants et émet le jeton d'accès | BE-03 | Planifié |
-| Contrôle des rôles | Refuse l'accès sans droit (403) ou sans jeton (401) | BE-03 | Planifié |
-| Routes utilisateurs | Expose la gestion des utilisateurs et des rôles | BE-01, BE-03 | Planifié |
+| Authentification JWT | Vérifie les identifiants et émet le jeton d'accès | `app/services/auth.py`, `app/core/security.py` (BE-03) | Existe |
+| Contrôle des rôles | Refuse l'accès sans droit (403) ou sans jeton (401) | `app/api/deps.py` (BE-03) | Existe |
+| Routes utilisateurs | Expose la gestion des utilisateurs et des rôles | `app/api/v1/users.py` (BE-03) | Partiel : liste, création, lecture ; la modification reste à faire |
 | Gestion des erreurs | Format d'erreur unique, validation des entrées | BE-06 | Planifié |
 | Journal d'audit | Enregistre qui fait quoi et quand, et compte l'usage par point d'accès | BE-05 | Planifié |
-| Dépôt utilisateurs | Lit et écrit le schéma `app` | BE-02 | Planifié |
+| Dépôt utilisateurs | Lit et écrit le schéma `app` | `app/repositories/users.py` (BE-02, BE-03) | Existe |
 | Dépôt d'audit | Écrit `audit_logs` et `usage_stats` dans MongoDB | BE-05 | Planifié |
 
 ### Composants du Service Traitement
 
 | Nom | Responsabilité | Couche | État |
 |---|---|---|---|
-| API de lecture | Sert indicateurs et prévisions en lecture seule | Adaptateur d'entrée | Planifié (MS-10) |
+| API de lecture | Sert indicateurs et prévisions en lecture seule | Adaptateur d'entrée | Partiel : les trois routes d'indicateurs existent (BE-04, `app/api/v1/indicators.py`) ; prévisions et référentiel planifiés (MS-10) |
 | Consommateur de mesures | Lit `iot.raw` | Adaptateur d'entrée | Planifié (MS-09) |
 | Cas d'usage de traitement | Orchestre nettoyage, agrégation, recommandation | Application | Planifié |
 | Nettoyage et qualité | Types, bornes, doublons, rejets avec motif | Domaine | Planifié (DAT-04) |
@@ -129,7 +129,7 @@ Les deux noms sont déduits de [ADR-008](../adr/ADR-008-microservices.md) et de 
 
 | N° | Point | Constat | Qui |
 |---|---|---|---|
-| 1 | Avenir de l'API métier | Le squelette `backend/` a été déplacé vers `services/traitement` le 27/10/2026 (MS-04, prévu par l'[ADR-010](../adr/ADR-010-architecture-hexagonale.md)). Or le schéma `app` (utilisateurs) et les rôles de base `svc_app` et `svc_backend` existent déjà pour un service à part. Ces vues le montrent comme **API métier**, distincte du Service Traitement. | Daddy et Manoa |
+| 1 | Avenir de l'API métier | Le squelette `backend/` a été déplacé vers `services/traitement` le 27/10/2026 (MS-04, prévu par l'[ADR-010](../adr/ADR-010-architecture-hexagonale.md)). Or le schéma `app` (utilisateurs) et les rôles de base `svc_app` et `svc_backend` existent déjà pour un service à part. Ces vues le montrent comme **API métier**, distincte du Service Traitement. Le 30/10/2026 (BE-03), l'authentification est réalisée **dans `services/traitement`**, avec un second contrat déclaré dans son `pyproject.toml` ; le point reste ouvert. | Daddy et Manoa |
 | 2 | Qui valide le jeton ? | [MS-13](../../../scripts/github/issues_microservices.py) place l'authentification à la **passerelle** ; BE-03 la place dans le back-end. Mécanisme non décidé (ADR « Authentification et passerelle d'API » à rédiger). Ces vues : l'API métier émet le jeton, la passerelle le contrôle. | Daddy |
 | 3 | Où est servi le modèle ? | IA-06 parle d'un « endpoint d'inférence » sans dire dans quel conteneur. Ces vues : conteneur **Modèle IA** séparé, appelé par le Service Traitement. | Manoa |
 | 4 | Noms des personnes | « Usager » et « Opérateur de mobilité » ne figurent pas tels quels dans la note de cadrage. | Manoa |

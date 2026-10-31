@@ -3,7 +3,7 @@
 PY ?= python3
 DEV = $(PY) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs db-up db-migrate db-status db-check db-check-events etl-paris etl-nettoyer-paris psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts test-etl lint format new-service quality-up quality-down hooks
+.PHONY: help init-env up down health lock-deps ps logs db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts test-etl lint format new-service quality-up quality-down hooks
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -27,16 +27,24 @@ db-up:         ## Démarre PostgreSQL et MongoDB, applique les migrations
 	$(DEV) db-up
 db-migrate:    ## Applique les migrations SQL en attente
 	$(DEV) db-migrate
+db-migrate-app: ## Applique les migrations Alembic du schéma app (compte svc_app)
+	$(DEV) db-migrate-app
 db-status:     ## État des bases et des migrations
 	$(DEV) db-status
 db-check:      ## Vérifie rôles, droits, collections et index
 	$(DEV) db-check
 db-check-events: ## Insère une mesure conforme (acceptée) et une sans provenance (refusée)
 	$(DEV) db-check-events
+db-check-kpi:  ## Recalcule les 5 indicateurs sur un jeu fabriqué (transaction annulée) et les compare aux vues
+	$(DEV) db-check-kpi
 etl-paris:     ## Ingère le comptage routier de Paris (make etl-paris DAY=2026-10-18) : fichier brut + journal MongoDB
 	$(DEV) etl-paris --day $(DAY)
 etl-nettoyer-paris: ## Nettoie le brut de Paris (make etl-nettoyer-paris DAY=2026-10-17) : propres, rejets, taux de rejet
 	$(DEV) etl-nettoyer-paris --day $(DAY)
+etl-lot:       ## Lot ETL planifié (make etl-lot DAY=2026-10-17 ; sans DAY : la veille) : ingestion, nettoyage de Paris
+	$(DEV) etl-lot $(if $(DAY),--day $(DAY),)
+etl-package:   ## Empaquette la logique ETL en dist/novaria-etl-<version>.zip (reproductible)
+	$(DEV) etl-package
 psql:          ## Ouvre psql (administrateur local)
 	$(DEV) psql
 mongosh:       ## Ouvre mongosh (administrateur local)

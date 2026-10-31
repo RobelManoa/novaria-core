@@ -65,6 +65,7 @@ Résultat attendu à l'étape 4 : 23 lignes `[OK]`, puis « Toutes les vérifica
 | État des conteneurs | `ps` |
 | Suivre les journaux d'un service | `logs backend` |
 | Appliquer les nouvelles migrations | `db-migrate` |
+| Appliquer les migrations Alembic du schéma `app` (compte `svc_app`) | `db-migrate-app` (après `pip install -r services/traitement/requirements-dev.txt`) |
 | Voir les migrations appliquées | `db-status` |
 | Vérifier que MongoDB accepte une mesure conforme et refuse une mesure sans provenance | `db-check-events` |
 | Ouvrir une console PostgreSQL | `psql` |
@@ -78,8 +79,8 @@ Une seule base `novaria`, quatre schémas. Chaque service n'écrit que dans son 
 
 | Schéma | Propriétaire des écritures | Tables | Créées par |
 |---|---|---|---|
-| `app` | API (Application Programming Interface, interface de programmation) métier (`svc_app`) | utilisateurs, rôles (aucune table à ce jour : BE-02) | Alembic (outil de migration du backend) |
-| `dwh` | Service de traitement (`svc_traitement`) | `dim_source`, `dim_congestion_state`, `dim_date`, `dim_intersection`, `dim_road_segment`, `dim_sensor`, `fact_traffic_window`, `fact_congestion_episode`, `etl_reject` | Migrations `0001`, `0002`, `0004`, `0005` |
+| `app` | API (Application Programming Interface, interface de programmation) métier (`svc_app`) | `users` (utilisateurs et rôles) et `alembic_version` | Alembic, révision `0001` (BE-02) : `services/traitement/migrations/` |
+| `dwh` | Service de traitement (`svc_traitement`) | `dim_source`, `dim_run`, `dim_congestion_state`, `dim_date`, `dim_intersection`, `dim_road_segment`, `dim_sensor`, `fact_traffic_window`, `fact_congestion_episode`, `etl_reject`, et les vues `kpi_*` ([KPI](kpi.md)) et `v_indicator` ([API des indicateurs](api-indicateurs.md)) | Migrations `0001`, `0002`, `0004`, `0005`, `0006`, `0007` |
 | `alertes` | Service d'alerte usager (`svc_alerte`) | `alert_rule`, `alert`, `alert_history`, `outbox_event` | Migration `0003` |
 | `ops` | Administrateur | `schema_migrations` | `db/postgres/migrate.sh` |
 
@@ -124,7 +125,7 @@ Chaque collection a un **validateur** : un document mal formé est refusé à l'
 | Cas | Marche à suivre |
 |---|---|
 | Nouvelle table dans `dwh` ou `alertes` | Créer `db/postgres/migrations/NNNN_description.sql` (numéro suivant, jamais renuméroter), puis `db-migrate`. Une migration déjà appliquée ne se modifie jamais : le runner refuse (empreinte SHA-256 — *Secure Hash Algorithm*, algorithme de hachage — enregistrée). Ajouter une nouvelle migration à la place. |
-| Nouvelle table dans `app` | Migration Alembic du service (`services/traitement/migrations/`), pas de fichier SQL (Structured Query Language) ici. |
+| Nouvelle table dans `app` | Modèle SQLAlchemy dans `services/traitement/app/models/`, puis une nouvelle révision Alembic dans `services/traitement/migrations/versions/` (numéro suivant : `0002`…), puis `db-migrate-app`. Pas de fichier SQL (Structured Query Language) ici. Une révision appliquée ne se réécrit pas. |
 | Nouvelle collection MongoDB | Ajouter validateur, index et droits dans `db/mongo/init/01-collections-et-utilisateurs.js`, puis recréer la base locale (`db-reset`) : le script ne s'exécute qu'au premier démarrage d'un volume vide. Prévoir aussi la version qui s'applique à une base existante dans une issue dédiée. |
 | Nouveau droit | Même fichier d'initialisation, plus le test correspondant dans `build_checks()` de `scripts/dev/dev.py`. |
 
@@ -169,6 +170,7 @@ Outils graphiques facultatifs : DBeaver (PostgreSQL) et MongoDB Compass, connect
 | Fins de ligne des scripts `.sh`, `.sql`, `.js` du dossier `db/` | Aucun caractère CR dans les fichiers de l'arbre de travail Windows | idem |
 | Sonde de santé MongoDB de `docker-compose.yml` | Même commande rejouée dans un conteneur à vide : réussit après 23 s | idem |
 | Premier démarrage réel sous Docker : `db-up` puis `db-check` (21 `[OK]`, dont les 12 de MongoDB), insertion d'une mesure conforme (acceptée) et d'une sans provenance (refusée), index de durée de vie de 14 jours | Volumes neufs dans un projet Compose jetable, fichiers du dépôt sans modification : [preuve LOC-02](preuve-loc-02-mongodb.md) | Poste Windows 11, 27/10/2026 |
+| Migration Alembic du schéma `app` (BE-02) | `db-migrate-app` avec le compte `svc_app` sur la base initialisée du poste ; 20 tests contre un PostgreSQL réel (base vide sans schéma `app`, schéma `app` déjà créé, rejeu, retour arrière, 11 refus de contraintes, comparaison modèle et base sans écart) | Poste Windows, 30/10/2026 ; poste Linux : [À COMPLÉTER par Manoa Robel] |
 | **`db-up` puis `db-check` sur vos volumes habituels** (Compose, projet `novaria-core`) | Non relancés : ils utilisent les volumes `pgdata` et `mongodata` existants | **À lancer sur chaque poste**, dont le poste Linux, après avoir lu l'avertissement de `db-reset` |
 
 Si `db-check` échoue sur votre poste, copier la sortie dans l'issue [LOC-01](https://github.com/RobelManoa/novaria-core/issues) (PostgreSQL) ou LOC-02 (MongoDB) ; sans secret, car la commande n'en affiche aucun.

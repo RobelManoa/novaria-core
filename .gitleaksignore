@@ -1,0 +1,5 @@
+# Faux positifs de gitleaks : une empreinte exacte par ligne (commit:fichier:règle:ligne).
+# Aucune règle n'est désactivée et aucun chemin n'est exclu. Chaque ligne est justifiée, datée et
+# approuvée dans docs/04-devsecops/exceptions.md, section 11 ; un test (test_gitleaks.py) le vérifie.
+
+2dc8754e130c9c84f5e92e5fe5558d5978cb9975:services/traitement/tests/fakes.py:generic-api-key:16
