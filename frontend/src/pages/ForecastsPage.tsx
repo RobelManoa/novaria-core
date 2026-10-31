@@ -1,14 +1,14 @@
-import ComingSoon from "@/components/ComingSoon";
 import PageHeader from "@/components/PageHeader";
+import Forecasts from "@/features/forecasts/Forecasts";
 
 export default function ForecastsPage() {
   return (
     <>
       <PageHeader
         title="Prévisions"
-        intro="Les prévisions de mobilité pour les prochaines heures."
+        intro="Le ratio de vitesse prévu pour les prochaines minutes, face à ce qui a été observé."
       />
-      <ComingSoon />
+      <Forecasts />
     </>
   );
 }

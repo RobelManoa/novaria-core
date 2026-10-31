@@ -931,6 +931,82 @@ def cmd_new_service(args: argparse.Namespace) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------- tableau de bord en local (FE-04)
+FRONTEND_DIR = ROOT / "frontend"
+API_PORT = 8000  # cible du proxy de Vite (frontend/vite.config.ts)
+API_PACKAGES = ("fastapi", "uvicorn", "sqlalchemy", "psycopg", "argon2", "pydantic")
+API_REQUIREMENTS = ("services/traitement/requirements.txt", "data/etl/requirements.txt")
+
+
+def cmd_dev_deps(_: argparse.Namespace) -> int:
+    """Installe dans l'interpréteur courant les paquets de l'API de traitement et des commandes ETL (un venv, de préférence)."""
+    for requirements in API_REQUIREMENTS:  # deux passes : l'un des fichiers a des empreintes (--require-hashes), pas l'autre
+        code = subprocess.run([sys.executable, "-m", "pip", "install", "-r", requirements], cwd=ROOT, check=False).returncode
+        if code:
+            return code
+    return 0
+
+
+def api_environment(env: dict[str, str]) -> dict[str, str]:
+    """Variables de l'API de traitement sur le poste : les mêmes que Compose, avec l'adresse 127.0.0.1 des bases (jamais affichées)."""
+    if not env.get("JWT_SECRET"):
+        raise DevError("JWT_SECRET est vide dans .env (init-env --force puis db-reset).")
+    return {
+        **os.environ,
+        "POSTGRES_URL": postgres_url(env, "svc_traitement", "PG_PASSWORD_TRAITEMENT").replace("postgresql://", "postgresql+psycopg://", 1),
+        "APP_DATABASE_URL": app_database_url(env),
+        "JWT_SECRET": env["JWT_SECRET"],
+        "SERVICE_NAME": "traitement",
+        "ENVIRONMENT": "local",
+        "PYTHONUTF8": "1",
+    }
+
+
+def cmd_api_run(_: argparse.Namespace) -> int:
+    """Lance l'API de traitement (authentification et indicateurs) sur http://127.0.0.1:8000, avec les bases du poste."""
+    require_env()
+    for package in API_PACKAGES:
+        if importlib.util.find_spec(package) is None:
+            raise DevError(f"{package} est absent. L'installer :  {Path(sys.executable).name} scripts/dev/dev.py dev-deps")
+    environment = api_environment(etl_environment())
+    print(f"API de traitement : http://127.0.0.1:{API_PORT}/docs  (Ctrl+C pour arrêter ; bases : db-up)")
+    command = [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(API_PORT)]
+    try:
+        return subprocess.run(command, cwd=APP_SERVICE_DIR, env=environment, check=False).returncode
+    except KeyboardInterrupt:
+        return 0
+
+
+STUB_PORT = 8001  # la maquette des prévisions : le proxy de Vite la vise avec `front-dev --stub`
+
+
+def cmd_forecast_stub(args: argparse.Namespace) -> int:
+    """Lance la MAQUETTE de GET /api/v1/forecasts (FE-05) devant l'API : la route n'est pas encore implémentée côté serveur."""
+    import forecast_stub
+
+    return forecast_stub.main(["--upstream", f"http://127.0.0.1:{API_PORT}", "--port", str(STUB_PORT), "--back-minutes", str(args.back_minutes)])
+
+
+def cmd_front_dev(args: argparse.Namespace) -> int:
+    """Lance le front-end (Vite, http://localhost:5173) ; installe les dépendances npm la première fois."""
+    npm = shutil.which("npm")
+    if npm is None:
+        raise DevError("npm est absent (Node.js 22 ou plus). Voir docs/08-exploitation/poste-de-travail.md.")
+    if not (FRONTEND_DIR / "node_modules").is_dir():
+        code = subprocess.run([npm, "ci"], cwd=FRONTEND_DIR, check=False).returncode
+        if code:
+            return code
+    environment = dict(os.environ)
+    if args.stub:
+        environment["API_TARGET"] = f"http://localhost:{STUB_PORT}"
+        print(f"Les appels /api passent par la maquette des prévisions (forecast-stub, port {STUB_PORT}).")
+    print(f"Front-end : http://localhost:5173  (Ctrl+C pour arrêter ; l'API doit tourner : api-run, sur le port {API_PORT})")
+    try:
+        return subprocess.run([npm, "run", "dev"], cwd=FRONTEND_DIR, env=environment, check=False).returncode
+    except KeyboardInterrupt:
+        return 0
+
+
 # --------------------------------------------------------------------------- ligne de commande
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="dev.py", description=__doc__.splitlines()[0])
@@ -956,6 +1032,12 @@ def build_parser() -> argparse.ArgumentParser:
     user = add("user-create", cmd_user_create, "crée un compte de l'API (premier administrateur) ; mot de passe saisi sans écho")
     user.add_argument("username", help="3 à 64 caractères parmi a-z, 0-9, _ . -")
     user.add_argument("--role", required=True, choices=["viewer", "operator", "admin"], help="droit d'accès")
+    add("dev-deps", cmd_dev_deps, "installe les paquets Python de l'API de traitement et de l'ETL dans l'interpréteur courant")
+    add("api-run", cmd_api_run, "lance l'API de traitement sur http://127.0.0.1:8000 (tableau de bord en local)")
+    front = add("front-dev", cmd_front_dev, "lance le front-end (Vite) sur http://localhost:5173")
+    front.add_argument("--stub", action="store_true", help="les appels /api passent par la maquette des prévisions (forecast-stub)")
+    stub = add("forecast-stub", cmd_forecast_stub, "lance la MAQUETTE de GET /api/v1/forecasts devant l'API (route non implémentée côté serveur)")
+    stub.add_argument("--back-minutes", type=int, default=60, help="émission décalée avant la fin des données, pour avoir un observé à comparer (60)")
     add("db-status", cmd_db_status, "état des bases et des migrations")
     add("db-check", cmd_db_check, "vérifie rôles, droits, collections et index")
     events = add("db-check-events", cmd_db_check_events, "insère une mesure conforme (acceptée) et une sans provenance (refusée)")
