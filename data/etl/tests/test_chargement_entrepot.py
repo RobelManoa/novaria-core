@@ -804,6 +804,16 @@ class Empaquetage(AvecDossier):
         requirements = [ligne for ligne in lignes if ligne and not ligne.startswith("#")]
         self.assertEqual(sorted(projet["dependencies"]), sorted(requirements))
 
+    def test_le_verrou_uv_fige_les_versions_de_requirements(self):
+        # uv.lock rend les versions prévisibles pour SonarQube (règle S8565) : régénérer avec « uv lock » dans data/etl.
+        verrou = tomllib.loads((RACINE / "data" / "etl" / "uv.lock").read_text(encoding="utf-8"))
+        figees = {paquet["name"]: paquet["version"] for paquet in verrou["package"]}
+        lignes = (RACINE / "data" / "etl" / "requirements.txt").read_text(encoding="utf-8").splitlines()
+        for ligne in (ligne for ligne in lignes if ligne and not ligne.startswith("#")):
+            nom, version = ligne.split("==")
+            with self.subTest(dependance=nom):
+                self.assertEqual(figees[nom.split("[")[0]], version)
+
     def test_les_commandes_du_paquet_existent(self):
         import importlib
 
