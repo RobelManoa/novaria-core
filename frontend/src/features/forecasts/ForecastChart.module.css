@@ -1,0 +1,37 @@
+/* Les classes communes (cadre, axes, trait observé, tableau) viennent de TimeSeriesChart.module.css. */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  list-style: none;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Prévu : pointillés et losanges, jamais la couleur seule (daltonisme, impression en noir et blanc). */
+.predictedLine {
+  fill: none;
+  stroke: var(--color-warning);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  stroke-linecap: round;
+}
+
+.predictedMarker {
+  fill: var(--color-warning);
+}
+
+.issued {
+  stroke: var(--color-border-strong);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
