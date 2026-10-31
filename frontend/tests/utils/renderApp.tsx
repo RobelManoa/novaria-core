@@ -23,6 +23,8 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const DEFAULTS: Record<string, Handler> = {
   "GET /api/v1/health": () => json(HEALTH),
   "GET /api/v1/auth/me": () => json(USER),
+  // Le tableau de bord (page d'accueil) lit les indicateurs : sans donnée, il affiche son état vide.
+  "GET /api/v1/indicators": () => json({ items: [], next_cursor: null }),
   "POST /api/v1/auth/login": () => json(TOKEN),
 };
 

@@ -2,8 +2,11 @@
 # (mêmes commandes, sans installer make ; voir docs/08-exploitation/poste-de-travail.md).
 PY ?= python3
 DEV = $(PY) scripts/dev/dev.py
+# Commandes qui importent les paquets de l'API (psycopg, argon2…) : le venv du dépôt s'il existe, sinon python3.
+PY_API ?= $(if $(wildcard venv/bin/python),venv/bin/python,$(PY))
+DEV_API = $(PY_API) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts test-etl lint format new-service quality-up quality-down hooks
+.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts test-etl lint format new-service quality-up quality-down hooks
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -22,6 +25,16 @@ ps:            ## État des conteneurs
 	$(DEV) ps
 logs:          ## Journaux (make logs S=collecte pour un seul service Compose)
 	$(DEV) logs $(S)
+
+dev-deps:      ## Installe les paquets Python de l'API et de l'ETL (dans venv/ s'il existe)
+	$(DEV_API) dev-deps
+user-create:   ## Crée un compte de l'API (make user-create U=robel ROLE=viewer) ; mot de passe saisi sans écho
+	$(if $(U),,$(error Donner un nom : make user-create U=robel ROLE=viewer))
+	$(DEV_API) user-create $(U) --role $(or $(ROLE),viewer)
+api-run:       ## Lance l'API de traitement sur http://127.0.0.1:8000 (bases : db-up)
+	$(DEV_API) api-run
+front-dev:     ## Lance le front-end sur http://localhost:5173 (l'API doit tourner : api-run)
+	$(DEV) front-dev
 
 db-up:         ## Démarre PostgreSQL et MongoDB, applique les migrations
 	$(DEV) db-up

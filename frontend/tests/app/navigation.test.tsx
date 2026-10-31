@@ -17,7 +17,7 @@ describe("navigation sur ordinateur", () => {
     expect(mainNav()).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveAttribute("id", "contenu");
     expect(screen.getByRole("contentinfo")).toBeInTheDocument();
-    expect(await screen.findByRole("status")).toBeInTheDocument();
+    expect(await screen.findByText("API en ligne")).toBeInTheDocument();
   });
 
   it("place le lien d'évitement en premier élément focalisable", async () => {
@@ -59,7 +59,10 @@ describe("navigation sur ordinateur", () => {
       "aria-current",
       "page",
     );
-    expect(screen.getByText("Cette section sera disponible prochainement.")).toBeInTheDocument();
+    // Le tableau de bord a un vrai contenu : seules les autres pages sont encore des encarts « prochainement ».
+    if (path !== "/") {
+      expect(screen.getByText("Cette section sera disponible prochainement.")).toBeInTheDocument();
+    }
   });
 
   it("chaque entrée du menu correspond à une route titrée", () => {
