@@ -17,7 +17,7 @@ Abréviations : CI (Continuous Integration, intégration continue), UTC (temps u
 | Seuil bloquant | Une faille de gravité **high** ou **critical** fait échouer le contrôle `snyk` ou `docker` de la CI ; la pull request ne peut pas être fusionnée |
 | Corriger d'abord | Une faille avec correctif publié se corrige : mise à jour de la dépendance, de l'image de base ou des paquets système (`apt-get upgrade`, `apk upgrade`) |
 | Exception en dernier recours | Une exception n'existe que si **aucun correctif n'est publié** ou si le faux positif est démontré |
-| Jamais d'exception | Pour un secret détecté par `gitleaks` : le secret est révoqué et remplacé, quelle que soit la gravité |
+| Jamais d'exception | Pour un secret détecté par `gitleaks` : le secret est révoqué et remplacé, quelle que soit la gravité. **Seul cas admis : un faux positif démontré** (valeur d'essai fabriquée, sans valeur d'accès, donc rien à révoquer) dont l'historique ne peut pas être réécrit ; il est identifié par son empreinte exacte (section 11) |
 | Seuil non abaissé | Aucune exception ne passe par une baisse du seuil, l'option `--exclude-base-image-vulns`, une commande forcée en succès ou `continue-on-error` |
 
 ## 2. Délais de correction
@@ -116,3 +116,14 @@ Décision : les trois exceptions sont **maintenues** (aucun correctif publié), 
 | Contrôle de nécessité (même commande sous Linux et Windows) | Effet |
 |---|---|
 | `docker build -t novaria-traitement:test services/traitement` puis `snyk container test novaria-traitement:test --file=services/traitement/Dockerfile --severity-threshold=high` | Sans `--policy-path`, Snyk n'applique pas `.snyk` : il liste les failles de gravité high ou critical. Demande `snyk auth` (jeton saisi dans le navigateur, jamais dans le terminal ni dans une conversation) |
+
+## 11. Faux positifs de gitleaks
+
+`gitleaks` lit **tout l'historique** : une valeur qui ressemble à une clé reste signalée dans le commit qui l'a introduite, même corrigée ensuite, et l'historique d'une branche protégée ne se réécrit pas (jamais de `push --force`). Un faux positif démontré s'écarte donc par son **empreinte exacte** dans `.gitleaksignore`, à la racine :
+aucune règle n'est désactivée, aucun chemin n'est exclu, la commande de la CI ne change pas (un test le vérifie), et toute autre détection fait toujours échouer le contrôle.
+
+| Empreinte | Fichier | Règle | Ce que c'est | Date | Décision |
+|---|---|---|---|---|---|
+| `2dc8754e130c9c84f5e92e5fe5558d5978cb9975:services/traitement/tests/fakes.py:generic-api-key:16` | `services/traitement/tests/fakes.py`, ligne 16 | `generic-api-key` | Clé de signature d'**essai** des tests d'authentification (BE-03), fabriquée pour les tests, jamais utilisée ailleurs : aucune valeur d'accès, **rien à révoquer**. Le code est corrigé (la valeur est désormais assemblée et ne ressemble plus à une clé) ; seul le commit `2dc8754`, déjà dans `dev`, la contient encore | 2026-10-31 | Proposée par Daddy Luciano ; **accord écrit de Manoa Robel : [À COMPLÉTER] (approbation de la pull request)** |
+
+Règles : une ligne par faux positif, jamais une empreinte pour un vrai secret (un vrai secret est révoqué) ; la ligne est retirée de `.gitleaksignore` quand le commit disparaît de l'historique (squash dans `main`). Le même contrôle que la section 3 s'applique : l'**autre** membre approuve.

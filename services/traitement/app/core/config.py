@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # --- Base métier : schéma `app`, compte `svc_app` (ADR-024). Même variable que les migrations.
     app_database_url: SecretStr | None = None
 
+    # --- Entrepôt `dwh`, compte `svc_traitement` : l'API de lecture des indicateurs (BE-04)
+    # l'ouvre en lecture seule. Variable déjà fournie à ce service par Docker Compose.
+    postgres_url: SecretStr | None = None
+
     @field_validator("jwt_secret")
     @classmethod
     def secret_is_long_enough(cls, value: SecretStr | None) -> SecretStr | None:

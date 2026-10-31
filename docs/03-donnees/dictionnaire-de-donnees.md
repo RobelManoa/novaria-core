@@ -161,6 +161,12 @@ flowchart LR
 | | `reporting_interval_s` | entier | 1 à 3600, défaut 10 | Durée couverte par chaque mesure |
 | `dim_source` | `source_type` | texte | SIMULATED, REAL_HISTORICAL, REAL_LIVE | Provenance (voir [ADR-027](../01-architecture/adr/ADR-027-jeux-de-donnees-et-provenance.md)) |
 | | `description` | texte | obligatoire | Sens de l'origine, en français |
+| `dim_run` | `run_id` | texte | clé primaire ; 1 à 80 caractères | Exécution qui produit des faits : `live`, run du simulateur ou jeu historique. **Une exécution non enregistrée ici n'est pas servie par l'API** ([API des indicateurs](api-indicateurs.md)) |
+| | `source_type` | texte | obligatoire ; clé étrangère vers `dim_source` | Doit être celui des faits de l'exécution, sinon ils ne sont pas servis |
+| | `scenario_id` | texte | `^[a-z0-9_-]{1,60}$` ; **obligatoire si SIMULATED** | Scénario du simulateur |
+| | `seed` | entier long | ≥ 0 ; **obligatoire si SIMULATED** | Graine : rend le run reproductible |
+| | `dataset_id` | texte | `^[a-z0-9_.-]{1,60}$` ; **obligatoire si REAL_HISTORICAL** | Jeu historique d'origine |
+| | `registered_at` | date et heure | défaut maintenant, UTC | Enregistrement de l'exécution |
 | `dim_congestion_state` | `state_code`, `severity_rank` | texte, 0 à 3 | UNKNOWN 0, FREE_FLOW 1, SLOW 2, CONGESTED 3 ; rang unique | États ordonnés par gravité |
 | | `label_fr` | texte | obligatoire | Libellé affiché : Inconnu, Fluide, Ralenti, Congestionné |
 | `dim_date` | `date_key` | entier | AAAAMMJJ ; la contrainte accepte 2000 à 2099, la migration `0004` charge 2012 à 2030 (6 940 jours) | Clé du calendrier, en UTC. Un fait daté hors du calendrier chargé est **refusé** (clé étrangère). |
@@ -240,6 +246,17 @@ Grain : un tronçon, une fenêtre, un run. **Clé primaire** (`road_segment_key`
 | (système) | `loaded_at` | Date de chargement |
 
 Une ligne peut être refusée par ses contraintes (vitesse sans véhicule, fenêtre de 2 minutes, état inconnu…) : l'erreur est visible à l'écriture, pas plus loin.
+
+### 6.1 Lecture par l'API : la vue `dwh.v_indicator`
+
+Vue en lecture seule (migration `0007`) que l'API des indicateurs interroge ([API des indicateurs](api-indicateurs.md)). Une ligne = une ligne de `fact_traffic_window` jointe à son tronçon, son carrefour et son exécution (`dim_run`, jointure interne sur `run_id` **et** `source_type`).
+
+| Colonne de la vue | Origine | Sens |
+|---|---|---|
+| `indicator_id` | calculée | `run_id:tronçon:taille:début en ms depuis 1970` ; égal à l'`id` de l'événement `novaria.traffic.indicator.v1` |
+| `road_segment_id`, `intersection_id` | `dim_road_segment`, `dim_intersection` | Identifiants métier |
+| `window_start`, `window_size_s`, `vehicle_count`, `flow_veh_per_min`, `average_speed_kmh`, `occupancy_rate`, `max_queue_length_m`, `speed_ratio`, `sample_count`, `expected_sample_count`, `completeness`, `congestion_state`, `classifier_version` | `fact_traffic_window` | Voir le tableau ci-dessus |
+| `run_id`, `source_type`, `scenario_id`, `seed`, `dataset_id` | `fact_traffic_window` et `dim_run` | Provenance complète, telle que le contrat la décrit |
 
 ## 7. Règles de calcul et d'états
 

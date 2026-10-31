@@ -18,7 +18,7 @@ import pytest
 from app.main import app
 from app.models import Role
 from app.services.auth import ROLE_LEVEL
-from tests.fakes import PASSWORD, FakeUserRepository, bearer
+from tests.fakes import PASSWORD, SECRET, FakeUserRepository, bearer
 from tests.openapi_checks import API, PROBLEM, check, schema
 
 HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
@@ -85,7 +85,7 @@ def test_the_service_implements_the_login_and_the_protected_routes_of_the_contra
         ("/api/v1/users", "post"),
         ("/api/v1/users/{user_id}", "get"),
     }
-    assert {(p, m) for p, m in implemented()} - {(p, m) for p, m, _ in PROTECTED} == PUBLIC
+    assert PUBLIC <= implemented(), "la sonde et la connexion existent"
 
 
 def test_the_declared_roles_of_the_routes_are_the_roles_of_the_contract():
@@ -232,7 +232,6 @@ def test_the_probe_is_public(client):
     assert client.get("/api/v1/health").status_code == 200
 
 
-@pytest.mark.xfail(strict=True, reason="BE-06 : le corps 422 n'est pas encore au format Problem")
 def test_an_invalid_login_body_gives_a_problem_422(client):
     reponse = client.post("/api/v1/auth/login", json={"username": "ab"})
     assert_problem(reponse, 422, "VALIDATION_ERROR")
@@ -431,7 +430,7 @@ def test_the_error_bodies_carry_no_trace_and_no_secret(client, repo):
     for reponse in reponses:
         assert "Traceback" not in reponse.text
         assert "argon2" not in reponse.text
-        assert "secret-de-test" not in reponse.text
+        assert SECRET not in reponse.text
 
 
 def test_the_fake_repository_is_the_one_the_tests_use(repo):

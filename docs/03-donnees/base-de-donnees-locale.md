@@ -80,7 +80,7 @@ Une seule base `novaria`, quatre schémas. Chaque service n'écrit que dans son 
 | Schéma | Propriétaire des écritures | Tables | Créées par |
 |---|---|---|---|
 | `app` | API (Application Programming Interface, interface de programmation) métier (`svc_app`) | `users` (utilisateurs et rôles) et `alembic_version` | Alembic, révision `0001` (BE-02) : `services/traitement/migrations/` |
-| `dwh` | Service de traitement (`svc_traitement`) | `dim_source`, `dim_congestion_state`, `dim_date`, `dim_intersection`, `dim_road_segment`, `dim_sensor`, `fact_traffic_window`, `fact_congestion_episode`, `etl_reject`, et les vues `kpi_*` ([KPI](kpi.md)) | Migrations `0001`, `0002`, `0004`, `0005`, `0006` |
+| `dwh` | Service de traitement (`svc_traitement`) | `dim_source`, `dim_run`, `dim_congestion_state`, `dim_date`, `dim_intersection`, `dim_road_segment`, `dim_sensor`, `fact_traffic_window`, `fact_congestion_episode`, `etl_reject`, et les vues `kpi_*` ([KPI](kpi.md)) et `v_indicator` ([API des indicateurs](api-indicateurs.md)) | Migrations `0001`, `0002`, `0004`, `0005`, `0006`, `0007` |
 | `alertes` | Service d'alerte usager (`svc_alerte`) | `alert_rule`, `alert`, `alert_history`, `outbox_event` | Migration `0003` |
 | `ops` | Administrateur | `schema_migrations` | `db/postgres/migrate.sh` |
 

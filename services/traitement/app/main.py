@@ -1,16 +1,18 @@
 import logging
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError
 
-from app.api.v1 import auth, health, users
+from app.api.v1 import auth, health, indicators, users
 from app.core.config import get_settings
 from app.core.errors import (
     PROBLEM_MEDIA_TYPE,
     UPSTREAM_UNAVAILABLE,
     ProblemError,
     problem_handler,
+    validation_handler,
 )
 from app.core.logs import CorrelationMiddleware, configure_logging
 
@@ -20,6 +22,7 @@ configure_logging(settings.service_name, settings.log_level)
 app = FastAPI(title=settings.app_name, version=settings.app_version)
 app.add_middleware(CorrelationMiddleware)
 app.add_exception_handler(ProblemError, problem_handler)
+app.add_exception_handler(RequestValidationError, validation_handler)
 
 
 @app.exception_handler(OperationalError)
@@ -35,3 +38,4 @@ async def database_unreachable(_: Request, error: OperationalError) -> JSONRespo
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
+app.include_router(indicators.router, prefix="/api/v1")
