@@ -18,3 +18,15 @@ ignore:
     - '*':
         reason: aucun correctif amont Debian 13, voir docs/04-devsecops/exceptions.md
         expires: 2026-11-15T00:00:00.000Z
+  SNYK-DEBIAN13-SQLITE3-22119065:
+    - '*':
+        reason: aucun correctif amont Debian 13, voir docs/04-devsecops/exceptions.md
+        expires: 2026-12-03T00:00:00.000Z
+  SNYK-DEBIAN13-SQLITE3-22119091:
+    - '*':
+        reason: aucun correctif amont Debian 13, voir docs/04-devsecops/exceptions.md
+        expires: 2026-12-03T00:00:00.000Z
+  SNYK-DEBIAN13-SQLITE3-22119098:
+    - '*':
+        reason: aucun correctif amont Debian 13, voir docs/04-devsecops/exceptions.md
+        expires: 2026-12-03T00:00:00.000Z
