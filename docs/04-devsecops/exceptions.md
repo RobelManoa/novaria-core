@@ -2,7 +2,7 @@
 
 Projet : Novaria Core, socle d'UrbanHub (bloc de compétences BC05)
 Responsables : Daddy Luciano et Manoa Robel (relecture croisée)
-Dernière mise à jour : 27/10/2026
+Dernière mise à jour : 03/11/2026
 Issue de suivi : CLD-23
 Statut : proposition à valider par les deux membres (relecture de la pull request)
 
@@ -66,6 +66,9 @@ Chaque exception de `.snyk` a ces quatre éléments, vérifiés par un test (sec
 | SNYK-DEBIAN13-ZLIB-19520500 | zlib1g (Out-of-bounds Write) | backend (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-10-17 | 2026-11-15 | R10 |
 | SNYK-DEBIAN13-ATTR-17678182 | libattr1 (Link Following) | backend (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-10-17 | 2026-11-15 | R10 |
 | SNYK-DEBIAN13-ACL-17677866 | libacl1 (Link Following) | backend (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-10-17 | 2026-11-15 | R10 |
+| SNYK-DEBIAN13-SQLITE3-22119065 | libsqlite3-0 (Out-of-bounds Write) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-11-03 | 2026-12-03 | R10 |
+| SNYK-DEBIAN13-SQLITE3-22119091 | libsqlite3-0 (Out-of-bounds Write) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-11-03 | 2026-12-03 | R10 |
+| SNYK-DEBIAN13-SQLITE3-22119098 | libsqlite3-0 (Out-of-bounds Write) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-11-03 | 2026-12-03 | R10 |
 
 ## 7. Scan hebdomadaire
 
@@ -127,3 +130,19 @@ aucune règle n'est désactivée, aucun chemin n'est exclu, la commande de la CI
 | `2dc8754e130c9c84f5e92e5fe5558d5978cb9975:services/traitement/tests/fakes.py:generic-api-key:16` | `services/traitement/tests/fakes.py`, ligne 16 | `generic-api-key` | Clé de signature d'**essai** des tests d'authentification (BE-03), fabriquée pour les tests, jamais utilisée ailleurs : aucune valeur d'accès, **rien à révoquer**. Le code est corrigé (la valeur est désormais assemblée et ne ressemble plus à une clé) ; seul le commit `2dc8754`, déjà dans `dev`, la contient encore | 2026-10-31 | Proposée par Daddy Luciano ; **accord écrit de Manoa Robel : [À COMPLÉTER] (approbation de la pull request)** |
 
 Règles : une ligne par faux positif, jamais une empreinte pour un vrai secret (un vrai secret est révoqué) ; la ligne est retirée de `.gitleaksignore` quand le commit disparaît de l'historique (squash dans `main`). Le même contrôle que la section 3 s'applique : l'**autre** membre approuve.
+
+## 12. Revue du 03/11/2026 : libsqlite3-0 (échec du contrôle `docker`)
+
+Abréviation : CVE (Common Vulnerabilities and Exposures, identifiant public d'une faille).
+
+| Vérification | Résultat |
+|---|---|
+| Ce qui échoue | Le job `docker` : `snyk container test` signale des failles **high** de `sqlite3/libsqlite3-0` (Out-of-bounds Write) dans l'image de base `python:3.15-slim` de **quatre services** (alerte, collecte, reponse, traitement). L'image du front-end est saine (« Tested 21 dependencies, no vulnerable paths found ») |
+| Où | Scan planifié de `main` (run 125344230302, 3 failles par image) et pull requests Dependabot #208 et #209 (runs 124945854978 et 124948575087, 4 failles par image) |
+| Failles | SNYK-DEBIAN13-SQLITE3-22119065 (CVE-2026-119373), SNYK-DEBIAN13-SQLITE3-22119091 (CVE-2026-119374) et SNYK-DEBIAN13-SQLITE3-22119098 (CVE-2026-119379). Publiées le 30/10/2026 d'après Snyk. Numéros CVE lus sur les pages Snyk, **non recoupés avec le suivi de sécurité de Debian** |
+| Faille non retenue | SNYK-DEBIAN13-SQLITE3-22119092 (CVE-2026-119586) figurait dans les scans des pull requests, **pas dans celui de `main`**, plus récent. Aucune exception n'est créée pour elle ; la page Snyk lue le 03/11/2026 ne porte pas la mention « no fixed version ». À surveiller : si elle revient, la traiter selon les sections 2 à 5 |
+| Chemin | `util-linux/liblastlog2-2` dépend de `libsqlite3-0` : le paquet ne se retire pas de l'image sans casser la chaîne `util-linux` |
+| Correctif publié par Debian 13 | **Non**. Pages Snyk lues le 03/11/2026 : « no fixed version for `Debian:13` `sqlite3` » pour les trois failles. Dans une image `python:3.15-slim` tirée le 03/11/2026, après `apt-get update` : `libsqlite3-0` installé `3.46.1-7+deb13u2` = version candidate `3.46.1-7+deb13u2`, donc `apt-get upgrade` (déjà dans les Dockerfile) ne change rien ; seul `tzdata` est mis à jour |
+| Les exceptions suffisent-elles ? | **Non vérifié** : la CLI Snyk n'est pas installée sur le poste de cette revue et le journal de Snyk n'affiche pas les failles ignorées. La preuve sera le job `docker` vert après fusion |
+
+Décision proposée : trois exceptions de 30 jours (création le 03/11/2026, expiration le **03/12/2026**, avant le 10/12/2026), à approuver par l'**autre membre** du binôme (section 3). Les trois exceptions du 17/10/2026 expirent toujours le 15/11/2026 : elles se renouvellent séparément, après une nouvelle vérification (section 4).
