@@ -35,6 +35,15 @@ Détail, parcours, codes d'erreur et limites : [authentification](../../docs/02-
 
 Protéger une nouvelle route : `Depends(require_role(Role.OPERATOR))` et `openapi_extra={"x-required-role": "operator"}` ; le test de contrat échoue si la route n'est pas protégée ou si le rôle diffère du contrat.
 
+## Journal d'audit et compteurs d'usage (BE-05)
+
+Chaque appel authentifié (et chaque tentative de connexion) laisse une entrée dans la collection MongoDB `audit_logs` : qui (identifiant du compte), quoi (méthode et modèle de route), quand, résultat, `correlation_id`. Chaque appel est compté par point d'accès et par heure dans `usage_stats`. Aucun secret, corps de requête, en-tête, adresse IP ni nom d'utilisateur n'est écrit. L'écriture est au mieux : MongoDB arrêté ne change aucune réponse. La variable `AUDIT_MONGO_URL` (compte `svc_backend`, déjà fournie par Compose) l'active ; sans elle, rien n'est écrit.
+Règles et limites : [journalisation d'audit](../../docs/02-specifications/journalisation-audit.md). Preuve : [capture MongoDB](../../docs/03-donnees/preuve-be05-audit-mongodb.md) et `tests/contract/test_audit_contract.py`.
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Tests contre MongoDB | `NOVARIA_TEST_MONGO_URL=mongodb://svc_backend:…@127.0.0.1:27017/novaria?authSource=novaria pytest tests/integration/test_audit_mongo.py` | `$env:NOVARIA_TEST_MONGO_URL="…"; pytest tests/integration/test_audit_mongo.py` |
+
 ## Migrations du schéma `app` (BE-02)
 
 Le schéma `app` (utilisateurs, rôles) appartient à l'API métier : ses tables sont décrites par des modèles SQLAlchemy (`app/models/`) et créées par **Alembic** (`migrations/`), pas par `db/postgres/migrations/` ([ADR-024](../../docs/01-architecture/adr/ADR-024-bases-de-donnees-locales.md)). Le compte est `svc_app` ; l'adresse de la base est dans la variable `APP_DATABASE_URL`, jamais dans un fichier.

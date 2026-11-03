@@ -104,9 +104,9 @@ Les deux noms sont déduits de [ADR-008](../adr/ADR-008-microservices.md) et de 
 | Contrôle des rôles | Refuse l'accès sans droit (403) ou sans jeton (401) | `app/api/deps.py` (BE-03) | Existe |
 | Routes utilisateurs | Expose la gestion des utilisateurs et des rôles | `app/api/v1/users.py` (BE-03) | Partiel : liste, création, lecture ; la modification reste à faire |
 | Gestion des erreurs | Format d'erreur unique, validation des entrées | BE-06 | Planifié |
-| Journal d'audit | Enregistre qui fait quoi et quand, et compte l'usage par point d'accès | BE-05 | Planifié |
+| Journal d'audit | Enregistre qui fait quoi et quand, et compte l'usage par point d'accès | `app/core/audit.py`, `app/services/audit.py` (BE-05) | Existe |
 | Dépôt utilisateurs | Lit et écrit le schéma `app` | `app/repositories/users.py` (BE-02, BE-03) | Existe |
-| Dépôt d'audit | Écrit `audit_logs` et `usage_stats` dans MongoDB | BE-05 | Planifié |
+| Dépôt d'audit | Écrit `audit_logs` et `usage_stats` dans MongoDB | `app/repositories/audit.py` (BE-05) | Existe |
 
 ### Composants du Service Traitement
 
@@ -129,7 +129,7 @@ Les deux noms sont déduits de [ADR-008](../adr/ADR-008-microservices.md) et de 
 
 | N° | Point | Constat | Qui |
 |---|---|---|---|
-| 1 | Avenir de l'API métier | Le squelette `backend/` a été déplacé vers `services/traitement` le 27/10/2026 (MS-04, prévu par l'[ADR-010](../adr/ADR-010-architecture-hexagonale.md)). Or le schéma `app` (utilisateurs) et les rôles de base `svc_app` et `svc_backend` existent déjà pour un service à part. Ces vues le montrent comme **API métier**, distincte du Service Traitement. Le 30/10/2026 (BE-03), l'authentification est réalisée **dans `services/traitement`**, avec un second contrat déclaré dans son `pyproject.toml` ; le point reste ouvert. | Daddy et Manoa |
+| 1 | Avenir de l'API métier | Le squelette `backend/` a été déplacé vers `services/traitement` le 27/10/2026 (MS-04, prévu par l'[ADR-010](../adr/ADR-010-architecture-hexagonale.md)). Or le schéma `app` (utilisateurs) et les rôles de base `svc_app` et `svc_backend` existent déjà pour un service à part. Ces vues le montrent comme **API métier**, distincte du Service Traitement. Le 30/10/2026 (BE-03), l'authentification est réalisée **dans `services/traitement`**, avec un second contrat déclaré dans son `pyproject.toml` ; le point reste ouvert. Le 03/11/2026 (BE-05), le journal d'audit y est aussi, avec le compte `svc_backend` donné à ce service par `AUDIT_MONGO_URL` (comme `svc_app` pour `APP_DATABASE_URL`) : ces deux exceptions disparaissent si l'API métier redevient un service à part. | Daddy et Manoa |
 | 2 | Qui valide le jeton ? | [MS-13](../../../scripts/github/issues_microservices.py) place l'authentification à la **passerelle** ; BE-03 la place dans le back-end. Mécanisme non décidé (ADR « Authentification et passerelle d'API » à rédiger). Ces vues : l'API métier émet le jeton, la passerelle le contrôle. | Daddy |
 | 3 | Où est servi le modèle ? | IA-06 parle d'un « endpoint d'inférence » sans dire dans quel conteneur. Ces vues : conteneur **Modèle IA** séparé, appelé par le Service Traitement. | Manoa |
 | 4 | Noms des personnes | « Usager » et « Opérateur de mobilité » ne figurent pas tels quels dans la note de cadrage. | Manoa |

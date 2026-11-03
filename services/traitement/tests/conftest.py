@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from app.core.config import get_settings
 from app.db.session import get_indicator_repository, get_user_repository
 from app.main import app
-from tests.fakes import SECRET, FakeIndicatorRepository, FakeUserRepository
+from tests.fakes import SECRET, FakeIndicatorRepository, FakeUserRepository, Journal
 
 
 @pytest.fixture
@@ -30,10 +30,17 @@ def indicators() -> FakeIndicatorRepository:
 
 
 @pytest.fixture
-def client(secret, repo, indicators):
+def journal() -> Journal:
+    return Journal()
+
+
+@pytest.fixture
+def client(secret, repo, indicators, journal):
     app.dependency_overrides[get_user_repository] = lambda: repo
     app.dependency_overrides[get_indicator_repository] = lambda: indicators
+    app.state.observer = journal.observer
     try:
         yield TestClient(app)
     finally:
         app.dependency_overrides.clear()
+        app.state.observer = None

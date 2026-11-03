@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     # l'ouvre en lecture seule. Variable déjà fournie à ce service par Docker Compose.
     postgres_url: SecretStr | None = None
 
+    # --- Journal d'audit et compteurs d'usage (BE-05) : MongoDB, compte `svc_backend`.
+    # Sans cette adresse, l'API répond normalement mais n'écrit ni audit ni compteur (un
+    # avertissement est journalisé au premier appel).
+    audit_mongo_url: SecretStr | None = None
+
     @field_validator("jwt_secret")
     @classmethod
     def secret_is_long_enough(cls, value: SecretStr | None) -> SecretStr | None:

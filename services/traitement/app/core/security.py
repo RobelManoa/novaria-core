@@ -31,6 +31,7 @@ class InvalidToken(Exception):
 class AccessToken:
     value: str
     expires_in: int
+    user_id: uuid.UUID | None = None  # pour l'audit de la connexion, jamais écrit dans la réponse
 
 
 @dataclass(frozen=True)
@@ -76,7 +77,7 @@ def create_access_token(
         "iat": issued_at,
         "exp": issued_at + timedelta(seconds=ttl_s),
     }
-    return AccessToken(jwt.encode(payload, secret, algorithm=ALGORITHM), ttl_s)
+    return AccessToken(jwt.encode(payload, secret, algorithm=ALGORITHM), ttl_s, user_id)
 
 
 def decode_access_token(token: str, *, secret: str) -> Claims:
