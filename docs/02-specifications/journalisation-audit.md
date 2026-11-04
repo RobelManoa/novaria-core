@@ -21,7 +21,7 @@ Pourquoi un appel sans jeton valide n'entre pas dans `audit_logs` : le journal r
 
 La sonde de santé est appelée par Docker toutes les 15 secondes : l'auditer produirait 5 760 entrées par jour sans information.
 
-Le résultat suit le code HTTP : sous 400, `ok` ; 401 et 403, `denied` ; toute autre erreur, `error` (valeurs imposées par le validateur de la collection).
+Le résultat suit le code HTTP : sous 400, `ok` ; 401, 403 et 429 (limite de débit de la connexion, BE-08), `denied` ; toute autre erreur, `error` (valeurs imposées par le validateur de la collection).
 
 ## 2. Ce qui est écrit (liste fermée)
 

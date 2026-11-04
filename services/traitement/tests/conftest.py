@@ -3,11 +3,20 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api.deps import reset_login_throttle
 from app.core.config import get_settings
 from app.db.session import get_indicator_repository, get_user_repository
 from app.main import app
 from tests.fakes import SECRET, FakeIndicatorRepository, FakeUserRepository, Journal
 from tests.scene import Scene
+
+
+@pytest.fixture(autouse=True)
+def fresh_login_throttle():
+    """La limite de la connexion est celle du processus : chaque test repart sans essai compté."""
+    reset_login_throttle()
+    yield
+    reset_login_throttle()
 
 
 @pytest.fixture

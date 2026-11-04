@@ -7,8 +7,9 @@ erreurs qu'elle peut renvoyer. Ces tests partent d'eux, pas d'une liste écrite 
 - pour chaque opération que le service implémente et chaque erreur que le contrat lui attribue, un
   appel provoque cette erreur, et la réponse a le bon code HTTP, le bon `code` stable, le type de
   contenu `application/problem+json` et un corps conforme au schéma `Problem` ;
-- une erreur documentée sans test fait échouer la suite, sauf deux cas écrits ici avec leur raison
-  (limitation du débit, pas encore faite ; `403` d'une route ouverte au rôle le plus bas) ;
+- une erreur documentée sans test fait échouer la suite, sauf un cas écrit ici avec sa raison
+  (`403` d'une route ouverte au rôle le plus bas). Le `429` de la connexion est testé depuis
+  BE-08 : la limite est dépassée pour de bon, `Retry-After` est lu ;
 - les erreurs que le service déclare dans `/openapi.json` sont exactement celles du contrat ;
 - les erreurs imprévues (`5XX`) sont provoquées sur toutes les opérations : le client ne voit
   aucun détail technique et la réponse porte l'identifiant de corrélation.
@@ -20,6 +21,7 @@ import pytest
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 
+from app.core.config import get_settings
 from app.core.errors import (
     CONFLICT,
     FORBIDDEN,
@@ -97,9 +99,7 @@ def required_role(method: str, path: str) -> Role | None:
 
 
 def exemption(method: str, path: str, status: str) -> str | None:
-    """Raison pour laquelle une erreur documentée ne peut pas encore être provoquée."""
-    if status == "429":
-        return "limitation du débit de la connexion : BE-08, pas encore faite"
+    """Raison pour laquelle une erreur documentée ne peut pas être provoquée."""
     if status == "403" and required_role(method, path) == LOWEST_ROLE:
         return f"le rôle `{LOWEST_ROLE.value}` est le plus bas : personne n'a moins de droits"
     return None
@@ -116,6 +116,7 @@ PROVOKERS = {
             "post", LOGIN, json={"username": "inconnu", "password": PASSWORD}
         ),
         "422": lambda s: s.request("post", LOGIN, json={}),
+        "429": lambda s: exceed_the_login_limit(s),
     },
     ("get", "/api/v1/auth/me"): {
         "401": lambda s: s.request("get", "/api/v1/auth/me"),
@@ -152,6 +153,14 @@ PROVOKERS = {
         "404": lambda s: s.request("get", f"{INDICATORS}/{{indicator_id}}", role=Role.VIEWER),
     },
 }
+
+
+def exceed_the_login_limit(scene: Scene):
+    """Autant d'échecs que la configuration en tolère sur un identifiant, puis un de trop."""
+    attempt = {"username": "inconnu", "password": PASSWORD}
+    for _ in range(get_settings().login_max_failures):
+        assert scene.request("post", LOGIN, json=attempt).status_code == 401
+    return scene.request("post", LOGIN, json=attempt)
 
 
 def duplicate_user(scene: Scene):
@@ -211,7 +220,6 @@ def test_the_only_errors_without_a_test_are_the_written_exemptions():
         if exemption(method, path, status)
     }
     assert exempt == {
-        ("post", LOGIN, "429"),
         ("get", INDICATORS, "403"),
         ("get", f"{INDICATORS}/latest", "403"),
         ("get", f"{INDICATORS}/{{indicator_id}}", "403"),
@@ -238,6 +246,8 @@ def test_a_documented_error_is_produced_with_the_documented_status_code_and_body
         assert body["code"] == wanted.code
         if path != LOGIN:
             assert response.headers["WWW-Authenticate"] == "Bearer"
+    if status == "429":
+        assert int(response.headers["Retry-After"]) >= 1, "le client sait combien attendre"
     if status == "422":
         assert body["errors"], "chaque champ fautif est listé"
         for item in body["errors"]:
@@ -253,8 +263,7 @@ def test_a_documented_error_is_produced_with_the_documented_status_code_and_body
 )
 def test_the_responses_the_service_declares_are_those_of_the_contract(method, path):
     declared = set(app.openapi()["paths"][path][method]["responses"])
-    not_done_yet = {"429"}  # limitation du débit (BE-08) : documentée, pas encore faite
-    expected = set(CONTRACT[(method, path)]["responses"]) - not_done_yet
+    expected = set(CONTRACT[(method, path)]["responses"])
     assert declared == expected, (
         f"déclarées seulement par le service : {sorted(declared - expected)} ; "
         f"seulement par le contrat : {sorted(expected - declared)}"
