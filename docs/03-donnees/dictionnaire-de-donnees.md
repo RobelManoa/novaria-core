@@ -548,17 +548,17 @@ Archive du sujet `errors.dlq`. Écrit par la collecte et le traitement.
 
 ### 10.3 `audit_logs`
 
-Journal d'audit : jamais de secret ni de donnée personnelle. Écrit par la réponse extérieure et l'API métier.
+Journal d'audit : jamais de secret ni de donnée personnelle. Écrit par la réponse extérieure et l'API métier. Ce que l'API métier écrit exactement, et ce qu'elle n'écrit jamais : [journalisation d'audit](../02-specifications/journalisation-audit.md) (BE-05).
 
 | Champ | Type | Obligatoire | Règle | Sens |
 |---|---|---|---|---|
 | `ts` | date | oui | | Moment de l'action |
 | `service` | texte | oui | | Service qui journalise |
-| `actor` | texte | oui | | Qui agit : utilisateur ou service |
-| `action` | texte | oui | | Ce qui est fait |
+| `actor` | texte | oui | | Qui agit : utilisateur ou service. API métier : identifiant (UUID) du compte, ou `anonymous` pour une connexion refusée ; jamais le nom d'utilisateur |
+| `action` | texte | oui | | Ce qui est fait. API métier : méthode et **modèle** de route (`GET /api/v1/users/{user_id}`) |
 | `outcome` | texte | oui | ok, denied, error | Résultat |
 | `correlation_id` | texte | non | | Trace de bout en bout |
-| `details` | objet | non | | Contexte libre |
+| `details` | objet | non | | Contexte libre. API métier : `status` (code HTTP), `duration_ms`, `role` du compte, `path_params` (seulement ceux qui sont des UUID) |
 
 | Index | Clés | Rôle |
 |---|---|---|
@@ -568,11 +568,11 @@ Journal d'audit : jamais de secret ni de donnée personnelle. Écrit par la rép
 
 ### 10.4 `usage_stats`
 
-Compteurs d'usage de l'API par point d'accès et par tranche de temps. Écrit par l'API métier.
+Compteurs d'usage de l'API par point d'accès et par tranche de temps. Écrit par l'API métier. La tranche est **une heure UTC** (BE-05) ; la sonde de santé n'est pas comptée, un chemin inconnu l'est sous la clé `GET UNMATCHED`.
 
 | Champ | Type | Obligatoire | Règle | Sens |
 |---|---|---|---|---|
-| `endpoint` | texte | oui | | Point d'accès (méthode et chemin) |
+| `endpoint` | texte | oui | | Point d'accès : méthode et **modèle** de route (`GET /api/v1/users/{user_id}`), jamais le chemin reçu |
 | `bucket_start` | date | oui | | Début de la tranche de temps |
 | `count` | nombre | oui | ≥ 0 | Appels comptés dans la tranche |
 
@@ -706,7 +706,7 @@ La table suit le schéma `User` du contrat : `user_id`, `username`, `role`, `is_
 | Lignes de Paris sans débit (`q` vide) | Refusées (`MISSING_REQUIRED`), conformément à la fiche du jeu (« rejet si absent ») : 41 % des lignes du 17/10/2026. Celles qui ont un taux d'occupation (stations de taux d'occupation seul) ne rejoignent donc pas l'entrepôt, qui exige un comptage | Les deux membres (DAT-05, IA-10) |
 | Bornes de départ du nettoyage | Débit de 0 à 15 000 véhicules par heure (maximum observé le 17/10/2026 : 6 648) ; taux de rejet d'alerte à 0,5 | Les deux membres, après quelques jours de mesure |
 | Doublon dans un fichier | Écrit comme rejet `DUPLICATE_KEY` (la première ligne est gardée), alors que l'ADR-013 dit « ignorée, comptée ». Les doublons entre deux fichiers ne sont pas détectés au nettoyage : c'est la clé du chargement (DAT-05) | Les deux membres |
-| Durée de la tranche de `usage_stats` | Non fixée | BE-05 |
+| Durée de la tranche de `usage_stats` | Fixée à 1 heure UTC par BE-05 ([raisons](../02-specifications/journalisation-audit.md)) | Les deux membres, à la relecture |
 | Drapeau `LATE` d'une mesure et rejet `LATE` (DQ-04) | Un message trop tardif est rejeté (DQ-04), mais le drapeau `LATE` existe dans la qualité d'une mesure acceptée. Proposition : le drapeau marque une mesure en retard **dans la tolérance** (entre le délai de désordre de 10 s et le retard autorisé de 30 s) ; au-delà, rejet | Les deux membres, puis MS-15 |
 | État d'une fenêtre de 5 minutes | Le schéma impose `congestion_state` aussi pour 300 s, alors que l'état se calcule sur 1 minute (section 7.1). Proposition : l'état stabilisé à la fin de la fenêtre de 5 minutes | Manoa (traitement), IA-01 |
 | Retour de `UNKNOWN` et épisodes | Le diagramme 7.1 revient de `UNKNOWN` à `FREE_FLOW`, ce qui **clôturerait** un épisode (7.2) alors que la route peut rester bloquée : alerte résolue puis recréée. Proposition : `UNKNOWN` ne clôt pas l'épisode ; au retour des données, l'état est reclassé d'après le ratio avec les seuils d'entrée | MS-09, MS-11 |

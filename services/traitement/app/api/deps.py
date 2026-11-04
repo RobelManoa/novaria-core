@@ -8,7 +8,7 @@ Une route protégée s'écrit `Depends(require_role(Role.ADMIN))` et déclare le
 
 from collections.abc import Callable
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.config import Settings, get_settings
@@ -45,17 +45,22 @@ def get_auth_service(
 
 
 def current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     auth: AuthService = Depends(get_auth_service),
 ) -> User:
     if credentials is None:
         raise unauthenticated()
     try:
-        return auth.authenticate(credentials.credentials)
+        user = auth.authenticate(credentials.credentials)
     except NotAuthenticated as error:
         raise unauthenticated() from error
     except AuthNotConfigured as error:
         raise auth_not_configured() from error
+    # L'audit lit ces deux valeurs après la réponse : qui a appelé, même si l'appel est refusé.
+    request.state.actor = str(user.user_id)
+    request.state.role = user.role.value
+    return user
 
 
 def require_role(minimum: Role) -> Callable[..., User]:

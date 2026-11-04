@@ -72,7 +72,7 @@ pip install -r requirements-dev.txt
 uvicorn app.main:app --reload           # http://localhost:8000/docs
 ```
 
-Les variables lues par le backend sont les mêmes que celles que `docker-compose.yml` injecte : `ENVIRONMENT`, `GIT_SHA`, `POSTGRES_URL`, `MONGO_URL`, `MONGO_DB`, `JWT_SECRET`. En local hors Docker, créez `services/traitement/.env` (ignoré par Git) avec les mêmes noms, en remplaçant `postgres` et `mongo` par `localhost` et en utilisant les ports hôte de votre `.env`.
+Les variables lues par le backend sont les mêmes que celles que `docker-compose.yml` injecte : `ENVIRONMENT`, `GIT_SHA`, `POSTGRES_URL`, `MONGO_URL`, `MONGO_DB`, `JWT_SECRET`, et pour l'API métier `APP_DATABASE_URL` et `AUDIT_MONGO_URL` (journal d'audit, facultative : sans elle rien n'est écrit). En local hors Docker, créez `services/traitement/.env` (ignoré par Git) avec les mêmes noms, en remplaçant `postgres` et `mongo` par `localhost` et en utilisant les ports hôte de votre `.env`.
 
 ### Vérifier avant chaque commit
 

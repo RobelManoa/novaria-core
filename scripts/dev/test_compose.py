@@ -123,7 +123,7 @@ class ServicesDeLaPile(unittest.TestCase):
                 texte = json.dumps(environnement)
                 interdits = ["POSTGRES_PASSWORD", "MONGO_ROOT", "svc_lecture"]
                 if nom not in PORTE_L_API_METIER:
-                    interdits += ["svc_app", "JWT_SECRET", "APP_DATABASE_URL"]
+                    interdits += ["svc_app", "JWT_SECRET", "APP_DATABASE_URL", "svc_backend", "AUDIT_MONGO_URL"]
                 for interdit in interdits:
                     self.assertNotIn(interdit, texte, "un service n'a ni le compte administrateur ni celui d'un autre")
 
@@ -138,6 +138,18 @@ class ServicesDeLaPile(unittest.TestCase):
         for nom in COMPTES:
             if nom not in PORTE_L_API_METIER:
                 self.assertNotIn("APP_DATABASE_URL", self.services[nom]["environment"])
+
+    def test_le_service_qui_porte_l_api_metier_ecrit_son_audit_avec_le_compte_backend_de_mongodb(self):
+        # Exception assumée (BE-05) : audit_logs et usage_stats ne s'écrivent qu'avec ce compte, donné à ce seul service.
+        for nom in PORTE_L_API_METIER:
+            adresse = self.services[nom]["environment"]["AUDIT_MONGO_URL"]
+            with self.subTest(service=nom):
+                self.assertIn("//svc_backend:${MONGO_PASSWORD_BACKEND}@mongo:27017/${MONGO_DB}", adresse)
+                self.assertIn("authSource=${MONGO_DB}", adresse)
+                self.assertIn("//svc_traitement:", self.services[nom]["environment"]["MONGO_URL"], "MONGO_URL ne change pas")
+        for nom in COMPTES:
+            if nom not in PORTE_L_API_METIER:
+                self.assertNotIn("AUDIT_MONGO_URL", self.services[nom]["environment"])
 
     def test_les_services_recoivent_l_adresse_du_bus_et_leur_nom(self):
         for nom in COMPTES:

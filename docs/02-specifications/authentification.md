@@ -123,6 +123,6 @@ Preuve sous Linux : [À COMPLÉTER par Manoa Robel].
 | Secret partagé (HS256) | Quiconque connaît `JWT_SECRET` peut émettre un jeton valide : à ne mettre que dans le service qui contrôle | Passage à une clé asymétrique si la passerelle contrôle le jeton |
 | `PATCH /users/{id}` (rôle, état, mot de passe) | Non fait ; règle du contrat à respecter : un administrateur ne peut pas retirer son propre rôle (409) | Prochaine issue de comptes |
 | Format 422, 404 et 500 | Format par défaut de FastAPI | BE-06 |
-| Audit des connexions | Seul le journal applicatif existe | BE-05 |
+| Audit des connexions | Fait (BE-05) : chaque tentative de connexion, réussie ou refusée, laisse une entrée dans `audit_logs` ; limitation du débit toujours à faire (ligne ci-dessus). [Journalisation d'audit](journalisation-audit.md) | |
 | Pages `/docs` et `/redoc` de FastAPI | Publiques sur le service, mais la passerelle ne les expose pas | À désactiver hors local |
 | Jeton côté navigateur | Où le stocker (mémoire, cookie) n'est pas décidé | FE-03 |

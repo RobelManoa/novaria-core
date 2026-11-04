@@ -1,6 +1,6 @@
 """Connexion et identité de l'appelant (BE-03) : `/api/v1/auth/login` et `/api/v1/auth/me`."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.api.deps import auth_not_configured, get_auth_service, require_role
 from app.core.errors import INVALID_CREDENTIALS, ProblemError
@@ -12,7 +12,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(body: LoginRequest, auth: AuthService = Depends(get_auth_service)) -> TokenResponse:
+def login(
+    body: LoginRequest, request: Request, auth: AuthService = Depends(get_auth_service)
+) -> TokenResponse:
     """Vérifie les identifiants et émet un jeton d'accès (route publique)."""
     try:
         token = auth.login(body.username, body.password)
@@ -20,6 +22,7 @@ def login(body: LoginRequest, auth: AuthService = Depends(get_auth_service)) -> 
         raise ProblemError(INVALID_CREDENTIALS, "Identifiant ou mot de passe incorrect.") from error
     except AuthNotConfigured as error:
         raise auth_not_configured() from error
+    request.state.actor = str(token.user_id)  # pour l'audit : le compte qui vient de se connecter
     return TokenResponse(access_token=token.value, expires_in=token.expires_in)
 
 

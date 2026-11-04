@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError
 
 from app.api.v1 import auth, health, indicators, users
+from app.core.audit import AuditMiddleware
 from app.core.config import get_settings
 from app.core.errors import (
     PROBLEM_MEDIA_TYPE,
@@ -20,6 +21,8 @@ settings = get_settings()
 configure_logging(settings.service_name, settings.log_level)
 
 app = FastAPI(title=settings.app_name, version=settings.app_version)
+# Le dernier ajouté est le plus extérieur : l'audit est dans la corrélation, dont il lit l'id.
+app.add_middleware(AuditMiddleware)
 app.add_middleware(CorrelationMiddleware)
 app.add_exception_handler(ProblemError, problem_handler)
 app.add_exception_handler(RequestValidationError, validation_handler)

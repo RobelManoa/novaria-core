@@ -117,7 +117,7 @@ Chaque collection a un **validateur** : un document mal formé est refusé à l'
 | `svc_collecte` | `role_collecte` | `raw_events` et `rejects` : lire, insérer |
 | `svc_traitement` | `role_traitement` | `raw_events` : lire ; `rejects` : lire, insérer ; `processing_stats` et `ingestion_runs` : lire, insérer, modifier |
 | `svc_reponse` | `role_reponse` | `audit_logs` : lire, insérer |
-| `svc_backend` | `role_backend` | `audit_logs` : lire, insérer ; `usage_stats` : lire, insérer, modifier |
+| `svc_backend` | `role_backend` | `audit_logs` : lire, insérer ; `usage_stats` : lire, insérer, modifier. Utilisé par l'API métier, hébergée dans le service de traitement, par `AUDIT_MONGO_URL` ([journalisation d'audit](../02-specifications/journalisation-audit.md)) |
 | `svc_ml` | `role_ml` | `model_runs` : lire, insérer, modifier ; `raw_events` et `processing_stats` : lire |
 
 ## 6. Ajouter une table ou une collection

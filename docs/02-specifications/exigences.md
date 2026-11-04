@@ -69,7 +69,7 @@ Sigles employés ci-dessous, développés une fois : p95 (95e centile : 95 % des
 |---|---|---|---|---|---|---|
 | EXG-API-01 | **Authentification et rôles.** Seul un utilisateur connu agit, selon son rôle ([contrats OpenAPI](../../contracts/openapi/README.md)) | Sans jeton valide : 401. Avec un rôle insuffisant : 403. Trois rôles `viewer`, `operator`, `admin` (proposition à valider). Seules `/health` et `/auth/login` sont publiques | Doit | Tests de `services/<nom>/tests/contract/` | Partiel : pour l'API métier (BE-03), 401 sans jeton valide et 403 sans le rôle, vérifiés pour chaque opération protégée du contrat `api-metier` et pour chaque rôle (30/10/2026, [authentification](authentification.md)) ; seules la sonde et la connexion sont publiques ; les routes des autres services n'existent pas encore, et la passerelle ne contrôle pas le jeton (MS-13) | BE-03, MS-13 |
 | EXG-API-02 | **Conformité au contrat.** Le contrat est la source de vérité | Chaque réponse, succès comme erreur, respecte le contrat OpenAPI de son service (`contracts/openapi/`) ; chaque erreur documentée est testée ; le format d'erreur est `application/problem+json` | Doit | Tests de contrat | Partiel : 5 contrats chargés et 27 tests de structure et de découpage ; la sonde `/health` de chaque service est testée contre son contrat ; les routes de l'API métier (BE-03) et les trois routes d'indicateurs (BE-04) sont testées contre leur contrat, réponses et erreurs ; les autres routes ne sont pas implémentées | BE-04, BE-06 |
-| EXG-API-03 | **Audit et usage.** Savoir qui a fait quoi | Chaque appel authentifié produit une entrée `audit_logs` (acteur, action, résultat, `correlation_id`) sans secret ni donnée personnelle ; les compteurs `usage_stats` s'incrémentent | Devrait | Test et capture MongoDB | Partiel : collections, validateurs et droits vérifiés le 27/10/2026 ; code absent | BE-05 |
+| EXG-API-03 | **Audit et usage.** Savoir qui a fait quoi | Chaque appel authentifié produit une entrée `audit_logs` (acteur, action, résultat, `correlation_id`) sans secret ni donnée personnelle ; les compteurs `usage_stats` s'incrémentent | Devrait | Test et capture MongoDB | Prouvé pour l'API métier (BE-05, 03/11/2026) : pour chaque route et chaque rôle, un appel avec jeton valide produit exactement une entrée, vérifié aussi sur un vrai MongoDB avec capture ([preuve](../03-donnees/preuve-be05-audit-mongodb.md), [règles](journalisation-audit.md)). Limite assumée : l'entrée est perdue si MongoDB est indisponible. Les routes des autres services n'existent pas encore | BE-05 |
 
 ## 6. Tableau de bord
 
@@ -132,6 +132,6 @@ Ces chiffres sont contrôlés par `scripts/dev/test_specifications.py` : il éch
 |---|---|
 | Exigences | 53 |
 | Doit / Devrait / Pourrait | 38 / 14 / 1 |
-| Prouvé / Partiel / À faire | 5 / 21 / 27 |
+| Prouvé / Partiel / À faire | 6 / 20 / 27 |
 
 Lecture : la plupart des exigences sont « Doit » parce qu'elles reprennent les critères d'acceptation de tâches P0 du backlog ; ce qui se discute, ce sont les 14 « Devrait » et le « Pourrait », à abandonner en premier si le planning glisse. Le socle de données (bases, contrats d'événements, contrat d'API) est avancé ; **aucun des quatre services métier ni le simulateur n'existe encore**. C'est le gros du travail des jalons M2 et M3.
