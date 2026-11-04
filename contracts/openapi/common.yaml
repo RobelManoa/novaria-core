@@ -175,6 +175,7 @@ components:
             - INVALID_CREDENTIALS
             - FORBIDDEN
             - NOT_FOUND
+            - METHOD_NOT_ALLOWED
             - CONFLICT
             - VALIDATION_ERROR
             - INVALID_STATE_TRANSITION

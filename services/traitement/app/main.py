@@ -1,44 +1,30 @@
-import logging
+from fastapi import FastAPI
 
-from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-from sqlalchemy.exc import OperationalError
-
+from app.api.responses import use_problem_media_type
 from app.api.v1 import auth, health, indicators, users
 from app.core.audit import AuditMiddleware
 from app.core.config import get_settings
-from app.core.errors import (
-    PROBLEM_MEDIA_TYPE,
-    UPSTREAM_UNAVAILABLE,
-    ProblemError,
-    problem_handler,
-    validation_handler,
-)
+from app.core.errors import register_handlers
 from app.core.logs import CorrelationMiddleware, configure_logging
+from app.core.unhandled import UnhandledErrorMiddleware
+from app.core.versioning import API_PREFIX
 
 settings = get_settings()
 configure_logging(settings.service_name, settings.log_level)
 
-app = FastAPI(title=settings.app_name, version=settings.app_version)
-# Le dernier ajouté est le plus extérieur : l'audit est dans la corrélation, dont il lit l'id.
+# `redirect_slashes=False` : `/api/v1/users/` n'est pas `/api/v1/users`. Une redirection 307 que le
+# contrat ne documente pas laisserait deux adresses pour une route ; la seconde répond 404.
+app = FastAPI(title=settings.app_name, version=settings.app_version, redirect_slashes=False)
+# Le dernier ajouté est le plus extérieur. De l'extérieur vers l'intérieur : la corrélation pose
+# l'identifiant ; l'audit le lit et voit le code que le client reçoit, 500 compris ; les erreurs
+# imprévues sont transformées en 500 `Problem` (voir `app/core/unhandled.py`).
+app.add_middleware(UnhandledErrorMiddleware)
 app.add_middleware(AuditMiddleware)
 app.add_middleware(CorrelationMiddleware)
-app.add_exception_handler(ProblemError, problem_handler)
-app.add_exception_handler(RequestValidationError, validation_handler)
+register_handlers(app)
+use_problem_media_type(app)
 
-
-@app.exception_handler(OperationalError)
-async def database_unreachable(_: Request, error: OperationalError) -> JSONResponse:
-    """Base injoignable : 503 sans détail (l'adresse, donc le mot de passe, reste cachée)."""
-    logging.getLogger("app.db").error(
-        "base injoignable", extra={"fields": {"error": type(error.orig).__name__}}
-    )
-    problem = ProblemError(UPSTREAM_UNAVAILABLE, "La base des comptes est injoignable.")
-    return JSONResponse(problem.body(), status_code=503, media_type=PROBLEM_MEDIA_TYPE)
-
-
-app.include_router(health.router, prefix="/api/v1")
-app.include_router(auth.router, prefix="/api/v1")
-app.include_router(users.router, prefix="/api/v1")
-app.include_router(indicators.router, prefix="/api/v1")
+app.include_router(health.router, prefix=API_PREFIX)
+app.include_router(auth.router, prefix=API_PREFIX)
+app.include_router(users.router, prefix=API_PREFIX)
+app.include_router(indicators.router, prefix=API_PREFIX)

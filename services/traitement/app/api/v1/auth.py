@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, Request
 
 from app.api.deps import auth_not_configured, get_auth_service, require_role
+from app.api.responses import errors
 from app.core.errors import INVALID_CREDENTIALS, ProblemError
 from app.models import Role, User
 from app.schemas.users import LoginRequest, TokenResponse, UserResponse
@@ -11,7 +12,7 @@ from app.services.auth import AuthNotConfigured, AuthService, InvalidCredentials
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, responses=errors(401, 422, "5XX"))
 def login(
     body: LoginRequest, request: Request, auth: AuthService = Depends(get_auth_service)
 ) -> TokenResponse:
@@ -30,6 +31,7 @@ def login(
     "/me",
     response_model=UserResponse,
     openapi_extra={"x-required-role": Role.VIEWER.value},
+    responses=errors(401, "5XX"),
 )
 def me(user: User = Depends(require_role(Role.VIEWER))) -> User:
     """Utilisateur associé au jeton."""

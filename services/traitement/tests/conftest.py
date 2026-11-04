@@ -7,6 +7,7 @@ from app.core.config import get_settings
 from app.db.session import get_indicator_repository, get_user_repository
 from app.main import app
 from tests.fakes import SECRET, FakeIndicatorRepository, FakeUserRepository, Journal
+from tests.scene import Scene
 
 
 @pytest.fixture
@@ -44,3 +45,9 @@ def client(secret, repo, indicators, journal):
     finally:
         app.dependency_overrides.clear()
         app.state.observer = None
+
+
+@pytest.fixture
+def scene(client, repo) -> Scene:
+    """Le client de test et des comptes à la demande, pour provoquer une erreur précise."""
+    return Scene(client, repo)

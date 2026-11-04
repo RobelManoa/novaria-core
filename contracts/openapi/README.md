@@ -70,6 +70,9 @@ Proposition à valider : trois rôles hiérarchiques. Un rôle inclut les droits
 | Sujet | Règle |
 |---|---|
 | Erreurs | Toute erreur a le même corps, `application/problem+json` (RFC 9457), schéma `Problem` de `common.yaml`. Le champ `code` est stable et lisible par une machine ; `detail` est destiné à une personne |
+| Erreurs de toute route | Deux erreurs concernent toutes les routes et ne sont pas répétées sur chaque opération : route inconnue, `404` `NOT_FOUND` (y compris une version inconnue, `/api/v2/...`, dont le `detail` donne les versions publiées) ; méthode non permise, `405` `METHOD_NOT_ALLOWED` avec l'en-tête `Allow`. Un slash final (`/api/v1/users/`) n'est pas la même adresse : `404`, sans redirection |
+| Erreur imprévue | `500` `INTERNAL_ERROR` : le corps ne dit rien de technique, il donne `correlation_id`, que le journal du service relie à la cause |
+| Validation | `422` `VALIDATION_ERROR` ; `errors[].field` est `body.<champ>`, `query.<paramètre>` ou `path.<paramètre>` (`body` seul si le JSON est illisible) ; `errors[].message` est en français et ne reprend jamais la valeur reçue |
 | Listes | `{ items, next_cursor }`. Le curseur est opaque : le client le renvoie tel quel dans `cursor`. `next_cursor` vaut `null` sur la dernière page. `limit` : 1 à 500, défaut 100 |
 
 ### Versionnement
@@ -79,6 +82,8 @@ Proposition à valider : trois rôles hiérarchiques. Un rôle inclut les droits
 | Ajouter un champ de réponse, un paramètre facultatif, un point d'accès, une valeur d'énumération de réponse | Compatible : même version `/api/v1`. Les clients ignorent les champs inconnus |
 | Retirer ou renommer un champ, resserrer une règle, changer une unité, ajouter un paramètre obligatoire | Rupture : nouvelle version `/api/v2`. Les deux coexistent pendant la transition |
 | Retrait annoncé | En-têtes `Deprecation` et `Sunset` (RFC 9745 et RFC 8594) sur les réponses concernées |
+| Version inconnue | `/api/v2/...` tant que `v2` n'est pas publiée : `404` `NOT_FOUND`, avec les versions publiées dans `detail` |
+| Ajouter un code d'erreur ou une réponse documentée | Compatible, comme un champ de réponse ajouté (exemple : `METHOD_NOT_ALLOWED`, `422` de `GET /users/{user_id}`, BE-06) |
 
 `info.version` suit la forme `majeure.mineure.correctif` du contrat. La version du produit déployé est donnée par `GET /api/v1/health`. Les règles de versionnement des **événements** sont dans le [README des contrats](../README.md).
 

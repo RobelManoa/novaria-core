@@ -15,6 +15,7 @@ const MESSAGES: Record<ErrorCode, string> = {
   INVALID_CREDENTIALS: "Identifiant ou mot de passe incorrect.",
   FORBIDDEN: "Votre rôle ne permet pas cette action.",
   NOT_FOUND: "Élément introuvable.",
+  METHOD_NOT_ALLOWED: "Cette action n'est pas permise ici.",
   CONFLICT: "Cette opération entre en conflit avec l'état actuel.",
   VALIDATION_ERROR: "Certaines valeurs sont invalides.",
   INVALID_STATE_TRANSITION: "Cette alerte ne peut pas passer dans cet état.",
@@ -37,6 +38,8 @@ function codeFromStatus(status: number): ErrorCode {
       return "FORBIDDEN";
     case 404:
       return "NOT_FOUND";
+    case 405:
+      return "METHOD_NOT_ALLOWED";
     case 409:
       return "CONFLICT";
     case 422:
