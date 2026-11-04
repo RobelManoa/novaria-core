@@ -406,7 +406,7 @@ Toutes portent `run_id` et `source_type` (provenance) ; `svc_lecture` les lit.
 |---|---|---|---|
 | DQ-01 | Message qui ne respecte pas le contrat (champ inconnu, type, borne, date sans fuseau) | Rejet vers `errors.dlq`, archive dans MongoDB `rejects`, motif = chemin et message de l'erreur | Compteur de rejets, collection `rejects` |
 | DQ-02 | Capteur ou tronçon absent du référentiel | Rejet, motif `UNKNOWN_SENSOR` | idem |
-| DQ-03 | Même `id` reçu deux fois | Ignoré sans erreur ; compté | `processing_stats` (`kind` = quality) |
+| DQ-03 | Même `id` reçu deux fois | Ignoré sans erreur ; compté | Journal de la collecte (`counter` = `duplicates`, MS-08) ; `processing_stats` (`kind` = quality) n'est pas alimenté par la collecte, dont le compte ne peut pas y écrire (ADR-024) : [collecte](collecte.md), section 9 |
 | DQ-04 | Message plus tardif que le retard autorisé (30 s, valeur de départ) | Rejet, motif `LATE` | idem |
 | DQ-05 | Valeur plausible en forme mais douteuse : vitesse > 1,5 × vitesse fluide, plus de 40 veh/min par voie, vitesse nulle avec véhicules passés | Mesure acceptée avec qualité `SUSPECT` (drapeau `IMPLAUSIBLE_VALUE`) et **exclue** des indicateurs | `processing_stats`, drapeaux |
 | DQ-06 | Champ facultatif absent (vitesse malgré des véhicules, occupation) | Qualité `PARTIAL` + drapeau ; retenue dans les indicateurs | idem |

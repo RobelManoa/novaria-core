@@ -11,7 +11,8 @@ target-version = "py312"
 select = ["E", "F", "I", "B", "UP", "S"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+# S105 et S106 : les secrets des tests sont des valeurs d'essai.
+"tests/**" = ["S101", "S105", "S106"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -24,3 +25,7 @@ branch = true
 # Barrière de couverture (BE-07) : sous ce seuil, `pytest` échoue (donc le job de la CI aussi).
 # Le Quality Gate de SonarQube s'applique en plus, sur le code nouveau.
 fail_under = 70
+
+[tool.ruff.lint.flake8-bugbear]
+# Idiome FastAPI : `Depends(...)` en valeur par défaut d'un paramètre.
+extend-immutable-calls = ["fastapi.Depends"]

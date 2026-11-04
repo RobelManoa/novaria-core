@@ -222,7 +222,7 @@ La réponse donne l'anomalie résolue, avec sa date de début (`start`). Le mani
 | Envoi HTTP vers un faux serveur local de la bibliothèque standard, sans frein | environ 2 000 messages par seconde (1 443 messages en 0,66 s) |
 | Débit tenu à la demande | Testé avec une horloge simulée (n messages à r par seconde prennent (n − 1) ÷ r secondes) et pour de vrai (borne basse) |
 
-**Limites.** Un seul fil, une connexion HTTP persistante : les chiffres ci-dessus sont des ordres de grandeur sur un poste, pas un banc d'essai. **Non mesuré contre la vraie collecte** : son point d'entrée `POST /api/v1/measurements` n'est pas implémenté (la collecte n'expose que la sonde de santé). Au-delà de quelques milliers de messages par seconde, lancer plusieurs instances.
+**Limites.** Un seul fil, une connexion HTTP persistante : les chiffres ci-dessus sont des ordres de grandeur sur un poste, pas un banc d'essai. Contre la vraie collecte (MS-08) : voir [collecte](../docs/03-donnees/collecte.md), section 10. Au-delà de quelques milliers de messages par seconde, lancer plusieurs instances.
 
 ## 8. Mode fichier : un run complet pour IA-08
 
@@ -253,8 +253,8 @@ Le format Parquet de l'ADR-027 est une affaire d'IA-08 : le simulateur n'écrit 
 | `PARTIAL` | Non produit : seules les quatre anomalies de l'issue sont injectables | Si IA-08 ou la collecte en ont besoin |
 | Incident | Fixe : ROAD_005 de 08:10 à 08:35 (pas de paramètre) | Si IA-08 veut varier le tronçon |
 | Heures | UTC | — |
-| Collecte | `--collecte-url` suit le contrat de `collecte.openapi.yaml` (202 `ACCEPTED`, 202 `DUPLICATE`, 422) mais **n'a été essayé que contre un faux serveur** : la vraie route n'existe pas encore | MS-05 |
-| Démarrage automatique | Aucun run ne démarre seul dans le conteneur (la collecte n'a pas son point d'entrée) | Quand la collecte sera prête |
+| Collecte | `--collecte-url` suit le contrat de `collecte.openapi.yaml` (202 `ACCEPTED`, 202 `DUPLICATE`, 422) et a été essayé contre la vraie collecte (MS-08) : les quatre anomalies, tous les identifiants distincts sur `iot.raw`, les copies ignorées. Écart : un message en retard est **accepté** par la collecte, le retard (DQ-04) étant jugé par le traitement ([collecte](../docs/03-donnees/collecte.md), section 4) | Les deux membres |
+| Démarrage automatique | Aucun run ne démarre seul dans le conteneur ; la collecte a maintenant son point d'entrée (MS-08) | À décider avec MS-09 |
 
 ## 10. Service HTTP du conteneur
 
