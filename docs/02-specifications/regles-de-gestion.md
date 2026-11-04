@@ -26,7 +26,7 @@ Sigles développés une fois : UTC (Coordinated Universal Time, temps universel 
 | RG-07 | Une donnée simulée n'est **jamais** présentée comme réelle : rapports, tableaux et graphiques portent la mention de provenance | Test du tableau de bord ; relecture des rapports | [ADR-027](../01-architecture/adr/ADR-027-jeux-de-donnees-et-provenance.md) règle 3 ; [CLAUDE.md](../../CLAUDE.md) section 6 | Définie | EXG-NFR-13, EXG-TDB-02 |
 | RG-08 | Un événement a un `id` unique (`<run_id>:<sensor_id>:<instant en millisecondes>`). Un même `id` reçu deux fois est ignoré et compté | Index unique `uniq_event_id`, vérifié le 27/10/2026 | Dictionnaire section 5 | Définie | EXG-COL-03 |
 | RG-09 | Un chargement est **idempotent** : la clé (tronçon, début de fenêtre, taille de fenêtre, run) identifie un fait ; rejouer met à jour la ligne, ne la duplique pas | Clé primaire de `fact_traffic_window`, rejeu vérifié le 27/10/2026 | Dictionnaire section 6 ; [ADR-011](../01-architecture/adr/ADR-011-temps-reel-et-batch.md) | Définie | EXG-TRA-04, EXG-DON-02 |
-| RG-10 | Un run est reproductible : mêmes graine et scénario, mêmes événements | Test de rejeu à graine fixe (MS-07) | [ADR-027](../01-architecture/adr/ADR-027-jeux-de-donnees-et-provenance.md) règle 2 | Définie | EXG-COL-01, EXG-IA-02 |
+| RG-10 | Un run est reproductible : mêmes graine et scénario, mêmes événements | Test de rejeu à graine fixe : `simulator/tests/test_determinisme.py` (MS-07) | [ADR-027](../01-architecture/adr/ADR-027-jeux-de-donnees-et-provenance.md) règle 2 | Définie | EXG-COL-01, EXG-IA-02 |
 
 ## 3. Calcul des indicateurs et des états
 

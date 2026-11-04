@@ -375,8 +375,12 @@ class Simulateur(unittest.TestCase):
         self.assertRegex(dockerfile, r"(?s)\nHEALTHCHECK .*api/v1/health")  # la sonde tient sur deux lignes
         self.assertIn("apt-get upgrade", dockerfile)
 
-    def test_le_squelette_dit_qu_il_n_est_pas_le_simulateur_final(self):
-        self.assertIn("MS-07", (RACINE / "simulator" / "README.md").read_text(encoding="utf-8"))
+    def test_le_readme_documente_le_format_emis_et_l_image_embarque_le_paquet(self):
+        # MS-07 : le simulateur n'est plus un squelette ; son README documente le format émis (contrat MS-03).
+        readme = (RACINE / "simulator" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("novaria.iot.measurement.v1", readme)
+        self.assertNotIn("squelette", readme.lower())
+        self.assertIn("COPY novaria_sim/ novaria_sim/", (RACINE / "simulator" / "Dockerfile").read_text(encoding="utf-8"))
         self.assertIn("MS-13", (RACINE / "gateway" / "README.md").read_text(encoding="utf-8"))
 
 

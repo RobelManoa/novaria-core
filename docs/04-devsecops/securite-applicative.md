@@ -261,6 +261,7 @@ Pour la rejouer, voir la section 7. Résultat de Manoa : [À COMPLÉTER par Mano
 | Sujet | Position actuelle | Suite |
 |---|---|---|
 | Services `collecte`, `alerte`, `reponse` | Squelettes sans API publique : CORS, en-têtes et limitation absents | Avec leurs routes, ou à la passerelle (MS-13) |
+| Simulateur (`simulator/`, MS-07), API de pilotage d'un run | Sans authentification, CORS, en-têtes ni limitation de débit ; publiée sur `127.0.0.1` seulement. Protégée par : corps limité à 64 Ko, un seul run à la fois, durée (7 jours), débit et nombre d'anomalies bornés, `run_id` sans points seuls ni chemin, journal sans query string ni corps (`simulator/README.md`, section 10) | À reprendre si elle est exposée au-delà de `127.0.0.1` (passerelle, MS-13) |
 | Compteur de limitation | En mémoire du processus (section 4) | Magasin partagé si le service est répliqué |
 | `Strict-Transport-Security` | Appartient au point qui termine TLS | Au déploiement |
 | Politique de contenu de `/docs` | Absente de `/docs` et `/redoc` | Désactiver ces pages hors local |
