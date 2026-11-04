@@ -14,6 +14,7 @@ import platform
 import re
 import secrets
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -1007,6 +1008,74 @@ def cmd_front_dev(args: argparse.Namespace) -> int:
         return 0
 
 
+# --------------------------------------------------------------------------- tests d'intégration (BE-07)
+# Paquets que les tests de services/traitement importent et que l'interpréteur courant doit avoir.
+INTEGRATION_PACKAGES = ("pytest", "pytest_cov", "sqlalchemy", "alembic", "psycopg", "pymongo", "jwt", "argon2", "fastapi")
+INTEGRATION_ISOLATION = ("COMPOSE_PROJECT_NAME", "POSTGRES_PORT", "MONGO_PORT")
+
+
+def free_port() -> int:
+    """Un port libre de 127.0.0.1 (le système l'attribue ; il peut être repris avant le démarrage du conteneur, très rare)."""
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+def integration_environment(env: dict[str, str]) -> dict[str, str]:
+    """Variables que lisent les tests d'intégration (tests/integration/postgres.py et mongo.py).
+
+    - PostgreSQL : le compte administrateur, qui crée puis supprime une base jetable par test ;
+    - MongoDB : le compte `svc_backend` (droits de production de l'audit) et, pour effacer les traces d'essai, l'administrateur.
+    """
+    for name in ("POSTGRES_USER", "MONGO_ROOT_USER", "MONGO_ROOT_PASSWORD", "MONGO_DB"):
+        if not env.get(name):
+            raise DevError(f"Variable absente de .env : {name} (init-env --force puis db-reset).")
+    postgres = postgres_url(env, env["POSTGRES_USER"], "POSTGRES_PASSWORD")
+    database = env["MONGO_DB"]
+    admin_password = urllib.parse.quote(env["MONGO_ROOT_PASSWORD"], safe="")
+    return {
+        "NOVARIA_TEST_POSTGRES_ADMIN_URL": postgres.replace("postgresql://", "postgresql+psycopg://", 1),
+        "NOVARIA_TEST_MONGO_URL": mongo_url(env, "svc_backend", "MONGO_PASSWORD_BACKEND"),
+        "NOVARIA_TEST_MONGO_ADMIN_URL": f"mongodb://{env['MONGO_ROOT_USER']}:{admin_password}"
+                                        f"@127.0.0.1:{env.get('MONGO_PORT') or '27017'}/{database}?authSource=admin",
+    }
+
+
+def cmd_test_integration(args: argparse.Namespace) -> int:
+    """Toute la suite de services/traitement, tests d'intégration compris, contre PostgreSQL et MongoDB en conteneur (BE-07).
+
+    Les bases vivent dans un projet Compose jetable (nom et ports propres) : les données du poste ne sont pas touchées.
+    Le projet est supprimé à la fin, volumes compris, sauf avec --keep. Le rapport de couverture est celui de pytest
+    (terminal et services/traitement/coverage.xml) ; les options après `--` vont à pytest.
+    """
+    require_env()
+    for package in INTEGRATION_PACKAGES:
+        if importlib.util.find_spec(package) is None:
+            raise DevError(f"{package} est absent. L'installer :  {Path(sys.executable).name} -m pip install -r services/traitement/requirements-dev.txt")
+    project = f"novaria-it-{secrets.token_hex(3)}"
+    saved = {name: os.environ.get(name) for name in INTEGRATION_ISOLATION}
+    os.environ.update({"COMPOSE_PROJECT_NAME": project, "POSTGRES_PORT": str(free_port()), "MONGO_PORT": str(free_port())})
+    print(f"Bases jetables : projet Compose {project} (PostgreSQL :{os.environ['POSTGRES_PORT']}, MongoDB :{os.environ['MONGO_PORT']})")
+    try:
+        code = run_compose_step("up", "-d", "--wait", "postgres", "mongo")
+        if code != 0:
+            return code
+        environment = {**os.environ, **integration_environment(etl_environment()), "PYTHONUTF8": "1"}
+        pytest_args = [item for item in args.pytest_args if item != "--"]
+        return subprocess.run([sys.executable, "-m", "pytest", *pytest_args], cwd=APP_SERVICE_DIR, env=environment, check=False).returncode
+    finally:
+        if args.keep:
+            print(f"Conteneurs conservés (projet {project}). Les supprimer :  docker compose -p {project} down -v")
+        else:
+            compose("down", "-v", "--remove-orphans", check=False)
+            print(f"Projet {project} supprimé (conteneurs, réseau et volumes).")
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
 # --------------------------------------------------------------------------- ligne de commande
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="dev.py", description=__doc__.splitlines()[0])
@@ -1032,6 +1101,10 @@ def build_parser() -> argparse.ArgumentParser:
     user = add("user-create", cmd_user_create, "crée un compte de l'API (premier administrateur) ; mot de passe saisi sans écho")
     user.add_argument("username", help="3 à 64 caractères parmi a-z, 0-9, _ . -")
     user.add_argument("--role", required=True, choices=["viewer", "operator", "admin"], help="droit d'accès")
+    it = add("test-integration", cmd_test_integration,
+             "tests de services/traitement contre PostgreSQL et MongoDB en conteneur (projet jetable) + rapport de couverture")
+    it.add_argument("--keep", action="store_true", help="laisse les conteneurs du projet jetable en marche à la fin")
+    it.add_argument("pytest_args", nargs=argparse.REMAINDER, help="options de pytest, après -- (par exemple -- -k audit)")
     add("dev-deps", cmd_dev_deps, "installe les paquets Python de l'API de traitement et de l'ETL dans l'interpréteur courant")
     add("api-run", cmd_api_run, "lance l'API de traitement sur http://127.0.0.1:8000 (tableau de bord en local)")
     front = add("front-dev", cmd_front_dev, "lance le front-end (Vite) sur http://localhost:5173")

@@ -4,6 +4,7 @@ Lancer :  python -m unittest discover -s scripts/dev -v
 """
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -383,6 +384,113 @@ class EtlTests(unittest.TestCase):
             with self.subTest(absent=absent), mock.patch("builtins.print"):
                 code, appels = self.lancer(["user-create", "alice", "--role", "viewer"], absent=absent)
             self.assertEqual((code, appels), (2, []))
+
+
+class TestsIntegrationTests(unittest.TestCase):
+    """BE-07 : `test-integration` monte PostgreSQL et MongoDB dans un projet jetable, lance pytest, supprime le projet."""
+
+    ENV = {"POSTGRES_USER": "novaria_admin", "POSTGRES_PASSWORD": "pg/adm:1#", "POSTGRES_DB": "novaria", "POSTGRES_PORT": "5432",
+           "MONGO_ROOT_USER": "mongo_admin", "MONGO_ROOT_PASSWORD": "mg@adm/2:#", "MONGO_DB": "novaria", "MONGO_PORT": "27017",
+           "MONGO_PASSWORD_BACKEND": "bk/pw:3#"}
+
+    def lancer(self, argv, *, retour_pytest=0, retour_up=0, absent=None):
+        """Rend (code, appels, environnements vus par `docker compose`, environnement après la commande)."""
+        appels, vus = [], []
+
+        def fake_run(cmd, **kwargs):
+            appels.append((cmd, kwargs))
+            vus.append({nom: os.environ.get(nom) for nom in dev.INTEGRATION_ISOLATION})
+            code = retour_up if cmd[:4] == ["docker", "compose", "up", "-d"] else retour_pytest if "pytest" in cmd else 0
+            return subprocess.CompletedProcess(cmd, code, stdout="", stderr="")
+
+        texte = "".join(f"{k}={v}\n" for k, v in self.ENV.items())
+        with tempfile.TemporaryDirectory() as tmp:
+            env = Path(tmp) / ".env"
+            env.write_text(texte, encoding="utf-8")
+            with mock.patch.object(dev, "ENV_FILE", env), mock.patch("subprocess.run", side_effect=fake_run), \
+                    mock.patch("shutil.which", return_value="/usr/bin/docker"), \
+                    mock.patch("importlib.util.find_spec", side_effect=lambda nom: None if nom == absent else object()), \
+                    mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+                avant = {nom: os.environ.get(nom) for nom in dev.INTEGRATION_ISOLATION}
+                code = dev.main(argv)
+                apres = {nom: os.environ.get(nom) for nom in dev.INTEGRATION_ISOLATION}
+        self.assertEqual(avant, apres, "l'environnement du processus est remis comme avant")
+        return code, appels, vus
+
+    def test_les_adresses_visent_le_port_du_projet_et_encodent_les_mots_de_passe(self):
+        adresses = dev.integration_environment({**self.ENV, "POSTGRES_PORT": "62257", "MONGO_PORT": "62258"})
+        self.assertEqual(adresses["NOVARIA_TEST_POSTGRES_ADMIN_URL"],
+                         "postgresql+psycopg://novaria_admin:pg%2Fadm%3A1%23@127.0.0.1:62257/novaria")
+        self.assertEqual(adresses["NOVARIA_TEST_MONGO_URL"],
+                         "mongodb://svc_backend:bk%2Fpw%3A3%23@127.0.0.1:62258/novaria?authSource=novaria")
+        self.assertEqual(adresses["NOVARIA_TEST_MONGO_ADMIN_URL"],
+                         "mongodb://mongo_admin:mg%40adm%2F2%3A%23@127.0.0.1:62258/novaria?authSource=admin")
+
+    def test_une_variable_absente_est_nommee(self):
+        for nom in ("POSTGRES_USER", "MONGO_ROOT_PASSWORD", "MONGO_DB", "MONGO_ROOT_USER"):
+            with self.subTest(variable=nom), self.assertRaisesRegex(dev.DevError, nom):
+                dev.integration_environment({k: v for k, v in self.ENV.items() if k != nom})
+
+    def test_les_bases_demarrent_dans_un_projet_jetable_puis_pytest_les_utilise_puis_tout_est_supprime(self):
+        code, appels, vus = self.lancer(["test-integration"])
+        self.assertEqual(code, 0)
+        up, pytest_, down = appels
+        self.assertEqual(up[0], ["docker", "compose", "up", "-d", "--wait", "postgres", "mongo"])
+        self.assertEqual(pytest_[0], [sys.executable, "-m", "pytest"])
+        self.assertEqual(down[0], ["docker", "compose", "down", "-v", "--remove-orphans"])
+        projet = vus[0]["COMPOSE_PROJECT_NAME"]
+        self.assertRegex(projet, r"^novaria-it-[0-9a-f]{6}$")
+        self.assertEqual([v["COMPOSE_PROJECT_NAME"] for v in vus], [projet] * 3, "même projet du démarrage à la suppression")
+        self.assertNotEqual(vus[0]["POSTGRES_PORT"], self.ENV["POSTGRES_PORT"], "ports propres : les bases du poste ne sont pas touchées")
+        self.assertNotEqual(vus[0]["MONGO_PORT"], self.ENV["MONGO_PORT"])
+
+    def test_pytest_tourne_dans_le_service_avec_les_trois_adresses_dans_l_environnement_seulement(self):
+        _, appels, vus = self.lancer(["test-integration"])
+        commande, options = appels[1]
+        self.assertEqual(options["cwd"], ROOT / "services" / "traitement")
+        environnement = options["env"]
+        self.assertIn(f":{vus[0]['POSTGRES_PORT']}/novaria", environnement["NOVARIA_TEST_POSTGRES_ADMIN_URL"])
+        self.assertIn(f":{vus[0]['MONGO_PORT']}/novaria?authSource=novaria", environnement["NOVARIA_TEST_MONGO_URL"])
+        self.assertIn("authSource=admin", environnement["NOVARIA_TEST_MONGO_ADMIN_URL"])
+        for secret in ("pg/adm", "pg%2Fadm", "bk%2Fpw", "mg%40adm"):
+            self.assertNotIn(secret, " ".join(commande), "aucun mot de passe sur la ligne de commande")
+
+    def test_les_options_apres_deux_tirets_vont_a_pytest(self):
+        _, appels, _ = self.lancer(["test-integration", "--", "-k", "audit", "--no-cov"])
+        self.assertEqual(appels[1][0], [sys.executable, "-m", "pytest", "-k", "audit", "--no-cov"])
+
+    def test_le_code_de_pytest_est_transmis_et_le_projet_supprime_quand_meme(self):
+        code, appels, _ = self.lancer(["test-integration"], retour_pytest=1)
+        self.assertEqual(code, 1)
+        self.assertEqual(appels[-1][0][:3], ["docker", "compose", "down"])
+
+    def test_si_les_bases_ne_demarrent_pas_pytest_ne_tourne_pas_et_le_projet_est_supprime(self):
+        code, appels, _ = self.lancer(["test-integration"], retour_up=1)
+        self.assertEqual(code, 1)
+        self.assertFalse(any("pytest" in commande for commande, _ in appels))
+        self.assertEqual(appels[-1][0][:3], ["docker", "compose", "down"])
+
+    def test_keep_laisse_les_conteneurs(self):
+        code, appels, _ = self.lancer(["test-integration", "--keep"])
+        self.assertEqual(code, 0)
+        self.assertFalse(any(commande[:3] == ["docker", "compose", "down"] for commande, _ in appels))
+
+    def test_un_paquet_manquant_est_nomme_avant_de_demarrer_quoi_que_ce_soit(self):
+        appels = []
+        with mock.patch("subprocess.run", side_effect=lambda *a, **k: appels.append(a)), \
+                mock.patch("importlib.util.find_spec", side_effect=lambda nom: None if nom == "pymongo" else object()), \
+                mock.patch.object(dev, "ENV_FILE", Path(__file__)), mock.patch("sys.stderr"):
+            self.assertEqual(dev.main(["test-integration"]), 2)
+        self.assertEqual(appels, [])
+
+    def test_sans_env_message_clair(self):
+        with mock.patch.object(dev, "ENV_FILE", Path("/inexistant/.env")), mock.patch("sys.stderr") as erreur:
+            self.assertEqual(dev.main(["test-integration"]), 2)
+        self.assertIn("init-env", "".join(call.args[0] for call in erreur.write.call_args_list))
+
+    def test_les_ports_choisis_sont_libres_et_differents(self):
+        premier, second = dev.free_port(), dev.free_port()
+        self.assertTrue(1024 <= premier <= 65535 and 1024 <= second <= 65535)
 
 
 class EvenementsMongoTests(unittest.TestCase):

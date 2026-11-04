@@ -15,7 +15,8 @@ Depuis ce dossier.
 | Environnement | `python3 -m venv .venv && . .venv/bin/activate` | `py -3 -m venv .venv; .\.venv\Scripts\Activate.ps1` |
 | Dépendances | `pip install -r requirements-dev.txt` | `pip install -r requirements-dev.txt` |
 | Lancer | `uvicorn app.main:app --reload` (http://localhost:8000/docs) | `uvicorn app.main:app --reload` |
-| Tests et couverture | `pytest` (écrit `coverage.xml`) | `pytest` |
+| Tests et couverture (échoue sous 70 %) | `pytest` (écrit `coverage.xml`) | `pytest` |
+| Tests d'intégration en conteneur (PostgreSQL + MongoDB jetables) et rapport de couverture | `python3 scripts/dev/dev.py test-integration` | `py -3 scripts/dev/dev.py test-integration` |
 | Lint | `ruff check . && ruff format --check .` | `ruff check .; ruff format --check .` |
 
 ## Indicateurs lus depuis l'entrepôt (BE-04)
@@ -34,6 +35,11 @@ Détail, parcours, codes d'erreur et limites : [authentification](../../docs/02-
 | Tests contre PostgreSQL | `NOVARIA_TEST_POSTGRES_ADMIN_URL=postgresql+psycopg://novaria_admin:…@127.0.0.1:5432/novaria pytest` | `$env:NOVARIA_TEST_POSTGRES_ADMIN_URL="…"; pytest` |
 
 Protéger une nouvelle route : `Depends(require_role(Role.OPERATOR))` et `openapi_extra={"x-required-role": "operator"}` ; le test de contrat échoue si la route n'est pas protégée ou si le rôle diffère du contrat.
+
+## Tests, intégration en conteneur et couverture (BE-07)
+
+Trois niveaux : unitaires et contrat (sans base, c'est ce que la CI exécute), intégration PostgreSQL, intégration MongoDB. Les tests d'intégration sont ignorés sans base ; `dev.py test-integration` monte PostgreSQL et MongoDB dans un projet Compose jetable, lance toute la suite avec le rapport de couverture (branches comprises) puis supprime le projet. Barrière : `pytest` échoue sous 70 % de couverture (`[tool.coverage.report]` de `pyproject.toml`).
+Détail, rapport de couverture et limites : [tests et couverture](../../docs/04-devsecops/tests-et-couverture.md).
 
 ## Journal d'audit et compteurs d'usage (BE-05)
 

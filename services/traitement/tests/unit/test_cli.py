@@ -1,5 +1,7 @@
 """Création du premier compte en ligne de commande (BE-03)."""
 
+import runpy
+import sys
 from contextlib import nullcontext
 
 import pytest
@@ -106,3 +108,13 @@ def test_the_command_exits_with_1_when_the_account_is_refused(repo, monkeypatch,
     )
     assert code == 1
     assert "existe déjà" in capsys.readouterr().err
+
+
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+def test_the_module_runs_as_a_script_and_answers_the_help_option(monkeypatch, capsys):
+    """`python -m app.cli` (lancé par `dev.py user-create`) : le point d'entrée du module."""
+    monkeypatch.setattr(sys, "argv", ["app.cli", "--help"])
+    with pytest.raises(SystemExit) as sortie:
+        runpy.run_module("app.cli", run_name="__main__")
+    assert sortie.value.code == 0
+    assert "create-user" in capsys.readouterr().out
