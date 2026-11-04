@@ -116,12 +116,12 @@ Preuve sous Linux : [À COMPLÉTER par Manoa Robel].
 
 | Sujet | Position actuelle | Suite |
 |---|---|---|
-| Limitation du débit de la connexion (429 du contrat) | **Non faite** : un mot de passe peut être essayé sans limite | BE-08 |
+| Limitation du débit de la connexion (429 du contrat) | **Faite (BE-08)** : 10 essais par minute et par adresse, 5 échecs par identifiant sur 15 minutes, puis `429` avec `Retry-After` ; le compteur est dans la mémoire du processus. [Sécurité applicative](../04-devsecops/securite-applicative.md) | Compteur partagé si le service est répliqué |
 | Qui valide le jeton | Le service le fait lui-même ; la passerelle ne le contrôle pas, et les routes des autres services n'existent pas encore | MS-13, point ouvert n° 2 des diagrammes C4 |
 | Révocation | Pas de liste de jetons révoqués ; un jeton volé reste utilisable 30 minutes tant que le compte est actif. Désactiver le compte l'arrête tout de suite | À décider si le besoin apparaît |
 | Secret partagé (HS256) | Quiconque connaît `JWT_SECRET` peut émettre un jeton valide : à ne mettre que dans le service qui contrôle | Passage à une clé asymétrique si la passerelle contrôle le jeton |
 | `PATCH /users/{id}` (rôle, état, mot de passe) | Non fait ; règle du contrat à respecter : un administrateur ne peut pas retirer son propre rôle (409) | Prochaine issue de comptes |
 | Format 422, 404, 405 et 500 | Fait (BE-06) : toutes passent par `Problem` | [Erreurs et versions](erreurs-et-versions-api.md) |
-| Audit des connexions | Fait (BE-05) : chaque tentative de connexion, réussie ou refusée, laisse une entrée dans `audit_logs` ; limitation du débit toujours à faire (ligne ci-dessus). [Journalisation d'audit](journalisation-audit.md) | |
+| Audit des connexions | Fait (BE-05) : chaque tentative de connexion, réussie, refusée ou limitée (`429`, résultat `denied`), laisse une entrée dans `audit_logs`. [Journalisation d'audit](journalisation-audit.md) | |
 | Pages `/docs` et `/redoc` de FastAPI | Publiques sur le service, mais la passerelle ne les expose pas | À désactiver hors local |
 | Jeton côté navigateur | Où le stocker (mémoire, cookie) n'est pas décidé | FE-03 |

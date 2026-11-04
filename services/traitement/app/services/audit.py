@@ -59,10 +59,10 @@ class Observer(Protocol):
 
 
 def outcome_of(status: int) -> str:
-    """`ok` sous 400 ; `denied` pour 401 et 403 ; `error` pour toute autre erreur."""
+    """`ok` sous 400 ; `denied` pour 401, 403 et 429 (accès refusé) ; `error` sinon."""
     if status < 400:
         return "ok"
-    return "denied" if status in (401, 403) else "error"
+    return "denied" if status in (401, 403, 429) else "error"
 
 
 def bucket_start(moment: datetime) -> datetime:

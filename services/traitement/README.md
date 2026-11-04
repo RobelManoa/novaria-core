@@ -57,6 +57,20 @@ Règles, catalogue des codes et limites : [erreurs, validation et versionnement]
 
 Déclarer les erreurs d'une nouvelle route : `responses=errors(401, 403, 422, "5XX")` (`app/api/responses.py`), les mêmes codes que le contrat ; le test de contrat échoue sinon, et aussi si l'erreur n'a pas de test.
 
+## Sécurité applicative (BE-08)
+
+| Mécanisme | Réglage (`.env`, aucun n'est un secret) | Par défaut |
+|---|---|---|
+| CORS restreint : origines exactes, `GET` et `POST`, pas de cookies | `CORS_ALLOWED_ORIGINS` (jamais `*`) | Vide : aucune origine |
+| En-têtes de sécurité sur toutes les réponses (`nosniff`, `X-Frame-Options`, `Referrer-Policy`, politique de contenu) | | |
+| Limitation de la connexion : `429` avec `Retry-After` | `LOGIN_ATTEMPTS_PER_MINUTE`, `LOGIN_MAX_FAILURES`, `LOGIN_LOCKOUT_S` | 10 par minute et par adresse ; 5 échecs sur 15 minutes par identifiant |
+| Adresse du client derrière la passerelle | `TRUSTED_PROXY_HOPS` | 0 (Compose met 1) |
+
+Les secrets (`JWT_SECRET`, adresses des bases) ne viennent que de l'environnement : `.env` créé par `dev.py init-env`, jamais versionné ; la valeur d'exemple est refusée hors de l'environnement local ; aucun secret dans les journaux (le code n'en écrit pas, et un filet masque ce qui échapperait).
+Règles, limites, correspondance avec AWS Secrets Manager et preuves : [sécurité applicative](../../docs/04-devsecops/securite-applicative.md).
+
+Ajouter une route avec une autre méthode que `GET` ou `POST` : ajouter la méthode à `ALLOWED_METHODS` de `app/core/cors.py` (un test échoue sinon).
+
 ## Migrations du schéma `app` (BE-02)
 
 Le schéma `app` (utilisateurs, rôles) appartient à l'API métier : ses tables sont décrites par des modèles SQLAlchemy (`app/models/`) et créées par **Alembic** (`migrations/`), pas par `db/postgres/migrations/` ([ADR-024](../../docs/01-architecture/adr/ADR-024-bases-de-donnees-locales.md)). Le compte est `svc_app` ; l'adresse de la base est dans la variable `APP_DATABASE_URL`, jamais dans un fichier.

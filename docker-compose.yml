@@ -167,6 +167,12 @@ services:
       # Rôle « API métier » (BE-03) : comptes dans le schéma app (svc_app) et secret de signature des jetons.
       APP_DATABASE_URL: postgresql+psycopg://svc_app:${PG_PASSWORD_APP}@postgres:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET:-}
+      # Sécurité applicative (BE-08) : CORS fermé par défaut, limitation de la connexion, relais de confiance.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      LOGIN_ATTEMPTS_PER_MINUTE: ${LOGIN_ATTEMPTS_PER_MINUTE:-10}
+      LOGIN_MAX_FAILURES: ${LOGIN_MAX_FAILURES:-5}
+      LOGIN_LOCKOUT_S: ${LOGIN_LOCKOUT_S:-900}
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
       # Journal d'audit et compteurs d'usage de l'API (BE-05) : compte « backend » de MongoDB (audit_logs, usage_stats).
       AUDIT_MONGO_URL: mongodb://svc_backend:${MONGO_PASSWORD_BACKEND}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
       MONGO_URL: mongodb://svc_traitement:${MONGO_PASSWORD_TRAITEMENT}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}

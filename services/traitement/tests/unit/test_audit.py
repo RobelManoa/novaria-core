@@ -55,6 +55,7 @@ def event(**changes) -> RequestEvent:
         (400, "error"),
         (401, "denied"),
         (403, "denied"),
+        (429, "denied"),  # connexion bloquée par la limite de débit (BE-08)
         (404, "error"),
         (409, "error"),
         (422, "error"),

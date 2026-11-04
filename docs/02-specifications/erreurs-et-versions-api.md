@@ -33,7 +33,7 @@ Le type de contenu est `application/problem+json`. Le corps ne contient **jamais
 | `VALIDATION_ERROR` | 422 | Entrée invalide (section 2) | `app/core/errors.py` |
 | `INTERNAL_ERROR` | 500 | Toute erreur imprévue (section 3) | `app/core/unhandled.py` |
 | `UPSTREAM_UNAVAILABLE` | 503 | Base de données injoignable ou saturée, authentification non configurée | `app/core/errors.py`, `app/db/session.py` |
-| `RATE_LIMITED` | 429 | **Pas encore produit** : limitation du débit de la connexion, BE-08 | |
+| `RATE_LIMITED` | 429 | Limitation du débit de la connexion (BE-08), avec l'en-tête `Retry-After` (secondes à attendre) | `app/api/v1/auth.py`, `app/core/ratelimit.py` |
 
 Les codes `INVALID_STATE_TRANSITION`, `COMMAND_IN_PROGRESS`, `UNSAFE_COMMAND` et `FORECAST_UNAVAILABLE` du contrat appartiennent à d'autres services.
 
@@ -151,11 +151,10 @@ Un vrai serveur `uvicorn` du service, appelé en HTTP (sans base pour la premiè
 | `GET /api/v1/users` avec jeton, base introuvable (nom inconnu) | 503 | `UPSTREAM_UNAVAILABLE` | en 0,4 s, sans l'adresse de la base |
 | `GET /api/v1/users` avec jeton, base sur un port fermé | 503 | `UPSTREAM_UNAVAILABLE` | en 5,3 s : avant l'ajout du délai de connexion (section 7), l'appel attendait plus de 15 s |
 
-Deux erreurs documentées n'ont **pas** de test, avec leur raison écrite dans le test lui-même :
+Une seule famille d'erreurs documentées n'a **pas** de test, avec sa raison écrite dans le test lui-même (le `429` de `POST /auth/login` en avait une jusqu'à BE-08 : il est maintenant provoqué pour de bon, `Retry-After` lu, et déclaré dans `/openapi.json` avec son en-tête) :
 
 | Erreur | Raison |
 |---|---|
-| `429` de `POST /auth/login` | Limitation du débit pas encore faite (BE-08). Le service ne la déclare pas dans `/openapi.json` tant qu'elle n'existe pas |
 | `403` des routes ouvertes au rôle `viewer` (indicateurs) | `viewer` est le rôle le plus bas : aucun appelant authentifié n'a moins de droits. Un test échoue si un rôle plus bas apparaît |
 
 ## 6. Changements de contrat et de front-end
@@ -173,11 +172,11 @@ Le front-end génère ses types depuis les contrats et un test échoue s'ils dif
 
 | Sujet | Position actuelle | Suite |
 |---|---|---|
-| Limitation du débit (`429`) | Pas faite | BE-08 |
+| Limitation du débit (`429`) | Faite (BE-08), compteur dans la mémoire du processus : [Sécurité applicative](../04-devsecops/securite-applicative.md) | Compteur partagé si le service est répliqué |
 | Taille maximale d'un corps | Pas contrôlée par le service | À fixer à la passerelle |
 | Route inconnue sans jeton | `404`, pas `401` : une route qui n'existe pas ne dit rien sur l'authentification | |
 | `Allow` | Relu dans les routes publiées (`/openapi.json`) par `app/core/routing.py`, qui sert aussi à l'audit : si une route est ajoutée avec `include_in_schema=False`, elle n'y figure pas | Éviter ce réglage, ou étendre `app/core/routing.py` |
-| Journal applicatif | Il écrit le chemin reçu (`app.access`) | Un jeton collé dans l'adresse y apparaîtrait |
+| Journal applicatif | Il écrit le chemin reçu (`app.access`), jamais la query string | Un jeton collé dans le chemin y apparaîtrait ; depuis BE-08 le filet `app/core/redaction.py` le masque (jeton de forme JWT, `Bearer`, secrets connus) |
 | Délai de connexion | 5 s (`connect_timeout`, `app/db/session.py`) : une base éteinte donne un 503 en 5 s au plus, au lieu d'attendre le délai du système (plus de 20 s sous Windows) | Réglable par une variable si le besoin apparaît |
 | Autres services | Collecte, alerte et réponse n'ont pas encore de routes : le même mécanisme est à reprendre dans le gabarit de service | MS-08, MS-11, MS-12 |
 | Pages `/docs`, `/redoc`, `/openapi.json` | Publiques, hors version | À désactiver hors local |

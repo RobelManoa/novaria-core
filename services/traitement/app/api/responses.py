@@ -24,9 +24,27 @@ DESCRIPTIONS: dict[int | str, str] = {
 }
 
 
+# En-têtes que le contrat attache à une réponse d'erreur (`Retry-After` du 429, `common.yaml`).
+HEADERS: dict[int | str, dict[str, Any]] = {
+    429: {
+        "Retry-After": {
+            "description": "Secondes à attendre avant de réessayer.",
+            "schema": {"type": "integer", "minimum": 1},
+        }
+    },
+}
+
+
 def errors(*statuses: int | str) -> dict[int | str, dict[str, Any]]:
     """Réponses d'erreur à déclarer sur une route, par code HTTP (ou `"5XX"`)."""
-    return {status: {"model": Problem, "description": DESCRIPTIONS[status]} for status in statuses}
+    return {
+        status: {
+            "model": Problem,
+            "description": DESCRIPTIONS[status],
+            **({"headers": HEADERS[status]} if status in HEADERS else {}),
+        }
+        for status in statuses
+    }
 
 
 def use_problem_media_type(application: FastAPI) -> None:
