@@ -88,12 +88,19 @@ test:          ## Tests des services + frontend + scripts du poste
 	cd frontend && npm test
 	$(PY) -m unittest discover -s scripts/dev
 	$(PY) -m unittest discover -s data/etl/tests
+	$(PY) -m unittest discover -s simulator/tests
 test-integration: ## Tests de services/traitement contre PostgreSQL et MongoDB en conteneur (projet jetable) + rapport de couverture
 	$(DEV) test-integration
 test-contracts: ## Valide les exemples et les cas invalides des contrats d'événements
 	$(PY) -m unittest discover -s contracts/tests
 test-etl:      ## Tests des pipelines d'ingestion (sans réseau ni base)
 	$(PY) -m unittest discover -s data/etl/tests
+test-simulator: ## Tests du simulateur de capteurs (déterminisme, contrat MS-03, anomalies ; jsonschema pour la conformité)
+	$(PY) -m unittest discover -s simulator/tests
+sim-scenarios: ## Liste les scénarios du simulateur de capteurs
+	$(PY) simulator/app.py scenarios
+sim-run:       ## Écrit un run complet pour IA-08 (make sim-run SCENARIO=heure-de-pointe SEED=42 ; dans var/runs/<run>)
+	$(PY) simulator/app.py run --scenario $(or $(SCENARIO),heure-de-pointe) --seed $(or $(SEED),42) --out var/runs/run-$(or $(SCENARIO),heure-de-pointe)-$(or $(SEED),42)
 lint:          ## Ruff sur chaque service, ESLint et Prettier sur le frontend
 	@for d in services/*/; do (cd $$d && ruff check . && ruff format --check .) || exit 1; done
 	cd frontend && npm run lint && npm run format:check

@@ -81,7 +81,7 @@ Les deux noms sont déduits de [ADR-008](../adr/ADR-008-microservices.md) et de 
 | Tableau de bord | React, Vite, TypeScript | `frontend/` | Affiche indicateurs, alertes, état des feux ; envoie la commande manuelle | Existe (socle FE-01) |
 | Passerelle d'API | Nginx ou Traefik | `gateway/` | Point d'entrée unique : routage `/api/<service>`, authentification, limitation de débit, CORS | Planifié (MS-13) |
 | API métier | Python, FastAPI | `services/traitement/` (ancien `backend/`) | Utilisateurs, rôles et jetons ; audit et statistiques d'usage | Existe (squelette : `/health`), dossier partagé avec le Service Traitement tant que le point ouvert 1 n'est pas tranché |
-| Simulateur IoT | Python | `simulator/` | Génère des mesures de capteurs reproductibles (graine) avec anomalies injectables | Planifié (MS-07) |
+| Simulateur IoT | Python | `simulator/` | Génère des mesures de capteurs reproductibles (graine) avec anomalies injectables | Existe (MS-07) : fichier, sortie standard ou envoi à la collecte ; la route de la collecte n'existe pas encore |
 | Service Collecte | Python, FastAPI | `services/collecte/` | Reçoit, valide, dédoublonne, stocke le brut, publie `iot.raw` | Planifié (MS-08) |
 | Service Traitement | Python, FastAPI | `services/traitement/` | Nettoie, agrège par fenêtres, alimente l'entrepôt, publie indicateurs et recommandations, sert l'API de lecture | Planifié (MS-09, MS-10) |
 | Service Alerte usager | Python, FastAPI | `services/alerte/` | Évalue les règles, gère le cycle de vie d'une alerte, diffuse en direct | Planifié (MS-11) |
