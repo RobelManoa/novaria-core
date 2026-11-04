@@ -16,3 +16,11 @@ select = ["E", "F", "I", "B", "UP", "S"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=app --cov-report=term-missing --cov-report=xml:coverage.xml"
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+# Barrière de couverture (BE-07) : sous ce seuil, `pytest` échoue (donc le job de la CI aussi).
+# Le Quality Gate de SonarQube s'applique en plus, sur le code nouveau.
+fail_under = 70

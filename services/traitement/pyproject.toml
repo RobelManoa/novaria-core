@@ -26,3 +26,11 @@ addopts = "--cov=app --cov=migrations --cov-report=term-missing --cov-report=xml
 # Ce service porte aussi le rôle « API métier » (authentification, comptes) tant que le point ouvert n° 1
 # des diagrammes C4 n'est pas tranché : ses routes sont décrites par ces deux contrats.
 contrats = ["traitement", "api-metier"]
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+# Barrière de couverture (BE-07) : sous ce seuil, `pytest` échoue (donc le job de la CI aussi).
+# Le Quality Gate de SonarQube s'applique en plus, sur le code nouveau.
+fail_under = 70
