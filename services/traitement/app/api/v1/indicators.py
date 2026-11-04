@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import require_role
+from app.api.responses import errors
 from app.core.errors import NOT_FOUND, VALIDATION_ERROR, ProblemError
 from app.db.session import get_indicator_repository
 from app.models import Role, User
@@ -51,7 +52,12 @@ def parse_utc(value: str | None, field: str) -> datetime | None:
         ) from error
 
 
-@router.get("", response_model=IndicatorPageResponse, openapi_extra=VIEWER)
+@router.get(
+    "",
+    response_model=IndicatorPageResponse,
+    openapi_extra=VIEWER,
+    responses=errors(401, 403, 422, "5XX"),
+)
 def list_indicators(
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
     cursor: str | None = Query(None, max_length=512),
@@ -98,7 +104,12 @@ def list_indicators(
 
 
 # Avant `/{indicator_id}` : « latest » ne doit pas être pris pour un identifiant.
-@router.get("/latest", response_model=LatestIndicatorsResponse, openapi_extra=VIEWER)
+@router.get(
+    "/latest",
+    response_model=LatestIndicatorsResponse,
+    openapi_extra=VIEWER,
+    responses=errors(401, 403, 422, "5XX"),
+)
 def latest_indicators(
     intersection_id: str | None = Query(None, pattern=INTERSECTION_PATTERN),
     run_id: str | None = Query(None, min_length=1, max_length=80),
@@ -109,7 +120,12 @@ def latest_indicators(
     return LatestIndicatorsResponse(items=[IndicatorResponse.from_row(row) for row in rows])
 
 
-@router.get("/{indicator_id}", response_model=IndicatorResponse, openapi_extra=VIEWER)
+@router.get(
+    "/{indicator_id}",
+    response_model=IndicatorResponse,
+    openapi_extra=VIEWER,
+    responses=errors(401, 403, 404, "5XX"),
+)
 def get_indicator(
     indicator_id: str,
     _: User = Depends(require_role(Role.VIEWER)),

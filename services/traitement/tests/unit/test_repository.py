@@ -108,6 +108,26 @@ def test_the_session_factory_needs_the_database_address(monkeypatch):
     get_settings.cache_clear()
 
 
+def test_the_accounts_database_gives_up_connecting_after_a_few_seconds(monkeypatch):
+    """Sans délai de connexion, une base éteinte ferait attendre le client au lieu d'un 503."""
+    appels = []
+    monkeypatch.setenv("APP_DATABASE_URL", "postgresql+psycopg://svc_app:secret@h/d")
+    get_settings.cache_clear()
+    session_module.get_session_factory.cache_clear()
+    monkeypatch.setattr(
+        session_module,
+        "create_engine",
+        lambda url, **options: appels.append(options) or MagicMock(),
+    )
+    try:
+        session_module.get_session_factory()
+    finally:
+        session_module.get_session_factory.cache_clear()
+        get_settings.cache_clear()
+    assert appels[0]["connect_args"] == {"connect_timeout": 5}
+    assert session_module.CONNECT_TIMEOUT_S <= 10
+
+
 def test_a_session_is_opened_per_request_and_closed_after_it(monkeypatch):
     monkeypatch.setenv("APP_DATABASE_URL", "sqlite://")
     get_settings.cache_clear()

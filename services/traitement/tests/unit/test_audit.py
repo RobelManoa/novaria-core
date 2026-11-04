@@ -6,7 +6,8 @@ from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
-from app.core.audit import compile_templates, match_template
+from app.core.audit import match_template
+from app.core.routing import compile_templates
 from app.services.audit import (
     ANONYMOUS,
     RETRY_AFTER_FAILURE_S,

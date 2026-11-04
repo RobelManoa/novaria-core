@@ -71,7 +71,7 @@ Format `application/problem+json` avec `correlation_id`.
 | Indicateur inconnu ou identifiant mal formé | 404 | `NOT_FOUND` |
 | Entrepôt non configuré ou injoignable | 503 | `UPSTREAM_UNAVAILABLE` (sans adresse ni mot de passe) |
 
-Le format 422 Problem vaut désormais pour **toutes** les routes du service (BE-06 reste à faire pour 404, 405 et 500 hors de ces routes).
+Le format Problem vaut pour **toutes** les erreurs du service : 422, mais aussi route inconnue (404), méthode non permise (405) et erreur imprévue (500) depuis BE-06 ([erreurs et versions](../02-specifications/erreurs-et-versions-api.md)).
 
 ## 7. Preuves
 

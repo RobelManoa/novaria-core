@@ -124,12 +124,12 @@ def test_without_an_observer_the_call_goes_through(monkeypatch):
 
 
 def test_the_templates_are_compiled_once_and_kept_on_the_application():
-    app.state.audit_templates = None
+    app.state.route_templates = None
     recording = Recording()
     asyncio.run(run(AuditMiddleware(answer), scope_for(observer=recording)))
-    first = app.state.audit_templates
+    first = app.state.route_templates
     asyncio.run(run(AuditMiddleware(answer), scope_for(observer=recording)))
-    assert first and app.state.audit_templates is first
+    assert first and app.state.route_templates is first
 
 
 def test_the_observer_of_the_configuration_is_used_when_none_is_set_on_the_app(monkeypatch):

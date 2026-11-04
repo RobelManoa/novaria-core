@@ -44,6 +44,13 @@ Règles et limites : [journalisation d'audit](../../docs/02-specifications/journ
 |---|---|---|
 | Tests contre MongoDB | `NOVARIA_TEST_MONGO_URL=mongodb://svc_backend:…@127.0.0.1:27017/novaria?authSource=novaria pytest tests/integration/test_audit_mongo.py` | `$env:NOVARIA_TEST_MONGO_URL="…"; pytest tests/integration/test_audit_mongo.py` |
 
+## Erreurs, validation et versionnement (BE-06)
+
+Toute erreur a le même corps `application/problem+json` (schéma `Problem` de `contracts/openapi/common.yaml`) : erreurs levées par le code, validation Pydantic (champ fautif désigné, messages en français, valeur jamais reprise), route inconnue (404), méthode non permise (405, avec `Allow`), base injoignable (503) et **toute erreur imprévue** (500, sans détail technique, avec `correlation_id`). L'API est sous `/api/v1` ; `/api/v2` répond 404 en disant quelles versions existent.
+Règles, catalogue des codes et limites : [erreurs, validation et versionnement](../../docs/02-specifications/erreurs-et-versions-api.md). Preuve : `tests/contract/test_errors_contract.py` (chaque erreur documentée dans le contrat est provoquée et vérifiée), `test_validation_contract.py`, `test_versioning_contract.py`.
+
+Déclarer les erreurs d'une nouvelle route : `responses=errors(401, 403, 422, "5XX")` (`app/api/responses.py`), les mêmes codes que le contrat ; le test de contrat échoue sinon, et aussi si l'erreur n'a pas de test.
+
 ## Migrations du schéma `app` (BE-02)
 
 Le schéma `app` (utilisateurs, rôles) appartient à l'API métier : ses tables sont décrites par des modèles SQLAlchemy (`app/models/`) et créées par **Alembic** (`migrations/`), pas par `db/postgres/migrations/` ([ADR-024](../../docs/01-architecture/adr/ADR-024-bases-de-donnees-locales.md)). Le compte est `svc_app` ; l'adresse de la base est dans la variable `APP_DATABASE_URL`, jamais dans un fichier.

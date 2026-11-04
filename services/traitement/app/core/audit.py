@@ -7,7 +7,6 @@ d'authentification (`request.state.actor`). L'écriture se fait après l'envoi d
 fil séparé : MongoDB lent ou éteint ne ralentit pas le client. Règles : `app/services/audit.py`.
 """
 
-import re
 import time
 from datetime import UTC, datetime
 
@@ -15,18 +14,15 @@ import anyio
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.logs import correlation_id_var
+from app.core.routing import Compiled, compiled_templates
+from app.core.routing import match_template as route_template
 from app.db.observer import get_observer
 from app.services.audit import HEALTH_PATH, UNMATCHED, Observer, RequestEvent
 
 
-def compile_templates(templates: list[str]) -> list[tuple[re.Pattern, str]]:
-    """Modèles de route, les plus précis d'abord (`/indicators/latest` avant `/indicators/{id}`)."""
-    ordered = sorted(templates, key=lambda template: template.count("{"))
-    return [(re.compile(re.sub(r"\\\{\w+\\\}", "[^/]+", re.escape(t)) + "$"), t) for t in ordered]
-
-
-def match_template(path: str, compiled: list[tuple[re.Pattern, str]]) -> str:
-    return next((template for pattern, template in compiled if pattern.match(path)), UNMATCHED)
+def match_template(path: str, compiled: Compiled) -> str:
+    """Modèle de route du chemin (`app/core/routing.py`), ou la clé fixe `UNMATCHED`."""
+    return route_template(path, compiled) or UNMATCHED
 
 
 class AuditMiddleware:
@@ -68,12 +64,7 @@ class AuditMiddleware:
     def event_from(
         scope: Scope, status: int, started_at: datetime, duration_ms: float
     ) -> RequestEvent | None:
-        application = scope["app"]
-        compiled = getattr(application.state, "audit_templates", None)
-        if compiled is None:
-            compiled = application.state.audit_templates = compile_templates(
-                list(application.openapi()["paths"])
-            )
+        compiled = compiled_templates(scope["app"])
         path = scope["path"]
         if path == HEALTH_PATH:
             return None  # la sonde de Docker n'est ni auditée ni comptée

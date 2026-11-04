@@ -171,6 +171,7 @@ paths:
         "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
         "403": { $ref: "common.yaml#/components/responses/Forbidden" }
         "404": { $ref: "common.yaml#/components/responses/NotFound" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
         "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
     patch:
       tags: [Utilisateurs]
