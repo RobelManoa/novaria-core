@@ -12,6 +12,13 @@ from tests.support import body, measurement, with_value
 TOPIC = "novaria/iot/measurements/SENSOR_001"
 
 
+@pytest.fixture(autouse=True)
+def replay_dir(tmp_path, monkeypatch):
+    """Le répertoire de rejeu de ces tests : celui où ils écrivent leurs fichiers."""
+    monkeypatch.setenv("REPLAY_DIR", str(tmp_path))
+    return tmp_path
+
+
 # --- Filtre d'abonnement MQTT -----------------------------------------------------------------
 
 
@@ -184,7 +191,63 @@ def test_main_exits_1_when_the_bus_failed_a_message_so_it_can_be_replayed(tmp_pa
 
 def test_main_exits_2_for_a_missing_file(tmp_path, rig, capsys):
     assert main(["replay-mqtt", str(tmp_path / "absent.jsonl")], adapter=adapter(rig)) == 2
-    assert "introuvable" in capsys.readouterr().err
+    assert "n'est pas un fichier du répertoire de rejeu" in capsys.readouterr().err
+
+
+# --- Le fichier rejoué reste dans le répertoire de rejeu --------------------------------------
+
+
+def test_a_file_outside_the_replay_directory_is_refused_and_nothing_is_sent(
+    tmp_path, rig, capsys, monkeypatch
+):
+    elsewhere = tmp_path / "ailleurs"
+    elsewhere.mkdir()
+    write_jsonl(elsewhere / "secret.jsonl", [measurement(0)])
+    allowed = tmp_path / "permis"
+    allowed.mkdir()
+    monkeypatch.setenv("REPLAY_DIR", str(allowed))
+    for argument in (
+        str(elsewhere / "secret.jsonl"),  # chemin absolu
+        "../ailleurs/secret.jsonl",  # remontée
+    ):
+        assert main(["replay-mqtt", argument], adapter=adapter(rig)) == 2
+        assert "répertoire de rejeu" in capsys.readouterr().err
+    assert rig.publisher.calls == []
+
+
+def test_a_symbolic_link_out_of_the_replay_directory_is_refused(tmp_path, rig, monkeypatch):
+    elsewhere = tmp_path / "ailleurs"
+    elsewhere.mkdir()
+    write_jsonl(elsewhere / "secret.jsonl", [measurement(0)])
+    allowed = tmp_path / "permis"
+    allowed.mkdir()
+    link = allowed / "lien.jsonl"
+    try:
+        link.symlink_to(elsewhere / "secret.jsonl")
+    except OSError:  # Windows sans droit de créer des liens symboliques
+        pytest.skip("liens symboliques non disponibles")
+    monkeypatch.setenv("REPLAY_DIR", str(allowed))
+    assert main(["replay-mqtt", "lien.jsonl"], adapter=adapter(rig)) == 2
+    assert rig.publisher.calls == []
+
+
+def test_a_relative_name_and_a_subdirectory_are_replayed(tmp_path, rig, capsys):
+    (tmp_path / "sous").mkdir()
+    write_jsonl(tmp_path / "sous" / "mesures.jsonl", [measurement(0)])
+    assert main(["replay-mqtt", "sous/mesures.jsonl"], adapter=adapter(rig)) == 0
+    assert "ACCEPTED=1" in capsys.readouterr().out
+
+
+def test_without_replay_dir_the_current_directory_is_the_limit(tmp_path, rig, capsys, monkeypatch):
+    monkeypatch.delenv("REPLAY_DIR")
+    inside = tmp_path / "ici"
+    inside.mkdir()
+    write_jsonl(inside / "mesures.jsonl", [measurement(0)])
+    write_jsonl(tmp_path / "dehors.jsonl", [measurement(1)])
+    monkeypatch.chdir(inside)
+    assert main(["replay-mqtt", "mesures.jsonl"], adapter=adapter(rig)) == 0
+    assert main(["replay-mqtt", "../dehors.jsonl"], adapter=adapter(rig)) == 2
+    assert len(rig.publisher.events("iot.raw")) == 1
 
 
 def test_the_parser_requires_a_command_and_a_file():

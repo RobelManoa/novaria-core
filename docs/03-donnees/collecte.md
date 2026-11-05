@@ -71,7 +71,7 @@ Rejeu d'un fichier du simulateur (`mesures.jsonl`), chaque message livré deux f
 
 | Linux (bash) | Windows (PowerShell) |
 |---|---|
-| `python -m app.cli replay-mqtt mesures.jsonl --redeliver` (depuis `services/collecte`, variables `KAFKA_BOOTSTRAP_SERVERS` et `MONGO_URL`) | idem ; ou dans le conteneur : `docker compose exec collecte python -m app.cli replay-mqtt /tmp/mesures.jsonl --redeliver` |
+| `python -m app.cli replay-mqtt mesures.jsonl --redeliver` (depuis `services/collecte`, variables `KAFKA_BOOTSTRAP_SERVERS` et `MONGO_URL` ; le fichier doit être dans le répertoire courant ou dans `REPLAY_DIR`, sinon la commande le refuse) | idem ; ou dans le conteneur : `docker compose exec -e REPLAY_DIR=/tmp collecte python -m app.cli replay-mqtt /tmp/mesures.jsonl --redeliver` |
 
 **Limite assumée** : ce n'est pas un client MQTT. Le protocole (paquets, QoS, sessions, authentification) n'est pas implémenté ; seule la **frontière** (un sujet, une charge, une livraison au moins une fois) l'est. Brancher un vrai courtier demanderait un client MQTT dans un nouvel adaptateur, sans toucher au cœur.
 

@@ -267,6 +267,7 @@ def test_the_simulator_file_replayed_through_simulated_mqtt_with_redelivery_land
     monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", stack.BOOTSTRAP)
     monkeypatch.setenv("MONGO_URL", stack.MONGO_URL)
     monkeypatch.setenv("MONGO_DB", stack.database_name())
+    monkeypatch.setenv("REPLAY_DIR", str(out))
     get_settings.cache_clear()
     deps.close_components()
     try:

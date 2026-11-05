@@ -45,7 +45,7 @@ Depuis ce dossier, sauf mention contraire.
 | Lancer | `uvicorn app.main:app --reload` | `uvicorn app.main:app --reload` |
 | Tests et couverture (sans bus ni base ; la barrière est de 70 %) | `pytest` | `pytest` |
 | Tests contre Kafka et MongoDB en conteneur (depuis la racine du dépôt) | `python3 scripts/dev/dev.py test-integration --service collecte` | `py -3 scripts/dev/dev.py test-integration --service collecte` |
-| Rejouer un fichier du simulateur par l'entrée « MQTT simulé » | `python -m app.cli replay-mqtt mesures.jsonl --redeliver` | idem |
+| Rejouer un fichier du simulateur par l'entrée « MQTT simulé » | `python -m app.cli replay-mqtt mesures.jsonl --redeliver` (le fichier doit être dans le répertoire courant ou dans `REPLAY_DIR`) | idem |
 | Mesurer le débit maximal (depuis la racine, collecte démarrée) | `python3 scripts/dev/bench_collecte.py --url http://127.0.0.1:8001` | `py -3 scripts/dev/bench_collecte.py --url http://127.0.0.1:8001` |
 | Lint | `ruff check . && ruff format --check .` | `ruff check .; ruff format --check .` |
 | Image | `docker build -t novaria-collecte .` | `docker build -t novaria-collecte .` |

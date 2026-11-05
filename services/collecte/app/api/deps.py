@@ -58,7 +58,8 @@ _lock = threading.Lock()
 
 
 def get_components() -> Components:
-    global _components  # noqa: PLW0603 - une seule instance par processus, créée à la demande
+    # Une seule instance par processus, créée à la demande.
+    global _components  # noqa: PLW0603
     if _components is None:
         with _lock:
             if _components is None:
