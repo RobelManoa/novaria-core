@@ -197,13 +197,14 @@ services:
     environment:
       <<: *environnement-service
       SERVICE_NAME: traitement-flux
+      HEARTBEAT_FILE: /srv/run/flux-alive  # dossier du conteneur réservé à l'utilisateur du service (pas /tmp)
       POSTGRES_URL: postgresql+psycopg://svc_traitement:${PG_PASSWORD_TRAITEMENT}@postgres:5432/${POSTGRES_DB}
       MONGO_URL: mongodb://svc_traitement:${MONGO_PASSWORD_TRAITEMENT}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
       MONGO_DB: ${MONGO_DB}
       FLUX_REPLAY: ${FLUX_REPLAY:-false}
     healthcheck:
       # Pas de port : le service écrit un fichier de vie à chaque tour de boucle ; vivant = écrit il y a moins d'une minute.
-      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/tmp/flux-alive')<60 else 1)"]
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/srv/run/flux-alive')<60 else 1)"]
       interval: 15s
       timeout: 3s
       retries: 4
@@ -226,12 +227,13 @@ services:
     environment:
       <<: *environnement-service
       SERVICE_NAME: traitement-pipeline
+      HEARTBEAT_FILE: /srv/run/pipeline-alive
       POSTGRES_URL: postgresql+psycopg://svc_traitement:${PG_PASSWORD_TRAITEMENT}@postgres:5432/${POSTGRES_DB}
       MONGO_URL: mongodb://svc_traitement:${MONGO_PASSWORD_TRAITEMENT}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
       MONGO_DB: ${MONGO_DB}
     healthcheck:
       # Pas de port : le service écrit un fichier de vie à chaque tour de boucle ; vivant = écrit il y a moins d'une minute.
-      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/tmp/pipeline-alive')<60 else 1)"]
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/srv/run/pipeline-alive')<60 else 1)"]
       interval: 15s
       timeout: 3s
       retries: 4

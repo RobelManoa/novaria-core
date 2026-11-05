@@ -13,7 +13,8 @@ ARG GIT_SHA=dev
 ENV GIT_SHA=${GIT_SHA}
 COPY --from=deps /install /usr/local
 COPY app ./app
-RUN useradd --system --uid 10001 appuser
+RUN useradd --system --uid 10001 appuser \
+    && mkdir -p /srv/run && chown appuser /srv/run
 USER appuser
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=3s --retries=5 \

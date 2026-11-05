@@ -19,4 +19,5 @@ class PipelineSettings(BaseSettings):
     poll_timeout_ms: int = Field(default=1000, ge=50, le=30000)
     poll_max_records: int = Field(default=500, ge=1, le=10000)
     log_level: str = "INFO"
-    heartbeat_file: str = "/tmp/pipeline-alive"  # noqa: S108 - fichier de vie lu par la sonde du conteneur
+    # Fichier de vie lu par la sonde du conteneur (HEARTBEAT_FILE) ; absent : pas de sonde.
+    heartbeat_file: str | None = None
