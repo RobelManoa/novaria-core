@@ -2,7 +2,7 @@
 
 Projet : Novaria Core, socle d'UrbanHub (bloc de compétences BC05)
 Responsables : Daddy Luciano et Manoa Robel (relecture croisée)
-Dernière mise à jour : 03/11/2026
+Dernière mise à jour : 05/11/2026
 Issue de suivi : CLD-23
 Statut : proposition à valider par les deux membres (relecture de la pull request)
 
@@ -69,6 +69,7 @@ Chaque exception de `.snyk` a ces quatre éléments, vérifiés par un test (sec
 | SNYK-DEBIAN13-SQLITE3-22119065 | libsqlite3-0 (Out-of-bounds Write) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-11-03 | 2026-12-03 | R10 |
 | SNYK-DEBIAN13-SQLITE3-22119091 | libsqlite3-0 (Out-of-bounds Write) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-11-03 | 2026-12-03 | R10 |
 | SNYK-DEBIAN13-SQLITE3-22119098 | libsqlite3-0 (Out-of-bounds Write) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-11-03 | 2026-12-03 | R10 |
+| SNYK-DEBIAN13-ZLIB-22249554 | zlib1g (Out-of-bounds Write) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-11-05 | 2026-12-05 | R10 |
 
 ## 7. Scan hebdomadaire
 
@@ -146,3 +147,15 @@ Abréviation : CVE (Common Vulnerabilities and Exposures, identifiant public d'u
 | Les exceptions suffisent-elles ? | **Non vérifié** : la CLI Snyk n'est pas installée sur le poste de cette revue et le journal de Snyk n'affiche pas les failles ignorées. La preuve sera le job `docker` vert après fusion |
 
 Décision proposée : trois exceptions de 30 jours (création le 03/11/2026, expiration le **03/12/2026**, avant le 10/12/2026), à approuver par l'**autre membre** du binôme (section 3). Les trois exceptions du 17/10/2026 expirent toujours le 15/11/2026 : elles se renouvellent séparément, après une nouvelle vérification (section 4).
+
+## 13. Revue du 05/11/2026 : nouvelle faille de zlib1g (échec du contrôle `docker`)
+
+| Vérification | Résultat |
+|---|---|
+| Ce qui échoue | Le job `docker` de la pull request #219 (MS-09 et MS-10) : `snyk container test` signale une faille **high** de `zlib/zlib1g` (Out-of-bounds Write) dans l'image de base `python:3.15-slim` des **quatre services Python** (alerte, collecte, reponse, traitement), « found 1 issue » par image. L'image du front-end est saine. La pull request ne change pas l'image de base : la cause n'est pas son code |
+| Faille | SNYK-DEBIAN13-ZLIB-22249554 (CVE-2026-76844, CWE-787), introduite le 24/08/2026 d'après Snyk. Numéro CVE lu sur la page Snyk, **non recoupé avec le suivi de sécurité de Debian**. Elle s'ajoute à SNYK-DEBIAN13-ZLIB-19520500 (même paquet, autre faille, exception du 17/10/2026) |
+| Correctif publié par Debian 13 | **Non**. Page Snyk lue le 05/11/2026 : « There is no fixed version for Debian:13 zlib ». Dans une image `python:3.15-slim` tirée le 05/11/2026, après `apt-get update` : `zlib1g` installé `1:1.3.dfsg+really1.3.1-1+b1`, et `apt-get -s upgrade` ne propose aucune mise à jour de `zlib1g` : la ligne `apt-get upgrade` des Dockerfile ne change rien |
+| Chemin | `zlib1g` est nécessaire à `dpkg` et `apt` : le paquet ne se retire pas de l'image |
+| Les exceptions suffisent-elles ? | **Non vérifié** : la CLI Snyk n'est pas installée sur le poste de cette revue. La preuve sera le job `docker` vert après fusion |
+
+Décision proposée : une exception de 30 jours (création le 05/11/2026, expiration le **05/12/2026**, avant le 10/12/2026), à approuver par l'**autre** membre du binôme (section 3). Elle se renouvelle séparément, après une nouvelle vérification (section 4).

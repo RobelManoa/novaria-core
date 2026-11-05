@@ -30,3 +30,7 @@ ignore:
     - '*':
         reason: aucun correctif amont Debian 13, voir docs/04-devsecops/exceptions.md
         expires: 2026-12-03T00:00:00.000Z
+  SNYK-DEBIAN13-ZLIB-22249554:
+    - '*':
+        reason: aucun correctif amont Debian 13, voir docs/04-devsecops/exceptions.md
+        expires: 2026-12-05T00:00:00.000Z
