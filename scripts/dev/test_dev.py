@@ -628,6 +628,119 @@ class TestsIntegrationCollecteTests(unittest.TestCase):
             dev.build_parser().parse_args(["test-integration", "--service", "alerte"])
 
 
+class TestsIntegrationFluxTests(unittest.TestCase):
+    """MS-09 : `test-integration --service flux` monte PostgreSQL migré, MongoDB et Kafka (sujets créés) dans un projet jetable."""
+
+    ENV = {"POSTGRES_USER": "novaria_admin", "POSTGRES_PASSWORD": "pg@adm/1:#", "POSTGRES_DB": "novaria", "POSTGRES_PORT": "5432",
+           "PG_PASSWORD_TRAITEMENT": "tr/pw:7#", "PG_PASSWORD_LECTURE": "le/pw:5#", "MONGO_ROOT_USER": "mongo_admin", "MONGO_ROOT_PASSWORD": "mg@adm/2:#",
+           "MONGO_DB": "novaria", "MONGO_PORT": "27017", "KAFKA_PORT": "9094", "MONGO_PASSWORD_TRAITEMENT": "mt/pw:9#"}
+
+    def lancer(self, argv, *, retour_pytest=0, retour_migration=0, absent=None, sujets=(["  ligne"], 0)):
+        appels, vus = [], []
+
+        def fake_run(cmd, **kwargs):
+            appels.append((cmd, kwargs))
+            vus.append({nom: os.environ.get(nom) for nom in dev.INTEGRATION_ISOLATION})
+            code = retour_migration if cmd[:4] == ["docker", "compose", "run", "--rm"] else retour_pytest if "pytest" in cmd else 0
+            return subprocess.CompletedProcess(cmd, code, stdout="", stderr="")
+
+        texte = "".join(f"{k}={v}\n" for k, v in self.ENV.items())
+        with tempfile.TemporaryDirectory() as tmp:
+            env = Path(tmp) / ".env"
+            env.write_text(texte, encoding="utf-8")
+            with mock.patch.object(dev, "ENV_FILE", env), mock.patch("subprocess.run", side_effect=fake_run), \
+                    mock.patch("shutil.which", return_value="/usr/bin/docker"), \
+                    mock.patch.object(dev, "kafka_topic_rows", return_value=sujets) as topics, \
+                    mock.patch("importlib.util.find_spec", side_effect=lambda nom: None if nom == absent else object()), \
+                    mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+                avant = {nom: os.environ.get(nom) for nom in dev.INTEGRATION_ISOLATION}
+                code = dev.main(argv)
+                apres = {nom: os.environ.get(nom) for nom in dev.INTEGRATION_ISOLATION}
+        self.assertEqual(avant, apres, "l'environnement du processus est remis comme avant")
+        return code, appels, vus, topics
+
+    def test_les_adresses_visent_les_ports_du_projet_avec_les_comptes_du_service_et_encodent_les_mots_de_passe(self):
+        adresses = dev.flux_environment({**self.ENV, "KAFKA_PORT": "62300", "MONGO_PORT": "62301", "POSTGRES_PORT": "62302"})
+        self.assertEqual(adresses["NOVARIA_TEST_FLUX_KAFKA"], "127.0.0.1:62300")
+        self.assertEqual(adresses["NOVARIA_TEST_FLUX_POSTGRES_URL"],
+                         "postgresql+psycopg://svc_traitement:tr%2Fpw%3A7%23@127.0.0.1:62302/novaria")
+        self.assertEqual(adresses["NOVARIA_TEST_FLUX_POSTGRES_READ_URL"],
+                         "postgresql+psycopg://svc_lecture:le%2Fpw%3A5%23@127.0.0.1:62302/novaria")
+        self.assertEqual(adresses["NOVARIA_TEST_FLUX_POSTGRES_ADMIN_URL"],
+                         "postgresql+psycopg://novaria_admin:pg%40adm%2F1%3A%23@127.0.0.1:62302/novaria")
+        self.assertEqual(adresses["NOVARIA_TEST_FLUX_MONGO_URL"],
+                         "mongodb://svc_traitement:mt%2Fpw%3A9%23@127.0.0.1:62301/novaria?authSource=novaria")
+        self.assertIn("authSource=admin", adresses["NOVARIA_TEST_FLUX_MONGO_ADMIN_URL"])
+
+    def test_une_variable_absente_est_nommee(self):
+        for nom in ("POSTGRES_USER", "POSTGRES_PASSWORD", "PG_PASSWORD_TRAITEMENT", "PG_PASSWORD_LECTURE", "MONGO_ROOT_USER", "MONGO_ROOT_PASSWORD", "MONGO_DB"):
+            with self.subTest(variable=nom), self.assertRaisesRegex(dev.DevError, nom):
+                dev.flux_environment({k: v for k, v in self.ENV.items() if k != nom})
+
+    def test_les_trois_conteneurs_demarrent_les_migrations_passent_les_sujets_sont_crees_puis_tout_est_supprime(self):
+        code, appels, vus, sujets = self.lancer(["test-integration", "--service", "flux"])
+        self.assertEqual(code, 0)
+        up, migration, pytest_, down = appels
+        self.assertEqual(up[0], ["docker", "compose", "up", "-d", "--wait", "postgres", "mongo", "kafka"])
+        self.assertEqual(migration[0], ["docker", "compose", "run", "--rm", "db-migrate"])
+        self.assertEqual(pytest_[0], [sys.executable, "-m", "pytest"])
+        self.assertEqual(pytest_[1]["cwd"], ROOT / "services" / "traitement")
+        self.assertEqual(down[0], ["docker", "compose", "down", "-v", "--remove-orphans"])
+        sujets.assert_called_once()
+        projet = vus[0]["COMPOSE_PROJECT_NAME"]
+        self.assertRegex(projet, r"^novaria-it-[0-9a-f]{6}$")
+        self.assertEqual([v["COMPOSE_PROJECT_NAME"] for v in vus], [projet] * 4)
+        for nom, port in (("POSTGRES_PORT", "5432"), ("MONGO_PORT", "27017"), ("KAFKA_PORT", "9094")):
+            self.assertNotEqual(vus[0][nom], port, "ports propres : les bases et le bus du poste ne sont pas touchés")
+
+    def test_pytest_recoit_les_adresses_par_l_environnement_et_aucun_mot_de_passe_en_argument(self):
+        _, appels, vus, _ = self.lancer(["test-integration", "--service", "flux", "--", "-k", "bout"])
+        commande, options = appels[2]
+        self.assertEqual(commande, [sys.executable, "-m", "pytest", "-k", "bout"])
+        environnement = options["env"]
+        self.assertEqual(environnement["NOVARIA_TEST_FLUX_KAFKA"], f"127.0.0.1:{vus[0]['KAFKA_PORT']}")
+        self.assertIn(f":{vus[0]['POSTGRES_PORT']}/novaria", environnement["NOVARIA_TEST_FLUX_POSTGRES_URL"])
+        self.assertIn(f":{vus[0]['MONGO_PORT']}/novaria?authSource=novaria", environnement["NOVARIA_TEST_FLUX_MONGO_URL"])
+        for secret in ("tr/pw", "tr%2Fpw", "mt%2Fpw", "pg%40adm", "le%2Fpw"):
+            self.assertNotIn(secret, " ".join(commande))
+
+    def test_si_la_migration_echoue_ni_les_sujets_ni_pytest_ne_tournent_et_le_projet_est_supprime(self):
+        code, appels, _, sujets = self.lancer(["test-integration", "--service", "flux"], retour_migration=1)
+        self.assertEqual(code, 1)
+        sujets.assert_not_called()
+        self.assertFalse(any("pytest" in commande for commande, _ in appels))
+        self.assertEqual(appels[-1][0][:3], ["docker", "compose", "down"])
+
+    def test_si_les_sujets_ne_sont_pas_crees_pytest_ne_tourne_pas(self):
+        code, appels, _, _ = self.lancer(["test-integration", "--service", "flux"], sujets=(["  [KO] absent"], 1))
+        self.assertEqual(code, 1)
+        self.assertFalse(any("pytest" in commande for commande, _ in appels))
+
+    def test_le_code_de_pytest_est_transmis_et_le_projet_supprime_quand_meme(self):
+        code, appels, _, _ = self.lancer(["test-integration", "--service", "flux"], retour_pytest=1)
+        self.assertEqual(code, 1)
+        self.assertEqual(appels[-1][0][:3], ["docker", "compose", "down"])
+
+    def test_un_paquet_manquant_est_nomme_avec_le_verrou_du_traitement(self):
+        appels = []
+        texte = "".join(f"{k}={v}\n" for k, v in self.ENV.items())
+        with tempfile.TemporaryDirectory() as tmp:
+            env = Path(tmp) / ".env"
+            env.write_text(texte, encoding="utf-8")
+            with mock.patch("subprocess.run", side_effect=lambda *a, **k: appels.append(a)), \
+                    mock.patch.object(dev, "ENV_FILE", env), \
+                    mock.patch("importlib.util.find_spec", side_effect=lambda nom: None if nom == "kafka" else object()), \
+                    mock.patch("sys.stderr") as erreur:
+                self.assertEqual(dev.main(["test-integration", "--service", "flux"]), 2)
+        ecrit = "".join(call.args[0] for call in erreur.write.call_args_list)
+        self.assertIn("kafka", ecrit)
+        self.assertIn("services/traitement/requirements-dev.txt", ecrit)
+        self.assertEqual(appels, [])
+
+    def test_le_service_flux_est_un_choix_de_la_ligne_de_commande(self):
+        self.assertEqual(dev.build_parser().parse_args(["test-integration", "--service", "flux"]).service, "flux")
+
+
 class EvenementsMongoTests(unittest.TestCase):
     """LOC-02 : `db-check-events` insère une mesure conforme et une sans provenance dans raw_events."""
 

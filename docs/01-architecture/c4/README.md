@@ -83,7 +83,7 @@ Les deux noms sont déduits de [ADR-008](../adr/ADR-008-microservices.md) et de 
 | API métier | Python, FastAPI | `services/traitement/` (ancien `backend/`) | Utilisateurs, rôles et jetons ; audit et statistiques d'usage | Existe (squelette : `/health`), dossier partagé avec le Service Traitement tant que le point ouvert 1 n'est pas tranché |
 | Simulateur IoT | Python | `simulator/` | Génère des mesures de capteurs reproductibles (graine) avec anomalies injectables | Existe (MS-07) : fichier, sortie standard ou envoi à la collecte (essayé contre la vraie collecte par MS-08) |
 | Service Collecte | Python, FastAPI | `services/collecte/` | Reçoit, valide, dédoublonne, stocke le brut, publie `iot.raw` | Existe (MS-08) : HTTP et « MQTT simulé », [preuve et débit](../../03-donnees/collecte.md) |
-| Service Traitement | Python, FastAPI | `services/traitement/` | Nettoie, agrège par fenêtres, alimente l'entrepôt, publie indicateurs et recommandations, sert l'API de lecture | Planifié (MS-09, MS-10) |
+| Service Traitement | Python, FastAPI | `services/traitement/` | Nettoie, agrège par fenêtres, alimente l'entrepôt, publie indicateurs et recommandations, sert l'API de lecture | Existe : MS-09 (flux : nettoyage, fenêtres, état, épisodes, [preuve](../../03-donnees/flux.md)) et MS-10 (pipeline d'écriture de l'entrepôt, API de lecture sur un compte en lecture seule, recommandations, [preuve](../../03-donnees/entrepot.md)) |
 | Service Alerte usager | Python, FastAPI | `services/alerte/` | Évalue les règles, gère le cycle de vie d'une alerte, diffuse en direct | Planifié (MS-11) |
 | Service Réponse extérieure | Python, FastAPI | `services/reponse/` | Applique les recommandations au contrôleur de feux avec garde-fous et mode dégradé | Planifié (MS-12) |
 | Bus d'événements | Apache Kafka (KRaft) | `docker-compose.yml` | Transporte les événements, ordre par carrefour, rejeu | Planifié (LOC-04) |
@@ -112,16 +112,16 @@ Les deux noms sont déduits de [ADR-008](../adr/ADR-008-microservices.md) et de 
 
 | Nom | Responsabilité | Couche | État |
 |---|---|---|---|
-| API de lecture | Sert indicateurs et prévisions en lecture seule | Adaptateur d'entrée | Partiel : les trois routes d'indicateurs existent (BE-04, `app/api/v1/indicators.py`) ; prévisions et référentiel planifiés (MS-10) |
-| Consommateur de mesures | Lit `iot.raw` | Adaptateur d'entrée | Planifié (MS-09) |
+| API de lecture | Sert indicateurs et prévisions en lecture seule | Adaptateur d'entrée | Partiel : les trois routes d'indicateurs existent (BE-04, `app/api/v1/indicators.py`), lues avec un compte en lecture seule (MS-10) ; prévisions planifiées (IA-06) |
+| Consommateur de mesures | Lit `iot.raw` | Adaptateur d'entrée | Existe (MS-09) : `app/flux/adapters/kafka_io.py` |
 | Cas d'usage de traitement | Orchestre nettoyage, agrégation, recommandation | Application | Planifié |
 | Nettoyage et qualité | Types, bornes, doublons, rejets avec motif | Domaine | Planifié (DAT-04) |
-| Agrégation par fenêtres | Calcule débit, vitesse, ratio de vitesse | Domaine | Planifié (MS-09) |
+| Agrégation par fenêtres | Calcule débit, vitesse, ratio de vitesse | Domaine | Existe (MS-09) : `app/flux/windows.py`, `indicators.py` |
 | États de congestion | Hystérésis et épisodes ([ADR-028](../adr/ADR-028-etats-de-congestion-et-alertes.md)) | Domaine | Planifié |
-| Recommandation de feux | Règle de référence, puis score du modèle | Domaine | Planifié (MS-10) |
-| Dépôt de l'entrepôt | Écrit et lit le schéma `dwh` | Adaptateur de sortie | Planifié (DAT-05) |
-| Dépôt des statistiques | Écrit `processing_stats` et `rejects` | Adaptateur de sortie | Planifié |
-| Éditeur d'événements | Publie `traffic.indicators`, `traffic.recommendations`, `errors.dlq` | Adaptateur de sortie | Planifié (MS-09) |
+| Recommandation de feux | Règle de référence, puis score du modèle | Domaine | Règle de Webster existe (MS-10, `app/pipeline/webster.py`, `recommender.py`) ; score du modèle planifié (IA-06) |
+| Dépôt de l'entrepôt | Écrit et lit le schéma `dwh` | Adaptateur de sortie | Existe (MS-10) : écriture `app/pipeline/adapters/postgres.py` (compte `svc_traitement`), lecture `app/repositories/indicators.py` (compte `svc_lecture`) |
+| Dépôt des statistiques | Écrit `processing_stats` et `rejects` | Adaptateur de sortie | Existe (MS-09) : `app/flux/adapters/mongo_store.py` |
+| Éditeur d'événements | Publie `traffic.indicators`, `traffic.recommendations`, `errors.dlq` | Adaptateur de sortie | Existe (MS-09 : `traffic.indicators`, `errors.dlq` ; MS-10 : `traffic.recommendations`) |
 
 ## Points ouverts
 

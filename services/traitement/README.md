@@ -41,6 +41,26 @@ Protéger une nouvelle route : `Depends(require_role(Role.OPERATOR))` et `openap
 Trois niveaux : unitaires et contrat (sans base, c'est ce que la CI exécute), intégration PostgreSQL, intégration MongoDB. Les tests d'intégration sont ignorés sans base ; `dev.py test-integration` monte PostgreSQL et MongoDB dans un projet Compose jetable, lance toute la suite avec le rapport de couverture (branches comprises) puis supprime le projet. Barrière : `pytest` échoue sous 70 % de couverture (`[tool.coverage.report]` de `pyproject.toml`).
 Détail, rapport de couverture et limites : [tests et couverture](../../docs/04-devsecops/tests-et-couverture.md).
 
+## Traitement en flux (MS-09)
+
+Le même code et la même image portent un second processus : `python -m app.flux` (service Compose `traitement-flux`). Il lit `iot.raw`, nettoie, agrège par fenêtres de 1 et 5 minutes en temps d'événement, calcule l'état de congestion stabilisé, publie `traffic.indicators` et `errors.dlq`, et ouvre ou ferme les épisodes de `dwh.fact_congestion_episode`. Le cœur (`app/flux/`) ne dépend ni de Kafka ni des bases ; les adaptateurs sont dans `app/flux/adapters/`. Tout est décrit, avec les valeurs et les limites, dans [le document du flux](../../docs/03-donnees/flux.md).
+
+| Besoin | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Tests unitaires du flux (sans base) | `python3 -m pytest tests/unit/flux` | `py -3 -m pytest tests/unit/flux` |
+| Tests du flux contre Kafka, PostgreSQL et MongoDB réels | `python3 scripts/dev/dev.py test-integration --service flux` (ou `make test-integration-flux`) | `py -3 scripts/dev/dev.py test-integration --service flux` |
+| Journaux du flux | `docker compose logs -f traitement-flux` | `docker compose logs -f traitement-flux` |
+
+## Entrepôt, API de lecture et recommandations (MS-10)
+
+Un troisième processus de la même image écrit l'entrepôt : `python -m app.pipeline` (service Compose `traitement-pipeline`). Il lit `traffic.indicators`, enregistre l'exécution dans `dwh.dim_run`, écrit `dwh.fact_traffic_window` (idempotent) et publie `traffic.recommendations` (formule de Webster). **L'écriture et la lecture sont séparées** : les services d'écriture (`traitement-flux`, `traitement-pipeline`) utilisent le compte `svc_traitement` ; l'API de ce service lit avec `svc_lecture`, qui n'a que le droit de lire. Tout est décrit, avec la preuve que l'API sert exactement un recalcul SQL de référence, dans [le document de l'entrepôt](../../docs/03-donnees/entrepot.md).
+
+| Besoin | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Tests unitaires du pipeline (sans base) | `python3 -m pytest tests/unit/pipeline` | `py -3 -m pytest tests/unit/pipeline` |
+| API contre recalcul SQL (PostgreSQL jetable) | `python3 scripts/dev/dev.py test-integration -- tests/integration/test_pipeline_recalcul_postgres.py` | `py -3 scripts/dev/dev.py test-integration -- tests/integration/test_pipeline_recalcul_postgres.py` |
+| Journaux du pipeline | `docker compose logs -f traitement-pipeline` | `docker compose logs -f traitement-pipeline` |
+
 ## Journal d'audit et compteurs d'usage (BE-05)
 
 Chaque appel authentifié (et chaque tentative de connexion) laisse une entrée dans la collection MongoDB `audit_logs` : qui (identifiant du compte), quoi (méthode et modèle de route), quand, résultat, `correlation_id`. Chaque appel est compté par point d'accès et par heure dans `usage_stats`. Aucun secret, corps de requête, en-tête, adresse IP ni nom d'utilisateur n'est écrit. L'écriture est au mieux : MongoDB arrêté ne change aucune réponse. La variable `AUDIT_MONGO_URL` (compte `svc_backend`, déjà fournie par Compose) l'active ; sans elle, rien n'est écrit.
