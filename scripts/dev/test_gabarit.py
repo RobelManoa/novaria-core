@@ -9,6 +9,7 @@ vérifie ce qui rend cela possible :
 
 Lancement : python3 -m unittest discover -s scripts/dev -p "test_gabarit.py"   (Windows : py -3 ...)
 """
+import ast
 import re
 import shutil
 import tempfile
@@ -35,6 +36,10 @@ CODE_COMMUN = [
     "app/core/logs.py", "tests/unit/test_logs.py", "app/schemas/events.py",
     "tests/contract/conftest.py", "tests/contract/test_event_models.py", "tests/contract/test_openapi_contract.py",
 ]
+# Code copié entre les services qui en ont besoin, sans passer par le gabarit (alerte et réponse n'ont ni filet anti-secrets
+# ni intergiciel d'erreurs imprévues, et n'en reçoivent pas de code mort). Sonar ne le compte pas comme duplication,
+# à une condition : ce test vérifie que les copies restent identiques (docstrings exceptées, qui citent leur ticket).
+CODE_PARTAGE = ["app/core/redaction.py", "app/core/unhandled.py"]
 JOBS_OBLIGATOIRES = {"backend", "frontend", "gitleaks", "snyk", "docker", "sonarqube"}
 JOBS_D_APPUI = {"services", "service", "etl"}  # découverte des services, matrice (MS-05) et tests de data/etl, voir test_ci.py
 
@@ -76,6 +81,21 @@ class Gabarit(unittest.TestCase):
                 with self.subTest(service=service.name, fichier=fichier):
                     attendu = new_service.substitute((GABARIT / fichier).read_text(encoding="utf-8"), service.name)
                     self.assertEqual((service / fichier).read_text(encoding="utf-8"), attendu)
+
+    def test_le_code_partage_est_identique_dans_les_services_qui_le_copient(self):
+        def sans_docstring(chemin: Path) -> str:
+            arbre = ast.parse(chemin.read_text(encoding="utf-8"))
+            if ast.get_docstring(arbre, clean=False) is not None:
+                arbre.body.pop(0)
+            return ast.dump(arbre)
+
+        for fichier in CODE_PARTAGE:
+            copies = [s / fichier for s in services_reels() if s != GABARIT and (s / fichier).is_file()]
+            with self.subTest(fichier=fichier):
+                # Sonar ignore ces fichiers : au moins deux copies, sinon l'exclusion ne protège plus rien.
+                self.assertGreaterEqual(len(copies), 2)
+                for copie in copies[1:]:
+                    self.assertEqual(sans_docstring(copie), sans_docstring(copies[0]), copie.as_posix())
 
     def test_chaque_service_a_les_fichiers_que_la_ci_attend(self):
         for service in services_reels():
@@ -159,8 +179,9 @@ class ArborescenceDesFichiersDeConfiguration(unittest.TestCase):
         self.assertRegex(sonar, r"(?m)^sonar\.sources=.*\bservices\b")
         self.assertIn("sonar.python.coverage.reportPaths=services/*/coverage.xml", sonar)
         exclusions = re.search(r"(?m)^sonar\.cpd\.exclusions=(.*)$", sonar).group(1).split(",")
-        # exactement le gabarit et le code commun que ce test impose identique : rien de plus
-        self.assertEqual(sorted(exclusions), sorted(["services/_gabarit/**", *[f"services/*/{f}" for f in CODE_COMMUN]]))
+        # exactement le gabarit, le code commun et le code partagé que ces tests imposent identiques : rien de plus
+        attendu = ["services/_gabarit/**", *[f"services/*/{f}" for f in [*CODE_COMMUN, *CODE_PARTAGE]]]
+        self.assertEqual(sorted(exclusions), sorted(attendu))
         self.assertNotIn("backend", sonar)
 
     def test_dependabot_couvre_tous_les_services(self):
