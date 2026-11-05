@@ -141,6 +141,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lister les rapports générés
+         * @description **Proposition (FE-06, à relire par Daddy ; le robot IA-07 n'existe pas encore).** Rapports PDF
+         *     déposés par le robot d'automatisation (ADR-019), du plus récent au plus ancien (`generated_at`
+         *     décroissant, puis `report_id`). Lecture seule : le robot dépose le fichier et ses métadonnées, il
+         *     ne passe pas par cette API.
+         */
+        get: operations["listReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/{report_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Télécharger un rapport
+         * @description **Proposition (FE-06).** Le fichier PDF du rapport. Le jeton est un en-tête `Authorization` : le
+         *     navigateur ne peut pas suivre un simple lien, le client lit le corps puis l'enregistre.
+         *     `Content-Disposition` porte le nom de fichier de `Report.file_name`.
+         */
+        get: operations["downloadReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/road-segments": {
         parameters: {
             query?: never;
@@ -316,6 +361,31 @@ export interface components {
             seed?: number;
             source_type: components["schemas"]["SourceType"];
         } & (unknown & unknown);
+        /**
+         * @description Métadonnées d'un rapport PDF. **Proposition (FE-06).** `sha256` permet de contrôler le fichier
+         *     reçu ; la provenance des données du rapport n'y figure pas (question pour la relecture).
+         */
+        Report: {
+            /** @enum {string} */
+            content_type: "application/pdf";
+            /** @example rapport-2026-10-20.pdf */
+            file_name: string;
+            /** @description Instant où le robot a produit le rapport. */
+            generated_at: components["schemas"]["UtcDateTime"];
+            /** @description Fin de la période couverte (exclue). */
+            period_end: components["schemas"]["UtcDateTime"];
+            /** @description Début de la période couverte (incluse). */
+            period_start: components["schemas"]["UtcDateTime"];
+            /** Format: uuid */
+            report_id: string;
+            /** @description Empreinte SHA-256 du fichier, en hexadécimal minuscule. */
+            sha256: string;
+            size_bytes: number;
+            title: string;
+        };
+        ReportPage: components["schemas"]["PageInfo"] & {
+            items: components["schemas"]["Report"][];
+        };
         RoadSegment: {
             /**
              * @description Côté d'où arrive la circulation.
@@ -673,6 +743,64 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listReports: {
+        parameters: {
+            query?: {
+                /** @description Curseur opaque lu dans `next_cursor` de la page précédente. */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description Taille de page, de 1 à 500. */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            "5XX": components["responses"]["ServerError"];
+            /** @description Une page de rapports. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    downloadReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            "5XX": components["responses"]["ServerError"];
+            /** @description Le PDF ; sa taille est `Report.size_bytes`, son empreinte `Report.sha256`. */
+            200: {
+                headers: {
+                    /** @description `attachment; filename="<file_name>"`. */
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
         };
     };
     listRoadSegments: {

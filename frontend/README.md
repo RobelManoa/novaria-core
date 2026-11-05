@@ -18,7 +18,7 @@ Formater : `npx prettier --write src`.
 |---|---|
 | `app/` | Assemblage : `App.tsx`, `router.tsx` (tableau de routes exporté), `bootstrap.tsx` (montage), `AppShell/` (mise en page) |
 | `pages/` | Une page par route (`LoginPage`, `DashboardPage`, `AlertsPage`, `TrafficLightsPage`, `ForecastsPage`, `ReportsPage`, `NotFoundPage`) |
-| `features/` | Fonctionnalités : `navigation/` (entrées du menu), `theme/` (thème et sélecteur), `api-status/` (état de l'API), `auth/` (connexion, session, routes protégées), `dashboard/` (tableau de bord des indicateurs), `forecasts/` (page des prévisions) |
+| `features/` | Fonctionnalités : `navigation/` (entrées du menu), `theme/` (thème et sélecteur), `api-status/` (état de l'API), `auth/` (connexion, session, routes protégées), `dashboard/` (tableau de bord des indicateurs), `forecasts/` (page des prévisions), `reports/` (page des rapports) |
 | `components/` | Composants génériques sans logique métier (`PageHeader`, `SkipLink`, `IconButton`, `Container`, `VisuallyHidden`, `ComingSoon`, `StatCard`, `StateMessage`) |
 | `hooks/` | `useMediaQuery`, `useDisclosure`, `useEscapeKey`, `useFocusTrap`, `useScrollLock`, `useAsyncResource` (chargement asynchrone avec clé) |
 | `services/` | Tous les appels à l'API : un module par service (`apiMetier`, `traitement`, `alerte`, `reponse`), le client commun (`client.ts`), les erreurs (`errors.ts`) et le jeton de session (`session.ts`) |
@@ -241,6 +241,46 @@ Puis ouvrir http://localhost:5173/, menu **Prévisions**. Sur des fenêtres d'un
 | `compare.test.ts`, `load.test.ts`, `ForecastChart.test.tsx` | Écart prévu − observé (borne exclue, fenêtre sans vitesse, pas de « -0 »), requêtes envoyées (un appel par horizon, run et période de l'observé), échelle de temps et libellés de l'axe |
 | `scripts/dev/test_forecast_stub.py` | La maquette contre une fausse API : persistance, champs du contrat, transmission du jeton et des autres routes, aucun jeton dans les journaux |
 | Chrome, API réelle, maquette | 26 vérifications, 0 écart : tableau prévu/observé, 6 horizons, valeurs du graphique, carte du modèle, deux tronçons ; valeurs attendues recalculées en Python sur les réponses HTTP. Captures : `docs/Capture d'ecran/FE-05-*.png` |
+
+## Page des rapports (FE-06)
+
+Page `Rapports` (`features/reports/`) : la **liste des rapports générés** par le robot (titre, période couverte, date de génération, taille, empreinte SHA-256) et leur **téléchargement**. Critère de l'issue : **un rapport produit par le robot apparaît dans la liste** (`GET /api/v1/reports`, opération `listReports`).
+
+> **État du serveur (05/11/2026) : ni la route ni le robot n'existent.** `GET /api/v1/reports` et `GET /api/v1/reports/{report_id}/content` sont une **Proposition de contrat** ajoutée à `traitement.openapi.yaml` (à relire par Daddy) ; le robot (IA-07) n'est pas écrit (`automation/rpa/` ne contient qu'un README). La page est écrite contre ce contrat : **le critère n'est pas vérifié de bout en bout**. Sur la pile locale actuelle, la page affiche « le service des rapports n'est pas encore disponible sur ce serveur » (404).
+
+| Élément | Règle |
+|---|---|
+| Lecture | `listReports` par pages de 20, du plus récent au plus ancien (ordre de l'API, conservé). « Afficher la suite » lit la page suivante par `next_cursor` ; un rapport déjà affiché n'est pas doublé. « Actualiser » relit la première page |
+| Colonnes | `title` et `file_name`, `period_start` → `period_end` (UTC), `generated_at` (UTC), `size_bytes` (ko, Mo : puissances de 1000), début de `sha256` (12 caractères, l'empreinte entière dans l'infobulle) |
+| Téléchargement | Le jeton est un en-tête `Authorization` : un lien `<a href>` ne le porte pas. `downloadReport` (dans `src/services/`, seul endroit qui appelle le réseau) lit le PDF en `Blob` ; `save.ts` le propose à l'enregistrement sous `file_name`. Pendant la lecture, le bouton du rapport est désactivé |
+| Erreurs | Liste : 404 = route non servie, dite comme telle ; autres erreurs avec la référence de corrélation ; « Réessayer ». Téléchargement : l'échec nomme le rapport ; 404 = « rapport introuvable, peut-être supprimé » (le contrat ne prévoit pas d'autre sens) |
+| Non fait | Vérifier l'empreinte du fichier reçu (`crypto.subtle` n'existe que sur HTTPS ou localhost) ; filtrer par période ; afficher la provenance des données du rapport (absente du contrat proposé : question pour Daddy) ; Windows et macOS (captures prises avec Chrome sous Linux) |
+
+La passerelle route `/api/v1/reports` vers `traitement` (`gateway/nginx.conf`) : le service ne la sert pas encore. Mise en page : une carte par rapport sous 64 rem, un tableau à partir de 64 rem ; entre 64 et 80 rem environ, le tableau est plus large que la page et la colonne « Téléchargement » reste collée à droite.
+
+### Essayer la page avec la maquette
+
+`scripts/dev/report_stub.py` se place devant l'API : tout passe tel quel sauf `/api/v1/reports` et `/api/v1/reports/{id}/content`. Elle sert des rapports **fictifs** (PDF d'une page fabriqué à la volée, « maquette » dans le titre, le nom de fichier et le contenu ; taille et SHA-256 de la liste = ceux des octets servis), du plus récent au plus ancien, avec pagination par curseur. Elle contrôle le jeton en le présentant à l'API (`/auth/me`) et n'en garde aucun. **Ce n'est pas un service du produit** et ce n'est pas le robot : elle prouve la page, pas le serveur.
+
+| Étape | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| API (terminal 1) | `make api-run` | `py -3 scripts/dev/dev.py api-run` |
+| Maquette des rapports (terminal 2) | `make report-stub` (liste vide : `make report-stub N=0` ; trois pages : `N=45`) | `py -3 scripts/dev/dev.py report-stub` (`--count 0`, `--count 45`) |
+| Front-end vers la maquette (terminal 3) | `make front-dev-report-stub` | `py -3 scripts/dev/dev.py front-dev --report-stub` |
+
+Puis ouvrir http://localhost:5173/, menu **Rapports**. Pour essayer aussi les prévisions : `report-stub --behind-forecast-stub` (Linux : `python3 scripts/dev/dev.py report-stub --behind-forecast-stub` ; Windows : `py -3 scripts/dev/dev.py report-stub --behind-forecast-stub`) après `forecast-stub`, puis `front-dev --report-stub`.
+
+### Preuves
+
+| Preuve | Contenu |
+|---|---|
+| `tests/features/reports/Reports.test.tsx` | Rend la page sur des réponses construites d'après le contrat (types générés : un champ manquant ne compile pas) : le rapport rendu par l'API apparaît avec chacune de ses valeurs, ordre conservé, pages suivantes par curseur sans doublon, actualisation, états vide et erreur ; téléchargement : requête `GET .../content` avec le jeton, octets reçus remis à l'enregistrement sous `file_name`, bouton désactivé pendant la lecture, échec nommé |
+| `format.test.ts`, `save.test.ts` | Tailles (limites 999 o / 1,0 ko / 1,0 Mo), fusion des pages, adresse temporaire libérée même si le clic échoue |
+| `scripts/dev/test_openapi.py` | Le découpage des contrats : les 25 opérations de BE-01 présentes, plus `ingestMeasurement`, `listReports` et `downloadReport` |
+| `scripts/dev/test_report_stub.py` | La maquette contre une fausse API : champs identiques au schéma `Report` du contrat, taille et SHA-256 égaux à ceux des octets servis, PDF bien formé (table des références exacte), pagination sans trou ni doublon, 404 et 422, jeton présenté à l'API et absent des journaux |
+| Chrome, API factice (connexion seulement), maquette | 23 vérifications, 0 écart : chaque ligne du tableau comparée à la réponse de la maquette (titre, fichier, période, date, empreinte), ordre, **fichier téléchargé = nom, taille et SHA-256 annoncés**, 20 puis 40 puis 45 rapports par pages, pas de défilement horizontal à 360 px, bouton visible à 1024 px, message de rapport supprimé. Captures : `docs/Capture d'ecran/FE-06-*.png` (01 liste, 02 après téléchargement, 03 mobile 360 px, 04 largeur 1024 px, 05 thème sombre, 06 chargement, 07 échec de téléchargement, 08 pagination, 09 liste vide, 10 route non servie) |
+
+Limite des captures : la connexion vient d'une **API factice** (le service de traitement n'a pas été lancé) et les rapports de la **maquette**. Aucune ne montre un rapport produit par le robot : le critère de l'issue reste non vérifié. La capture 10 vient de l'API factice répondant 404, comme la passerelle pour une route inconnue ; ce n'est pas le serveur réel.
 
 ## Vérifier avant une pull request
 

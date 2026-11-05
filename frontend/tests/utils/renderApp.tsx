@@ -27,6 +27,8 @@ const DEFAULTS: Record<string, Handler> = {
   "GET /api/v1/indicators": () => json({ items: [], next_cursor: null }),
   // La page des prévisions : l'API ne rend aucune prévision, la page affiche son état vide.
   "GET /api/v1/forecasts": () => json({ items: [] }),
+  // La page des rapports : le robot n'a rien déposé, la page affiche son état vide.
+  "GET /api/v1/reports": () => json({ items: [], next_cursor: null }),
   "POST /api/v1/auth/login": () => json(TOKEN),
 };
 
