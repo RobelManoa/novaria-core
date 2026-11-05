@@ -52,9 +52,9 @@ flowchart TB
 | Contrôle des rôles | Refuse l'accès sans jeton (401) ou sans droit (403) | Jeton, rôle exigé par la route | Accès accordé ou refusé | Planifié (BE-03) |
 | Routes utilisateurs | Expose gestion des utilisateurs et des rôles ; le contrat est dans OpenAPI | Requêtes REST | Réponses JSON conformes au contrat | Planifié (BE-01, BE-03) |
 | Gestion des erreurs | Un seul format d'erreur, validation des entrées par Pydantic | Exceptions, données invalides | Réponse d'erreur documentée au contrat | Planifié (BE-06) |
-| Journal d'audit | Pour chaque appel authentifié : qui, quoi, quand ; compteur d'usage par point d'accès ; aucun secret ni donnée personnelle | Chaque requête | Documents dans MongoDB | Planifié (BE-05) |
+| Journal d'audit | Pour chaque appel authentifié : qui, quoi, quand ; compteur d'usage par point d'accès ; aucun secret ni donnée personnelle | Chaque requête | Documents dans MongoDB | Existe (BE-05) : [règles](../../02-specifications/journalisation-audit.md) |
 | Dépôt utilisateurs | Seul accès au schéma `app` | Objets métier | Lignes PostgreSQL, migrations Alembic | Planifié (BE-02) |
-| Dépôt d'audit | Seul accès aux collections d'audit | Événements d'audit | Documents MongoDB | Planifié (BE-05) |
+| Dépôt d'audit | Seul accès aux collections d'audit | Événements d'audit | Documents MongoDB | Existe (BE-05) |
 
 Hors de ce conteneur, mais proche : CORS, en-têtes de sécurité et limitation de débit (BE-08) sont rattachés à la **Passerelle d'API** par MS-13. Le point ouvert n° 2 du [README](README.md) dit qui valide le jeton.
 

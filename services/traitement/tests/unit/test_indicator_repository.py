@@ -195,7 +195,10 @@ def test_the_warehouse_session_is_opened_read_only(monkeypatch):
         get_settings.cache_clear()
     url, options = appels[0]
     assert url.startswith("postgresql+psycopg://svc_traitement:")
-    assert options["connect_args"] == {"options": "-c default_transaction_read_only=on"}
+    assert options["connect_args"] == {
+        "options": "-c default_transaction_read_only=on",
+        "connect_timeout": 5,
+    }
     assert options["pool_pre_ping"] is True
 
 
@@ -206,6 +209,7 @@ def test_the_repository_dependency_yields_a_sql_repository(monkeypatch):
     get_settings.cache_clear()
     session_module.get_warehouse_session_factory.cache_clear()
     monkeypatch.setattr(session_module, "READ_ONLY", {})
+    monkeypatch.setattr(session_module, "CONNECT", {})
     try:
         generateur = session_module.get_indicator_repository()
         assert isinstance(next(generateur), SqlIndicatorRepository)

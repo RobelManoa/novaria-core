@@ -1,42 +1,23 @@
-"""Simulateur de capteurs IoT : squelette de MS-06. La génération des mesures arrive avec MS-07.
+"""Simulateur de capteurs IoT du trafic routier (MS-07). Bibliothèque standard seulement.
 
-Il démarre, répond à la sonde de santé `GET /api/v1/health` (même contenu que les services) et ne produit encore
-aucune mesure. Bibliothèque standard seulement.
+    python3 simulator/app.py                 service HTTP du conteneur : sonde de santé, runs et anomalies à la demande
+    python3 simulator/app.py run ...         rejoue un scénario avec une graine (fichier, sortie standard, collecte)
+    python3 simulator/app.py scenarios       liste les scénarios
+
+Le code vit dans le paquet `novaria_sim/` ; ce fichier reste le point d'entrée du conteneur (`CMD python app.py`).
+Format émis, scénarios, anomalies et exemples : simulator/README.md.
 """
-import json
 import os
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import sys
+from pathlib import Path
 
-VERSION = "0.1.0"
-HEALTH_PATH = "/api/v1/health"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-
-def health() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "version": VERSION,
-        "revision": os.environ.get("GIT_SHA", "dev"),
-        "environment": os.environ.get("ENVIRONMENT", "local"),
-    }
-
-
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:  # noqa: N802 : nom imposé par http.server
-        ok = self.path == HEALTH_PATH
-        body = json.dumps(health() if ok else {"detail": "introuvable"}).encode("utf-8")
-        self.send_response(200 if ok else 404)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, format: str, *args: object) -> None:  # noqa: A002
-        print(json.dumps({"service": "simulateur", "message": format % args}), flush=True)
-
-
-def make_server(port: int = 8000, host: str = "0.0.0.0") -> ThreadingHTTPServer:  # noqa: S104
-    return ThreadingHTTPServer((host, port), Handler)
-
+from novaria_sim import __version__ as VERSION  # noqa: E402
+from novaria_sim.cli import main  # noqa: E402
+from novaria_sim.service import HEALTH_PATH, health, make_server  # noqa: E402,F401
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        sys.exit(main())
     make_server(int(os.environ.get("PORT", "8000"))).serve_forever()

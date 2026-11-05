@@ -406,7 +406,7 @@ Toutes portent `run_id` et `source_type` (provenance) ; `svc_lecture` les lit.
 |---|---|---|---|
 | DQ-01 | Message qui ne respecte pas le contrat (champ inconnu, type, borne, date sans fuseau) | Rejet vers `errors.dlq`, archive dans MongoDB `rejects`, motif = chemin et message de l'erreur | Compteur de rejets, collection `rejects` |
 | DQ-02 | Capteur ou tronçon absent du référentiel | Rejet, motif `UNKNOWN_SENSOR` | idem |
-| DQ-03 | Même `id` reçu deux fois | Ignoré sans erreur ; compté | `processing_stats` (`kind` = quality) |
+| DQ-03 | Même `id` reçu deux fois | Ignoré sans erreur ; compté | Journal de la collecte (`counter` = `duplicates`, MS-08) ; `processing_stats` (`kind` = quality) n'est pas alimenté par la collecte, dont le compte ne peut pas y écrire (ADR-024) : [collecte](collecte.md), section 9 |
 | DQ-04 | Message plus tardif que le retard autorisé (30 s, valeur de départ) | Rejet, motif `LATE` | idem |
 | DQ-05 | Valeur plausible en forme mais douteuse : vitesse > 1,5 × vitesse fluide, plus de 40 veh/min par voie, vitesse nulle avec véhicules passés | Mesure acceptée avec qualité `SUSPECT` (drapeau `IMPLAUSIBLE_VALUE`) et **exclue** des indicateurs | `processing_stats`, drapeaux |
 | DQ-06 | Champ facultatif absent (vitesse malgré des véhicules, occupation) | Qualité `PARTIAL` + drapeau ; retenue dans les indicateurs | idem |
@@ -548,17 +548,17 @@ Archive du sujet `errors.dlq`. Écrit par la collecte et le traitement.
 
 ### 10.3 `audit_logs`
 
-Journal d'audit : jamais de secret ni de donnée personnelle. Écrit par la réponse extérieure et l'API métier.
+Journal d'audit : jamais de secret ni de donnée personnelle. Écrit par la réponse extérieure et l'API métier. Ce que l'API métier écrit exactement, et ce qu'elle n'écrit jamais : [journalisation d'audit](../02-specifications/journalisation-audit.md) (BE-05).
 
 | Champ | Type | Obligatoire | Règle | Sens |
 |---|---|---|---|---|
 | `ts` | date | oui | | Moment de l'action |
 | `service` | texte | oui | | Service qui journalise |
-| `actor` | texte | oui | | Qui agit : utilisateur ou service |
-| `action` | texte | oui | | Ce qui est fait |
+| `actor` | texte | oui | | Qui agit : utilisateur ou service. API métier : identifiant (UUID) du compte, ou `anonymous` pour une connexion refusée ; jamais le nom d'utilisateur |
+| `action` | texte | oui | | Ce qui est fait. API métier : méthode et **modèle** de route (`GET /api/v1/users/{user_id}`) |
 | `outcome` | texte | oui | ok, denied, error | Résultat |
 | `correlation_id` | texte | non | | Trace de bout en bout |
-| `details` | objet | non | | Contexte libre |
+| `details` | objet | non | | Contexte libre. API métier : `status` (code HTTP), `duration_ms`, `role` du compte, `path_params` (seulement ceux qui sont des UUID) |
 
 | Index | Clés | Rôle |
 |---|---|---|
@@ -568,11 +568,11 @@ Journal d'audit : jamais de secret ni de donnée personnelle. Écrit par la rép
 
 ### 10.4 `usage_stats`
 
-Compteurs d'usage de l'API par point d'accès et par tranche de temps. Écrit par l'API métier.
+Compteurs d'usage de l'API par point d'accès et par tranche de temps. Écrit par l'API métier. La tranche est **une heure UTC** (BE-05) ; la sonde de santé n'est pas comptée, un chemin inconnu l'est sous la clé `GET UNMATCHED`.
 
 | Champ | Type | Obligatoire | Règle | Sens |
 |---|---|---|---|---|
-| `endpoint` | texte | oui | | Point d'accès (méthode et chemin) |
+| `endpoint` | texte | oui | | Point d'accès : méthode et **modèle** de route (`GET /api/v1/users/{user_id}`), jamais le chemin reçu |
 | `bucket_start` | date | oui | | Début de la tranche de temps |
 | `count` | nombre | oui | ≥ 0 | Appels comptés dans la tranche |
 
@@ -706,11 +706,13 @@ La table suit le schéma `User` du contrat : `user_id`, `username`, `role`, `is_
 | Lignes de Paris sans débit (`q` vide) | Refusées (`MISSING_REQUIRED`), conformément à la fiche du jeu (« rejet si absent ») : 41 % des lignes du 17/10/2026. Celles qui ont un taux d'occupation (stations de taux d'occupation seul) ne rejoignent donc pas l'entrepôt, qui exige un comptage | Les deux membres (DAT-05, IA-10) |
 | Bornes de départ du nettoyage | Débit de 0 à 15 000 véhicules par heure (maximum observé le 17/10/2026 : 6 648) ; taux de rejet d'alerte à 0,5 | Les deux membres, après quelques jours de mesure |
 | Doublon dans un fichier | Écrit comme rejet `DUPLICATE_KEY` (la première ligne est gardée), alors que l'ADR-013 dit « ignorée, comptée ». Les doublons entre deux fichiers ne sont pas détectés au nettoyage : c'est la clé du chargement (DAT-05) | Les deux membres |
-| Durée de la tranche de `usage_stats` | Non fixée | BE-05 |
+| Durée de la tranche de `usage_stats` | Fixée à 1 heure UTC par BE-05 ([raisons](../02-specifications/journalisation-audit.md)) | Les deux membres, à la relecture |
 | Drapeau `LATE` d'une mesure et rejet `LATE` (DQ-04) | Un message trop tardif est rejeté (DQ-04), mais le drapeau `LATE` existe dans la qualité d'une mesure acceptée. Proposition : le drapeau marque une mesure en retard **dans la tolérance** (entre le délai de désordre de 10 s et le retard autorisé de 30 s) ; au-delà, rejet | Les deux membres, puis MS-15 |
-| État d'une fenêtre de 5 minutes | Le schéma impose `congestion_state` aussi pour 300 s, alors que l'état se calcule sur 1 minute (section 7.1). Proposition : l'état stabilisé à la fin de la fenêtre de 5 minutes | Manoa (traitement), IA-01 |
-| Retour de `UNKNOWN` et épisodes | Le diagramme 7.1 revient de `UNKNOWN` à `FREE_FLOW`, ce qui **clôturerait** un épisode (7.2) alors que la route peut rester bloquée : alerte résolue puis recréée. Proposition : `UNKNOWN` ne clôt pas l'épisode ; au retour des données, l'état est reclassé d'après le ratio avec les seuils d'entrée | MS-09, MS-11 |
+| État d'une fenêtre de 5 minutes | Le schéma impose `congestion_state` aussi pour 300 s, alors que l'état se calcule sur 1 minute (section 7.1). Proposition : l'état stabilisé à la fin de la fenêtre de 5 minutes. **Appliquée par MS-09** ([flux](flux.md), section 6.1), à confirmer | Manoa (traitement), IA-01 |
+| Retour de `UNKNOWN` et épisodes | Le diagramme 7.1 revient de `UNKNOWN` à `FREE_FLOW`, ce qui **clôturerait** un épisode (7.2) alors que la route peut rester bloquée : alerte résolue puis recréée. Proposition : `UNKNOWN` ne clôt pas l'épisode ; au retour des données, l'état est reclassé d'après le ratio avec les seuils d'entrée. **Appliquée par MS-09** ([flux](flux.md), sections 6.1 et 6.2) : un ratio sous 0,60 prolonge l'épisode, sinon il est clos au début du trou, à confirmer | MS-09, MS-11 |
 | Identifiant d'un événement d'alerte | L'exemple utilise `alerte-<8 premiers caractères de alert_id>-<état>` : risque de collision, format non contrôlé. Proposition : `<alert_id>:<state>` (une alerte ne repasse jamais deux fois par le même état) | Les deux membres, puis MS-11 |
+| Route vide pendant une congestion confirmée | Le contrat exige un `speed_ratio` pour `SLOW` et `CONGESTED` (section 6), alors qu'une route vide est fluide (7.1) mais que l'état stabilisé reste dégradé trois fenêtres. Sans véhicule, pas de vitesse, donc pas de ratio. MS-09 ne publie pas ces fenêtres, les compte (`withheld_degraded_without_ratio`) et les trace ([flux](flux.md), section 6.3). Autre option : autoriser un ratio nul pour ces deux états (contrat 1.1) | Les deux membres |
+| Précision des valeurs d'un indicateur | Le flux arrondit **une fois, à la précision des colonnes de `fact_traffic_window`** (débit 2 décimales, vitesse 1, occupation 3, file 1, ratio 3), moitié vers le haut, sur des cumuls décimaux exacts ; les exemples du contrat restent valides. Avant MS-10 : vitesse 2, débit 3, occupation 4. Le ratio est calculé sur la vitesse non arrondie ([entrepôt](entrepot.md), section 3.1) | Les deux membres |
 | Validateur MongoDB de `raw_events` moins strict que le contrat | Il n'exige que `data.provenance.source_type` ; `run_id` (obligatoire dans le contrat) et `scenario_id`, `seed` (si SIMULATED) ne sont pas imposés. Le contrat est vérifié avant l'écriture | LOC-02 / MS-07, si la défense en profondeur le justifie |
 
 ## 13. Autres événements du bus (MS-03)

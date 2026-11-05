@@ -14,6 +14,7 @@ import platform
 import re
 import secrets
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -1007,6 +1008,151 @@ def cmd_front_dev(args: argparse.Namespace) -> int:
         return 0
 
 
+# --------------------------------------------------------------------------- tests d'intégration (BE-07)
+# Paquets que les tests de services/traitement importent et que l'interpréteur courant doit avoir.
+INTEGRATION_PACKAGES = ("pytest", "pytest_cov", "sqlalchemy", "alembic", "psycopg", "pymongo", "jwt", "argon2", "fastapi")
+INTEGRATION_ISOLATION = ("COMPOSE_PROJECT_NAME", "POSTGRES_PORT", "MONGO_PORT", "KAFKA_PORT")
+# Paquets que les tests de services/collecte importent (MS-08) : le client Kafka, MongoDB, le contrat.
+COLLECTE_PACKAGES = ("pytest", "pytest_cov", "kafka", "pymongo", "fastapi", "httpx", "jsonschema", "referencing", "yaml")
+COLLECTE_SERVICE_DIR = ROOT / "services" / "collecte"
+FLUX_PACKAGES = (*INTEGRATION_PACKAGES, "kafka", "jsonschema", "referencing")
+
+
+def free_port() -> int:
+    """Un port libre de 127.0.0.1 (le système l'attribue ; il peut être repris avant le démarrage du conteneur, très rare)."""
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+def mongo_admin_url(env: dict[str, str]) -> str:
+    """Adresse MongoDB de l'administrateur : efface les traces d'essai (les comptes de service ne peuvent pas supprimer)."""
+    database = env["MONGO_DB"]
+    admin_password = urllib.parse.quote(env["MONGO_ROOT_PASSWORD"], safe="")
+    return (f"mongodb://{env['MONGO_ROOT_USER']}:{admin_password}"
+            f"@127.0.0.1:{env.get('MONGO_PORT') or '27017'}/{database}?authSource=admin")
+
+
+def collecte_environment(env: dict[str, str]) -> dict[str, str]:
+    """Variables que lisent les tests d'intégration de services/collecte (tests/integration/stack.py).
+
+    - Kafka : l'adresse publiée sur le poste (KAFKA_PORT du projet jetable) ;
+    - MongoDB : le compte `svc_collecte` (droits de production : find et insert) et, pour effacer, l'administrateur.
+    """
+    for name in ("MONGO_ROOT_USER", "MONGO_ROOT_PASSWORD", "MONGO_DB"):
+        if not env.get(name):
+            raise DevError(f"Variable absente de .env : {name} (init-env --force puis db-reset).")
+    return {
+        "NOVARIA_TEST_KAFKA_BOOTSTRAP": f"127.0.0.1:{env.get('KAFKA_PORT') or '9094'}",
+        "NOVARIA_TEST_MONGO_URL": mongo_url(env, "svc_collecte", "MONGO_PASSWORD_COLLECTE"),
+        "NOVARIA_TEST_MONGO_ADMIN_URL": mongo_admin_url(env),
+    }
+
+
+def flux_environment(env: dict[str, str]) -> dict[str, str]:
+    """Variables que lisent les tests d'intégration du flux (services/traitement/tests/integration/stack_flux.py).
+
+    - Kafka : l'adresse publiée sur le poste (KAFKA_PORT du projet jetable) ;
+    - PostgreSQL : le compte `svc_traitement` (droits de production sur `dwh`), le compte `svc_lecture` (lecture seule,
+      celui de l'API) et l'administrateur, qui relit et nettoie ;
+    - MongoDB : le compte `svc_traitement` (rejects : find et insert ; processing_stats : find, insert, update) et l'administrateur.
+    """
+    for name in ("POSTGRES_USER", "POSTGRES_PASSWORD", "MONGO_ROOT_USER", "MONGO_ROOT_PASSWORD", "MONGO_DB"):
+        if not env.get(name):
+            raise DevError(f"Variable absente de .env : {name} (init-env --force puis db-reset).")
+    sqlalchemy = ("postgresql://", "postgresql+psycopg://")
+    return {
+        "NOVARIA_TEST_FLUX_KAFKA": f"127.0.0.1:{env.get('KAFKA_PORT') or '9094'}",
+        "NOVARIA_TEST_FLUX_POSTGRES_URL": postgres_url(env, "svc_traitement", "PG_PASSWORD_TRAITEMENT").replace(*sqlalchemy, 1),
+        "NOVARIA_TEST_FLUX_POSTGRES_READ_URL": postgres_url(env, "svc_lecture", "PG_PASSWORD_LECTURE").replace(*sqlalchemy, 1),
+        "NOVARIA_TEST_FLUX_POSTGRES_ADMIN_URL": postgres_url(env, env["POSTGRES_USER"], "POSTGRES_PASSWORD").replace(*sqlalchemy, 1),
+        "NOVARIA_TEST_FLUX_MONGO_URL": mongo_url(env, "svc_traitement", "MONGO_PASSWORD_TRAITEMENT"),
+        "NOVARIA_TEST_FLUX_MONGO_ADMIN_URL": mongo_admin_url(env),
+    }
+
+
+def integration_environment(env: dict[str, str]) -> dict[str, str]:
+    """Variables que lisent les tests d'intégration (tests/integration/postgres.py et mongo.py).
+
+    - PostgreSQL : le compte administrateur, qui crée puis supprime une base jetable par test ;
+    - MongoDB : le compte `svc_backend` (droits de production de l'audit) et, pour effacer les traces d'essai, l'administrateur.
+    """
+    for name in ("POSTGRES_USER", "MONGO_ROOT_USER", "MONGO_ROOT_PASSWORD", "MONGO_DB"):
+        if not env.get(name):
+            raise DevError(f"Variable absente de .env : {name} (init-env --force puis db-reset).")
+    postgres = postgres_url(env, env["POSTGRES_USER"], "POSTGRES_PASSWORD")
+    return {
+        "NOVARIA_TEST_POSTGRES_ADMIN_URL": postgres.replace("postgresql://", "postgresql+psycopg://", 1),
+        "NOVARIA_TEST_MONGO_URL": mongo_url(env, "svc_backend", "MONGO_PASSWORD_BACKEND"),
+        "NOVARIA_TEST_MONGO_ADMIN_URL": mongo_admin_url(env),
+    }
+
+
+def cmd_test_integration(args: argparse.Namespace) -> int:
+    """Toute la suite d'un service, tests d'intégration compris, contre ses bases et son bus en conteneur.
+
+    `--service traitement` (défaut, BE-07) : PostgreSQL et MongoDB. `--service collecte` (MS-08) : Kafka (sujets
+    créés) et MongoDB. `--service flux` (MS-09) : PostgreSQL (migrations appliquées), MongoDB et Kafka (sujets
+    créés), avec les comptes de service réels. Les conteneurs vivent dans un projet Compose jetable (nom et ports
+    propres) : les données du poste ne sont pas touchées. Le projet est supprimé à la fin, volumes compris, sauf avec
+    --keep. Le rapport de couverture est celui de pytest (terminal et coverage.xml du service) ; les options après
+    `--` vont à pytest.
+    """
+    require_env()
+    service = getattr(args, "service", "traitement")
+    collecte, flux = service == "collecte", service == "flux"
+    packages = COLLECTE_PACKAGES if collecte else FLUX_PACKAGES if flux else INTEGRATION_PACKAGES
+    requirements = "services/collecte/requirements-dev.txt" if collecte else "services/traitement/requirements-dev.txt"
+    for package in packages:
+        if importlib.util.find_spec(package) is None:
+            raise DevError(f"{package} est absent. L'installer :  {Path(sys.executable).name} -m pip install -r {requirements}")
+    project = f"novaria-it-{secrets.token_hex(3)}"
+    saved = {name: os.environ.get(name) for name in INTEGRATION_ISOLATION}
+    ports = {"MONGO_PORT": str(free_port())}
+    if collecte:
+        ports["KAFKA_PORT"] = str(free_port())
+    elif flux:
+        ports.update({"POSTGRES_PORT": str(free_port()), "KAFKA_PORT": str(free_port())})
+    else:
+        ports["POSTGRES_PORT"] = str(free_port())
+    os.environ.update({"COMPOSE_PROJECT_NAME": project, **ports})
+    shown = ", ".join(f"{name.removesuffix('_PORT').title()} :{port}" for name, port in ports.items())
+    label = "Kafka et MongoDB" if collecte else "PostgreSQL, MongoDB et Kafka" if flux else "Bases"
+    print(f"{label} jetables : projet Compose {project} ({shown})")
+    try:
+        containers = ("kafka", "mongo") if collecte else ("postgres", "mongo", "kafka") if flux else ("postgres", "mongo")
+        code = run_compose_step("up", "-d", "--wait", *containers)
+        if code != 0:
+            return code
+        if flux:
+            code = run_compose_step("run", "--rm", "db-migrate")
+            if code != 0:
+                return code
+        if collecte or flux:
+            rows, failures = kafka_topic_rows()
+            print("\n".join(rows))
+            if failures:
+                return 1
+        build = collecte_environment if collecte else flux_environment if flux else integration_environment
+        # Les ports du projet jetable priment, même si .env n'a pas la ligne (KAFKA_PORT est facultatif) :
+        # sinon les tests viseraient le port habituel du poste, où rien n'écoute.
+        environment = {**os.environ, **build({**etl_environment(), **ports}), "PYTHONUTF8": "1"}
+        pytest_args = [item for item in args.pytest_args if item != "--"]
+        return subprocess.run([sys.executable, "-m", "pytest", *pytest_args],
+                              cwd=COLLECTE_SERVICE_DIR if collecte else APP_SERVICE_DIR, env=environment, check=False).returncode
+    finally:
+        if args.keep:
+            print(f"Conteneurs conservés (projet {project}). Les supprimer :  docker compose -p {project} down -v")
+        else:
+            compose("down", "-v", "--remove-orphans", check=False)
+            print(f"Projet {project} supprimé (conteneurs, réseau et volumes).")
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
 # --------------------------------------------------------------------------- ligne de commande
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="dev.py", description=__doc__.splitlines()[0])
@@ -1032,6 +1178,13 @@ def build_parser() -> argparse.ArgumentParser:
     user = add("user-create", cmd_user_create, "crée un compte de l'API (premier administrateur) ; mot de passe saisi sans écho")
     user.add_argument("username", help="3 à 64 caractères parmi a-z, 0-9, _ . -")
     user.add_argument("--role", required=True, choices=["viewer", "operator", "admin"], help="droit d'accès")
+    it = add("test-integration", cmd_test_integration,
+             "tests d'un service contre ses bases et son bus en conteneur (projet jetable) + rapport de couverture")
+    it.add_argument("--service", choices=["traitement", "collecte", "flux"], default="traitement",
+                    help="traitement : PostgreSQL et MongoDB (BE-07) ; collecte : Kafka et MongoDB (MS-08) ; "
+                         "flux : PostgreSQL migré, MongoDB et Kafka (MS-09)")
+    it.add_argument("--keep", action="store_true", help="laisse les conteneurs du projet jetable en marche à la fin")
+    it.add_argument("pytest_args", nargs=argparse.REMAINDER, help="options de pytest, après -- (par exemple -- -k audit)")
     add("dev-deps", cmd_dev_deps, "installe les paquets Python de l'API de traitement et de l'ETL dans l'interpréteur courant")
     add("api-run", cmd_api_run, "lance l'API de traitement sur http://127.0.0.1:8000 (tableau de bord en local)")
     front = add("front-dev", cmd_front_dev, "lance le front-end (Vite) sur http://localhost:5173")

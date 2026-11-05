@@ -1,41 +1,50 @@
-import logging
+from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
 
-from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-from sqlalchemy.exc import OperationalError
-
+from app.api.responses import use_problem_media_type
 from app.api.v1 import auth, health, indicators, users
-from app.core.config import get_settings
-from app.core.errors import (
-    PROBLEM_MEDIA_TYPE,
-    UPSTREAM_UNAVAILABLE,
-    ProblemError,
-    problem_handler,
-    validation_handler,
-)
+from app.core.audit import AuditMiddleware
+from app.core.config import Settings, get_settings
+from app.core.cors import cors_options
+from app.core.errors import register_handlers
+from app.core.headers import SecurityHeadersMiddleware
 from app.core.logs import CorrelationMiddleware, configure_logging
+from app.core.redaction import install_redaction
+from app.core.unhandled import UnhandledErrorMiddleware
+from app.core.versioning import API_PREFIX
+
+
+def create_app(settings: Settings) -> FastAPI:
+    """L'application, avec la configuration donnée (les tests en construisent plusieurs)."""
+    # `redirect_slashes=False` : `/api/v1/users/` n'est pas `/api/v1/users`. Une redirection 307 que
+    # le contrat ne documente pas laisserait deux adresses pour une route ; la seconde répond 404.
+    application = FastAPI(
+        title=settings.app_name, version=settings.app_version, redirect_slashes=False
+    )
+    # Le dernier ajouté est le plus extérieur. De l'extérieur vers l'intérieur : les en-têtes de
+    # sécurité, CORS, la corrélation (pose l'identifiant), l'audit (le lit et voit le code que le
+    # client reçoit, 500 compris), les erreurs imprévues (transformées en 500 `Problem`, voir
+    # `app/core/unhandled.py`).
+    # Sécurité applicative (BE-08) à l'extérieur de tout le reste : une réponse d'erreur, un 429 ou
+    # un 500 portent donc aussi les en-têtes de sécurité et, pour une origine autorisée, ceux de
+    # CORS. Sans origine configurée, CORS n'est pas monté : aucune origine n'est autorisée.
+    application.add_middleware(UnhandledErrorMiddleware)
+    application.add_middleware(AuditMiddleware)
+    application.add_middleware(CorrelationMiddleware)
+    if settings.cors_origins:
+        application.add_middleware(CORSMiddleware, **cors_options(settings.cors_origins))
+    application.add_middleware(SecurityHeadersMiddleware)
+    register_handlers(application)
+    use_problem_media_type(application)
+
+    application.include_router(health.router, prefix=API_PREFIX)
+    application.include_router(auth.router, prefix=API_PREFIX)
+    application.include_router(users.router, prefix=API_PREFIX)
+    application.include_router(indicators.router, prefix=API_PREFIX)
+    return application
+
 
 settings = get_settings()
 configure_logging(settings.service_name, settings.log_level)
-
-app = FastAPI(title=settings.app_name, version=settings.app_version)
-app.add_middleware(CorrelationMiddleware)
-app.add_exception_handler(ProblemError, problem_handler)
-app.add_exception_handler(RequestValidationError, validation_handler)
-
-
-@app.exception_handler(OperationalError)
-async def database_unreachable(_: Request, error: OperationalError) -> JSONResponse:
-    """Base injoignable : 503 sans détail (l'adresse, donc le mot de passe, reste cachée)."""
-    logging.getLogger("app.db").error(
-        "base injoignable", extra={"fields": {"error": type(error.orig).__name__}}
-    )
-    problem = ProblemError(UPSTREAM_UNAVAILABLE, "La base des comptes est injoignable.")
-    return JSONResponse(problem.body(), status_code=503, media_type=PROBLEM_MEDIA_TYPE)
-
-
-app.include_router(health.router, prefix="/api/v1")
-app.include_router(auth.router, prefix="/api/v1")
-app.include_router(users.router, prefix="/api/v1")
-app.include_router(indicators.router, prefix="/api/v1")
+install_redaction()  # dernier filet : aucun secret dans une ligne de journal (BE-08)
+app = create_app(settings)

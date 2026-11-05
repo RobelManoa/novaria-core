@@ -6,7 +6,7 @@ DEV = $(PY) scripts/dev/dev.py
 PY_API ?= $(if $(wildcard venv/bin/python),venv/bin/python,$(PY))
 DEV_API = $(PY_API) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-contracts test-etl lint format new-service quality-up quality-down hooks
+.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-collecte-debit test-contracts test-etl lint format new-service quality-up quality-down hooks
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -88,10 +88,25 @@ test:          ## Tests des services + frontend + scripts du poste
 	cd frontend && npm test
 	$(PY) -m unittest discover -s scripts/dev
 	$(PY) -m unittest discover -s data/etl/tests
+	$(PY) -m unittest discover -s simulator/tests
+test-integration: ## Tests de services/traitement contre PostgreSQL et MongoDB en conteneur (projet jetable) + rapport de couverture
+	$(DEV) test-integration
+test-integration-collecte: ## Tests de services/collecte contre Kafka et MongoDB en conteneur (projet jetable) + rapport de couverture
+	$(DEV) test-integration --service collecte
+test-integration-flux: ## Tests du flux (services/traitement) contre PostgreSQL migré, MongoDB et Kafka en conteneur (projet jetable)
+	$(DEV) test-integration --service flux -- tests/integration/test_flux_stack.py
+test-collecte-debit: ## Débit maximal de la collecte démarrée (make test-collecte-debit COLLECTE_URL=http://127.0.0.1:8001)
+	$(PY) scripts/dev/bench_collecte.py --url $(or $(COLLECTE_URL),http://127.0.0.1:8001)
 test-contracts: ## Valide les exemples et les cas invalides des contrats d'événements
 	$(PY) -m unittest discover -s contracts/tests
 test-etl:      ## Tests des pipelines d'ingestion (sans réseau ni base)
 	$(PY) -m unittest discover -s data/etl/tests
+test-simulator: ## Tests du simulateur de capteurs (déterminisme, contrat MS-03, anomalies ; jsonschema pour la conformité)
+	$(PY) -m unittest discover -s simulator/tests
+sim-scenarios: ## Liste les scénarios du simulateur de capteurs
+	$(PY) simulator/app.py scenarios
+sim-run:       ## Écrit un run complet pour IA-08 (make sim-run SCENARIO=heure-de-pointe SEED=42 ; dans var/runs/<run>)
+	$(PY) simulator/app.py run --scenario $(or $(SCENARIO),heure-de-pointe) --seed $(or $(SEED),42) --out var/runs/run-$(or $(SCENARIO),heure-de-pointe)-$(or $(SEED),42)
 lint:          ## Ruff sur chaque service, ESLint et Prettier sur le frontend
 	@for d in services/*/; do (cd $$d && ruff check . && ruff format --check .) || exit 1; done
 	cd frontend && npm run lint && npm run format:check

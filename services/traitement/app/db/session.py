@@ -13,6 +13,10 @@ from app.repositories.users import SqlUserRepository
 
 # L'entrepôt est servi en lecture seule : PostgreSQL refuse toute écriture sur cette connexion.
 READ_ONLY = {"options": "-c default_transaction_read_only=on"}
+# Sans délai, une base éteinte fait attendre le client jusqu'au délai du système (plus de 20 s) au
+# lieu de lui répondre 503 `UPSTREAM_UNAVAILABLE` (BE-06). Secondes, paramètre de libpq.
+CONNECT_TIMEOUT_S = 5
+CONNECT = {"connect_timeout": CONNECT_TIMEOUT_S}
 
 
 class DatabaseNotConfigured(RuntimeError):
@@ -24,7 +28,7 @@ def get_session_factory() -> sessionmaker[Session]:
     url = get_settings().app_database_url
     if url is None:
         raise DatabaseNotConfigured("Variable APP_DATABASE_URL absente.")
-    engine = create_engine(url.get_secret_value(), pool_pre_ping=True)
+    engine = create_engine(url.get_secret_value(), pool_pre_ping=True, connect_args=CONNECT)
     return sessionmaker(engine, expire_on_commit=False)
 
 
@@ -33,7 +37,9 @@ def get_warehouse_session_factory() -> sessionmaker[Session]:
     url = get_settings().postgres_url
     if url is None:
         raise DatabaseNotConfigured("Variable POSTGRES_URL absente.")
-    engine = create_engine(url.get_secret_value(), pool_pre_ping=True, connect_args=READ_ONLY)
+    engine = create_engine(
+        url.get_secret_value(), pool_pre_ping=True, connect_args=CONNECT | READ_ONLY
+    )
     return sessionmaker(engine, expire_on_commit=False)
 
 

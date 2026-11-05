@@ -2,7 +2,7 @@
 
 Projet : Novaria Core, socle d'UrbanHub (bloc de compétences BC05)
 Responsables : Daddy Luciano et Manoa Robel (relecture croisée)
-Dernière mise à jour : 20/10/2026
+Dernière mise à jour : 04/11/2026 (BE-08 : voir la section 8)
 Issue de suivi : GES-16
 
 Ce document liste chaque jeton, mot de passe et clé du projet : à quoi il sert, où il est stocké, qui en répond, quand il expire et quand il est renouvelé. **Il ne contient aucune valeur**, jamais : seuls les noms figurent ici. Le dépôt est public.
@@ -47,7 +47,7 @@ Ces secrets sont créés par `dev.py init-env` (valeurs aléatoires, fichier en 
 | L9 | `MONGO_PASSWORD_REPONSE` | Rôle du service de réponse extérieure | Chaque membre |
 | L10 | `MONGO_PASSWORD_BACKEND` | Rôle du back-end | Chaque membre |
 | L11 | `MONGO_PASSWORD_ML` | Rôle du service de machine learning | Chaque membre |
-| L12 | `JWT_SECRET` | Signature des jetons d'authentification du back-end (prévu pour l'issue BE-03) | Chaque membre |
+| L12 | `JWT_SECRET` | Signature des jetons d'authentification du back-end (BE-03) ; 32 caractères au minimum, la valeur d'exemple est refusée hors de l'environnement local (BE-08) | Chaque membre |
 
 | Élément commun à L1 à L12 | Valeur |
 |---|---|
@@ -60,7 +60,7 @@ Ces secrets sont créés par `dev.py init-env` (valeurs aléatoires, fichier en 
 | Élément | Raison |
 |---|---|
 | Rôle OIDC GitHub vers AWS (variable `AWS_ROLE_ARN`) | Aucun compte AWS : exécution locale d'abord (C-05, ADR-023) |
-| Paramètres SSM `/novaria/dev/postgres-url`, `/mongo-url`, `/jwt-secret` | Référencés par `infra/ecs/taskdef-backend.json`, non créés |
+| Paramètres SSM `/novaria/dev/postgres-url`, `/mongo-url`, `/jwt-secret` | Référencés par `infra/ecs/taskdef-backend.json`, non créés ; correspondance complète et écarts : [sécurité applicative](securite-applicative.md), section 6 |
 
 ## 2. Contrôle d'exposition du 20/10/2026
 
@@ -129,3 +129,16 @@ Le test `scripts/dev/test_secrets.py` vérifie que chaque secret de la CI (`secr
 | Linux (bash) | Windows (PowerShell) |
 |---|---|
 | `python3 -m unittest discover -s scripts/dev` | `py -3 -m unittest discover -s scripts/dev` |
+
+## 8. Secrets de l'application (BE-08)
+
+| Question | Réponse | Preuve |
+|---|---|---|
+| Où l'application lit-elle ses secrets ? | Dans les variables d'environnement (`Settings`, `SecretStr`) ; en local elles viennent de `.env`, créé par `dev.py init-env` | `services/traitement/app/core/config.py` |
+| Peut-on lancer avec la valeur d'exemple ? | En local seulement ; ailleurs le démarrage est refusé | `tests/unit/test_settings.py` |
+| Un secret refusé s'affiche-t-il ? | Non : ni dans le message d'erreur de démarrage, ni quand la configuration est imprimée | `tests/unit/test_settings.py` |
+| Un secret peut-il finir dans un journal ? | Le code n'en écrit pas (testé sur tous les parcours) et un filet masque ce qui échapperait | `tests/unit/test_secrets_in_logs.py` |
+| Un fichier de configuration contient-il une valeur écrite ? | Non : `docker-compose.yml`, Dockerfile, workflows et tâches ECS n'ont que des références | `scripts/dev/test_secrets_environnement.py` |
+| Et en AWS ? | Secrets Manager ou SSM Parameter Store, injectés par ECS : documenté, rien de créé | [Sécurité applicative](securite-applicative.md), section 6 |
+
+Les réglages de sécurité de BE-08 (`CORS_ALLOWED_ORIGINS`, `LOGIN_ATTEMPTS_PER_MINUTE`, `LOGIN_MAX_FAILURES`, `LOGIN_LOCKOUT_S`, `TRUSTED_PROXY_HOPS`) **ne sont pas des secrets** : ils figurent dans `.env.example` avec leur vraie valeur par défaut et n'ont pas de ligne dans l'inventaire.

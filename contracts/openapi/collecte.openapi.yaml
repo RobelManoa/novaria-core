@@ -5,7 +5,7 @@ info:
   version: 1.0.0-draft.1
   summary: Dépôt des mesures de capteurs (réseau interne).
   description: |
-    Valide chaque mesure contre `contracts/events/iot-measurement.schema.json`, la dédoublonne et la publie sur `iot.raw` ; une mesure refusée part sur `errors.dlq`. **Proposition** (MS-08) : le point d'entrée n'est pas exposé par la passerelle, l'authentification de service reste à décider (CLD-18).
+    Valide chaque mesure contre `contracts/events/iot-measurement.schema.json`, la dédoublonne et la publie sur `iot.raw` ; une mesure refusée part sur `errors.dlq`. **Implémenté** par MS-08 (HTTP ; l'entrée « MQTT simulé » passe par la même logique). **Proposition** : le point d'entrée n'est pas exposé par la passerelle, l'authentification de service reste à décider (CLD-18).
 
     **Statut : brouillon (MS-03).** Contrat issu du contrat unique de BE-01, découpé par service. Les conventions communes (dates, unités, erreurs, pagination, authentification, rôles, versionnement) sont dans `contracts/openapi/README.md` ; les composants partagés sont dans `common.yaml`.
   contact:
@@ -56,8 +56,13 @@ paths:
         | Cas | Réponse | Suite |
         |---|---|---|
         | Mesure conforme et nouvelle | `202`, `status` `ACCEPTED` | Publiée sur `iot.raw`, stockée dans `raw_events` |
-        | Même `id` déjà reçu | `202`, `status` `DUPLICATE` | Ignorée sans erreur, comptée dans `processing_stats` |
-        | Mesure hors contrat | `422`, code `VALIDATION_ERROR` | **Jamais** publiée sur `iot.raw` ; envoyée sur `errors.dlq` (règle DQ-01) |
+        | Même `id` déjà reçu | `202`, `status` `DUPLICATE` | Ignorée sans erreur : ni publiée, ni stockée une seconde fois ; comptée dans les journaux (`counter` = `duplicates`) |
+        | Mesure hors contrat | `422`, code `VALIDATION_ERROR` | **Jamais** publiée sur `iot.raw` ; envoyée sur `errors.dlq` avec son motif (règle DQ-01), copie dans `rejects` |
+        | Bus ou base injoignable | `503`, code `UPSTREAM_UNAVAILABLE` | Rien n'a été perdu : l'émetteur renvoie la mesure |
+
+        Le corps est lu tel quel : un JSON illisible, un message de plus de 64 Kio ou un autre type
+        d'événement est refusé en `422` et conservé tel que reçu sur `errors.dlq`. Le retard (DQ-04) et le
+        référentiel des capteurs (DQ-02) sont jugés en aval, pas ici : voir `docs/03-donnees/collecte.md`.
 
         Proposition : le point d'entrée n'est pas exposé par la passerelle (`x-internal`) et n'a pas
         d'authentification de service en v1 (CLD-18).

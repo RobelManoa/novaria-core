@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import require_role
+from app.api.responses import errors
 from app.core.errors import CONFLICT, NOT_FOUND, VALIDATION_ERROR, ProblemError
 from app.db.session import get_user_repository
 from app.models import Role, User
@@ -20,7 +21,12 @@ def get_user_service(users: UserRepository = Depends(get_user_repository)) -> Us
     return UserService(users)
 
 
-@router.get("", response_model=UserPage, openapi_extra=ADMIN)
+@router.get(
+    "",
+    response_model=UserPage,
+    openapi_extra=ADMIN,
+    responses=errors(401, 403, 422, "5XX"),
+)
 def list_users(
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
     cursor: str | None = Query(None, max_length=512),
@@ -45,6 +51,7 @@ def list_users(
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
     openapi_extra=ADMIN,
+    responses=errors(401, 403, 409, 422, "5XX"),
 )
 def create_user(
     body: UserCreate,
@@ -60,7 +67,12 @@ def create_user(
     return user
 
 
-@router.get("/{user_id}", response_model=UserResponse, openapi_extra=ADMIN)
+@router.get(
+    "/{user_id}",
+    response_model=UserResponse,
+    openapi_extra=ADMIN,
+    responses=errors(401, 403, 404, 422, "5XX"),
+)
 def get_user(
     user_id: uuid.UUID,
     _: User = Depends(require_role(Role.ADMIN)),

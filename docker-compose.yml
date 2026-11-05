@@ -163,13 +163,82 @@ services:
     environment:
       <<: *environnement-service
       SERVICE_NAME: traitement
-      POSTGRES_URL: postgresql+psycopg://svc_traitement:${PG_PASSWORD_TRAITEMENT}@postgres:5432/${POSTGRES_DB}
+      # L'API de consultation LIT l'entrepôt avec le compte en lecture seule (MS-10) ; l'écriture est celle des
+      # services traitement-flux (épisodes) et traitement-pipeline (faits), avec le compte svc_traitement.
+      POSTGRES_URL: postgresql+psycopg://svc_lecture:${PG_PASSWORD_LECTURE}@postgres:5432/${POSTGRES_DB}
       # Rôle « API métier » (BE-03) : comptes dans le schéma app (svc_app) et secret de signature des jetons.
       APP_DATABASE_URL: postgresql+psycopg://svc_app:${PG_PASSWORD_APP}@postgres:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET:-}
+      # Sécurité applicative (BE-08) : CORS fermé par défaut, limitation de la connexion, relais de confiance.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      LOGIN_ATTEMPTS_PER_MINUTE: ${LOGIN_ATTEMPTS_PER_MINUTE:-10}
+      LOGIN_MAX_FAILURES: ${LOGIN_MAX_FAILURES:-5}
+      LOGIN_LOCKOUT_S: ${LOGIN_LOCKOUT_S:-900}
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+      # Journal d'audit et compteurs d'usage de l'API (BE-05) : compte « backend » de MongoDB (audit_logs, usage_stats).
+      AUDIT_MONGO_URL: mongodb://svc_backend:${MONGO_PASSWORD_BACKEND}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
       MONGO_URL: mongodb://svc_traitement:${MONGO_PASSWORD_TRAITEMENT}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
       MONGO_DB: ${MONGO_DB}
     ports: ["127.0.0.1:${TRAITEMENT_PORT:-8002}:8000"]
+    depends_on:
+      db-migrate: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      mongo: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+
+  # --- Traitement en flux (MS-09) : même image que l'API, autre commande. Lit iot.raw, publie traffic.indicators et
+  # errors.dlq, ouvre et ferme les épisodes de congestion. Une seule instance (les fenêtres sont en mémoire).
+  # Une panne d'une dépendance l'arrête sans valider d'offset ; il redémarre et relit depuis le dernier offset sûr.
+  traitement-flux:
+    build:
+      context: ./services/traitement
+      args: { GIT_SHA: "${GIT_SHA:-local}" }
+    command: ["python", "-m", "app.flux"]
+    environment:
+      <<: *environnement-service
+      SERVICE_NAME: traitement-flux
+      HEARTBEAT_FILE: /srv/run/flux-alive  # dossier du conteneur réservé à l'utilisateur du service (pas /tmp)
+      POSTGRES_URL: postgresql+psycopg://svc_traitement:${PG_PASSWORD_TRAITEMENT}@postgres:5432/${POSTGRES_DB}
+      MONGO_URL: mongodb://svc_traitement:${MONGO_PASSWORD_TRAITEMENT}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
+      MONGO_DB: ${MONGO_DB}
+      FLUX_REPLAY: ${FLUX_REPLAY:-false}
+    healthcheck:
+      # Pas de port : le service écrit un fichier de vie à chaque tour de boucle ; vivant = écrit il y a moins d'une minute.
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/srv/run/flux-alive')<60 else 1)"]
+      interval: 15s
+      timeout: 3s
+      retries: 4
+      start_period: 30s
+    restart: on-failure
+    depends_on:
+      db-migrate: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      mongo: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+
+  # --- Pipeline d'écriture (MS-10) : lit traffic.indicators, écrit l'entrepôt (dwh.fact_traffic_window et
+  # dwh.dim_run) et publie traffic.recommendations. Même image que l'API ; seul service avec traitement-flux à écrire.
+  # Une seule instance. Une panne d'une dépendance l'arrête sans valider d'offset ; il relit au redémarrage.
+  traitement-pipeline:
+    build:
+      context: ./services/traitement
+      args: { GIT_SHA: "${GIT_SHA:-local}" }
+    command: ["python", "-m", "app.pipeline"]
+    environment:
+      <<: *environnement-service
+      SERVICE_NAME: traitement-pipeline
+      HEARTBEAT_FILE: /srv/run/pipeline-alive
+      POSTGRES_URL: postgresql+psycopg://svc_traitement:${PG_PASSWORD_TRAITEMENT}@postgres:5432/${POSTGRES_DB}
+      MONGO_URL: mongodb://svc_traitement:${MONGO_PASSWORD_TRAITEMENT}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
+      MONGO_DB: ${MONGO_DB}
+    healthcheck:
+      # Pas de port : le service écrit un fichier de vie à chaque tour de boucle ; vivant = écrit il y a moins d'une minute.
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/srv/run/pipeline-alive')<60 else 1)"]
+      interval: 15s
+      timeout: 3s
+      retries: 4
+      start_period: 30s
+    restart: on-failure
     depends_on:
       db-migrate: { condition: service_completed_successfully }
       postgres: { condition: service_healthy }

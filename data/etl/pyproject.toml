@@ -13,3 +13,11 @@ novaria-etl-rejouer = "pipelines.rejouer:principal"
 
 [tool.setuptools]
 packages = ["pipelines", "transforms"]
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+# Barrière de couverture (BE-07) : sous ce seuil, `coverage xml` échoue (donc le job « etl » de la CI aussi).
+# Le Quality Gate de SonarQube s'applique en plus, sur le code nouveau.
+fail_under = 70

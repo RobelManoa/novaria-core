@@ -1,4 +1,4 @@
-# --- Image du simulateur (squelette MS-06) : non-root, sonde de santé ---
+# --- Image du simulateur de capteurs (MS-07) : bibliothèque standard, non-root, sonde de santé ---
 FROM python:3.15-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*
@@ -6,6 +6,7 @@ WORKDIR /srv
 ARG GIT_SHA=dev
 ENV GIT_SHA=${GIT_SHA}
 COPY app.py .
+COPY novaria_sim/ novaria_sim/
 RUN useradd --system --uid 10001 appuser
 USER appuser
 EXPOSE 8000

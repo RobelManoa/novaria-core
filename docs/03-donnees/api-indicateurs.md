@@ -14,7 +14,7 @@
 | `GET /api/v1/indicators/latest` | La dernière fenêtre d'une minute de **chaque tronçon**, pour le tableau de bord | `listLatestIndicators` |
 
 Un indicateur = un tronçon, une fenêtre de 1 ou 5 minutes, une exécution (`run`). Lecture seule, sur la vue `dwh.v_indicator` (migration `0007`), jamais sur les tables d'écriture ([ADR-014](../01-architecture/adr/ADR-014-architecture-decisionnelle.md), section 4.3).
-La connexion à l'entrepôt est ouverte **en lecture seule** (`default_transaction_read_only=on`) : PostgreSQL refuse toute écriture sur elle, même par erreur de code (un test le vérifie).
+La connexion à l'entrepôt est ouverte **en lecture seule** (`default_transaction_read_only=on`) : PostgreSQL refuse toute écriture sur elle, même par erreur de code (un test le vérifie). Depuis MS-10, le service se connecte en plus avec le **compte `svc_lecture`**, qui n'a que le droit de lire : l'écriture est faite par d'autres processus, avec un autre compte ([entrepôt](entrepot.md), section 2).
 
 ## 2. Filtres de période et de zone
 
@@ -50,7 +50,7 @@ Le contrat exige, pour un indicateur simulé, `provenance.scenario_id` et `prove
 le reste est dans **`dwh.dim_run`** (une ligne par exécution), avec les mêmes règles que le contrat, imposées par la base. Choix du 30/10/2026, voir le journal d'usage de l'IA.
 
 - **Une exécution non enregistrée dans `dim_run` n'apparaît pas dans l'API**, ni une exécution dont le `source_type` diffère de celui de ses faits. C'est voulu (pas d'indicateur sans provenance complète) mais **silencieux** : si une donnée chargée manque à l'écran, c'est le premier endroit à regarder.
-- **Qui enregistre les exécutions ?** Celui qui produit les faits : le simulateur (MS-07) et le chargeur ETL. **Aucun des deux ne le fait encore** : le chargeur de DAT-06 écrit des faits sans enregistrer leur exécution. Point ouvert, à reprendre avec eux.
+- **Qui enregistre les exécutions ?** Celui qui produit les faits. Depuis MS-10, le **pipeline d'écriture** enregistre l'exécution de chaque indicateur qu'il charge ([entrepôt](entrepot.md), section 3) : une exécution écrite par le flux apparaît dans l'API sans geste manuel. Le simulateur (MS-07) et le chargeur par lots (DAT-06) n'écrivent pas dans `dim_run`.
 - Enregistrer à la main une exécution (administrateur ou `svc_traitement`) :
 
 ```sql
@@ -71,7 +71,7 @@ Format `application/problem+json` avec `correlation_id`.
 | Indicateur inconnu ou identifiant mal formé | 404 | `NOT_FOUND` |
 | Entrepôt non configuré ou injoignable | 503 | `UPSTREAM_UNAVAILABLE` (sans adresse ni mot de passe) |
 
-Le format 422 Problem vaut désormais pour **toutes** les routes du service (BE-06 reste à faire pour 404, 405 et 500 hors de ces routes).
+Le format Problem vaut pour **toutes** les erreurs du service : 422, mais aussi route inconnue (404), méthode non permise (405) et erreur imprévue (500) depuis BE-06 ([erreurs et versions](../02-specifications/erreurs-et-versions-api.md)).
 
 ## 7. Preuves
 

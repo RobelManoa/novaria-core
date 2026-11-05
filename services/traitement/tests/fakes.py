@@ -12,6 +12,7 @@ from app.core.security import create_access_token, hash_password
 from app.models import Role, User
 from app.repositories.indicators import IndicatorFilters, IndicatorRow, Position
 from app.repositories.users import DuplicateUsername
+from app.services.audit import RecordingObserver
 from app.services.indicators import make_indicator_id
 
 PASSWORD = "mot-de-passe-de-test-12"
@@ -156,3 +157,43 @@ class FakeIndicatorRepository:
             if row.run_id == run_id and intersection_id in (None, row.intersection_id):
                 par_troncon[row.road_segment_id] = row  # le dernier écrit est le plus récent
         return [par_troncon[k] for k in sorted(par_troncon, key=str.encode)]
+
+
+class FakeAuditRepository:
+    def __init__(self) -> None:
+        self.entries: list[dict] = []
+
+    def insert(self, entry: dict) -> None:
+        self.entries.append(entry)
+
+
+class FakeUsageRepository:
+    """Compteurs en mémoire : une valeur par (point d'accès, tranche), comme l'index unique."""
+
+    def __init__(self) -> None:
+        self.counts: dict[tuple[str, datetime], int] = {}
+
+    def increment(self, endpoint: str, bucket: datetime) -> None:
+        self.counts[(endpoint, bucket)] = self.counts.get((endpoint, bucket), 0) + 1
+
+    def total(self, endpoint: str) -> int:
+        return sum(n for (e, _), n in self.counts.items() if e == endpoint)
+
+
+class Journal:
+    """Le journal d'audit et les compteurs d'une exécution de test, avec l'observateur réel."""
+
+    def __init__(self) -> None:
+        self.audit = FakeAuditRepository()
+        self.usage = FakeUsageRepository()
+        self.failures: list[tuple[str, dict]] = []
+        self.observer = RecordingObserver(
+            self.audit,
+            self.usage,
+            service="traitement",
+            log=lambda message, fields: self.failures.append((message, fields)),
+        )
+
+    @property
+    def entries(self) -> list[dict]:
+        return self.audit.entries
