@@ -38,8 +38,16 @@ TACHES_UNIQUES = {"db-migrate", "kafka-init"}
 # Services qui portent le rôle « API métier » (schéma app, jetons) en plus du leur, tant que le point ouvert n° 1
 # des diagrammes C4 n'est pas tranché.
 PORTE_L_API_METIER = {"traitement"}
-COMPTES = {"collecte": (None, "svc_collecte"), "traitement": ("svc_traitement", "svc_traitement"),
-           "alerte": ("svc_alerte", None), "reponse": (None, "svc_reponse")}
+# Processus d'écriture (MS-09, MS-10) lancés avec l'image du service traitement, avec son compte d'écriture. Ils ne
+# sont pas des services du dépôt : pas de dossier à eux, pas de port.
+TRAVAILLEURS = {"traitement-flux", "traitement-pipeline"}
+# Séparation écriture et lecture (MS-10) : l'API de consultation lit l'entrepôt avec le compte en lecture seule
+# `svc_lecture` ; seul ce service le reçoit. Les processus d'écriture gardent `svc_traitement`.
+LIT_L_ENTREPOT = {"traitement"}
+COMPTES = {"collecte": (None, "svc_collecte"), "traitement": ("svc_lecture", "svc_traitement"),
+           "alerte": ("svc_alerte", None), "reponse": (None, "svc_reponse"),
+           "traitement-flux": ("svc_traitement", "svc_traitement"),
+           "traitement-pipeline": ("svc_traitement", "svc_traitement")}
 VARIABLES_DE_PORT = {"GATEWAY_PORT": 8000, "FRONTEND_PORT": 8080, "COLLECTE_PORT": 8001, "TRAITEMENT_PORT": 8002,
                      "ALERTE_PORT": 8003, "REPONSE_PORT": 8004, "SIMULATOR_PORT": 8005}
 
@@ -76,13 +84,14 @@ class ServicesDeLaPile(unittest.TestCase):
         cls.services = cls.doc["services"]
 
     def test_tout_est_dans_compose(self):
-        attendus = {"postgres", "mongo", "kafka"} | TACHES_UNIQUES | APPLICATIFS
+        attendus = {"postgres", "mongo", "kafka"} | TACHES_UNIQUES | APPLICATIFS | TRAVAILLEURS
         sans_profil = {nom for nom, s in self.services.items() if "profiles" not in s}
         self.assertEqual(sans_profil, attendus)
 
     def test_chaque_service_du_depot_a_son_conteneur_et_inversement(self):
         construits = {nom: s["build"]["context"] for nom, s in self.services.items()
-                      if isinstance(s.get("build"), dict) and s["build"]["context"].startswith("./services/")}
+                      if isinstance(s.get("build"), dict) and s["build"]["context"].startswith("./services/")
+                      and nom not in TRAVAILLEURS}
         self.assertEqual(sorted(Path(c).name for c in construits.values()), SERVICES_DU_DEPOT)
         for nom, contexte in construits.items():
             self.assertEqual(Path(contexte).name, nom, "le conteneur porte le nom de son dossier")
@@ -121,11 +130,27 @@ class ServicesDeLaPile(unittest.TestCase):
                 if compte_mongo:
                     self.assertIn(f"//{compte_mongo}:", mongo)
                 texte = json.dumps(environnement)
-                interdits = ["POSTGRES_PASSWORD", "MONGO_ROOT", "svc_lecture"]
+                interdits = ["POSTGRES_PASSWORD", "MONGO_ROOT"]
+                if nom not in LIT_L_ENTREPOT:
+                    interdits.append("svc_lecture")
                 if nom not in PORTE_L_API_METIER:
                     interdits += ["svc_app", "JWT_SECRET", "APP_DATABASE_URL", "svc_backend", "AUDIT_MONGO_URL"]
                 for interdit in interdits:
                     self.assertNotIn(interdit, texte, "un service n'a ni le compte administrateur ni celui d'un autre")
+
+    def test_l_api_lit_avec_le_compte_de_lecture_et_les_processus_d_ecriture_ecrivent_avec_le_leur(self):
+        # MS-10 : l'écriture (pipeline, flux) et la lecture (API) ne partagent ni compte ni processus.
+        api = self.services["traitement"]["environment"]["POSTGRES_URL"]
+        self.assertIn("//svc_lecture:${PG_PASSWORD_LECTURE}@", api)
+        self.assertNotIn("svc_traitement", api, "l'API ne reçoit pas le compte qui écrit")
+        for nom in TRAVAILLEURS:
+            service = self.services[nom]
+            with self.subTest(service=nom):
+                self.assertIn("//svc_traitement:${PG_PASSWORD_TRAITEMENT}@", service["environment"]["POSTGRES_URL"])
+                self.assertEqual(service["build"]["context"], "./services/traitement", "même image que l'API")
+                self.assertEqual(service["command"][:2], ["python", "-m"], "un processus, pas le serveur de l'API")
+                self.assertNotIn("ports", service, "un processus d'écriture n'écoute sur aucun port")
+                self.assertIn("healthcheck", service)
 
     def test_le_service_qui_porte_l_api_metier_a_en_plus_le_compte_du_schema_app_et_le_secret_des_jetons(self):
         # Exception assumée (BE-03, point ouvert n° 1 des diagrammes C4) : seul ce service, et pas les autres.
@@ -186,6 +211,8 @@ class OrdreDeDemarrage(unittest.TestCase):
             "kafka-init": {"kafka"},
             "collecte": {"mongo", "kafka-init"},
             "traitement": {"postgres", "mongo", "db-migrate", "kafka-init"},
+            "traitement-flux": {"postgres", "mongo", "db-migrate", "kafka-init"},
+            "traitement-pipeline": {"postgres", "mongo", "db-migrate", "kafka-init"},
             "alerte": {"postgres", "db-migrate", "kafka-init"},
             "reponse": {"mongo", "kafka-init"},
             "simulateur": {"collecte"},
