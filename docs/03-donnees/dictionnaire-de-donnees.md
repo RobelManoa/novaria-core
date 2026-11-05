@@ -102,6 +102,9 @@ erDiagram
         text state "CREATED NOTIFIED ACKNOWLEDGED RESOLVED"
         timestamptz opened_at
         timestamptz resolved_at
+        text scenario_id "provenance, migration 0008"
+        integer seed "provenance, migration 0008"
+        text dataset_id "provenance, migration 0008"
     }
     alert_history {
         bigint history_id PK
@@ -317,7 +320,10 @@ stateDiagram-v2
 | Résolution | AUTO quand l'épisode se clôt, MANUAL sur action d'un opérateur ; `resolved_at` et `resolution` sont renseignés **si et seulement si** l'état est RESOLVED |
 | Cause | `UNKNOWN` par défaut. Une baisse de vitesse ne prouve pas un accident : `CONFIRMED_INCIDENT`, `ROADWORKS`, `SPECIAL_EVENT` ne s'attribuent que sur un événement confirmé. |
 | Gravité | INFO, WARNING, CRITICAL |
-| Autres règles | `anomalie.circulation` (3 fenêtres anormales), `capteur.muet` (silence de 60 s) |
+| Autres règles | `anomalie.circulation` (3 fenêtres fluides mais saturées), `capteur.muet` (silence de 60 s) |
+| Fenêtres lues | Celles d'**une minute** ; les fenêtres de 5 minutes ne font que reprendre l'état du tronçon et sont ignorées (sinon une congestion compterait deux fois) |
+| Instants | `opened_at` et `resolved_at` d'une résolution automatique sont en **temps d'événement** (celui de l'indicateur), comparables à `fact_congestion_episode` (KPI-03) ; `notified_at`, `acknowledged_at` et une résolution manuelle sont l'heure du service. `resolved_at` n'est jamais antérieur à `opened_at` |
+| Épisode | `episode_id` reste `null` : l'indicateur ne porte pas l'identifiant de l'épisode, et le service d'alerte ne lit pas `dwh` (ADR-008). KPI-03 ne calcule donc pas encore le délai de détection (point ouvert, [alertes](alertes.md), section 9) |
 
 | Colonne `alertes.alert` | Sens |
 |---|---|
@@ -326,6 +332,7 @@ stateDiagram-v2
 | `road_segment_id`, `intersection_id` | Tronçon et carrefour concernés (texte, pas de clé étrangère inter-services) |
 | `episode_id` | Épisode d'origine, s'il existe |
 | `run_id`, `source_type` | Provenance |
+| `scenario_id`, `seed`, `dataset_id` | Reste de la provenance (migration `0008`, MS-11) : recopiés de l'indicateur qui a ouvert l'alerte. `scenario_id` et `seed` pour une donnée SIMULATED, `dataset_id` pour REAL_HISTORICAL (ADR-027). La base ne lie pas ces colonnes à `source_type` (des lignes d'essai du contrôle des KPI n'ont pas de scénario) : le service le garantit en validant chaque événement avant de l'écrire |
 | `severity` | INFO, WARNING ou CRITICAL |
 | `cause` | UNKNOWN (défaut), CONFIRMED_INCIDENT, ROADWORKS, SPECIAL_EVENT ou SENSOR_FAULT |
 | `state` | CREATED (défaut), NOTIFIED, ACKNOWLEDGED ou RESOLVED |
@@ -345,7 +352,19 @@ Ce que la base **garantit** : valeurs des énumérations, couple (`state` RESOLV
 | `min_gap_s` | entier | ≥ 0, défaut 300 | Délai minimal entre deux notifications d'un même tronçon (secondes) |
 | `updated_at` | date et heure | défaut maintenant, UTC | Dernière modification |
 
-Les trois règles ci-dessus sont chargées par la migration `0003`.
+Les trois règles ci-dessus sont chargées par la migration `0003`. Les paramètres manquants prennent la valeur de départ ci-dessous ; l'API refuse tout paramètre inconnu ou hors de ses bornes.
+
+| Règle | Paramètre | Valeur de départ | Bornes | Sens |
+|---|---|---|---|---|
+| `congestion.persistante` | `state` | `CONGESTED` | `SLOW` ou `CONGESTED` | État stabilisé à partir duquel l'alerte s'ouvre |
+| | `min_windows` | 1 | entier de 1 à 60 | Fenêtres consécutives (l'hystérésis de `traitement` a déjà confirmé 2 fenêtres) |
+| | `severity` | `WARNING` | `INFO`, `WARNING`, `CRITICAL` | Gravité de l'alerte |
+| `anomalie.circulation` | `min_windows` | 3 | entier de 1 à 60 | Fenêtres consécutives fluides mais saturées |
+| | `occupancy_min` | 0,8 | de 0 (exclu) à 1 | Taux d'occupation à partir duquel une fenêtre est saturée |
+| | `queue_min_m` | 150 | de 0 (exclu) à 10 000 | File maximale (m) à partir de laquelle une fenêtre est saturée |
+| | `severity` | `INFO` | idem | |
+| `capteur.muet` | `silence_s` | 60 | entier de 60 à 3 600 | Secondes sans aucune mesure (une fenêtre vide d'une minute suffit à 60) |
+| | `severity` | `WARNING` | idem | |
 
 | Colonne `alertes.alert_history` | Type | Règle | Sens |
 |---|---|---|---|
@@ -411,7 +430,7 @@ Toutes portent `run_id` et `source_type` (provenance) ; `svc_lecture` les lit.
 | DQ-05 | Valeur plausible en forme mais douteuse : vitesse > 1,5 × vitesse fluide, plus de 40 veh/min par voie, vitesse nulle avec véhicules passés | Mesure acceptée avec qualité `SUSPECT` (drapeau `IMPLAUSIBLE_VALUE`) et **exclue** des indicateurs | `processing_stats`, drapeaux |
 | DQ-06 | Champ facultatif absent (vitesse malgré des véhicules, occupation) | Qualité `PARTIAL` + drapeau ; retenue dans les indicateurs | idem |
 | DQ-07 | Complétude de fenêtre < 0,5 | État `UNKNOWN` | `dwh.fact_traffic_window` |
-| DQ-08 | Capteur muet plus de 60 s | Alerte `SENSOR_FAULT` (règle `capteur.muet`) | `alertes.alert` |
+| DQ-08 | Capteur muet plus de 60 s | Alerte `SENSOR_FAULT` (règle `capteur.muet`) : `traitement` publie une fenêtre vide (`sample_count` 0) et l'alerte s'ouvre quand le silence atteint `silence_s`. Elle voit un **tronçon** muet, pas un capteur parmi plusieurs : si un seul de deux capteurs se tait, la fenêtre a encore des mesures ([alertes](alertes.md), section 9) | `alertes.alert` |
 | DQ-09 | Ligne d'un chargement ETL (Extract, Transform, Load) qui viole une contrainte | Refus, ligne dans `dwh.etl_reject` avec règle et motif ; taux de rejet publié | `dwh.etl_reject` |
 | DQ-10 | Horodatage dans le futur (plus de 5 s après l'horloge du consommateur, hors rejeu) | Rejet, motif `FUTURE_TIMESTAMP` | `rejects` |
 

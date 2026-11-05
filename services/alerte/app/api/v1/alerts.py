@@ -16,12 +16,8 @@ from fastapi import APIRouter, Body, Depends, Query
 from app.api.deps import get_service, get_store, require_role
 from app.api.mapping import alert_out, decode_cursor, encode_cursor, history_out
 from app.core.auth import Claims, Role
-from app.core.errors import (
-    INVALID_STATE_TRANSITION,
-    NOT_FOUND,
-    VALIDATION_ERROR,
-    ProblemError,
-)
+from app.core.errors import NOT_FOUND, VALIDATION_ERROR, ProblemError
+from app.core.problems import INVALID_STATE_TRANSITION
 from app.domain.model import Kind, Severity, State, parse_utc
 from app.schemas.api import AlertDetailOut, AlertOut, AlertPageOut, Problem, ResolveBody
 from app.services.alerts import AlertService

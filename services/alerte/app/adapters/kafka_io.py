@@ -34,6 +34,16 @@ BOOTSTRAP_TIMEOUT_MS = 5000
 REQUEST_TIMEOUT_MS = 5000
 CONSUMER_REQUEST_TIMEOUT_MS = 30000  # doit dépasser le délai de session du groupe
 PARTITIONS_WAIT_S = 30  # attente des métadonnées du sujet avant d'abandonner la tentative
+UNASSIGNED_LIMIT_S = 60  # sans partition affectée plus longtemps, le travailleur s'arrête
+
+
+class NoPartitionsAssigned(RuntimeError):
+    """Le groupe n'a affecté aucune partition à ce lecteur : il ne lirait jamais rien.
+
+    Arrive quand le chef de groupe répartit les partitions avant d'avoir les métadonnées du sujet
+    (`kafka-python` journalise « No partition metadata for topic »). Plutôt que de rester vivant et
+    muet, le travailleur s'arrête : Docker le relance (`restart: on-failure`), il rejoint le groupe.
+    """
 
 
 def servers(value: str) -> list[str]:
@@ -125,23 +135,43 @@ class KafkaSource:
         group_id: str,
         *,
         max_records: int = 500,
+        auto_offset_reset: str = "earliest",
+        unassigned_limit_s: float = UNASSIGNED_LIMIT_S,
         consumer_factory: Callable[..., KafkaConsumer] = KafkaConsumer,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self._topic = topic
         self._max_records = max_records
+        self._unassigned_limit_s = unassigned_limit_s
+        self._monotonic = monotonic
+        self._unassigned_since: float | None = None
         self._consumer = consumer_factory(
             topic,
             bootstrap_servers=servers(bootstrap_servers),
             group_id=group_id,
             enable_auto_commit=False,
-            auto_offset_reset="earliest",
+            auto_offset_reset=auto_offset_reset,
             bootstrap_timeout_ms=BOOTSTRAP_TIMEOUT_MS,
             request_timeout_ms=CONSUMER_REQUEST_TIMEOUT_MS,
             client_id="novaria-alerte",
         )
+        # Les métadonnées du sujet avant la première jointure : un chef de groupe qui ne les a pas
+        # n'affecte aucune partition.
+        self._consumer.partitions_for_topic(topic)
+
+    def _check_assignment(self) -> None:
+        if self._consumer.assignment():
+            self._unassigned_since = None
+            return
+        now = self._monotonic()
+        if self._unassigned_since is None:
+            self._unassigned_since = now
+        elif now - self._unassigned_since >= self._unassigned_limit_s:
+            raise NoPartitionsAssigned(self._topic)
 
     def poll(self, timeout_ms: int = 1000) -> list[Record]:
         batches = self._consumer.poll(timeout_ms=timeout_ms, max_records=self._max_records)
+        self._check_assignment()
         records = [
             Record(r.key, r.value if r.value is not None else b"", r.partition, r.offset)
             for partition_records in batches.values()

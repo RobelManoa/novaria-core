@@ -451,6 +451,8 @@ class Consumer:
         self.committed = None
         self.closed = False
         self.assigned = []
+        self.group_assignment = {TopicPartition("t", 0)}  # ce que le groupe a affecté
+        self.asked_metadata = []
         self.sought_end = []
         self.positions = []
         self.partitions = {0, 1, 2}
@@ -465,7 +467,11 @@ class Consumer:
         self.closed = True
 
     def partitions_for_topic(self, topic):
+        self.asked_metadata.append(topic)
         return self.partitions
+
+    def assignment(self):
+        return self.group_assignment
 
     def assign(self, partitions):
         self.assigned = list(partitions)
@@ -667,3 +673,72 @@ def test_seed_rules_are_the_three_of_the_migration():
     assert [(r.rule_id, r.min_gap_s) for r in SEED_RULES] == [
         ("congestion.persistante", 300), ("anomalie.circulation", 600), ("capteur.muet", 900),
     ]  # fmt: skip
+
+
+def test_the_starting_position_of_a_new_group_can_be_chosen():
+    consumers = []
+
+    def factory(*topics, **config):
+        consumers.append(Consumer(*topics, **config))
+        return consumers[-1]
+
+    KafkaSource("kafka:9092", "t", "g", auto_offset_reset="latest", consumer_factory=factory)
+    assert consumers[0].config["auto_offset_reset"] == "latest"
+
+
+def test_the_source_loads_the_topic_metadata_before_the_first_join():
+    consumers = []
+
+    def factory(*topics, **config):
+        consumers.append(Consumer(*topics, **config))
+        return consumers[-1]
+
+    KafkaSource("kafka:9092", "traffic.indicators", "alerte", consumer_factory=factory)
+    assert consumers[0].asked_metadata == ["traffic.indicators"]
+
+
+def test_a_reader_that_the_group_gave_no_partition_stops_instead_of_staying_silent():
+    """« No partition metadata for topic » : le chef de groupe n'affecte rien. Rester vivant sans
+    rien lire serait pire qu'un arrêt : Docker relance le travailleur, qui rejoint le groupe."""
+    consumers = []
+    clock = [100.0]
+
+    def factory(*topics, **config):
+        consumers.append(Consumer(*topics, **config))
+        return consumers[-1]
+
+    source = KafkaSource(
+        "kafka:9092", "t", "g", unassigned_limit_s=30, consumer_factory=factory,
+        monotonic=lambda: clock[0],
+    )  # fmt: skip
+    consumers[0].group_assignment = set()
+    source.poll(10)  # première constatation
+    clock[0] += 29
+    source.poll(10)  # pas encore la limite
+    clock[0] += 1
+    with pytest.raises(kafka_io.NoPartitionsAssigned):
+        source.poll(10)
+
+
+def test_an_assignment_that_arrives_in_time_resets_the_wait():
+    consumers = []
+    clock = [0.0]
+
+    def factory(*topics, **config):
+        consumers.append(Consumer(*topics, **config))
+        return consumers[-1]
+
+    source = KafkaSource(
+        "kafka:9092", "t", "g", unassigned_limit_s=30, consumer_factory=factory,
+        monotonic=lambda: clock[0],
+    )  # fmt: skip
+    consumers[0].group_assignment = set()
+    source.poll(10)
+    clock[0] += 25
+    consumers[0].group_assignment = {TopicPartition("t", 1)}
+    source.poll(10)  # affecté : le compteur repart de zéro
+    consumers[0].group_assignment = set()
+    clock[0] += 25
+    source.poll(10)
+    clock[0] += 25
+    source.poll(10)  # 25 s depuis la dernière perte : sous la limite

@@ -19,7 +19,8 @@ from app.adapters.kafka_io import EventsReader
 from app.adapters.postgres_store import PostgresAlertStore
 from app.core.auth import Claims, InvalidToken, Role, decode_token, has_at_least
 from app.core.config import TOPIC_ALERTS, Settings, get_settings
-from app.core.errors import FORBIDDEN, UNAUTHENTICATED, UPSTREAM_UNAVAILABLE, ProblemError
+from app.core.errors import UPSTREAM_UNAVAILABLE, ProblemError
+from app.core.problems import FORBIDDEN, UNAUTHENTICATED
 from app.services.alerts import AlertService
 from app.services.ports import AlertStore, StoreFailed
 from app.sse import EventHub

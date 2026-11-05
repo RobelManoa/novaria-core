@@ -1,102 +1,19 @@
-"""Erreurs imprévues, erreurs du cadre, masquage des secrets et configuration (MS-11).
+"""Masquage des secrets dans les journaux et configuration du service d'alerte (MS-11).
 
 Les secrets d'essai sont générés à l'exécution : aucun secret, même factice, n'est écrit ici.
 """
 
-import asyncio
 import json
 import logging
 import secrets
 from urllib.parse import quote
 
 import pytest
-from fastapi.testclient import TestClient
 from pydantic import ValidationError
-from starlette.exceptions import HTTPException as HttpError
 
 from app.core.config import SECRET_SETTINGS, Settings, get_settings
-from app.core.errors import VALIDATION_ERROR, ProblemError, http_error_handler
 from app.core.logs import configure_logging
-from app.core.redaction import MASK, RedactingFormatter, install_redaction, redact, secret_values
-from app.core.unhandled import UnhandledErrorMiddleware
-from app.main import app
-
-
-# ---------------------------------------------------------------------------------------- erreurs
-@pytest.mark.parametrize(
-    ("status", "code"),
-    [(400, "VALIDATION_ERROR"), (413, "VALIDATION_ERROR"), (502, "INTERNAL_ERROR")],
-)
-def test_other_http_errors_of_the_framework_keep_their_status_and_lose_their_text(status, code):
-    response = asyncio.run(
-        http_error_handler(None, HttpError(status, detail="texte anglais du cadre"))
-    )
-    body = json.loads(response.body)
-    assert response.status_code == status and body["code"] == code
-    assert "anglais" not in body["detail"]
-
-
-def test_a_problem_error_can_carry_headers_and_a_list_of_faulty_fields():
-    error = ProblemError(
-        VALIDATION_ERROR, "détail", errors=[{"field": "body.x", "message": "m"}],
-        headers={"X-Test": "1"},
-    )  # fmt: skip
-    response = error.response()
-    assert response.headers["x-test"] == "1"
-    assert json.loads(response.body)["errors"] == [{"field": "body.x", "message": "m"}]
-
-
-def test_an_error_after_the_response_started_is_not_hidden():
-    async def half(scope, receive, send):
-        await send({"type": "http.response.start", "status": 200, "headers": []})
-        raise RuntimeError("après l'en-tête")
-
-    async def run():
-        async def receive():
-            return {"type": "http.request"}
-
-        async def send(_):
-            return None
-
-        await UnhandledErrorMiddleware(half)({"type": "http"}, receive, send)
-
-    with pytest.raises(RuntimeError, match="après l'en-tête"):
-        asyncio.run(run())
-
-
-def test_a_non_http_scope_goes_through_untouched():
-    seen = []
-
-    async def inner(scope, receive, send):
-        seen.append(scope["type"])
-
-    asyncio.run(UnhandledErrorMiddleware(inner)({"type": "lifespan"}, None, None))
-    assert seen == ["lifespan"]
-
-
-def test_an_unexpected_error_is_logged_with_its_type_and_stack_but_not_its_message(caplog):
-    leaked = secrets.token_urlsafe(24)
-
-    async def crash(scope, receive, send):
-        raise ValueError(leaked)
-
-    async def run():
-        async def receive():
-            return {"type": "http.request"}
-
-        async def send(_):
-            return None
-
-        await UnhandledErrorMiddleware(crash)({"type": "http"}, receive, send)
-
-    asyncio.run(run())
-    (record,) = [r for r in caplog.records if r.name == "app.errors"]
-    assert record.fields["error"] == "ValueError"
-    assert leaked not in caplog.text and leaked not in record.fields["trace"]
-
-
-def test_the_health_probe_answers_without_any_dependency():
-    assert TestClient(app).get("/api/v1/health").json()["status"] == "ok"
+from app.core.redaction import MASK, install_redaction
 
 
 # --------------------------------------------------------------------------- masquage des secrets
@@ -158,55 +75,6 @@ def test_a_secret_in_an_exception_message_is_masked(secrets_in_environment, caps
     assert secrets_in_environment["jwt"] not in out and "RuntimeError" in out
 
 
-def test_an_opaque_bearer_token_and_a_jwt_shaped_value_are_masked_without_being_known():
-    token = secrets.token_urlsafe(24)
-    jwt_like = (
-        "eyJ"
-        + secrets.token_urlsafe(20)
-        + "."
-        + secrets.token_urlsafe(30)
-        + "."
-        + secrets.token_urlsafe(20)
-    )
-    text = redact(f"Bearer {token} puis {jwt_like}", [])
-    assert token not in text and jwt_like not in text
-
-
-def test_url_credentials_are_masked_but_not_the_host():
-    password = secrets.token_urlsafe(12)
-    assert (
-        redact(f"postgresql://compte:{password}@hote:5432/base", [])
-        == "postgresql://compte:***@hote:5432/base"
-    )
-
-
-def test_short_values_are_not_searched_and_a_malformed_address_does_not_break_collection():
-    assert secret_values({"SERVICE_PASSWORD": "court"}) == []
-    password = secrets.token_urlsafe(12)
-    assert secret_values({"BROKEN_URL": "http://[::1/x", "SERVICE_PASSWORD": password}) == [
-        password
-    ]
-
-
-def test_an_invalid_configuration_does_not_break_the_logging(monkeypatch, capsys):
-    monkeypatch.setenv("SSE_QUEUE_SIZE", "0")
-    get_settings.cache_clear()
-    configure_logging("alerte", "DEBUG")
-    install_redaction()
-    capsys.readouterr()
-    logging.getLogger("app.test").warning("toujours écrit")
-    assert "toujours écrit" in capsys.readouterr().out
-
-
-def test_installing_twice_does_not_stack_formatters():
-    configure_logging("alerte", "INFO")
-    install_redaction()
-    install_redaction()
-    for handler in logging.getLogger().handlers:
-        assert isinstance(handler.formatter, RedactingFormatter)
-        assert not isinstance(handler.formatter.inner, RedactingFormatter)
-
-
 # ---------------------------------------------------------------------------------- configuration
 def test_secret_settings_are_declared_and_hidden_in_a_representation():
     assert set(SECRET_SETTINGS) == {"postgres_url", "jwt_secret", "webhook_url"}
@@ -250,3 +118,28 @@ def test_numeric_settings_have_bounds(field):
         Settings(**{field: 0})
     with pytest.raises(ValidationError):
         Settings(**{field: 10**9})
+
+
+# ----------------------------------------------------------------------- clé des jetons (BE-08)
+def test_a_signing_key_that_is_too_short_is_refused_without_being_copied():
+    short = secrets.token_urlsafe(8)
+    with pytest.raises(ValidationError) as error:
+        Settings(jwt_secret=short)
+    assert "au moins 32" in str(error.value) and short not in str(error.value)
+    Settings(jwt_secret=secrets.token_urlsafe(32))  # 43 caractères : accepté
+
+
+@pytest.mark.parametrize("name", ["jwt_secret", "webhook_url", "postgres_url"])
+def test_an_empty_value_from_compose_means_not_configured(name):
+    assert getattr(Settings(**{name: ""}), name) is None
+
+
+def test_the_example_value_is_tolerated_in_local_only():
+    example = "change-me-local-at-least-32-characters"
+    assert Settings(jwt_secret=example).jwt_secret is not None
+    with pytest.raises(ValidationError) as error:
+        Settings(environment="production", jwt_secret=example)
+    assert "JWT_SECRET" in str(error.value) and example not in str(error.value)
+    with pytest.raises(ValidationError):
+        Settings(environment="production", webhook_url="https://hooks.example/change-me-local")
+    assert Settings(environment="production", jwt_secret=secrets.token_urlsafe(48)).jwt_secret

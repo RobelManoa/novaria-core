@@ -47,7 +47,7 @@ Ces secrets sont créés par `dev.py init-env` (valeurs aléatoires, fichier en 
 | L9 | `MONGO_PASSWORD_REPONSE` | Rôle du service de réponse extérieure | Chaque membre |
 | L10 | `MONGO_PASSWORD_BACKEND` | Rôle du back-end | Chaque membre |
 | L11 | `MONGO_PASSWORD_ML` | Rôle du service de machine learning | Chaque membre |
-| L12 | `JWT_SECRET` | Signature des jetons d'authentification du back-end (BE-03) ; 32 caractères au minimum, la valeur d'exemple est refusée hors de l'environnement local (BE-08) | Chaque membre |
+| L12 | `JWT_SECRET` | Signature des jetons d'authentification du back-end (BE-03) ; 32 caractères au minimum, la valeur d'exemple est refusée hors de l'environnement local (BE-08). **Lue aussi par le service d'alerte** (MS-11), qui vérifie lui-même les jetons : exception documentée dans [alertes](../03-donnees/alertes.md), section 9 | Chaque membre |
 
 | Élément commun à L1 à L12 | Valeur |
 |---|---|

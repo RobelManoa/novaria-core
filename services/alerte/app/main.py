@@ -9,6 +9,7 @@ from app.api.v1 import alerts, health, rules, stream
 from app.core.config import get_settings
 from app.core.errors import UPSTREAM_UNAVAILABLE, ProblemError, register_handlers
 from app.core.logs import CorrelationMiddleware, configure_logging
+from app.core.problems import register_validation
 from app.core.redaction import install_redaction
 from app.core.unhandled import UnhandledErrorMiddleware
 from app.services.ports import StoreFailed
@@ -44,6 +45,7 @@ app = FastAPI(
 app.add_middleware(UnhandledErrorMiddleware)
 app.add_middleware(CorrelationMiddleware)
 register_handlers(app)
+register_validation(app)
 app.add_exception_handler(StoreFailed, store_failed_handler)  # type: ignore[arg-type]
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(alerts.router, prefix="/api/v1")

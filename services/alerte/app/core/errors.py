@@ -8,7 +8,6 @@ d'exécution.
 from dataclasses import dataclass, field
 
 from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as HttpError
 
@@ -16,7 +15,6 @@ from app.core.logs import correlation_id_var
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
 PROBLEM_BASE = "https://novaria.local/problems"
-MAX_PROBLEMS = 20  # au-delà, la liste ne dit rien de plus
 
 
 @dataclass(frozen=True)
@@ -28,11 +26,6 @@ class ProblemKind:
 
 
 VALIDATION_ERROR = ProblemKind(422, "VALIDATION_ERROR", "validation-error", "Entrée invalide")
-UNAUTHENTICATED = ProblemKind(401, "UNAUTHENTICATED", "unauthenticated", "Authentification requise")
-FORBIDDEN = ProblemKind(403, "FORBIDDEN", "forbidden", "Droit insuffisant")
-INVALID_STATE_TRANSITION = ProblemKind(
-    409, "INVALID_STATE_TRANSITION", "invalid-state-transition", "Transition d'état impossible"
-)
 NOT_FOUND = ProblemKind(404, "NOT_FOUND", "not-found", "Ressource inconnue")
 METHOD_NOT_ALLOWED = ProblemKind(
     405, "METHOD_NOT_ALLOWED", "method-not-allowed", "Méthode non permise"
@@ -91,21 +84,6 @@ async def http_error_handler(_: Request, error: HttpError) -> JSONResponse:
     return ProblemError(kind, detail, headers=dict(error.headers or {})).response()
 
 
-async def validation_handler(_: Request, error: RequestValidationError) -> JSONResponse:
-    """Entrée invalide : un `field` et un `message` par erreur, jamais la valeur refusée."""
-    problems = [
-        {"field": ".".join(str(part) for part in item["loc"]), "message": item["msg"]}
-        for item in error.errors()
-    ]
-    noun = "champ invalide" if len(problems) == 1 else "champs invalides"
-    detail = f"{len(problems)} {noun}."
-    return ProblemError(VALIDATION_ERROR, detail, errors=problems[:MAX_PROBLEMS]).response()
-
-
 def register_handlers(application: FastAPI) -> None:
     application.add_exception_handler(ProblemError, problem_handler)  # type: ignore[arg-type]
-    application.add_exception_handler(
-        RequestValidationError,
-        validation_handler,  # type: ignore[arg-type]
-    )
     application.add_exception_handler(HttpError, http_error_handler)  # type: ignore[arg-type]
