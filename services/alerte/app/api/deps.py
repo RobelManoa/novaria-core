@@ -12,23 +12,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from fastapi import Depends
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
 from app.adapters.kafka_io import EventsReader
 from app.adapters.postgres_store import PostgresAlertStore
-from app.core.auth import Claims, InvalidToken, Role, decode_token, has_at_least
 from app.core.config import TOPIC_ALERTS, Settings, get_settings
-from app.core.errors import UPSTREAM_UNAVAILABLE, ProblemError
-from app.core.problems import FORBIDDEN, UNAUTHENTICATED
 from app.services.alerts import AlertService
 from app.services.ports import AlertStore, StoreFailed
 from app.sse import EventHub
 
 logger = logging.getLogger("app.deps")
-
-# `auto_error=False` : l'erreur est produite ici, au format `application/problem+json`.
-bearer_scheme = HTTPBearer(auto_error=False, bearerFormat="JWT")
 
 
 class NotConfiguredStore:
@@ -107,43 +98,3 @@ def get_service() -> AlertService:
 
 def get_hub() -> EventHub:
     return get_components().hub
-
-
-# ------------------------------------------------------------------------------- authentification
-def unauthenticated() -> ProblemError:
-    return ProblemError(
-        UNAUTHENTICATED,
-        "Jeton absent, invalide ou expiré.",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-
-def current_claims(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    settings: Settings = Depends(get_settings),
-) -> Claims:
-    if credentials is None:
-        raise unauthenticated()
-    if settings.jwt_secret is None:
-        raise ProblemError(
-            UPSTREAM_UNAVAILABLE, "L'authentification n'est pas configurée sur ce service."
-        )
-    try:
-        return decode_token(credentials.credentials, secret=settings.jwt_secret.get_secret_value())
-    except InvalidToken as error:
-        raise unauthenticated() from error
-
-
-def require_role(minimum: Role) -> Callable[..., Claims]:
-    """401 sans jeton valide, 403 si le rôle est insuffisant. Même contrat que l'API métier."""
-
-    def dependency(claims: Claims = Depends(current_claims)) -> Claims:
-        if not has_at_least(claims.role, minimum):
-            raise ProblemError(
-                FORBIDDEN,
-                f"Le rôle `{claims.role.value}` ne permet pas cette opération ; "
-                f"rôle requis `{minimum.value}`.",
-            )
-        return claims
-
-    return dependency

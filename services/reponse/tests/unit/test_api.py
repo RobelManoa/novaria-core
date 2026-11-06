@@ -1,9 +1,7 @@
 """API de réponse : authentification, lecture, commande manuelle, conformité au contrat (MS-12)."""
 
 import secrets
-import time
 
-import jwt
 import pytest
 from fastapi.testclient import TestClient
 
@@ -12,18 +10,13 @@ from app.domain.model import Mode
 from app.main import app
 from tests.openapi_checks import PROBLEM, check, operations, schema
 from tests.support import raw, recommendation_event
+from tests.tokens import KEY, bearer
 
-SECRET = secrets.token_urlsafe(48)  # généré à l'exécution : aucune valeur secrète dans le dépôt
-
-
-def token(role: str = "viewer", *, secret: str = SECRET, sub: str = "user-1", **claims) -> str:
-    now = int(time.time())
-    payload = {"sub": sub, "role": role, "iat": now, "exp": now + 600, **claims}
-    return jwt.encode(payload, secret, algorithm="HS256")
+SECRET = KEY
 
 
 def auth(role: str = "viewer", **kwargs) -> dict:
-    return {"Authorization": f"Bearer {token(role, **kwargs)}"}
+    return bearer(role, **kwargs)
 
 
 @pytest.fixture
@@ -72,8 +65,8 @@ def test_health_needs_no_token(client):
     "bad",
     [
         {"Authorization": "Bearer pas-un-jeton"},
-        {"Authorization": f"Bearer {token(secret=secrets.token_urlsafe(48))}"},
-        {"Authorization": f"Bearer {token(exp=int(time.time()) - 10)}"},
+        {"Authorization": bearer(key=secrets.token_urlsafe(48))["Authorization"]},
+        {"Authorization": bearer(lifetime=-10)["Authorization"]},
     ],
 )
 def test_a_forged_or_expired_token_is_refused(client, bad):

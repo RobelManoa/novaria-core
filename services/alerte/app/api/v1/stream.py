@@ -5,7 +5,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
-from app.api.deps import get_hub, require_role
+from app.api.deps import get_hub
+from app.api.security import require_role
 from app.core.auth import Claims, Role
 from app.core.config import Settings, get_settings
 from app.core.errors import VALIDATION_ERROR, ProblemError

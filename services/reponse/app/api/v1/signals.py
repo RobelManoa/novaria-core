@@ -12,8 +12,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response
 
 from app.adapters.mongo_audit import InvalidCursor
-from app.api.deps import get_audit, get_service, require_role
+from app.api.deps import get_audit, get_service
 from app.api.mapping import command_out, history_out, state_out
+from app.api.security import require_role
 from app.core.auth import Claims, Role
 from app.core.errors import NOT_FOUND, UPSTREAM_UNAVAILABLE, VALIDATION_ERROR, ProblemError
 from app.core.logs import correlation_id_var

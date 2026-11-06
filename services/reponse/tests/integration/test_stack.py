@@ -8,7 +8,6 @@ import secrets
 import time
 from datetime import UTC, datetime
 
-import jwt
 import pytest
 from conformance import assert_publication
 from fastapi.testclient import TestClient
@@ -23,6 +22,7 @@ from app.schemas.events import RecommendationEvent
 from tests.integration import stack
 from tests.integration.harness import Service, new_intersection
 from tests.support import plan
+from tests.tokens import bearer
 
 pytestmark = stack.needs_stack
 
@@ -256,11 +256,7 @@ def attach(client, service: Service) -> TestClient:
 
 
 def headers(role="operator", sub="op-1") -> dict:
-    now = int(time.time())
-    token = jwt.encode(
-        {"sub": sub, "role": role, "iat": now, "exp": now + 600}, SECRET, algorithm="HS256"
-    )
-    return {"Authorization": f"Bearer {token}"}
+    return bearer(role, sub=sub, key=SECRET)
 
 
 SET_P2 = {"action": "SET_PHASE", "phase_id": "P2", "duration_s": 40, "reason": "Évacuation test"}

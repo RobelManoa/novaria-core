@@ -1,6 +1,6 @@
 """Validation de corps de réponse contre les schémas du contrat OpenAPI de la réponse (MS-12)."""
 
-from pathlib import Path
+from functools import cache
 
 import yaml
 from jsonschema import Draft202012Validator
@@ -9,44 +9,41 @@ from referencing.jsonschema import DRAFT202012
 
 from tests.contract.conftest import CONTRACTS
 
-OPENAPI = CONTRACTS / "openapi"
-
-
-def load(path: Path) -> dict:
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
-
-
-REPONSE = load(OPENAPI / "reponse.openapi.yaml")
-REGISTRY = Registry().with_resources(
-    [
-        ("common.yaml", Resource.from_contents(load(OPENAPI / "common.yaml"), DRAFT202012)),
-        ("reponse.openapi.yaml", Resource.from_contents(REPONSE, DRAFT202012)),
-    ]
-)
 PROBLEM = "common.yaml#/components/schemas/Problem"
+
+
+@cache
+def document(name: str) -> dict:
+    return yaml.safe_load((CONTRACTS / "openapi" / name).read_text(encoding="utf-8"))
+
+
+def _retrieve(uri: str) -> Resource:
+    """Les références du contrat (`common.yaml#/…`) se résolvent dans le dossier des contrats."""
+    return Resource.from_contents(document(uri), DRAFT202012)
 
 
 def schema(name: str) -> str:
     return f"reponse.openapi.yaml#/components/schemas/{name}"
 
 
-def errors_of(body: object, reference: str) -> list[str]:
-    validator = Draft202012Validator(
-        {"$ref": reference}, registry=REGISTRY, format_checker=Draft202012Validator.FORMAT_CHECKER
-    )
-    return [f"{'/'.join(map(str, e.path))} : {e.message}" for e in validator.iter_errors(body)]
-
-
 def check(body: object, reference: str) -> None:
-    """Valide `body` contre un schéma du contrat, par exemple `schema("Alert")` ou `PROBLEM`."""
-    assert errors_of(body, reference) == []
+    """Valide `body` contre un schéma du contrat : `schema("SignalState")`, `PROBLEM`…"""
+    validator = Draft202012Validator(
+        {"$ref": reference},
+        registry=Registry(retrieve=_retrieve),
+        format_checker=Draft202012Validator.FORMAT_CHECKER,
+    )
+    problems = [f"{list(e.path)} : {e.message}" for e in validator.iter_errors(body)]
+    assert problems == []
 
 
 def operations() -> dict[tuple[str, str], dict]:
-    """{(méthode, chemin): opération} du contrat, chemins préfixés comme dans l'application."""
+    """{(méthode, chemin): opération} du contrat."""
+    verbs = {"get", "post", "patch", "put", "delete"}
+    paths = document("reponse.openapi.yaml")["paths"]
     return {
-        (method.upper(), path): operation
-        for path, item in REPONSE["paths"].items()
-        for method, operation in item.items()
-        if method in {"get", "post", "patch", "put", "delete"}
+        (verb.upper(), path): operation
+        for path, item in paths.items()
+        for verb, operation in item.items()
+        if verb in verbs
     }
