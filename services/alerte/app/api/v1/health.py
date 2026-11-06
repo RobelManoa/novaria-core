@@ -5,7 +5,7 @@ from app.core.config import get_settings
 router = APIRouter(tags=["health"])
 
 
-@router.get("/health")
+@router.get("/health", operation_id="getHealth")
 def health() -> dict[str, str]:
     """Sonde de santé (Docker, pipeline) ; schéma `Health` du contrat OpenAPI."""
     settings = get_settings()

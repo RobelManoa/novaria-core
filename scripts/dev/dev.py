@@ -979,6 +979,7 @@ def cmd_api_run(_: argparse.Namespace) -> int:
 
 
 STUB_PORT = 8001  # la maquette des prévisions : le proxy de Vite la vise avec `front-dev --stub`
+REPORT_STUB_PORT = 8002  # la maquette des rapports : le proxy de Vite la vise avec `front-dev --report-stub`
 
 
 def cmd_forecast_stub(args: argparse.Namespace) -> int:
@@ -986,6 +987,15 @@ def cmd_forecast_stub(args: argparse.Namespace) -> int:
     import forecast_stub
 
     return forecast_stub.main(["--upstream", f"http://127.0.0.1:{API_PORT}", "--port", str(STUB_PORT), "--back-minutes", str(args.back_minutes)])
+
+
+def cmd_report_stub(args: argparse.Namespace) -> int:
+    """Lance la MAQUETTE de GET /api/v1/reports (FE-06) devant l'API : les routes et le robot n'existent pas encore."""
+    import report_stub
+
+    # Derrière la maquette des prévisions, les deux pages se testent ensemble : chaque maquette ne sert que sa route.
+    upstream_port = STUB_PORT if args.behind_forecast_stub else API_PORT
+    return report_stub.main(["--upstream", f"http://127.0.0.1:{upstream_port}", "--port", str(REPORT_STUB_PORT), "--count", str(args.count)])
 
 
 def cmd_front_dev(args: argparse.Namespace) -> int:
@@ -998,9 +1008,14 @@ def cmd_front_dev(args: argparse.Namespace) -> int:
         if code:
             return code
     environment = dict(os.environ)
+    if args.stub and args.report_stub:
+        raise DevError("--stub et --report-stub s'excluent. Pour les deux pages : report-stub --behind-forecast-stub, puis front-dev --report-stub.")
     if args.stub:
         environment["API_TARGET"] = f"http://localhost:{STUB_PORT}"
         print(f"Les appels /api passent par la maquette des prévisions (forecast-stub, port {STUB_PORT}).")
+    if args.report_stub:
+        environment["API_TARGET"] = f"http://localhost:{REPORT_STUB_PORT}"
+        print(f"Les appels /api passent par la maquette des rapports (report-stub, port {REPORT_STUB_PORT}).")
     print(f"Front-end : http://localhost:5173  (Ctrl+C pour arrêter ; l'API doit tourner : api-run, sur le port {API_PORT})")
     try:
         return subprocess.run([npm, "run", "dev"], cwd=FRONTEND_DIR, env=environment, check=False).returncode
@@ -1016,6 +1031,14 @@ INTEGRATION_ISOLATION = ("COMPOSE_PROJECT_NAME", "POSTGRES_PORT", "MONGO_PORT", 
 COLLECTE_PACKAGES = ("pytest", "pytest_cov", "kafka", "pymongo", "fastapi", "httpx", "jsonschema", "referencing", "yaml")
 COLLECTE_SERVICE_DIR = ROOT / "services" / "collecte"
 FLUX_PACKAGES = (*INTEGRATION_PACKAGES, "kafka", "jsonschema", "referencing")
+# Paquets que les tests de services/alerte importent (MS-11) : PostgreSQL, le client Kafka, les jetons, l'API.
+ALERTE_PACKAGES = ("pytest", "pytest_cov", "kafka", "psycopg", "psycopg_pool", "jwt", "fastapi", "uvicorn",
+                   "httpx", "jsonschema", "referencing", "yaml")
+ALERTE_SERVICE_DIR = ROOT / "services" / "alerte"
+# Paquets que les tests de services/reponse importent (MS-12) : le client Kafka, MongoDB, les jetons, l'API.
+REPONSE_PACKAGES = ("pytest", "pytest_cov", "kafka", "pymongo", "jwt", "fastapi", "uvicorn",
+                    "httpx", "jsonschema", "referencing", "yaml")
+REPONSE_SERVICE_DIR = ROOT / "services" / "reponse"
 
 
 def free_port() -> int:
@@ -1049,6 +1072,23 @@ def collecte_environment(env: dict[str, str]) -> dict[str, str]:
     }
 
 
+def reponse_environment(env: dict[str, str]) -> dict[str, str]:
+    """Variables que lisent les tests d'intégration de la réponse (services/reponse/tests/integration/stack.py).
+
+    - Kafka : l'adresse publiée sur le poste (KAFKA_PORT du projet jetable) ;
+    - MongoDB : le compte `svc_reponse` (droits de production : find et insert sur `audit_logs`) et l'administrateur,
+      qui relit, nettoie et vérifie que le compte du service ne peut ni modifier ni supprimer une entrée.
+    """
+    for name in ("MONGO_ROOT_USER", "MONGO_ROOT_PASSWORD", "MONGO_DB"):
+        if not env.get(name):
+            raise DevError(f"Variable absente de .env : {name} (init-env --force puis db-reset).")
+    return {
+        "NOVARIA_TEST_KAFKA_BOOTSTRAP": f"127.0.0.1:{env.get('KAFKA_PORT') or '9094'}",
+        "NOVARIA_TEST_REPONSE_MONGO_URL": mongo_url(env, "svc_reponse", "MONGO_PASSWORD_REPONSE"),
+        "NOVARIA_TEST_REPONSE_MONGO_ADMIN_URL": mongo_admin_url(env),
+    }
+
+
 def flux_environment(env: dict[str, str]) -> dict[str, str]:
     """Variables que lisent les tests d'intégration du flux (services/traitement/tests/integration/stack_flux.py).
 
@@ -1068,6 +1108,23 @@ def flux_environment(env: dict[str, str]) -> dict[str, str]:
         "NOVARIA_TEST_FLUX_POSTGRES_ADMIN_URL": postgres_url(env, env["POSTGRES_USER"], "POSTGRES_PASSWORD").replace(*sqlalchemy, 1),
         "NOVARIA_TEST_FLUX_MONGO_URL": mongo_url(env, "svc_traitement", "MONGO_PASSWORD_TRAITEMENT"),
         "NOVARIA_TEST_FLUX_MONGO_ADMIN_URL": mongo_admin_url(env),
+    }
+
+
+def alerte_environment(env: dict[str, str]) -> dict[str, str]:
+    """Variables que lisent les tests d'intégration de l'alerte (services/alerte/tests/integration/stack.py).
+
+    - Kafka : l'adresse publiée sur le poste (KAFKA_PORT du projet jetable) ;
+    - PostgreSQL : le compte `svc_alerte` (droits de production sur `alertes`, ceux du service) et l'administrateur,
+      qui relit, nettoie et applique les essais de contraintes.
+    """
+    for name in ("POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"):
+        if not env.get(name):
+            raise DevError(f"Variable absente de .env : {name} (init-env --force puis db-reset).")
+    return {
+        "NOVARIA_TEST_KAFKA_BOOTSTRAP": f"127.0.0.1:{env.get('KAFKA_PORT') or '9094'}",
+        "NOVARIA_TEST_ALERTE_POSTGRES_URL": postgres_url(env, "svc_alerte", "PG_PASSWORD_ALERTE"),
+        "NOVARIA_TEST_ALERTE_POSTGRES_ADMIN_URL": postgres_url(env, env["POSTGRES_USER"], "POSTGRES_PASSWORD"),
     }
 
 
@@ -1093,53 +1150,64 @@ def cmd_test_integration(args: argparse.Namespace) -> int:
 
     `--service traitement` (défaut, BE-07) : PostgreSQL et MongoDB. `--service collecte` (MS-08) : Kafka (sujets
     créés) et MongoDB. `--service flux` (MS-09) : PostgreSQL (migrations appliquées), MongoDB et Kafka (sujets
-    créés), avec les comptes de service réels. Les conteneurs vivent dans un projet Compose jetable (nom et ports
+    créés), avec les comptes de service réels. `--service alerte` (MS-11) : PostgreSQL (migrations appliquées) et
+    Kafka (sujets créés), avec le compte `svc_alerte`. `--service reponse` (MS-12) : Kafka (sujets créés) et MongoDB,
+    avec le compte `svc_reponse`. Les conteneurs vivent dans un projet Compose jetable (nom et ports
     propres) : les données du poste ne sont pas touchées. Le projet est supprimé à la fin, volumes compris, sauf avec
     --keep. Le rapport de couverture est celui de pytest (terminal et coverage.xml du service) ; les options après
     `--` vont à pytest.
     """
     require_env()
     service = getattr(args, "service", "traitement")
-    collecte, flux = service == "collecte", service == "flux"
-    packages = COLLECTE_PACKAGES if collecte else FLUX_PACKAGES if flux else INTEGRATION_PACKAGES
-    requirements = "services/collecte/requirements-dev.txt" if collecte else "services/traitement/requirements-dev.txt"
+    collecte, flux, alerte = service == "collecte", service == "flux", service == "alerte"
+    reponse = service == "reponse"
+    packages = (COLLECTE_PACKAGES if collecte else ALERTE_PACKAGES if alerte else REPONSE_PACKAGES if reponse
+                else FLUX_PACKAGES if flux else INTEGRATION_PACKAGES)
+    requirements = f"services/{service if collecte or alerte or reponse else 'traitement'}/requirements-dev.txt"
     for package in packages:
         if importlib.util.find_spec(package) is None:
             raise DevError(f"{package} est absent. L'installer :  {Path(sys.executable).name} -m pip install -r {requirements}")
     project = f"novaria-it-{secrets.token_hex(3)}"
     saved = {name: os.environ.get(name) for name in INTEGRATION_ISOLATION}
-    ports = {"MONGO_PORT": str(free_port())}
-    if collecte:
+    ports = {} if alerte else {"MONGO_PORT": str(free_port())}
+    if collecte or reponse:
         ports["KAFKA_PORT"] = str(free_port())
+    elif alerte:
+        ports.update({"POSTGRES_PORT": str(free_port()), "KAFKA_PORT": str(free_port())})
     elif flux:
         ports.update({"POSTGRES_PORT": str(free_port()), "KAFKA_PORT": str(free_port())})
     else:
         ports["POSTGRES_PORT"] = str(free_port())
     os.environ.update({"COMPOSE_PROJECT_NAME": project, **ports})
     shown = ", ".join(f"{name.removesuffix('_PORT').title()} :{port}" for name, port in ports.items())
-    label = "Kafka et MongoDB" if collecte else "PostgreSQL, MongoDB et Kafka" if flux else "Bases"
+    label = ("Kafka et MongoDB" if collecte or reponse else "PostgreSQL et Kafka" if alerte
+             else "PostgreSQL, MongoDB et Kafka" if flux else "Bases")
     print(f"{label} jetables : projet Compose {project} ({shown})")
     try:
-        containers = ("kafka", "mongo") if collecte else ("postgres", "mongo", "kafka") if flux else ("postgres", "mongo")
+        containers = (("kafka", "mongo") if collecte or reponse else ("postgres", "kafka") if alerte
+                      else ("postgres", "mongo", "kafka") if flux else ("postgres", "mongo"))
         code = run_compose_step("up", "-d", "--wait", *containers)
         if code != 0:
             return code
-        if flux:
+        if flux or alerte:
             code = run_compose_step("run", "--rm", "db-migrate")
             if code != 0:
                 return code
-        if collecte or flux:
+        if collecte or flux or alerte or reponse:
             rows, failures = kafka_topic_rows()
             print("\n".join(rows))
             if failures:
                 return 1
-        build = collecte_environment if collecte else flux_environment if flux else integration_environment
+        build = (collecte_environment if collecte else alerte_environment if alerte
+                 else reponse_environment if reponse else flux_environment if flux else integration_environment)
         # Les ports du projet jetable priment, même si .env n'a pas la ligne (KAFKA_PORT est facultatif) :
         # sinon les tests viseraient le port habituel du poste, où rien n'écoute.
         environment = {**os.environ, **build({**etl_environment(), **ports}), "PYTHONUTF8": "1"}
         pytest_args = [item for item in args.pytest_args if item != "--"]
         return subprocess.run([sys.executable, "-m", "pytest", *pytest_args],
-                              cwd=COLLECTE_SERVICE_DIR if collecte else APP_SERVICE_DIR, env=environment, check=False).returncode
+                              cwd=(COLLECTE_SERVICE_DIR if collecte else ALERTE_SERVICE_DIR if alerte
+                                   else REPONSE_SERVICE_DIR if reponse else APP_SERVICE_DIR),
+                              env=environment, check=False).returncode
     finally:
         if args.keep:
             print(f"Conteneurs conservés (projet {project}). Les supprimer :  docker compose -p {project} down -v")
@@ -1180,17 +1248,22 @@ def build_parser() -> argparse.ArgumentParser:
     user.add_argument("--role", required=True, choices=["viewer", "operator", "admin"], help="droit d'accès")
     it = add("test-integration", cmd_test_integration,
              "tests d'un service contre ses bases et son bus en conteneur (projet jetable) + rapport de couverture")
-    it.add_argument("--service", choices=["traitement", "collecte", "flux"], default="traitement",
+    it.add_argument("--service", choices=["traitement", "collecte", "flux", "alerte", "reponse"], default="traitement",
                     help="traitement : PostgreSQL et MongoDB (BE-07) ; collecte : Kafka et MongoDB (MS-08) ; "
-                         "flux : PostgreSQL migré, MongoDB et Kafka (MS-09)")
+                         "flux : PostgreSQL migré, MongoDB et Kafka (MS-09) ; alerte : PostgreSQL migré et Kafka (MS-11) ; "
+                         "reponse : Kafka et MongoDB (MS-12)")
     it.add_argument("--keep", action="store_true", help="laisse les conteneurs du projet jetable en marche à la fin")
     it.add_argument("pytest_args", nargs=argparse.REMAINDER, help="options de pytest, après -- (par exemple -- -k audit)")
     add("dev-deps", cmd_dev_deps, "installe les paquets Python de l'API de traitement et de l'ETL dans l'interpréteur courant")
     add("api-run", cmd_api_run, "lance l'API de traitement sur http://127.0.0.1:8000 (tableau de bord en local)")
     front = add("front-dev", cmd_front_dev, "lance le front-end (Vite) sur http://localhost:5173")
     front.add_argument("--stub", action="store_true", help="les appels /api passent par la maquette des prévisions (forecast-stub)")
+    front.add_argument("--report-stub", action="store_true", help="les appels /api passent par la maquette des rapports (report-stub)")
     stub = add("forecast-stub", cmd_forecast_stub, "lance la MAQUETTE de GET /api/v1/forecasts devant l'API (route non implémentée côté serveur)")
     stub.add_argument("--back-minutes", type=int, default=60, help="émission décalée avant la fin des données, pour avoir un observé à comparer (60)")
+    reports = add("report-stub", cmd_report_stub, "lance la MAQUETTE de GET /api/v1/reports devant l'API (routes et robot absents côté serveur)")
+    reports.add_argument("--count", type=int, default=3, help="nombre de rapports fictifs ; 0 : liste vide (3)")
+    reports.add_argument("--behind-forecast-stub", action="store_true", help="se place devant la maquette des prévisions au lieu de l'API (les deux pages ensemble)")
     add("db-status", cmd_db_status, "état des bases et des migrations")
     add("db-check", cmd_db_check, "vérifie rôles, droits, collections et index")
     events = add("db-check-events", cmd_db_check_events, "insère une mesure conforme (acceptée) et une sans provenance (refusée)")

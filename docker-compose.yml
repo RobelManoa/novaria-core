@@ -245,6 +245,9 @@ services:
       mongo: { condition: service_healthy }
       kafka-init: { condition: service_completed_successfully }
 
+  # --- Service d'alerte (MS-11), API : lit et agit sur les alertes (schéma alertes, compte svc_alerte) et diffuse
+  # `alerts.events` aux clients du tableau de bord en SSE. Il vérifie lui-même les jetons de l'API métier : il reçoit donc
+  # la clé de signature (JWT_SECRET), exception documentée dans docs/03-donnees/alertes.md (section 9) jusqu'à MS-13.
   alerte:
     build:
       context: ./services/alerte
@@ -253,12 +256,47 @@ services:
       <<: *environnement-service
       SERVICE_NAME: alerte
       POSTGRES_URL: postgresql+psycopg://svc_alerte:${PG_PASSWORD_ALERTE}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET:-}
     ports: ["127.0.0.1:${ALERTE_PORT:-8003}:8000"]
     depends_on:
       db-migrate: { condition: service_completed_successfully }
       postgres: { condition: service_healthy }
       kafka-init: { condition: service_completed_successfully }
 
+  # --- Travailleur d'alerte (MS-11) : même image que l'API, autre commande. Lit traffic.indicators, évalue les règles,
+  # écrit les alertes et leur boîte d'envoi, publie alerts.events et remet les notifications simulées. Une seule
+  # instance (les séries de fenêtres des règles sont en mémoire). Une panne d'une dépendance l'arrête sans valider
+  # d'offset ; il redémarre et relit depuis le dernier offset sûr. Pendant son arrêt, la collecte et le traitement
+  # continuent (ADR-008) ; à son retour il rattrape son retard.
+  alerte-worker:
+    build:
+      context: ./services/alerte
+      args: { GIT_SHA: "${GIT_SHA:-local}" }
+    command: ["python", "-m", "app.worker"]
+    environment:
+      <<: *environnement-service
+      SERVICE_NAME: alerte-worker
+      HEARTBEAT_FILE: /srv/run/alerte-worker-alive  # dossier du conteneur réservé à l'utilisateur du service
+      POSTGRES_URL: postgresql+psycopg://svc_alerte:${PG_PASSWORD_ALERTE}@postgres:5432/${POSTGRES_DB}
+      NOTIFICATION_CHANNEL: ${ALERT_NOTIFICATION_CHANNEL:-log}
+      WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+    healthcheck:
+      # Pas de port : le travailleur écrit un fichier de vie à chaque tour de boucle ; vivant = écrit il y a moins d'une minute.
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/srv/run/alerte-worker-alive')<60 else 1)"]
+      interval: 15s
+      timeout: 3s
+      retries: 4
+      start_period: 30s
+    restart: on-failure
+    depends_on:
+      db-migrate: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+
+  # --- Service de réponse extérieure (MS-12) : contrôleur de feux simulé, garde-fous, mode dégradé à plan fixe. Lit
+  # traffic.recommendations, publie signal.status, journalise les commandes manuelles dans audit_logs (compte svc_reponse).
+  # Une seule instance : l'état des feux est en mémoire, et sa perte ramène les feux au plan fixe (c'est voulu). Il vérifie
+  # lui-même les jetons de l'API métier (JWT_SECRET), exception documentée dans docs/03-donnees/feux.md jusqu'à MS-13.
   reponse:
     build:
       context: ./services/reponse
@@ -268,7 +306,9 @@ services:
       SERVICE_NAME: reponse
       MONGO_URL: mongodb://svc_reponse:${MONGO_PASSWORD_REPONSE}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
       MONGO_DB: ${MONGO_DB}
+      JWT_SECRET: ${JWT_SECRET:-}
     ports: ["127.0.0.1:${REPONSE_PORT:-8004}:8000"]
+    restart: on-failure
     depends_on:
       mongo: { condition: service_healthy }
       kafka-init: { condition: service_completed_successfully }

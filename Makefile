@@ -6,7 +6,7 @@ DEV = $(PY) scripts/dev/dev.py
 PY_API ?= $(if $(wildcard venv/bin/python),venv/bin/python,$(PY))
 DEV_API = $(PY_API) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-collecte-debit test-contracts test-etl lint format new-service quality-up quality-down hooks
+.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint format new-service quality-up quality-down hooks
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -40,6 +40,10 @@ forecast-stub: ## MAQUETTE de GET /api/v1/forecasts devant l'API (route non impl
 	$(DEV) forecast-stub
 front-dev-stub: ## Front-end dont les appels /api passent par la maquette des prévisions (page Prévisions)
 	$(DEV) front-dev --stub
+report-stub:   ## MAQUETTE de GET /api/v1/reports devant l'API (routes et robot absents) sur http://127.0.0.1:8002 ; make report-stub N=0 : liste vide
+	$(DEV) report-stub $(if $(N),--count $(N),)
+front-dev-report-stub: ## Front-end dont les appels /api passent par la maquette des rapports (page Rapports)
+	$(DEV) front-dev --report-stub
 
 db-up:         ## Démarre PostgreSQL et MongoDB, applique les migrations
 	$(DEV) db-up
@@ -95,6 +99,10 @@ test-integration-collecte: ## Tests de services/collecte contre Kafka et MongoDB
 	$(DEV) test-integration --service collecte
 test-integration-flux: ## Tests du flux (services/traitement) contre PostgreSQL migré, MongoDB et Kafka en conteneur (projet jetable)
 	$(DEV) test-integration --service flux -- tests/integration/test_flux_stack.py
+test-integration-reponse: ## Tests de services/reponse contre Kafka et MongoDB en conteneur (projet jetable) : garde-fous, mode dégradé, audit
+	$(DEV) test-integration --service reponse
+test-integration-alerte: ## Tests de services/alerte contre PostgreSQL migré et Kafka en conteneur (projet jetable) : délai jusqu'à l'alerte visible
+	$(DEV) test-integration --service alerte
 test-collecte-debit: ## Débit maximal de la collecte démarrée (make test-collecte-debit COLLECTE_URL=http://127.0.0.1:8001)
 	$(PY) scripts/dev/bench_collecte.py --url $(or $(COLLECTE_URL),http://127.0.0.1:8001)
 test-contracts: ## Valide les exemples et les cas invalides des contrats d'événements

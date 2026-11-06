@@ -5,13 +5,13 @@ Un contrat par service ([ADR-008](../../docs/01-architecture/adr/ADR-008-microse
 | Fichier | Service | Rôle | Opérations |
 |---|---|---|---|
 | `api-metier.openapi.yaml` | API métier (portée par `services/traitement` tant que le point ouvert n° 1 des diagrammes C4 n'est pas tranché ; BE-02 et BE-03) | Santé, authentification, comptes | 7 |
-| `traitement.openapi.yaml` | Traitement | Référentiel, indicateurs, prévisions | 8 (les trois d'indicateurs existent : [API des indicateurs](../../docs/03-donnees/api-indicateurs.md)) |
+| `traitement.openapi.yaml` | Traitement | Référentiel, indicateurs, prévisions, rapports | 10 (les trois d'indicateurs existent : [API des indicateurs](../../docs/03-donnees/api-indicateurs.md) ; les deux de rapports sont une Proposition, FE-06) |
 | `alerte.openapi.yaml` | Alerte usager | Alertes, règles, flux SSE (Server-Sent Events) | 8 |
 | `reponse.openapi.yaml` | Réponse extérieure | État des feux, commande manuelle | 5 |
 | `collecte.openapi.yaml` | Collecte | Dépôt des mesures par le simulateur (réseau interne) | 2 |
 | `common.yaml` | (aucun) | Composants partagés par au moins deux services : erreur, pagination, provenance, paramètres, réponses d'erreur, sonde | — |
 
-Chaque service décrit sa propre sonde `GET /api/v1/health` (même contenu partout) : chacun en a besoin pour la sonde de santé de Docker. Les 24 autres opérations de BE-01 appartiennent chacune à un seul service ; `POST /api/v1/measurements` est nouveau.
+Chaque service décrit sa propre sonde `GET /api/v1/health` (même contenu partout) : chacun en a besoin pour la sonde de santé de Docker. Les 24 autres opérations de BE-01 appartiennent chacune à un seul service ; `POST /api/v1/measurements` et les deux opérations de rapports (`GET /api/v1/reports`, `GET /api/v1/reports/{report_id}/content`) sont nouveaux.
 
 ## Routage derrière la passerelle
 
@@ -20,7 +20,7 @@ Tous les chemins commencent par `/api/v1`, comme dans BE-01 : le client du table
 | Préfixe | Service |
 |---|---|
 | `/api/v1/auth`, `/api/v1/users` | API métier |
-| `/api/v1/intersections`, `/api/v1/road-segments`, `/api/v1/indicators`, `/api/v1/forecasts` | Traitement |
+| `/api/v1/intersections`, `/api/v1/road-segments`, `/api/v1/indicators`, `/api/v1/forecasts`, `/api/v1/reports` | Traitement |
 | `/api/v1/alerts`, `/api/v1/alert-rules`, `/api/v1/events` | Alerte usager |
 | `/api/v1/signals` | Réponse extérieure |
 | `/api/v1/health` | API métier (la sonde des autres services n'est pas exposée) |
@@ -97,6 +97,7 @@ Proposition à valider : trois rôles hiérarchiques. Un rôle inclut les droits
 | Traitement | Référentiel | `GET /intersections`, `/intersections/{id}`, `/road-segments` | `viewer` | MS-10 |
 | Traitement | Indicateurs | `GET /indicators`, `/indicators/latest`, `/indicators/{id}` | `viewer` | BE-04, MS-10 |
 | Traitement | Prévisions | `GET /forecasts` | `viewer` | IA-06 |
+| Traitement | Rapports | `GET /reports`, `/reports/{id}/content` (Proposition) | `viewer` | IA-07 (robot) |
 | Alerte usager | Alertes | `GET /alerts`, `/alerts/{id}` ; `POST /alerts/{id}/acknowledge`, `/resolve` ; `GET /alert-rules` ; `PATCH /alert-rules/{id}` | `viewer`, `operator`, `admin` | MS-11 |
 | Alerte usager | Flux | `GET /events/stream` (SSE) | `viewer` | MS-11 |
 | Réponse extérieure | Feux | `GET /signals`, `/signals/{id}`, `/signals/{id}/commands` ; `POST /signals/{id}/commands` | `viewer`, `operator` | MS-12 |

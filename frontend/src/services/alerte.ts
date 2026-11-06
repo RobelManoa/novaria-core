@@ -1,8 +1,11 @@
-import type { operations, paths } from "@/types/api/alerte";
+import type { components, operations, paths } from "@/types/api/alerte";
 import { createApiClient, unwrap, type JsonBody, type Query } from "./client";
 
 // Alerte usager : alertes et règles (contracts/openapi/alerte.openapi.yaml).
-// Le flux `GET /api/v1/events/stream` (SSE) n'est pas un appel fetch ordinaire : il aura son propre module.
+// Le flux `GET /api/v1/events/stream` (SSE) n'est pas un appel fetch ordinaire : il est lu par alertStream.ts.
+export type Alert = components["schemas"]["Alert"];
+export type AlertState = components["schemas"]["AlertState"];
+
 const client = createApiClient<paths>();
 
 export async function listAlerts(query?: Query<operations["listAlerts"]>) {

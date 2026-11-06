@@ -5,6 +5,7 @@ export type Indicator = components["schemas"]["Indicator"];
 export type CongestionState = components["schemas"]["CongestionState"];
 export type Forecast = components["schemas"]["Forecast"];
 export type SourceType = components["schemas"]["SourceType"];
+export type Report = components["schemas"]["Report"];
 
 // Traitement : référentiel, indicateurs, prévisions (contracts/openapi/traitement.openapi.yaml).
 const client = createApiClient<paths>();
@@ -63,4 +64,22 @@ export async function getIndicator(indicatorId: string) {
 
 export async function listForecasts(query: Query<operations["listForecasts"]>) {
   return unwrap(await client.GET("/api/v1/forecasts", { params: { query } }));
+}
+
+/** Rapports générés par le robot, du plus récent au plus ancien (Proposition de contrat, FE-06). */
+export async function listReports(query?: Query<operations["listReports"]>) {
+  return unwrap(await client.GET("/api/v1/reports", { params: { query } }));
+}
+
+/**
+ * Le PDF d'un rapport. Le jeton est un en-tête `Authorization` : un lien `<a href>` ne peut pas le porter,
+ * le fichier est donc lu ici en `Blob`, puis enregistré par l'appelant.
+ */
+export async function downloadReport(reportId: string): Promise<Blob> {
+  return unwrap(
+    await client.GET("/api/v1/reports/{report_id}/content", {
+      params: { path: { report_id: reportId } },
+      parseAs: "blob",
+    }),
+  );
 }

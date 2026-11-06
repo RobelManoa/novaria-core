@@ -1,0 +1,172 @@
+/*
+ * Mobile d'abord : une carte par rapport (le tableau déborderait et cacherait « Télécharger »). À partir de
+ * 64rem, vrai tableau. `display: block` retire la sémantique de tableau dans certains navigateurs : les rôles
+ * ARIA sont donc posés explicitement dans ReportsTable.tsx.
+ */
+.wrap {
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.table {
+  display: block;
+  width: 100%;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.table thead,
+.caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.table tbody {
+  display: block;
+}
+
+.table tr {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table tbody tr:last-child {
+  border-bottom: 0;
+}
+
+.table th,
+.table td {
+  display: block;
+  padding: 0;
+  text-align: left;
+}
+
+.table td[data-label]::before {
+  content: attr(data-label);
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.title {
+  display: grid;
+  gap: var(--space-1);
+  font-weight: var(--weight-medium);
+}
+
+.file {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  word-break: break-all;
+}
+
+.block {
+  display: block;
+}
+
+.hash {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.button {
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+@media (min-width: 64rem) {
+  .table {
+    display: table;
+    border-collapse: collapse;
+  }
+
+  .table thead {
+    position: static;
+    display: table-header-group;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+
+  .table tbody {
+    display: table-row-group;
+  }
+
+  .table tr {
+    display: table-row;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .table th,
+  .table td {
+    display: table-cell;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+  }
+
+  .table tbody tr:last-child th,
+  .table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .table td[data-label]::before {
+    display: none;
+  }
+
+  .table thead th {
+    background: var(--color-surface-raised);
+    white-space: nowrap;
+  }
+
+  .title {
+    min-inline-size: 12rem;
+  }
+
+  .nowrap {
+    white-space: nowrap;
+  }
+
+  .number {
+    text-align: right;
+  }
+
+  .button {
+    width: auto;
+  }
+
+  /* Entre 64 et ~80 rem le tableau est plus large que la page : l'action reste visible pendant le défilement. */
+  .action {
+    position: sticky;
+    right: 0;
+    background: var(--color-surface);
+  }
+
+  .table thead th.action {
+    background: var(--color-surface-raised);
+  }
+}

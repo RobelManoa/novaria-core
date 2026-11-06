@@ -33,8 +33,7 @@ export interface paths {
         };
         /**
          * État des feux de tous les carrefours équipés
-         * @description **Schémas provisoires.** Les contrats d'événements `traffic.recommendations` et `signal.status`
-         *     ne sont pas encore écrits (MS-03, MS-12) ; cette partie suivra leur rédaction.
+         * @description L'état est celui du contrôleur **à l'instant de la requête** (phase en cours, vert ou dégagement), calculé depuis l'horloge du service ; `decision` dit ce qui a produit le dernier changement. Les valeurs de `mode`, `phases` et `decision` sont celles de l'événement `signal.status` (`contracts/events/signal-status.schema.json`).
          */
         get: operations["listSignals"];
         put?: never;
@@ -85,6 +84,12 @@ export interface paths {
          *     applique des garde-fous : durée minimale de phase, interdiction des verts conflictuels.
          *     Une commande dangereuse est **refusée et journalisée** (`422`, code `UNSAFE_COMMAND`).
          *     Le modèle ne commande jamais seul un équipement (ADR-008, ADR-015).
+         *
+         *     **Motifs de refus** (le code est en tête de `detail` et dans `errors[].message`) : `PHASE_TOO_SHORT` et `PHASE_TOO_LONG` (durée hors de 10 à 90 s), `UNKNOWN_PHASE`, `MIN_DURATION_NOT_ELAPSED` (la phase en cours n'a pas encore duré 10 s), `CLEARANCE_IN_PROGRESS` (dégagement en cours : réessayer à la phase suivante). Une seconde commande `SET_PHASE` pendant la première : `409`, `COMMAND_IN_PROGRESS`.
+         *
+         *     **Application.** La commande est appliquée tout de suite : la réponse `202` porte `status: APPLIED`. Une phase différente de la phase en cours est atteinte après un dégagement de 4 s (tout au rouge), jamais directement. La tenue dure `duration_s`, puis le contrôleur revient aux recommandations si elles sont encore valables, sinon au plan à durées fixes. `RESUME_AUTOMATIC` rend la main plus tôt (même règle de durée minimale) ; sans commande en cours, il est sans effet.
+         *
+         *     **Journal avant effet.** La commande est écrite dans `audit_logs` (MongoDB) **avant** d'être appliquée : si le journal est indisponible, elle n'est pas appliquée (`503`, `UPSTREAM_UNAVAILABLE`). Un refus, lui, reste un refus.
          */
         post: operations["sendSignalCommand"];
         delete?: never;
@@ -165,7 +170,10 @@ export interface components {
             refusal_reason?: string | null;
             requested_at: components["schemas"]["UtcDateTime"];
             requested_by: string;
-            /** @enum {string} */
+            /**
+             * @description `APPLIED` ou `REFUSED` en v1 : la commande est appliquée ou refusée tout de suite. `ACCEPTED` et `EXPIRED` sont réservés.
+             * @enum {string}
+             */
             status: "ACCEPTED" | "APPLIED" | "REFUSED" | "EXPIRED";
         };
         SignalCommandPage: components["schemas"]["PageInfo"] & {
@@ -184,6 +192,20 @@ export interface components {
             /** @description Motif */
             reason: string;
         } & unknown;
+        /** @description La décision qui a produit ou laissé l'état (même objet que dans `signal.status`). */
+        SignalDecision: {
+            /** @enum {string} */
+            origin: "RECOMMENDATION" | "MANUAL_COMMAND" | "FIXED_PLAN_FALLBACK" | "STARTUP";
+            /** @enum {string} */
+            outcome: "APPLIED" | "REFUSED";
+            /**
+             * Format: uuid
+             * @description `recommendation_id` ou `command_id` ; `null` pour le retour au plan fixe et le démarrage.
+             */
+            reference_id: string | null;
+            /** @description Code du refus ; `null` si appliquée. */
+            refusal_reason: string | null;
+        };
         SignalPhase: {
             duration_s: number;
             /** @description Approches au vert pendant cette phase. Deux phases en conflit ne se recouvrent jamais. */
@@ -193,18 +215,31 @@ export interface components {
             /** @example P1 */
             phase_id: string;
         };
-        /** @description Provisoire, à aligner sur le contrat `signal.status` (MS-12). */
+        /** @description L'état d'un carrefour à feux, aligné sur l'événement `signal.status` (MS-12). */
         SignalState: {
             current_phase_id: string;
+            decision: components["schemas"]["SignalDecision"];
+            /** @description Approches au vert maintenant ; vide pendant le dégagement. */
+            green_approaches: ("N" | "E" | "S" | "W")[];
             intersection_id: components["schemas"]["IntersectionId"];
             /**
              * @description `AUTOMATIC` : suit les recommandations. `MANUAL` : commande d'un opérateur en cours.
-             *     `DEGRADED_FIXED_PLAN` : retour au plan à durées fixes quand les recommandations manquent.
+             *     `DEGRADED_FIXED_PLAN` : plan à durées fixes (au démarrage, et quand les recommandations manquent).
              * @enum {string}
              */
             mode: "AUTOMATIC" | "MANUAL" | "DEGRADED_FIXED_PLAN";
+            /** @description Fin prévue de la phase, dégagement compris. */
+            phase_ends_at: components["schemas"]["UtcDateTime"];
+            phase_started_at: components["schemas"]["UtcDateTime"];
+            /** @description Plan appliqué, dans l'ordre. */
             phases: components["schemas"]["SignalPhase"][];
-            provenance?: components["schemas"]["Provenance"];
+            provenance: components["schemas"]["Provenance"];
+            /**
+             * @description `ALL_RED` : les 4 dernières secondes de la phase, tout est au rouge pour vider le carrefour.
+             * @enum {string}
+             */
+            signal: "GREEN" | "ALL_RED";
+            /** @description Instant du dernier changement d'état. */
             updated_at: components["schemas"]["UtcDateTime"];
         };
         /** @enum {string} */
@@ -462,7 +497,7 @@ export interface operations {
         };
         responses: {
             "5XX": components["responses"]["ServerError"];
-            /** @description Commande acceptée ; son application se lit dans `GET /api/v1/signals/{intersection_id}`. */
+            /** @description Commande appliquée (`status` vaut `APPLIED`) ; l'état se lit dans `GET /api/v1/signals/{intersection_id}`. */
             202: {
                 headers: {
                     [name: string]: unknown;

@@ -34,7 +34,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Activer, désactiver ou régler une règle */
+        /**
+         * Activer, désactiver ou régler une règle
+         * @description Les `params` envoyés sont **fusionnés** avec ceux de la règle (ceux qu'on ne cite pas restent). Un paramètre inconnu pour ce type de règle, ou hors de ses bornes, est refusé (`422`, un `field` par paramètre fautif, par exemple `body.params.min_windows`). Le travailleur relit les règles toutes les `RULES_TTL_S` secondes (5 par défaut).
+         */
         patch: operations["updateAlertRule"];
         trace?: never;
     };
@@ -90,7 +93,7 @@ export interface paths {
         put?: never;
         /**
          * Acquitter une alerte
-         * @description Passe l'alerte à `ACKNOWLEDGED` ; l'appelant devient `acknowledged_by`. Possible depuis `CREATED` ou `NOTIFIED`. Répéter l'appel sur une alerte déjà acquittée renvoie `200` sans effet.
+         * @description Passe l'alerte à `ACKNOWLEDGED` ; l'appelant devient `acknowledged_by` (son identifiant, le `sub` du jeton, car le nom d'utilisateur n'est pas dans le jeton). Possible depuis `CREATED` ou `NOTIFIED`. Répéter l'appel sur une alerte déjà acquittée renvoie `200` sans effet ni nouvel événement.
          */
         post: operations["acknowledgeAlert"];
         delete?: never;
@@ -130,19 +133,25 @@ export interface paths {
         };
         /**
          * Flux d'événements en direct (SSE)
-         * @description Connexion longue au format *Server-Sent Events*. Proposition : SSE plutôt que WebSocket, car la
-         *     diffusion va dans un seul sens et OpenAPI sait décrire SSE (choix à confirmer, MS-11).
+         * @description Connexion longue au format *Server-Sent Events*. Choix retenu à MS-11 : SSE plutôt que WebSocket, car la
+         *     diffusion va dans un seul sens, elle passe par HTTP (la passerelle la relaie sans configuration
+         *     particulière : `proxy_buffering off`) et OpenAPI sait la décrire.
          *
-         *     Chaque message a un `event` et un `data` JSON :
+         *     Chaque message a un `event`, un `id` (l'identifiant de l'événement du bus) et un `data` JSON :
          *
          *     | `event` | `data` |
          *     |---|---|
-         *     | `alert.state_changed` | schéma `Alert` |
-         *     | `signal.status` | schéma `SignalState` |
-         *     | `heartbeat` | `{ "time": "..." }` toutes les 30 s |
+         *     | `alert.state_changed` | schéma `Alert` (les valeurs de l'événement `novaria.alert.state_changed.v1`, plus `previous_state`) ; `notified_at` et `acknowledged_by` n'y figurent pas, la liste les donne |
+         *     | `signal.status` | schéma `SignalState` ; accepté dans `types`, diffusé quand le service de réponse publie (MS-12) |
+         *     | `heartbeat` | `{ "time": "..." }` toutes les 30 s (`SSE_HEARTBEAT_S`) |
          *
-         *     Le navigateur ne peut pas poser d'en-tête `Authorization` avec `EventSource` : le client utilise
-         *     `fetch` avec lecture du flux, ou la passerelle fournit un jeton à usage unique (point ouvert).
+         *     La connexion commence par un commentaire `: connecté`, écrit **après** l'inscription du client : tout
+         *     changement d'état postérieur à ce premier octet lui est livré. Un client qui se (re)connecte relit donc
+         *     `GET /api/v1/alerts` après ce premier octet : rien n'est manqué ni rejoué (le flux ne garde pas
+         *     d'historique). Un client trop lent (file pleine) est coupé et se reconnecte.
+         *
+         *     Le navigateur ne peut pas poser d'en-tête `Authorization` avec `EventSource` : le client lit le flux
+         *     avec `fetch` (`frontend/src/services/alertStream.ts`), jamais avec un jeton dans l'adresse.
          */
         get: operations["streamEvents"];
         put?: never;
@@ -630,8 +639,11 @@ export interface operations {
                 };
                 content: {
                     /**
-                     * @example event: alert.state_changed
-                     *     data: {"alert_id":"3f6c7f1e-0d2b-4c55-9c0e-6a1a4b3f2d10","state":"NOTIFIED"}
+                     * @example : connecté
+                     *
+                     *     event: alert.state_changed
+                     *     id: alerte-3f6c7f1e-0d2b-4c55-9c0e-6a1a4b3f2d10-notified
+                     *     data: {"alert_id":"3f6c7f1e-0d2b-4c55-9c0e-6a1a4b3f2d10","state":"NOTIFIED","previous_state":"CREATED","kind":"CONGESTION"}
                      */
                     "text/event-stream": string;
                 };
