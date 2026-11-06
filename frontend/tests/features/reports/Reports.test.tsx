@@ -67,14 +67,19 @@ function serve({ list, content }: Api = {}) {
   });
 }
 
-/** Octets d'un Blob (jsdom n'a pas `Blob.arrayBuffer`). */
-const bytesOf = (blob: Blob) =>
-  new Promise<Uint8Array>((resolve, reject) => {
+/**
+ * Octets d'un Blob. Selon la version de Node, `response.blob()` rend un Blob natif (`arrayBuffer` existe,
+ * `FileReader` de jsdom le refuse) ou un Blob de jsdom (`arrayBuffer` absent, `FileReader` le lit).
+ */
+const bytesOf = async (blob: Blob): Promise<Uint8Array> => {
+  if (typeof blob.arrayBuffer === "function") return new Uint8Array(await blob.arrayBuffer());
+  return new Promise<Uint8Array>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
     reader.onerror = () => reject(reader.error);
     reader.readAsArrayBuffer(blob);
   });
+};
 
 /** Les cellules de chaque ligne de données du tableau. */
 const rows = () =>
