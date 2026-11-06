@@ -31,6 +31,7 @@ def test_a_failing_channel_leaves_the_alert_created_and_retries_later(rig):
     rig.clock.advance(5)
     assert rig.notifier.run_once() == 1
     assert rig.store.alerts()[0].state is State.NOTIFIED
+    assert rig.notifier._not_before == {}  # rien ne s'accumule pour une alerte remise
 
 
 def test_a_failing_alert_does_not_block_the_others(rig):
@@ -132,6 +133,23 @@ def test_the_loop_handles_commits_then_publishes_and_notifies(rig):
     handled = run(rig.handler, source, rig.relay, rig.notifier, stop)
     assert handled == 2
     assert source.committed == [{0: 12}]  # prochain offset à lire
+    assert [e["data"]["state"] for e in rig.publisher.on("alerts.events")] == [
+        "CREATED",
+        "NOTIFIED",
+    ]
+
+
+def test_the_notified_event_leaves_in_the_same_turn_as_the_notification(rig):
+    """Un seul tour de boucle : le relais repasse après le notificateur, sans tour de plus."""
+    stop = threading.Event()
+
+    class OneTurn(Source):
+        def poll(self, timeout_ms=0):
+            stop.set()  # la boucle ne fera que ce tour
+            return super().poll(timeout_ms)
+
+    source = OneTurn([[record(congested(0), 0, 1)]], stop)
+    run(rig.handler, source, rig.relay, rig.notifier, stop)
     assert [e["data"]["state"] for e in rig.publisher.on("alerts.events")] == [
         "CREATED",
         "NOTIFIED",

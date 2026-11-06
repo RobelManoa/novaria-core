@@ -144,6 +144,17 @@ def test_pagination_follows_the_cursor_without_gaps_or_repeats(client, rig):
     assert pages == 3 and len(seen) == 5 == len(set(seen))
 
 
+def test_the_last_page_has_no_cursor_even_when_the_total_is_a_multiple_of_the_page(client, rig):
+    for index in range(1, 5):
+        rig.feed(congested(index, segment=f"ROAD_{index:03d}"))
+    first = client.get("/api/v1/alerts", params={"limit": 2}, headers=auth()).json()
+    assert first["next_cursor"] is not None
+    last = client.get(
+        "/api/v1/alerts", params={"limit": 2, "cursor": first["next_cursor"]}, headers=auth()
+    ).json()
+    assert len(last["items"]) == 2 and last["next_cursor"] is None
+
+
 @pytest.mark.parametrize(
     ("query", "expected"),
     [

@@ -20,7 +20,7 @@ from app.domain.rules import RuleEngine
 from app.services.alerts import AlertService
 from app.services.ingestion import IndicatorHandler
 from app.services.notifier import Notifier
-from app.services.ports import NotificationChannel
+from app.services.ports import NotificationChannel, PublishFailed, StoreFailed
 from app.services.relay import OutboxRelay
 from app.worker.runner import RulesCache, run
 
@@ -76,8 +76,12 @@ def main() -> int:
         )
         logger.info("arrêt demandé", extra={"fields": {"handled": handled}})
         return 0
-    except Exception as error:  # noqa: BLE001 - toute panne arrête le service sans valider d'offset
-        logger.error("arrêt sur panne", extra={"fields": {"error": type(error).__name__}})
+    except Exception as error:  # noqa: BLE001 - toute panne arrête le service, offset non validé
+        # Détail dit pour nos seules exceptions (nom de l'erreur de la base ou du bus), jamais
+        # pour un message extérieur : il pourrait reprendre une adresse de connexion.
+        detail = str(error) if isinstance(error, StoreFailed | PublishFailed) else ""
+        fields = {"error": type(error).__name__, "detail": detail}
+        logger.error("arrêt sur panne", extra={"fields": fields})
         return 1
     finally:
         if source is not None:

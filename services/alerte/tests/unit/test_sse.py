@@ -130,11 +130,12 @@ def test_a_client_too_slow_is_cut_instead_of_growing_memory_without_bound():
             hub.publish(Message(ALERT_EVENT, {"n": index}))
             await asyncio.sleep(0)
         await asyncio.sleep(0.01)
+        registered_after_cut = hub.clients  # avant que le flux ne soit lu jusqu'au bout
         remaining = [chunk async for chunk in reader]  # le flux se termine de lui-même
-        return remaining, hub.clients
+        return remaining, registered_after_cut, hub.clients
 
-    remaining, clients = run(scenario())
-    assert remaining == [] and clients == 0
+    remaining, registered_after_cut, clients = run(scenario())
+    assert remaining == [] and registered_after_cut == 0 and clients == 0
 
 
 def test_a_closed_loop_does_not_break_publication():

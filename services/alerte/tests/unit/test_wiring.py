@@ -180,3 +180,22 @@ def test_a_failure_stops_the_worker_with_a_code_and_still_closes(monkeypatch, ca
     out = capsys.readouterr().out
     assert "arrêt sur panne" in out and "RuntimeError" in out
     assert made["store"].closed and made["publisher"].closed and made["source"].closed
+
+
+def test_the_shutdown_log_names_the_failing_dependency_but_never_an_arbitrary_message(
+    monkeypatch, capsys
+):
+    from app.services.ports import StoreFailed
+
+    leaked = secrets.token_urlsafe(16)
+    wire_worker(monkeypatch)
+
+    def failing_store(*args, **kwargs):
+        raise StoreFailed("PoolTimeout")
+
+    monkeypatch.setattr(worker_main, "run", failing_store)
+    assert worker_main.main() == 1
+    assert '"detail": "PoolTimeout"' in capsys.readouterr().out
+    wire_worker(monkeypatch, fail=True)  # RuntimeError(<secret>) : le message n'est pas écrit
+    assert worker_main.main() == 1
+    assert leaked not in capsys.readouterr().out

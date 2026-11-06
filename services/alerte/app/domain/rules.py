@@ -156,9 +156,8 @@ class RuleEngine:
 
 def _congestion(rule: Rule, params: dict, series: _Series, window: Window) -> list[Decision]:
     state = window.congestion_state
-    if (
-        state == "UNKNOWN"
-    ):  # données insuffisantes : ni preuve de congestion, ni de retour au fluide
+    if state == "UNKNOWN":
+        # Données insuffisantes : ni preuve de congestion, ni retour au fluide.
         series.count = 0
         return []
     if RANK[state] >= RANK[params["state"]]:
