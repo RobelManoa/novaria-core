@@ -3,6 +3,7 @@
 Lancer :  python3 -m unittest discover -s scripts/dev -p "test_forecast_stub.py" -v
 """
 import contextlib
+import http.client
 import io
 import json
 import sys
@@ -113,6 +114,23 @@ class StubTests(unittest.TestCase):
             with serving(ThreadingHTTPServer(("127.0.0.1", 0), FakeApi)) as upstream:
                 with serving(stub.make_server(upstream, 0, back_minutes)) as base:
                     yield base
+
+    def test_un_chemin_qui_ne_commence_pas_par_une_barre_est_refuse_sans_aucun_appel(self):
+        # Le chemin vient de l'appelant et ne doit jamais composer l'adresse de l'API : accolé à une adresse sans
+        # port (`--upstream http://api`), « .hote.exemple/x » viserait api.hote.exemple (SSRF). Refus avant tout appel.
+        for target in ("@127.0.0.1:9/api/v1/indicators", ".hote.exemple/api/v1/indicators", "api/v1/indicators"):
+            with self.subTest(target=target), self.stack() as base:
+                connection = http.client.HTTPConnection(urllib.parse.urlsplit(base).netloc, timeout=10)
+                try:
+                    connection.putrequest("GET", target)
+                    connection.putheader("Authorization", "Bearer jeton-de-test")
+                    connection.endheaders()
+                    response = connection.getresponse()
+                    status, body = response.status, json.loads(response.read())
+                finally:
+                    connection.close()
+                self.assertEqual((status, body["code"]), (400, "BAD_REQUEST"))
+                self.assertEqual(FakeApi.seen, [], "l'API ne doit rien recevoir")
 
     def test_n_invente_rien_quand_aucune_fenetre_n_est_terminee_a_l_emission(self):
         # Fin des données 09:00, émission 60 min avant = 08:00 : la première fenêtre (08:00) finit à 08:05, donc rien n'est connu.

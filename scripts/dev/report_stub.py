@@ -19,12 +19,11 @@ Bibliothèque standard seule.
 
 import argparse
 import hashlib
+import http.client
 import json
 import re
 import sys
-import urllib.error
 import urllib.parse
-import urllib.request
 import uuid
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -33,6 +32,7 @@ REPORTS_PATH = "/api/v1/reports"
 CONTENT_PATH = re.compile(r"^/api/v1/reports/([^/]+)/content$")
 CURRENT_USER_PATH = "/api/v1/auth/me"
 FORWARDED_HEADERS = ("Authorization", "Content-Type", "Accept", "X-Correlation-ID")
+UPSTREAM_ERRORS = (OSError, http.client.HTTPException)  # API injoignable, délai dépassé, réponse illisible
 DEFAULT_COUNT = 3
 DEFAULT_LIMIT = 100  # défaut du paramètre `limit` du contrat
 MAX_LIMIT = 500
@@ -139,6 +139,9 @@ def find_report(count: int, report_id: str) -> tuple[int, dict | tuple[dict, byt
 
 
 def make_handler(upstream: str, count: int):
+    target = urllib.parse.urlsplit(upstream)
+    connection_class = http.client.HTTPSConnection if target.scheme == "https" else http.client.HTTPConnection
+
     class Handler(BaseHTTPRequestHandler):
         def _send(self, status: int, body: bytes, content_type: str, extra: dict[str, str] | None = None):
             self.send_response(status)
@@ -154,19 +157,23 @@ def make_handler(upstream: str, count: int):
             self._send(status, json.dumps(payload).encode(), content_type, {"X-Novaria-Maquette": "reports"})
 
         def _call_upstream(self, path: str, body: bytes | None = None) -> tuple[int, bytes, str]:
+            """Seul le chemin vient de l'appelant : l'hôte et le port sont fixés au démarrage (pas de SSRF)."""
+            if not path.startswith("/"):
+                raise ValueError("chemin attendu")
             headers = {name: self.headers[name] for name in FORWARDED_HEADERS if self.headers.get(name)}
-            request = urllib.request.Request(upstream + path, data=body, headers=headers, method=self.command)
+            connection = connection_class(target.hostname, target.port, timeout=30)
             try:
-                with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 : adresse http(s) vérifiée au démarrage
-                    return response.status, response.read(), response.headers.get("Content-Type", "application/json")
-            except urllib.error.HTTPError as error:
-                return error.code, error.read(), error.headers.get("Content-Type", "application/json")
+                connection.request(self.command, target.path + path, body=body, headers=headers)
+                response = connection.getresponse()
+                return response.status, response.read(), response.getheader("Content-Type", "application/json")
+            finally:
+                connection.close()
 
         def _caller_is_refused(self) -> tuple[int, bytes, str] | None:
             """Présente le jeton de l'appelant à l'API : sa réponse d'échec (401, 502…) est transmise telle quelle."""
             try:
                 status, payload, content_type = self._call_upstream(CURRENT_USER_PATH)
-            except urllib.error.URLError:
+            except UPSTREAM_ERRORS:
                 return 502, json.dumps(problem(502, "UPSTREAM_UNAVAILABLE", "API injoignable")).encode(), "application/problem+json"
             return None if status == 200 else (status, payload, content_type)
 
@@ -191,7 +198,9 @@ def make_handler(upstream: str, count: int):
                 })
             try:
                 status, payload, content_type = self._call_upstream(self.path, body)
-            except urllib.error.URLError:
+            except ValueError:
+                return self._send(400, json.dumps(problem(400, "BAD_REQUEST", "Requête invalide")).encode(), "application/problem+json")
+            except UPSTREAM_ERRORS:
                 return self._send(502, json.dumps(problem(502, "UPSTREAM_UNAVAILABLE", "API injoignable")).encode(), "application/problem+json")
             self._send(status, payload, content_type)
 
@@ -204,8 +213,8 @@ def make_handler(upstream: str, count: int):
 
 
 def make_server(upstream: str, port: int, count: int = DEFAULT_COUNT, host: str = "127.0.0.1") -> ThreadingHTTPServer:
-    if not upstream.startswith(("http://", "https://")):
-        raise ValueError("L'adresse de l'API doit commencer par http:// ou https://")
+    if not upstream.startswith(("http://", "https://")) or not urllib.parse.urlsplit(upstream).hostname:
+        raise ValueError("L'adresse de l'API doit commencer par http:// ou https:// et nommer un hôte")
     if not 0 <= count <= 100_000:
         raise ValueError("Le nombre de rapports doit être compris entre 0 et 100 000")
     return ThreadingHTTPServer((host, port), make_handler(upstream.rstrip("/"), count))
