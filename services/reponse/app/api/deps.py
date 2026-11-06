@@ -11,15 +11,9 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from fastapi import Depends
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
-from app.adapters.kafka_io import KafkaPublisher, KafkaSource
+from app.adapters.kafka_core import KafkaPublisher, KafkaSource
 from app.adapters.mongo_audit import MongoAuditLog
-from app.core.auth import Claims, InvalidToken, Role, decode_token, has_at_least
 from app.core.config import TOPIC_RECOMMENDATIONS, Settings, get_settings
-from app.core.errors import UPSTREAM_UNAVAILABLE, ProblemError
-from app.core.problems import FORBIDDEN, UNAUTHENTICATED
 from app.domain.controller import SignalController
 from app.domain.model import Provenance, utcnow
 from app.domain.safety import DEFAULT_LAYOUT
@@ -28,9 +22,6 @@ from app.services.outbox import Outbox
 from app.services.ports import AuditFailed, AuditLog
 from app.services.signals import SignalService
 from app.worker.runtime import Dispatcher, Runtime
-
-# `auto_error=False` : l'erreur est produite ici, au format `application/problem+json`.
-bearer_scheme = HTTPBearer(auto_error=False, bearerFormat="JWT")
 
 
 class NoAudit:
@@ -102,7 +93,9 @@ def build_components(settings: Settings) -> Components:
     source_factory = None
     if settings.kafka_bootstrap_servers:
         kafka = KafkaPublisher(
-            settings.kafka_bootstrap_servers, timeout_s=settings.kafka_publish_timeout_s
+            settings.kafka_bootstrap_servers,
+            timeout_s=settings.kafka_publish_timeout_s,
+            client_id="novaria-reponse",
         )
         closers.append(kafka.close)
         publisher = kafka
@@ -110,7 +103,10 @@ def build_components(settings: Settings) -> Components:
 
         def source_factory() -> KafkaSource:
             return KafkaSource(
-                settings.kafka_bootstrap_servers, TOPIC_RECOMMENDATIONS, settings.kafka_group_id
+                settings.kafka_bootstrap_servers,
+                TOPIC_RECOMMENDATIONS,
+                settings.kafka_group_id,
+                client_id="novaria-reponse",
             )
 
     dispatcher = Dispatcher(outbox, publisher, audit, service)
@@ -153,43 +149,3 @@ def get_service() -> SignalService:
 
 def get_audit() -> AuditLog:
     return get_components().audit
-
-
-# ------------------------------------------------------------------------------- authentification
-def unauthenticated() -> ProblemError:
-    return ProblemError(
-        UNAUTHENTICATED,
-        "Jeton absent, invalide ou expiré.",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-
-def current_claims(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    settings: Settings = Depends(get_settings),
-) -> Claims:
-    if credentials is None:
-        raise unauthenticated()
-    if settings.jwt_secret is None:
-        raise ProblemError(
-            UPSTREAM_UNAVAILABLE, "L'authentification n'est pas configurée sur ce service."
-        )
-    try:
-        return decode_token(credentials.credentials, secret=settings.jwt_secret.get_secret_value())
-    except InvalidToken as error:
-        raise unauthenticated() from error
-
-
-def require_role(minimum: Role) -> Callable[..., Claims]:
-    """401 sans jeton valide, 403 si le rôle est insuffisant. Même contrat que l'API métier."""
-
-    def dependency(claims: Claims = Depends(current_claims)) -> Claims:
-        if not has_at_least(claims.role, minimum):
-            raise ProblemError(
-                FORBIDDEN,
-                f"Le rôle `{claims.role.value}` ne permet pas cette opération ; "
-                f"rôle requis `{minimum.value}`.",
-            )
-        return claims
-
-    return dependency

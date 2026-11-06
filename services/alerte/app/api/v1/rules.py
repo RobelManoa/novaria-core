@@ -10,8 +10,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from app.api.deps import get_store, require_role
+from app.api.deps import get_store
 from app.api.mapping import rule_out
+from app.api.security import require_role
 from app.core.auth import Claims, Role
 from app.core.errors import NOT_FOUND, VALIDATION_ERROR, ProblemError
 from app.domain.rules import invalid_params

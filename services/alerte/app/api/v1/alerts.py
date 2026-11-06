@@ -13,8 +13,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Query
 
-from app.api.deps import get_service, get_store, require_role
+from app.api.deps import get_service, get_store
 from app.api.mapping import alert_out, decode_cursor, encode_cursor, history_out
+from app.api.security import require_role
 from app.core.auth import Claims, Role
 from app.core.errors import NOT_FOUND, VALIDATION_ERROR, ProblemError
 from app.core.problems import INVALID_STATE_TRANSITION
