@@ -9,7 +9,7 @@ import secrets
 import time
 from datetime import UTC, datetime, timedelta
 
-from app.adapters.kafka_core import KafkaPublisher, KafkaSource
+from app.adapters.kafka_io import KafkaPublisher, KafkaSource
 from app.adapters.mongo_audit import MongoAuditLog
 from app.domain.controller import SignalController
 from app.domain.safety import DEFAULT_LAYOUT

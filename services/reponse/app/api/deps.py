@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.adapters.kafka_core import KafkaPublisher, KafkaSource
+from app.adapters.kafka_io import KafkaPublisher, KafkaSource
 from app.adapters.mongo_audit import MongoAuditLog
 from app.core.config import TOPIC_RECOMMENDATIONS, Settings, get_settings
 from app.domain.controller import SignalController
@@ -93,9 +93,7 @@ def build_components(settings: Settings) -> Components:
     source_factory = None
     if settings.kafka_bootstrap_servers:
         kafka = KafkaPublisher(
-            settings.kafka_bootstrap_servers,
-            timeout_s=settings.kafka_publish_timeout_s,
-            client_id="novaria-reponse",
+            settings.kafka_bootstrap_servers, timeout_s=settings.kafka_publish_timeout_s
         )
         closers.append(kafka.close)
         publisher = kafka
@@ -103,10 +101,7 @@ def build_components(settings: Settings) -> Components:
 
         def source_factory() -> KafkaSource:
             return KafkaSource(
-                settings.kafka_bootstrap_servers,
-                TOPIC_RECOMMENDATIONS,
-                settings.kafka_group_id,
-                client_id="novaria-reponse",
+                settings.kafka_bootstrap_servers, TOPIC_RECOMMENDATIONS, settings.kafka_group_id
             )
 
     dispatcher = Dispatcher(outbox, publisher, audit, service)

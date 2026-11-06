@@ -3,7 +3,7 @@
 import threading
 import time
 
-from app.adapters.kafka_core import Record
+from app.adapters.kafka_io import Record
 from app.worker.runtime import Runtime
 from tests.support import Rig, raw, recommendation_event
 

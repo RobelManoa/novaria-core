@@ -52,9 +52,7 @@ def main() -> int:
         settings.dsn, max_size=settings.postgres_pool_max, timeout_s=settings.postgres_timeout_s
     )
     publisher = KafkaPublisher(
-        settings.kafka_bootstrap_servers,
-        timeout_s=settings.kafka_publish_timeout_s,
-        client_id="novaria-alerte",
+        settings.kafka_bootstrap_servers, timeout_s=settings.kafka_publish_timeout_s
     )
     source = None
     try:
@@ -64,10 +62,7 @@ def main() -> int:
         notifier = Notifier(store, service, build_channel(settings))
         relay = OutboxRelay(store, publisher, batch=settings.outbox_batch)
         source = KafkaSource(
-            settings.kafka_bootstrap_servers,
-            TOPIC_INDICATORS,
-            settings.kafka_group_id,
-            client_id="novaria-alerte",
+            settings.kafka_bootstrap_servers, TOPIC_INDICATORS, settings.kafka_group_id
         )
         logger.info("travailleur prêt", extra={"fields": {"topic": TOPIC_INDICATORS}})
         handled = run(

@@ -8,7 +8,7 @@ from bson import ObjectId
 from kafka.errors import KafkaError
 from pymongo.errors import PyMongoError
 
-from app.adapters.kafka_core import KafkaPublisher, KafkaSource, NoPartitionsAssigned, servers
+from app.adapters.kafka_io import KafkaPublisher, KafkaSource, NoPartitionsAssigned, servers
 from app.adapters.mongo_audit import (
     COMMAND_ACTIONS,
     InvalidCursor,
