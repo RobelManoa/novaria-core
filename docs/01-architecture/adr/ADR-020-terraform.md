@@ -10,7 +10,7 @@
 | Compétences BC05 | Architectures de données décisionnelles, Documentation |
 | S'appuie sur | [ADR-003](ADR-003-aws-ecs-fargate-docker.md), [ADR-006](ADR-006-region-eu-west-1.md), [ADR-007](ADR-007-compte-aws.md) |
 
-> **Mise à jour du 20/10/2026 ([ADR-023](ADR-023-execution-locale-d-abord.md)).** Le code Terraform est **conservé** et se contrôle sans compte (`fmt`, `validate`, `tflint`, analyse Snyk IaC). Le `plan` et l'`apply` ne sont pas exécutés tant qu'AWS n'est pas autorisé.
+> **Mise à jour du 20/10/2026 ([ADR-023](ADR-023-execution-locale-d-abord.md)).** Le code Terraform se contrôle sans compte (`fmt`, `validate`, `tflint`, analyse Snyk IaC : `dev.py terraform-check`). Au 06/11/2026 il se limite à un squelette (modules `ecr` et `observability`, environnements `dev` et `demo`) ; le réseau, RDS, l'état distant et le reste de l'organisation décrite ci-dessous restent à écrire (CLD-10, CLD-11, différées). Le `plan` et l'`apply` ne sont pas exécutés tant qu'AWS n'est pas autorisé.
 
 ## 1. Problème
 

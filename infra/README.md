@@ -6,14 +6,16 @@
 Région : eu-west-1. Authentification GitHub → AWS par OIDC (OpenID Connect), sans clé d'accès longue durée.
 Les fichiers d'état et `*.tfvars` ne sont jamais versionnés.
 
-Contrôles possibles sans compte (à lancer depuis `infra/terraform/envs/<env>`) :
+Contenu actuel (LOC-06, 06/11/2026) : un **squelette** sans compte, à étendre avec CLD-10 et CLD-11 (différées) : modules `ecr` (un dépôt d'images par service) et `observability` (un groupe de journaux par service), appelés par `envs/dev` et `envs/demo`. Pas d'état distant, pas de réseau, pas de base.
 
-| Étape | Commande (identique sous Linux et Windows) |
-|---|---|
-| Format | `terraform fmt -check -recursive ../..` |
-| Initialisation sans état distant | `terraform init -backend=false` |
-| Validation | `terraform validate` |
-| Lint | `tflint` |
+Contrôles possibles sans compte, avec Docker seulement (Terraform, tflint et Snyk tournent dans des conteneurs aux versions fixées) :
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Tous les contrôles | `python3 scripts/dev/dev.py terraform-check` | `py -3 scripts/dev/dev.py terraform-check` |
+| Régénérer le verrou des fournisseurs | `python3 scripts/dev/dev.py terraform-check --lock` | `py -3 scripts/dev/dev.py terraform-check --lock` |
+
+Détail des étapes, résultats et proposition de job de CI : [contrôles Terraform sans compte](../docs/05-cloud-aws/controles-terraform-sans-compte.md).
 
 Équivalents locaux de chaque service : [ADR-025](../docs/01-architecture/adr/ADR-025-equivalents-locaux-des-services-aws.md). Index des documents AWS : [docs/05-cloud-aws](../docs/05-cloud-aws/README.md).
 
