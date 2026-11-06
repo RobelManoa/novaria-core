@@ -44,10 +44,10 @@ PORTE_L_API_METIER = {"traitement"}
 TRAVAILLEURS = {"traitement-flux": ("traitement", "svc_traitement"),
                 "traitement-pipeline": ("traitement", "svc_traitement"),
                 "alerte-worker": ("alerte", "svc_alerte")}
-# Le service d'alerte vérifie lui-même les jetons de l'API métier (contrat : bearerAuth) : il reçoit la clé de signature,
-# donc il pourrait aussi en émettre. Exception documentée (docs/03-donnees/alertes.md, section 9), à lever avec MS-13
-# (vérification à la passerelle) ou avec une signature asymétrique.
-VERIFIE_LES_JETONS = {"alerte"}
+# Les services d'alerte et de réponse vérifient eux-mêmes les jetons de l'API métier (contrat : bearerAuth) : ils reçoivent
+# la clé de signature, donc ils pourraient aussi en émettre. Exception documentée (docs/03-donnees/alertes.md et feux.md,
+# section « Choix à valider »), à lever avec MS-13 (vérification à la passerelle) ou avec une signature asymétrique.
+VERIFIE_LES_JETONS = {"alerte", "reponse"}
 # Séparation écriture et lecture (MS-10) : l'API de consultation lit l'entrepôt avec le compte en lecture seule
 # `svc_lecture` ; seul ce service le reçoit. Les processus d'écriture gardent `svc_traitement`.
 LIT_L_ENTREPOT = {"traitement"}

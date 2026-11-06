@@ -741,6 +741,56 @@ class TestsIntegrationFluxTests(unittest.TestCase):
         self.assertEqual(dev.build_parser().parse_args(["test-integration", "--service", "flux"]).service, "flux")
 
 
+class TestsIntegrationReponseTests(unittest.TestCase):
+    """MS-12 : `test-integration --service reponse` monte Kafka (sujets créés) et MongoDB dans un projet jetable."""
+
+    ENV = {"MONGO_ROOT_USER": "mongo_admin", "MONGO_ROOT_PASSWORD": "mg@adm/2:#", "MONGO_DB": "novaria",
+           "MONGO_PORT": "27017", "KAFKA_PORT": "9094", "MONGO_PASSWORD_REPONSE": "re/pw:5#"}
+    lancer = TestsIntegrationCollecteTests.lancer  # même montage : Kafka et MongoDB, mêmes simulacres
+
+    def test_les_adresses_visent_les_ports_du_projet_avec_le_compte_de_la_reponse(self):
+        adresses = dev.reponse_environment({**self.ENV, "KAFKA_PORT": "62300", "MONGO_PORT": "62301"})
+        self.assertEqual(adresses["NOVARIA_TEST_KAFKA_BOOTSTRAP"], "127.0.0.1:62300")
+        self.assertEqual(adresses["NOVARIA_TEST_REPONSE_MONGO_URL"],
+                         "mongodb://svc_reponse:re%2Fpw%3A5%23@127.0.0.1:62301/novaria?authSource=novaria")
+        self.assertEqual(adresses["NOVARIA_TEST_REPONSE_MONGO_ADMIN_URL"],
+                         "mongodb://mongo_admin:mg%40adm%2F2%3A%23@127.0.0.1:62301/novaria?authSource=admin")
+
+    def test_une_variable_absente_est_nommee(self):
+        for nom in ("MONGO_ROOT_USER", "MONGO_ROOT_PASSWORD", "MONGO_DB", "MONGO_PASSWORD_REPONSE"):
+            with self.subTest(variable=nom), self.assertRaisesRegex(dev.DevError, nom):
+                dev.reponse_environment({k: v for k, v in self.ENV.items() if k != nom})
+
+    def test_kafka_et_mongodb_demarrent_pytest_tourne_dans_la_reponse_puis_tout_est_supprime(self):
+        code, appels, vus, sujets = self.lancer(["test-integration", "--service", "reponse"])
+        self.assertEqual(code, 0)
+        up, pytest_, down = appels
+        self.assertEqual(up[0], ["docker", "compose", "up", "-d", "--wait", "kafka", "mongo"])
+        self.assertEqual(pytest_[0], [sys.executable, "-m", "pytest"])
+        self.assertEqual(pytest_[1]["cwd"], ROOT / "services" / "reponse")
+        self.assertIn("NOVARIA_TEST_REPONSE_MONGO_URL", pytest_[1]["env"])
+        self.assertEqual(down[0], ["docker", "compose", "down", "-v", "--remove-orphans"])
+        sujets.assert_called_once()
+        self.assertNotEqual(vus[0]["KAFKA_PORT"], self.ENV["KAFKA_PORT"], "ports propres : le bus du poste n'est pas touché")
+        self.assertIsNone(vus[0]["POSTGRES_PORT"], "PostgreSQL n'est pas démarré pour la réponse")
+
+    def test_un_paquet_manquant_est_nomme_avec_le_verrou_de_la_reponse(self):
+        appels = []
+        texte = "".join(f"{k}={v}\n" for k, v in self.ENV.items())
+        with tempfile.TemporaryDirectory() as tmp:
+            env = Path(tmp) / ".env"
+            env.write_text(texte, encoding="utf-8")
+            with mock.patch("subprocess.run", side_effect=lambda *a, **k: appels.append(a)),                     mock.patch.object(dev, "ENV_FILE", env),                     mock.patch("importlib.util.find_spec", side_effect=lambda nom: None if nom == "pymongo" else object()),                     mock.patch("sys.stderr") as erreur:
+                self.assertEqual(dev.main(["test-integration", "--service", "reponse"]), 2)
+        ecrit = "".join(call.args[0] for call in erreur.write.call_args_list)
+        self.assertIn("pymongo", ecrit)
+        self.assertIn("services/reponse/requirements-dev.txt", ecrit)
+        self.assertEqual(appels, [])
+
+    def test_le_service_reponse_est_un_choix_de_la_ligne_de_commande(self):
+        self.assertEqual(dev.build_parser().parse_args(["test-integration", "--service", "reponse"]).service, "reponse")
+
+
 class TestsIntegrationAlerteTests(unittest.TestCase):
     """MS-11 : `test-integration --service alerte` monte PostgreSQL migré et Kafka (sujets créés) dans un projet jetable."""
 

@@ -107,5 +107,5 @@ Cette exception disparaît si l'API métier redevient un service à part (point 
 | Appels sans jeton valide | Comptés, non journalisés (section 1) | À reconsidérer si un besoin de détection d'intrusion apparaît (alerte sur les 401 répétés) |
 | Journal applicatif (`app.access`) | Il écrit le chemin reçu : un jeton collé dans l'adresse y apparaîtrait. Non traité par BE-05, qui ne porte que sur MongoDB ; l'audit, lui, l'écarte | BE-06 (format d'erreur et journaux) |
 | Lecture du journal | Aucune route ne lit `audit_logs` ; la lecture se fait dans MongoDB | À ajouter si le tableau de bord doit l'afficher (rôle `admin`) |
-| Commandes de feux | Auditées par le service de réponse extérieure (`svc_reponse` a le droit d'insérer dans `audit_logs`) ; non traité ici | MS-12 |
+| Commandes de feux | Auditées par le service de réponse extérieure (MS-12) : **journal écrit avant d'agir**, une commande qu'on ne peut pas journaliser n'est pas appliquée ; contenu et choix : [feux](../03-donnees/feux.md), section 7 | Fait (MS-12) |
 | Durée de l'appel | Mesurée dans le middleware, donc sans l'attente de l'écriture dans MongoDB, mais avec l'authentification | |

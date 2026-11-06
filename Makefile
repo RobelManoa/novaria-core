@@ -6,7 +6,7 @@ DEV = $(PY) scripts/dev/dev.py
 PY_API ?= $(if $(wildcard venv/bin/python),venv/bin/python,$(PY))
 DEV_API = $(PY_API) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-collecte-debit test-contracts test-etl lint format new-service quality-up quality-down hooks
+.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint format new-service quality-up quality-down hooks
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -99,6 +99,8 @@ test-integration-collecte: ## Tests de services/collecte contre Kafka et MongoDB
 	$(DEV) test-integration --service collecte
 test-integration-flux: ## Tests du flux (services/traitement) contre PostgreSQL migré, MongoDB et Kafka en conteneur (projet jetable)
 	$(DEV) test-integration --service flux -- tests/integration/test_flux_stack.py
+test-integration-reponse: ## Tests de services/reponse contre Kafka et MongoDB en conteneur (projet jetable) : garde-fous, mode dégradé, audit
+	$(DEV) test-integration --service reponse
 test-integration-alerte: ## Tests de services/alerte contre PostgreSQL migré et Kafka en conteneur (projet jetable) : délai jusqu'à l'alerte visible
 	$(DEV) test-integration --service alerte
 test-collecte-debit: ## Débit maximal de la collecte démarrée (make test-collecte-debit COLLECTE_URL=http://127.0.0.1:8001)

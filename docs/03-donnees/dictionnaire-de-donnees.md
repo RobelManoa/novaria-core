@@ -567,23 +567,24 @@ Archive du sujet `errors.dlq`. Écrit par la collecte et le traitement.
 
 ### 10.3 `audit_logs`
 
-Journal d'audit : jamais de secret ni de donnée personnelle. Écrit par la réponse extérieure et l'API métier. Ce que l'API métier écrit exactement, et ce qu'elle n'écrit jamais : [journalisation d'audit](../02-specifications/journalisation-audit.md) (BE-05).
+Journal d'audit : jamais de secret ni de donnée personnelle. Écrit par la réponse extérieure et l'API métier. Les commandes de feux y sont écrites **avant d'être appliquées** (MS-12). Ce que l'API métier écrit exactement, et ce qu'elle n'écrit jamais : [journalisation d'audit](../02-specifications/journalisation-audit.md) (BE-05).
 
 | Champ | Type | Obligatoire | Règle | Sens |
 |---|---|---|---|---|
 | `ts` | date | oui | | Moment de l'action |
 | `service` | texte | oui | | Service qui journalise |
 | `actor` | texte | oui | | Qui agit : utilisateur ou service. API métier : identifiant (UUID) du compte, ou `anonymous` pour une connexion refusée ; jamais le nom d'utilisateur |
-| `action` | texte | oui | | Ce qui est fait. API métier : méthode et **modèle** de route (`GET /api/v1/users/{user_id}`) |
+| `action` | texte | oui | | Ce qui est fait. API métier : méthode et **modèle** de route (`GET /api/v1/users/{user_id}`) ; réponse extérieure : `signal.command.SET_PHASE`, `signal.command.RESUME_AUTOMATIC`, `signal.recommendation`, `signal.fixed_plan_fallback`, `signal.manual_command_ended`, `signal.startup` |
 | `outcome` | texte | oui | ok, denied, error | Résultat |
 | `correlation_id` | texte | non | | Trace de bout en bout |
-| `details` | objet | non | | Contexte libre. API métier : `status` (code HTTP), `duration_ms`, `role` du compte, `path_params` (seulement ceux qui sont des UUID) |
+| `details` | objet | non | | Contexte libre. API métier : `status` (code HTTP), `duration_ms`, `role` du compte, `path_params` (seulement ceux qui sont des UUID) ; réponse extérieure : `intersection_id` (toujours), puis pour une commande `command_id`, `phase_id`, `duration_s`, `reason` (motif saisi par l'opérateur), `role`, `mode`, `refusal_reason`, `refusal_detail`, et pour une décision du service `reference_id`, `event_id` ([feux](feux.md), section 7) |
 
 | Index | Clés | Rôle |
 |---|---|---|
 | `ts_desc` | `ts` décroissant | Dernières actions |
 | `actor_ts` | `actor`, `ts` décroissant | Actions d'une personne ou d'un service |
 | `correlation` | `correlation_id`, clairsemé | Retrouver une chaîne d'événements |
+| `intersection_ts` | `details.intersection_id`, `ts` décroissant, clairsemé | Relire les commandes de feux d'un carrefour (MS-12) |
 
 ### 10.4 `usage_stats`
 

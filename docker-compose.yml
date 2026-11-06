@@ -293,6 +293,10 @@ services:
       postgres: { condition: service_healthy }
       kafka-init: { condition: service_completed_successfully }
 
+  # --- Service de réponse extérieure (MS-12) : contrôleur de feux simulé, garde-fous, mode dégradé à plan fixe. Lit
+  # traffic.recommendations, publie signal.status, journalise les commandes manuelles dans audit_logs (compte svc_reponse).
+  # Une seule instance : l'état des feux est en mémoire, et sa perte ramène les feux au plan fixe (c'est voulu). Il vérifie
+  # lui-même les jetons de l'API métier (JWT_SECRET), exception documentée dans docs/03-donnees/feux.md jusqu'à MS-13.
   reponse:
     build:
       context: ./services/reponse
@@ -302,7 +306,9 @@ services:
       SERVICE_NAME: reponse
       MONGO_URL: mongodb://svc_reponse:${MONGO_PASSWORD_REPONSE}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
       MONGO_DB: ${MONGO_DB}
+      JWT_SECRET: ${JWT_SECRET:-}
     ports: ["127.0.0.1:${REPONSE_PORT:-8004}:8000"]
+    restart: on-failure
     depends_on:
       mongo: { condition: service_healthy }
       kafka-init: { condition: service_completed_successfully }
