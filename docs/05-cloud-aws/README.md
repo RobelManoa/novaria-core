@@ -23,7 +23,7 @@ flowchart LR
 | Hébergement ECS Fargate et Docker | [ADR-003](../01-architecture/adr/ADR-003-aws-ecs-fargate-docker.md) | Cible documentée |
 | Région eu-west-1 | [ADR-006](../01-architecture/adr/ADR-006-region-eu-west-1.md) | Cible documentée |
 | Compte, plafond de dépense, plan B | [ADR-007](../01-architecture/adr/ADR-007-compte-aws.md) | Différée ; plan B appliqué |
-| Infrastructure as Code | [ADR-020](../01-architecture/adr/ADR-020-terraform.md), `infra/terraform` | Écrit, validé statiquement, non appliqué |
+| Infrastructure as Code | [ADR-020](../01-architecture/adr/ADR-020-terraform.md), `infra/terraform` | Squelette écrit et contrôlé sans compte ([contrôles](controles-terraform-sans-compte.md)), non appliqué |
 | Docker, images, déploiement | [ADR-021](../01-architecture/adr/ADR-021-docker-deploiement.md) | Images locales ; publication documentée |
 | Hébergement MongoDB | [ADR-022](../01-architecture/adr/ADR-022-hebergement-mongodb.md) | Local en conteneur ; AWS documenté |
 | Équivalents locaux de chaque service | [ADR-025](../01-architecture/adr/ADR-025-equivalents-locaux-des-services-aws.md) | Table de référence |
