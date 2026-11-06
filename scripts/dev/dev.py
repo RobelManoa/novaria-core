@@ -979,6 +979,7 @@ def cmd_api_run(_: argparse.Namespace) -> int:
 
 
 STUB_PORT = 8001  # la maquette des prévisions : le proxy de Vite la vise avec `front-dev --stub`
+REPORT_STUB_PORT = 8002  # la maquette des rapports : le proxy de Vite la vise avec `front-dev --report-stub`
 
 
 def cmd_forecast_stub(args: argparse.Namespace) -> int:
@@ -986,6 +987,15 @@ def cmd_forecast_stub(args: argparse.Namespace) -> int:
     import forecast_stub
 
     return forecast_stub.main(["--upstream", f"http://127.0.0.1:{API_PORT}", "--port", str(STUB_PORT), "--back-minutes", str(args.back_minutes)])
+
+
+def cmd_report_stub(args: argparse.Namespace) -> int:
+    """Lance la MAQUETTE de GET /api/v1/reports (FE-06) devant l'API : les routes et le robot n'existent pas encore."""
+    import report_stub
+
+    # Derrière la maquette des prévisions, les deux pages se testent ensemble : chaque maquette ne sert que sa route.
+    upstream_port = STUB_PORT if args.behind_forecast_stub else API_PORT
+    return report_stub.main(["--upstream", f"http://127.0.0.1:{upstream_port}", "--port", str(REPORT_STUB_PORT), "--count", str(args.count)])
 
 
 def cmd_front_dev(args: argparse.Namespace) -> int:
@@ -998,9 +1008,14 @@ def cmd_front_dev(args: argparse.Namespace) -> int:
         if code:
             return code
     environment = dict(os.environ)
+    if args.stub and args.report_stub:
+        raise DevError("--stub et --report-stub s'excluent. Pour les deux pages : report-stub --behind-forecast-stub, puis front-dev --report-stub.")
     if args.stub:
         environment["API_TARGET"] = f"http://localhost:{STUB_PORT}"
         print(f"Les appels /api passent par la maquette des prévisions (forecast-stub, port {STUB_PORT}).")
+    if args.report_stub:
+        environment["API_TARGET"] = f"http://localhost:{REPORT_STUB_PORT}"
+        print(f"Les appels /api passent par la maquette des rapports (report-stub, port {REPORT_STUB_PORT}).")
     print(f"Front-end : http://localhost:5173  (Ctrl+C pour arrêter ; l'API doit tourner : api-run, sur le port {API_PORT})")
     try:
         return subprocess.run([npm, "run", "dev"], cwd=FRONTEND_DIR, env=environment, check=False).returncode
@@ -1189,8 +1204,12 @@ def build_parser() -> argparse.ArgumentParser:
     add("api-run", cmd_api_run, "lance l'API de traitement sur http://127.0.0.1:8000 (tableau de bord en local)")
     front = add("front-dev", cmd_front_dev, "lance le front-end (Vite) sur http://localhost:5173")
     front.add_argument("--stub", action="store_true", help="les appels /api passent par la maquette des prévisions (forecast-stub)")
+    front.add_argument("--report-stub", action="store_true", help="les appels /api passent par la maquette des rapports (report-stub)")
     stub = add("forecast-stub", cmd_forecast_stub, "lance la MAQUETTE de GET /api/v1/forecasts devant l'API (route non implémentée côté serveur)")
     stub.add_argument("--back-minutes", type=int, default=60, help="émission décalée avant la fin des données, pour avoir un observé à comparer (60)")
+    reports = add("report-stub", cmd_report_stub, "lance la MAQUETTE de GET /api/v1/reports devant l'API (routes et robot absents côté serveur)")
+    reports.add_argument("--count", type=int, default=3, help="nombre de rapports fictifs ; 0 : liste vide (3)")
+    reports.add_argument("--behind-forecast-stub", action="store_true", help="se place devant la maquette des prévisions au lieu de l'API (les deux pages ensemble)")
     add("db-status", cmd_db_status, "état des bases et des migrations")
     add("db-check", cmd_db_check, "vérifie rôles, droits, collections et index")
     events = add("db-check-events", cmd_db_check_events, "insère une mesure conforme (acceptée) et une sans provenance (refusée)")

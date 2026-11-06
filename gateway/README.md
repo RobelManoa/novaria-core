@@ -6,7 +6,7 @@
 |---|---|
 | `/health` | la passerelle elle-même |
 | `/api/v1/health` | `traitement` (provisoire, jusqu'au service API métier) |
-| `/api/v1/intersections`, `/road-segments`, `/indicators`, `/forecasts` | `traitement` |
+| `/api/v1/intersections`, `/road-segments`, `/indicators`, `/forecasts`, `/reports` | `traitement` |
 | `/api/v1/alerts`, `/alert-rules`, `/events/stream` (SSE) | `alerte` |
 | `/api/v1/signals` | `reponse` |
 | `/api/v1/auth`, `/users` | `traitement` (provisoire : il porte le rôle « API métier » ; il contrôle lui-même le jeton, BE-03) |

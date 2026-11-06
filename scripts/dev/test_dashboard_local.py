@@ -106,28 +106,28 @@ class FrontDevTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as dossier, self.avec_front(dossier, node_modules=False), \
                 mock.patch.object(dev.shutil, "which", return_value="/usr/bin/npm"), \
                 mock.patch.object(dev.subprocess, "run", return_value=mock.Mock(returncode=0)) as run:
-            self.assertEqual(dev.cmd_front_dev(argparse.Namespace(stub=False)), 0)
+            self.assertEqual(dev.cmd_front_dev(argparse.Namespace(stub=False, report_stub=False)), 0)
         self.assertEqual([appel.args[0] for appel in run.call_args_list], [["/usr/bin/npm", "ci"], ["/usr/bin/npm", "run", "dev"]])
 
     def test_n_installe_rien_quand_node_modules_existe(self):
         with tempfile.TemporaryDirectory() as dossier, self.avec_front(dossier, node_modules=True), \
                 mock.patch.object(dev.shutil, "which", return_value="/usr/bin/npm"), \
                 mock.patch.object(dev.subprocess, "run", return_value=mock.Mock(returncode=0)) as run:
-            dev.cmd_front_dev(argparse.Namespace(stub=False))
+            dev.cmd_front_dev(argparse.Namespace(stub=False, report_stub=False))
         self.assertEqual([appel.args[0] for appel in run.call_args_list], [["/usr/bin/npm", "run", "dev"]])
 
     def test_s_arrete_si_l_installation_echoue(self):
         with tempfile.TemporaryDirectory() as dossier, self.avec_front(dossier, node_modules=False), \
                 mock.patch.object(dev.shutil, "which", return_value="/usr/bin/npm"), \
                 mock.patch.object(dev.subprocess, "run", return_value=mock.Mock(returncode=4)) as run:
-            self.assertEqual(dev.cmd_front_dev(argparse.Namespace(stub=False)), 4)
+            self.assertEqual(dev.cmd_front_dev(argparse.Namespace(stub=False, report_stub=False)), 4)
         self.assertEqual(run.call_count, 1)
 
     def test_avec_stub_le_proxy_de_vite_vise_la_maquette(self):
         with tempfile.TemporaryDirectory() as dossier, self.avec_front(dossier, node_modules=True), \
                 mock.patch.object(dev.shutil, "which", return_value="/usr/bin/npm"), \
                 mock.patch.object(dev.subprocess, "run", return_value=mock.Mock(returncode=0)) as run:
-            dev.cmd_front_dev(argparse.Namespace(stub=True))
+            dev.cmd_front_dev(argparse.Namespace(stub=True, report_stub=False))
         self.assertEqual(run.call_args.kwargs["env"]["API_TARGET"], "http://localhost:8001")
 
     def test_sans_stub_le_proxy_garde_l_api(self):
@@ -136,7 +136,7 @@ class FrontDevTests(unittest.TestCase):
                 mock.patch.object(dev.shutil, "which", return_value="/usr/bin/npm"), \
                 mock.patch.object(dev.subprocess, "run", return_value=mock.Mock(returncode=0)) as run:
             dev.os.environ.pop("API_TARGET", None)
-            dev.cmd_front_dev(argparse.Namespace(stub=False))
+            dev.cmd_front_dev(argparse.Namespace(stub=False, report_stub=False))
         self.assertNotIn("API_TARGET", run.call_args.kwargs["env"])
 
     def test_le_port_de_la_maquette_est_celui_que_vise_le_front(self):
@@ -144,10 +144,31 @@ class FrontDevTests(unittest.TestCase):
         self.assertEqual(dev.build_parser().parse_args(["front-dev", "--stub"]).stub, True)
         self.assertEqual(dev.build_parser().parse_args(["front-dev"]).stub, False)
 
+    def test_avec_report_stub_le_proxy_de_vite_vise_la_maquette_des_rapports(self):
+        with tempfile.TemporaryDirectory() as dossier, self.avec_front(dossier, node_modules=True), \
+                mock.patch.object(dev.shutil, "which", return_value="/usr/bin/npm"), \
+                mock.patch.object(dev.subprocess, "run", return_value=mock.Mock(returncode=0)) as run:
+            dev.cmd_front_dev(argparse.Namespace(stub=False, report_stub=True))
+        self.assertEqual(run.call_args.kwargs["env"]["API_TARGET"], "http://localhost:8002")
+
+    def test_les_deux_maquettes_ne_se_choisissent_pas_ensemble(self):
+        with tempfile.TemporaryDirectory() as dossier, self.avec_front(dossier, node_modules=True), \
+                mock.patch.object(dev.shutil, "which", return_value="/usr/bin/npm"), \
+                mock.patch.object(dev.subprocess, "run") as run:
+            with self.assertRaisesRegex(dev.DevError, "s'excluent"):
+                dev.cmd_front_dev(argparse.Namespace(stub=True, report_stub=True))
+        run.assert_not_called()
+
+    def test_le_port_de_la_maquette_des_rapports_est_celui_que_vise_le_front(self):
+        self.assertEqual(dev.REPORT_STUB_PORT, 8002)
+        self.assertNotEqual(dev.REPORT_STUB_PORT, dev.STUB_PORT)
+        self.assertEqual(dev.build_parser().parse_args(["front-dev", "--report-stub"]).report_stub, True)
+        self.assertEqual(dev.build_parser().parse_args(["front-dev"]).report_stub, False)
+
     def test_dit_que_npm_manque(self):
         with mock.patch.object(dev.shutil, "which", return_value=None):
             with self.assertRaisesRegex(dev.DevError, "npm"):
-                dev.cmd_front_dev(argparse.Namespace(stub=False))
+                dev.cmd_front_dev(argparse.Namespace(stub=False, report_stub=False))
 
 
 class ForecastStubTests(unittest.TestCase):
@@ -186,6 +207,28 @@ class MakefileTests(unittest.TestCase):
         self.assertIn("PY_API ?= $(if $(wildcard venv/bin/python),venv/bin/python,$(PY))", self.makefile)
         # Les autres cibles gardent PY : seules celles qui importent les paquets de l'API passent par le venv.
         self.assertIn("PY ?= python3", self.makefile)
+
+
+
+class ReportStubTests(unittest.TestCase):
+    def test_lance_la_maquette_devant_l_api_sur_le_port_du_proxy(self):
+        import report_stub
+
+        with mock.patch.object(report_stub, "main", return_value=0) as main:
+            args = dev.build_parser().parse_args(["report-stub", "--count", "25"])
+            self.assertEqual(dev.cmd_report_stub(args), 0)
+        main.assert_called_once_with(["--upstream", "http://127.0.0.1:8000", "--port", "8002", "--count", "25"])
+
+    def test_trois_rapports_par_defaut(self):
+        self.assertEqual(dev.build_parser().parse_args(["report-stub"]).count, 3)
+
+    def test_peut_se_placer_devant_la_maquette_des_previsions(self):
+        import report_stub
+
+        with mock.patch.object(report_stub, "main", return_value=0) as main:
+            args = dev.build_parser().parse_args(["report-stub", "--behind-forecast-stub"])
+            dev.cmd_report_stub(args)
+        self.assertEqual(main.call_args.args[0][:2], ["--upstream", "http://127.0.0.1:8001"])
 
 
 if __name__ == "__main__":

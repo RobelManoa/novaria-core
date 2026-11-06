@@ -55,6 +55,12 @@ OPERATIONS_DE_BE_01 = {
     ("sendSignalCommand", "POST", "/api/v1/signals/{intersection_id}/commands"),
     ("listForecasts", "GET", "/api/v1/forecasts"), ("streamEvents", "GET", "/api/v1/events/stream"),
 }
+# Opérations ajoutées depuis BE-01 : le dépôt des mesures (MS-03) et les rapports du robot (FE-06, Proposition).
+OPERATIONS_AJOUTEES = {
+    ("ingestMeasurement", "POST", "/api/v1/measurements"),
+    ("listReports", "GET", "/api/v1/reports"),
+    ("downloadReport", "GET", "/api/v1/reports/{report_id}/content"),
+}
 GENRES = ("schemas", "parameters", "responses", "headers", "securitySchemes")
 
 
@@ -330,11 +336,11 @@ class ConcordanceAvecLesEvenements(unittest.TestCase):
 
 @unittest.skipIf(yaml is None, "PyYAML absent : pip install pyyaml")
 class DecoupageEnServices(unittest.TestCase):
-    def test_aucune_operation_de_be_01_n_est_perdue_et_une_seule_est_ajoutee(self):
+    def test_aucune_operation_de_be_01_n_est_perdue_et_trois_sont_ajoutees(self):
         presentes = {(op["operationId"], methode.upper(), chemin)
                      for service in SERVICES for chemin, methode, op in operations(contrat(service))}
         self.assertEqual(OPERATIONS_DE_BE_01 - presentes, set(), "opérations perdues")
-        self.assertEqual(presentes - OPERATIONS_DE_BE_01, {("ingestMeasurement", "POST", "/api/v1/measurements")})
+        self.assertEqual(presentes - OPERATIONS_DE_BE_01, OPERATIONS_AJOUTEES)
 
     def test_chaque_chemin_appartient_a_un_seul_service_sauf_la_sonde(self):
         proprietaires: dict[str, list[str]] = {}

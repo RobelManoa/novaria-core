@@ -3,7 +3,7 @@ openapi: 3.1.0
 info:
   title: "Novaria Core : service Traitement"
   version: 1.0.0-draft.1
-  summary: Référentiel du réseau, indicateurs de circulation et prévisions (lecture).
+  summary: Référentiel du réseau, indicateurs de circulation, prévisions et rapports (lecture).
   description: |
     Lit l'entrepôt (schéma `dwh`) et publie, sur le bus, `traffic.indicators` et `traffic.recommendations` (contrats dans `contracts/events/`). Les prévisions viennent du module d'apprentissage : le service les expose (Proposition, IA-06).
 
@@ -28,6 +28,8 @@ tags:
     description: Résultats d'agrégation par fenêtre et état de congestion.
   - name: Prévisions
     description: Vitesses prévues à court terme.
+  - name: Rapports
+    description: Rapports PDF produits par le robot d'automatisation (RPA, ADR-019). Proposition (FE-06).
 
 security:
   - bearerAuth: []
@@ -273,6 +275,62 @@ paths:
               schema: { $ref: "common.yaml#/components/schemas/Problem" }
         "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
 
+  /api/v1/reports:
+    get:
+      tags: [Rapports]
+      operationId: listReports
+      summary: Lister les rapports générés
+      description: |
+        **Proposition (FE-06, à relire par Daddy ; le robot IA-07 n'existe pas encore).** Rapports PDF
+        déposés par le robot d'automatisation (ADR-019), du plus récent au plus ancien (`generated_at`
+        décroissant, puis `report_id`). Lecture seule : le robot dépose le fichier et ses métadonnées, il
+        ne passe pas par cette API.
+      x-required-role: viewer
+      parameters:
+        - { $ref: "common.yaml#/components/parameters/Limit" }
+        - { $ref: "common.yaml#/components/parameters/Cursor" }
+      responses:
+        "200":
+          description: Une page de rapports.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportPage" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/reports/{report_id}/content:
+    get:
+      tags: [Rapports]
+      operationId: downloadReport
+      summary: Télécharger un rapport
+      description: |
+        **Proposition (FE-06).** Le fichier PDF du rapport. Le jeton est un en-tête `Authorization` : le
+        navigateur ne peut pas suivre un simple lien, le client lit le corps puis l'enregistre.
+        `Content-Disposition` porte le nom de fichier de `Report.file_name`.
+      x-required-role: viewer
+      parameters:
+        - name: report_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Le PDF ; sa taille est `Report.size_bytes`, son empreinte `Report.sha256`.
+          headers:
+            Content-Disposition:
+              description: '`attachment; filename="<file_name>"`.'
+              schema: { type: string }
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "404": { $ref: "common.yaml#/components/responses/NotFound" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
 components:
   securitySchemes:
     bearerAuth: { $ref: "common.yaml#/components/securitySchemes/bearerAuth" }
@@ -457,3 +515,37 @@ components:
               type: [string, "null"]
               description: Identifiant du run d'entraînement (`model_runs`), qui remonte au code et aux données.
         provenance: { $ref: "common.yaml#/components/schemas/Provenance" }
+    Report:
+      type: object
+      description: |
+        Métadonnées d'un rapport PDF. **Proposition (FE-06).** `sha256` permet de contrôler le fichier
+        reçu ; la provenance des données du rapport n'y figure pas (question pour la relecture).
+      required: [report_id, title, period_start, period_end, generated_at, file_name, size_bytes, content_type, sha256]
+      properties:
+        report_id: { type: string, format: uuid }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        period_start:
+          $ref: "common.yaml#/components/schemas/UtcDateTime"
+          description: Début de la période couverte (incluse).
+        period_end:
+          $ref: "common.yaml#/components/schemas/UtcDateTime"
+          description: Fin de la période couverte (exclue).
+        generated_at:
+          $ref: "common.yaml#/components/schemas/UtcDateTime"
+          description: Instant où le robot a produit le rapport.
+        file_name: { type: string, minLength: 1, maxLength: 200, examples: [rapport-2026-10-20.pdf] }
+        size_bytes: { type: integer, minimum: 0 }
+        content_type: { type: string, enum: [application/pdf] }
+        sha256:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          description: Empreinte SHA-256 du fichier, en hexadécimal minuscule.
+    ReportPage:
+      allOf:
+        - $ref: "common.yaml#/components/schemas/PageInfo"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Report" }
