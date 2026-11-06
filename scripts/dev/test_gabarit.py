@@ -39,7 +39,12 @@ CODE_COMMUN = [
 # Code copié entre les services qui en ont besoin, sans passer par le gabarit (alerte et réponse n'ont ni filet anti-secrets
 # ni intergiciel d'erreurs imprévues, et n'en reçoivent pas de code mort). Sonar ne le compte pas comme duplication,
 # à une condition : ce test vérifie que les copies restent identiques (docstrings exceptées, qui citent leur ticket).
-CODE_PARTAGE = ["app/core/redaction.py", "app/core/unhandled.py"]
+# MS-12 : le format d'erreur (errors.py) de la collecte, de l'alerte et de la réponse, et la vérification des jetons
+# (auth.py) et les dépendances d'authentification des routes (api/security.py) de l'alerte et de la réponse. Le traitement a son propre errors.py (API métier, plus riche) : il n'est pas
+# une copie et n'est pas comparé, mais l'exclusion le couvre aussi (motif services/*/).
+CODE_PARTAGE = ["app/core/redaction.py", "app/core/unhandled.py", "app/core/errors.py", "app/core/auth.py",
+                "app/api/security.py"]
+PAS_UNE_COPIE = {"app/core/errors.py": {"traitement"}}
 JOBS_OBLIGATOIRES = {"backend", "frontend", "gitleaks", "snyk", "docker", "sonarqube"}
 JOBS_D_APPUI = {"services", "service", "etl"}  # découverte des services, matrice (MS-05) et tests de data/etl, voir test_ci.py
 
@@ -90,7 +95,9 @@ class Gabarit(unittest.TestCase):
             return ast.dump(arbre)
 
         for fichier in CODE_PARTAGE:
-            copies = [s / fichier for s in services_reels() if s != GABARIT and (s / fichier).is_file()]
+            ecartes = PAS_UNE_COPIE.get(fichier, set())
+            copies = [s / fichier for s in services_reels()
+                      if s != GABARIT and s.name not in ecartes and (s / fichier).is_file()]
             with self.subTest(fichier=fichier):
                 # Sonar ignore ces fichiers : au moins deux copies, sinon l'exclusion ne protège plus rien.
                 self.assertGreaterEqual(len(copies), 2)
