@@ -4,6 +4,7 @@ Lancer :  python3 -m unittest discover -s scripts/dev -p "test_report_stub.py" -
 """
 import contextlib
 import hashlib
+import http.client
 import io
 import json
 import re
@@ -136,6 +137,23 @@ class StubTests(unittest.TestCase):
             with serving(ThreadingHTTPServer(("127.0.0.1", 0), FakeApi)) as upstream:
                 with serving(stub.make_server(upstream, 0, count)) as base:
                     yield base
+
+    def test_un_chemin_qui_ne_commence_pas_par_une_barre_est_refuse_sans_aucun_appel(self):
+        # Le chemin vient de l'appelant et ne doit jamais composer l'adresse de l'API : accolé à une adresse sans
+        # port (`--upstream http://api`), « .hote.exemple/x » viserait api.hote.exemple (SSRF). Refus avant tout appel.
+        for target in ("@127.0.0.1:9/api/v1/indicators", ".hote.exemple/api/v1/indicators", "api/v1/indicators"):
+            with self.subTest(target=target), self.stack() as base:
+                connection = http.client.HTTPConnection(urllib.parse.urlsplit(base).netloc, timeout=10)
+                try:
+                    connection.putrequest("GET", target)
+                    connection.putheader("Authorization", f"Bearer {TOKEN}")
+                    connection.endheaders()
+                    response = connection.getresponse()
+                    status, body = response.status, json.loads(response.read())
+                finally:
+                    connection.close()
+                self.assertEqual((status, body["code"]), (400, "BAD_REQUEST"))
+                self.assertEqual(FakeApi.seen, [], "l'API ne doit rien recevoir")
 
     def test_la_liste_rend_les_rapports_du_plus_recent_au_plus_ancien(self):
         with self.stack(count=3) as base:

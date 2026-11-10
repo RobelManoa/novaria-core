@@ -932,6 +932,36 @@ def cmd_new_service(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_terraform_check(args: argparse.Namespace) -> int:
+    """Contrôles Terraform sans compte AWS (LOC-06) ; la logique est dans terraform_check.py."""
+    import terraform_check
+
+    require_docker()
+    root = ROOT / "infra" / "terraform"
+    env_values = parse_env(ENV_FILE.read_text(encoding="utf-8")) if ENV_FILE.exists() else {}
+    token = os.environ.get("SNYK_TOKEN") or env_values.get("SNYK_TOKEN")
+    try:
+        if args.lock:
+            user = f"{os.getuid()}:{os.getgid()}" if hasattr(os, "getuid") else None  # fichiers au nom de la personne
+            steps = terraform_check.lock_steps(root, user)
+        else:
+            steps = terraform_check.build_steps(root, snyk_token=bool(token), with_snyk=not args.sans_snyk)
+        print("Contrôles Terraform sans identifiant AWS (premier lancement : téléchargement du fournisseur AWS, plusieurs minutes) :")
+        results = terraform_check.run_steps(steps, env=terraform_check.process_environment(token), verbose=args.verbose)
+    except terraform_check.TerraformCheckError as error:
+        raise DevError(str(error)) from error
+    code = terraform_check.exit_code(results)
+    if code == 1:
+        print("ÉCHEC : au moins un contrôle a échoué (sortie ci-dessus).", file=sys.stderr)
+    elif code == 2:
+        print("INCOMPLET : un contrôle n'a pas été lancé. Définir SNYK_TOKEN, ou ajouter --sans-snyk pour l'écarter explicitement.", file=sys.stderr)
+    elif args.lock:
+        print("Verrous à jour : relire le diff de .terraform.lock.hcl puis le commiter.")
+    else:
+        print("Tous les contrôles ont réussi, sans identifiant AWS.")
+    return code
+
+
 # --------------------------------------------------------------------------- tableau de bord en local (FE-04)
 FRONTEND_DIR = ROOT / "frontend"
 API_PORT = 8000  # cible du proxy de Vite (frontend/vite.config.ts)
@@ -1308,6 +1338,10 @@ def build_parser() -> argparse.ArgumentParser:
     reset.add_argument("--yes", action="store_true", help="sans demande de confirmation")
     add("new-service", cmd_new_service, "crée services/<nom> depuis le gabarit").add_argument(
         "name", help="nom du service : minuscules, chiffres, tirets (exemple : alerte)")
+    tf = add("terraform-check", cmd_terraform_check, "contrôles Terraform sans compte AWS : fmt, init, validate, tflint, Snyk IaC (Docker)")
+    tf.add_argument("--sans-snyk", action="store_true", help="écarte l'analyse Snyk IaC (le résultat reste « incomplet » dans le compte rendu de l'issue)")
+    tf.add_argument("--lock", action="store_true", help="régénère .terraform.lock.hcl (réseau nécessaire) au lieu de contrôler")
+    tf.add_argument("--verbose", action="store_true", help="montre la sortie de chaque outil, pas seulement celle des échecs")
     add("ps", cmd_ps, "état des conteneurs")
     logs = add("logs", cmd_logs, "suit les journaux")
     logs.add_argument("services", nargs="*", help="services (tous par défaut)")
