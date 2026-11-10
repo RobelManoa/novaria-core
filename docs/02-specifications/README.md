@@ -63,8 +63,8 @@ Le test échoue si une exigence n'a pas de critère, de priorité, de preuve ou 
 | N° | Point | Position dans la v1 | Qui |
 |---|---|---|---|
 | S1 | Validation du cahier des charges fonctionnel par le professeur (point 5 de GES-06) et des valeurs chiffrées (latences, seuils d'hystérésis, retard autorisé) | Valeurs de départ marquées comme telles ; à mesurer (MS-15) | Binôme et professeur |
-| S2 | Règles de sécurité des feux (durée minimale et maximale d'une phase, phases conflictuelles) | À écrire avant le code de MS-12 ; exigence EXG-REP-02 | Daddy |
-| S3 | Délai sans recommandation avant le retour au plan fixe | Non fixé ; exigence EXG-REP-03 | Daddy |
+| S2 | Règles de sécurité des feux (durée minimale et maximale d'une phase, phases conflictuelles) | Écrites avant le code de MS-12 : [feux](../03-donnees/feux.md), section 3 (phase de 10 à 90 s, dégagement de 4 s, cycle de 30 à 120 s, axes nord-sud et est-ouest jamais ensemble) ; valeurs de départ à valider ; exigence EXG-REP-02 | Daddy |
+| S3 | Délai sans recommandation avant le retour au plan fixe | Fixé en MS-12 : le plus court de la validité annoncée (`valid_until`) et de 180 s après la réception ([feux](../03-donnees/feux.md), section 5) ; à valider ; exigence EXG-REP-03 | Daddy |
 | S4 | Comportement en cas de panne du bus, de PostgreSQL ou de MongoDB (CE-23 à CE-25) | Propositions, en attente de l'ADR « Observabilité et résilience » (MS-16) | Daddy et Manoa |
 | S5 | Données personnelles d'un usager final (RG-23) | Aucune en v1, canal de notification simulé ; à confirmer avec MS-11 | Daddy et Manoa |
 | S6 | Contrats des sujets `traffic.recommendations`, `signal.status` et `errors.dlq` | Écrits en MS-03 (v1, exemples, cas invalides, banc de conformité) ; bornes de durée de phase à remplacer par les règles de sécurité de MS-12 ; exigence EXG-COL-04 | Daddy et Manoa |

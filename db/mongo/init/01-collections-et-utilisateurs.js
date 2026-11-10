@@ -187,6 +187,8 @@ database.rejects.createIndex({ rejected_at: 1 }, { expireAfterSeconds: rejectsTt
 database.audit_logs.createIndex({ ts: -1 }, { name: "ts_desc" });
 database.audit_logs.createIndex({ actor: 1, ts: -1 }, { name: "actor_ts" });
 database.audit_logs.createIndex({ correlation_id: 1 }, { name: "correlation", sparse: true });
+// Historique des commandes de feux d'un carrefour (MS-12) : la réponse extérieure relit ses commandes par carrefour.
+database.audit_logs.createIndex({ "details.intersection_id": 1, ts: -1 }, { name: "intersection_ts", sparse: true });
 
 database.usage_stats.createIndex({ endpoint: 1, bucket_start: -1 }, { unique: true, name: "uniq_endpoint_bucket" });
 

@@ -40,14 +40,22 @@ TACHES_UNIQUES = {"db-migrate", "kafka-init"}
 PORTE_L_API_METIER = {"traitement"}
 # Processus d'écriture (MS-09, MS-10) lancés avec l'image du service traitement, avec son compte d'écriture. Ils ne
 # sont pas des services du dépôt : pas de dossier à eux, pas de port.
-TRAVAILLEURS = {"traitement-flux", "traitement-pipeline"}
+# Chaque processus : (service dont il emploie l'image, compte PostgreSQL). Le travailleur d'alerte (MS-11) a son compte.
+TRAVAILLEURS = {"traitement-flux": ("traitement", "svc_traitement"),
+                "traitement-pipeline": ("traitement", "svc_traitement"),
+                "alerte-worker": ("alerte", "svc_alerte")}
+# Les services d'alerte et de réponse vérifient eux-mêmes les jetons de l'API métier (contrat : bearerAuth) : ils reçoivent
+# la clé de signature, donc ils pourraient aussi en émettre. Exception documentée (docs/03-donnees/alertes.md et feux.md,
+# section « Choix à valider »), à lever avec MS-13 (vérification à la passerelle) ou avec une signature asymétrique.
+VERIFIE_LES_JETONS = {"alerte", "reponse"}
 # Séparation écriture et lecture (MS-10) : l'API de consultation lit l'entrepôt avec le compte en lecture seule
 # `svc_lecture` ; seul ce service le reçoit. Les processus d'écriture gardent `svc_traitement`.
 LIT_L_ENTREPOT = {"traitement"}
 COMPTES = {"collecte": (None, "svc_collecte"), "traitement": ("svc_lecture", "svc_traitement"),
            "alerte": ("svc_alerte", None), "reponse": (None, "svc_reponse"),
            "traitement-flux": ("svc_traitement", "svc_traitement"),
-           "traitement-pipeline": ("svc_traitement", "svc_traitement")}
+           "traitement-pipeline": ("svc_traitement", "svc_traitement"),
+           "alerte-worker": ("svc_alerte", None)}
 VARIABLES_DE_PORT = {"GATEWAY_PORT": 8000, "FRONTEND_PORT": 8080, "COLLECTE_PORT": 8001, "TRAITEMENT_PORT": 8002,
                      "ALERTE_PORT": 8003, "REPONSE_PORT": 8004, "SIMULATOR_PORT": 8005}
 
@@ -84,7 +92,7 @@ class ServicesDeLaPile(unittest.TestCase):
         cls.services = cls.doc["services"]
 
     def test_tout_est_dans_compose(self):
-        attendus = {"postgres", "mongo", "kafka"} | TACHES_UNIQUES | APPLICATIFS | TRAVAILLEURS
+        attendus = {"postgres", "mongo", "kafka"} | TACHES_UNIQUES | APPLICATIFS | set(TRAVAILLEURS)
         sans_profil = {nom for nom, s in self.services.items() if "profiles" not in s}
         self.assertEqual(sans_profil, attendus)
 
@@ -134,7 +142,9 @@ class ServicesDeLaPile(unittest.TestCase):
                 if nom not in LIT_L_ENTREPOT:
                     interdits.append("svc_lecture")
                 if nom not in PORTE_L_API_METIER:
-                    interdits += ["svc_app", "JWT_SECRET", "APP_DATABASE_URL", "svc_backend", "AUDIT_MONGO_URL"]
+                    interdits += ["svc_app", "APP_DATABASE_URL", "svc_backend", "AUDIT_MONGO_URL"]
+                if nom not in PORTE_L_API_METIER | VERIFIE_LES_JETONS:
+                    interdits.append("JWT_SECRET")
                 for interdit in interdits:
                     self.assertNotIn(interdit, texte, "un service n'a ni le compte administrateur ni celui d'un autre")
 
@@ -143,11 +153,11 @@ class ServicesDeLaPile(unittest.TestCase):
         api = self.services["traitement"]["environment"]["POSTGRES_URL"]
         self.assertIn("//svc_lecture:${PG_PASSWORD_LECTURE}@", api)
         self.assertNotIn("svc_traitement", api, "l'API ne reçoit pas le compte qui écrit")
-        for nom in TRAVAILLEURS:
+        for nom, (image, compte) in TRAVAILLEURS.items():
             service = self.services[nom]
             with self.subTest(service=nom):
-                self.assertIn("//svc_traitement:${PG_PASSWORD_TRAITEMENT}@", service["environment"]["POSTGRES_URL"])
-                self.assertEqual(service["build"]["context"], "./services/traitement", "même image que l'API")
+                self.assertIn(f"//{compte}:${{PG_PASSWORD_{image.upper()}}}@", service["environment"]["POSTGRES_URL"])
+                self.assertEqual(service["build"]["context"], f"./services/{image}", "même image que l'API")
                 self.assertEqual(service["command"][:2], ["python", "-m"], "un processus, pas le serveur de l'API")
                 self.assertNotIn("ports", service, "un processus d'écriture n'écoute sur aucun port")
                 self.assertIn("healthcheck", service)
@@ -214,6 +224,7 @@ class OrdreDeDemarrage(unittest.TestCase):
             "traitement-flux": {"postgres", "mongo", "db-migrate", "kafka-init"},
             "traitement-pipeline": {"postgres", "mongo", "db-migrate", "kafka-init"},
             "alerte": {"postgres", "db-migrate", "kafka-init"},
+            "alerte-worker": {"postgres", "db-migrate", "kafka-init"},
             "reponse": {"mongo", "kafka-init"},
             "simulateur": {"collecte"},
             "passerelle": {"traitement", "alerte", "reponse"},
