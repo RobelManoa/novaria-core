@@ -99,7 +99,7 @@ Sigles employés ci-dessous, développés une fois : p95 (95e centile : 95 % des
 | EXG-IA-02 | **Jeu d'entraînement reproductible et honnête** ([ADR-027](../01-architecture/adr/ADR-027-jeux-de-donnees-et-provenance.md)) | Le jeu v1 se régénère à l'identique (même empreinte SHA-256) ; le découpage entraînement, validation, test se fait par run et par scénario ; un test échoue si un run figure dans deux parties | Doit | Fiche de provenance dans `data/datasets/` et `ml/tests/` | À faire | IA-02, IA-08 |
 | EXG-IA-03 | **Détection de congestion** : le modèle ne vaut que s'il bat la règle simple | Le modèle retenu bat la règle de seuils sur le F1 macro et sur le rappel de la classe CONGESTED, au seuil fixé avant l'entraînement, ou l'écart est documenté ; le délai de détection et les fausses alertes par tronçon et par jour sont mesurés | Doit | `ml/evaluation/` | À faire | IA-03 |
 | EXG-IA-04 | **Enregistrement conditionné** ([ADR-017](../01-architecture/adr/ADR-017-mlops-mlsecops.md)) | Un modèle sous le seuil n'entre pas au registre ; un modèle enregistré a son document `model_runs` (version du code, empreinte du jeu, graine, métriques) | Doit | Lien d'exécution du pipeline | Partiel : collection `model_runs` et ses validateurs vérifiés le 27/10/2026 | IA-04, IA-05 |
-| EXG-IA-05 | **Dérive surveillée** | Une dérive simulée (vitesses décalées par rapport au jeu d'entraînement) déclenche l'alarme | Devrait | Test sur données décalées | À faire | IA-06 |
+| EXG-IA-05 | **Dérive surveillée** | Une dérive simulée (vitesses décalées par rapport au jeu d'entraînement) déclenche l'alarme | Devrait | Test sur données décalées | Partiel : dérive simulée détectée ([surveillance](../03-donnees/surveillance-derive.md)), référence = exécution simulée faute de modèle entraîné | IA-06 |
 | EXG-IA-06 | **Anomalies de capteur** (critère proposé, à confirmer dans IA-09) | Chaque anomalie injectée par le simulateur est détectée par la règle robuste ; la comparaison avec Isolation Forest est consignée | Devrait | `ml/evaluation/` | À faire | IA-09 |
 | EXG-IA-07 | **Prévision de vitesse** | Sur METR-LA, le modèle retenu bat la persistance et la moyenne glissante en MAE aux horizons 5, 15 et 30 minutes, ou l'écart est documenté ; il est aussi testé sur un run simulé | Devrait | `ml/evaluation/` | À faire | IA-10 |
 | EXG-IA-08 | **Rapport hebdomadaire par robot** | Un rapport d'indicateurs est produit sans intervention manuelle | Devrait | `automation/rpa/` | À faire | IA-07 |
@@ -132,6 +132,6 @@ Ces chiffres sont contrôlés par `scripts/dev/test_specifications.py` : il éch
 |---|---|
 | Exigences | 53 |
 | Doit / Devrait / Pourrait | 38 / 14 / 1 |
-| Prouvé / Partiel / À faire | 17 / 20 / 16 |
+| Prouvé / Partiel / À faire | 17 / 21 / 15 |
 
 Lecture : la plupart des exigences sont « Doit » parce qu'elles reprennent les critères d'acceptation de tâches P0 du backlog ; ce qui se discute, ce sont les 14 « Devrait » et le « Pourrait », à abandonner en premier si le planning glisse. Le socle de données (bases, contrats d'événements, contrat d'API) est avancé ; **aucun des quatre services métier n'existe encore** ; le simulateur existe (MS-07) mais n'a pas encore de collecte réelle à laquelle envoyer ses messages. C'est le gros du travail des jalons M2 et M3.

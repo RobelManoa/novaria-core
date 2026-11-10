@@ -25,6 +25,7 @@ from app.core.config import get_settings
 from app.core.errors import (
     CONFLICT,
     FORBIDDEN,
+    FORECAST_UNAVAILABLE,
     INTERNAL_ERROR,
     INVALID_CREDENTIALS,
     NOT_FOUND,
@@ -47,6 +48,7 @@ HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
 LOGIN = "/api/v1/auth/login"
 USERS = "/api/v1/users"
 INDICATORS = "/api/v1/indicators"
+FORECASTS = "/api/v1/forecasts"
 PROBLEM_KEYS = {"type", "title", "status", "code", "detail", "correlation_id", "errors"}
 LOWEST_ROLE = min(Role, key=lambda role: ROLE_LEVEL[role])
 
@@ -87,7 +89,7 @@ ALLOWED_CODES = {
     "422": {VALIDATION_ERROR.code},
     "429": {RATE_LIMITED.code},
     "500": {INTERNAL_ERROR.code},
-    "503": {UPSTREAM_UNAVAILABLE.code},
+    "503": {UPSTREAM_UNAVAILABLE.code, FORECAST_UNAVAILABLE.code},
 }
 # Une réponse du contrat peut couvrir plusieurs codes HTTP : `ServerError` est écrit `5XX`.
 COVERS = {"5XX": ["500", "503"]}
@@ -151,6 +153,12 @@ PROVOKERS = {
     ("get", f"{INDICATORS}/{{indicator_id}}"): {
         "401": lambda s: s.request("get", f"{INDICATORS}/{{indicator_id}}"),
         "404": lambda s: s.request("get", f"{INDICATORS}/{{indicator_id}}", role=Role.VIEWER),
+    },
+    ("get", FORECASTS): {
+        "401": lambda s: s.request("get", FORECASTS),
+        "422": lambda s: s.request("get", FORECASTS, role=Role.VIEWER, params={"horizon_min": 4}),
+        # l'entrepôt de la mise en scène est vide : ni modèle ni référence ne peuvent répondre
+        "503": lambda s: s.request("get", FORECASTS, role=Role.VIEWER),
     },
 }
 
@@ -223,6 +231,7 @@ def test_the_only_errors_without_a_test_are_the_written_exemptions():
         ("get", INDICATORS, "403"),
         ("get", f"{INDICATORS}/latest", "403"),
         ("get", f"{INDICATORS}/{{indicator_id}}", "403"),
+        ("get", FORECASTS, "403"),
     }
     assert LOWEST_ROLE == Role.VIEWER, "un rôle plus bas rend ces 403 testables"
 
@@ -360,8 +369,8 @@ def test_an_unreachable_or_saturated_database_gives_a_503_without_the_address(
 
 @pytest.mark.parametrize(
     ("method", "path"),
-    [(m, p) for m, p in IMPLEMENTED if p.startswith(INDICATORS)],
-    ids=[f"{m.upper()} {p}" for m, p in IMPLEMENTED if p.startswith(INDICATORS)],
+    [(m, p) for m, p in IMPLEMENTED if p.startswith((INDICATORS, FORECASTS))],
+    ids=[f"{m.upper()} {p}" for m, p in IMPLEMENTED if p.startswith((INDICATORS, FORECASTS))],
 )
 @pytest.mark.parametrize(
     ("error", "status"), [(RuntimeError("x"), 500), (unreachable(), 503)], ids=["500", "503"]
