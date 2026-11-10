@@ -11,7 +11,7 @@ import os
 import secrets
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from typing import NamedTuple
 
 import pytest
 from kafka import KafkaConsumer, KafkaProducer, TopicPartition
@@ -30,8 +30,7 @@ needs_stack = pytest.mark.skipif(
 )
 
 
-@dataclass(frozen=True)
-class Record:
+class Record(NamedTuple):
     partition: int
     offset: int
     key: bytes | None
@@ -42,58 +41,49 @@ class Record:
         return json.loads(self.value)
 
 
-def wait_until(
-    condition: Callable[[], object],
-    seconds: float = 30,
-    step: float = 0.05,
-    why: Callable[[], str] | None = None,
-):
+def wait_until(condition, seconds: float = 30, step: float = 0.05, why=None):
     """Rend la valeur (vraie) de `condition` dès qu'elle l'est ; `AssertionError` sinon."""
-    deadline = time.monotonic() + seconds
-    while True:
-        value = condition()
-        if value:
-            return value
-        if time.monotonic() > deadline:
-            detail = f" : {why()}" if why else ""
-            raise AssertionError(f"condition non atteinte en {seconds} s{detail}")
+    limit = time.monotonic() + seconds
+    while not (value := condition()):
+        if time.monotonic() > limit:
+            raise AssertionError(
+                f"condition non atteinte en {seconds} s" + (f" : {why()}" if why else "")
+            )
         time.sleep(step)
+    return value
 
 
 # --------------------------------------------------------------------------------------- Kafka
 def read_topic(topic: str, keep: Callable[[Record], bool] = lambda _: True) -> list[Record]:
     """Tout le contenu du sujet, du début à la fin actuelle, filtré par `keep`."""
-    consumer = KafkaConsumer(
+    reader = KafkaConsumer(
         bootstrap_servers=BOOTSTRAP,
         group_id=None,
         enable_auto_commit=False,
         request_timeout_ms=15000,
-        client_id="novaria-reponse-tests",
     )
     try:
-        parts = [
-            TopicPartition(topic, n) for n in sorted(consumer.partitions_for_topic(topic) or ())
-        ]
-        consumer.assign(parts)
-        consumer.seek_to_beginning(*parts)
-        ends = consumer.end_offsets(parts)
-        found: list[Record] = []
-        deadline = time.monotonic() + 30
-        while time.monotonic() < deadline and any(consumer.position(p) < ends[p] for p in parts):
-            for batch in consumer.poll(timeout_ms=500).values():
-                records = (Record(m.partition, m.offset, m.key, m.value) for m in batch)
-                found += [record for record in records if keep(record)]
-        return found
+        numbers = sorted(reader.partitions_for_topic(topic) or ())
+        parts = [TopicPartition(topic, n) for n in numbers]
+        reader.assign(parts)
+        reader.seek_to_beginning(*parts)
+        ends = reader.end_offsets(parts)
+        kept: list[Record] = []
+        limit = time.monotonic() + 30
+        while time.monotonic() < limit and any(reader.position(p) < ends[p] for p in parts):
+            for messages in reader.poll(timeout_ms=500).values():
+                kept += filter(
+                    keep, (Record(m.partition, m.offset, m.key, m.value) for m in messages)
+                )
+        return kept
     finally:
-        consumer.close()
+        reader.close()
 
 
 def on_subject(topic: str, *subjects: str) -> list[Record]:
     """Les messages d'un sujet qui concernent ces carrefours, dans l'ordre de chaque partition."""
-    wanted = {s.encode() for s in subjects}
-    return sorted(
-        read_topic(topic, lambda r: r.key in wanted), key=lambda r: (r.partition, r.offset)
-    )
+    keys = {subject.encode() for subject in subjects}
+    return sorted(read_topic(topic, lambda r: r.key in keys), key=lambda r: r[:2])
 
 
 def producer() -> KafkaProducer:

@@ -15,11 +15,10 @@ Bibliothèque standard seule. Aucun jeton n'est conservé : celui de l'appelant 
 """
 
 import argparse
+import http.client
 import json
 import sys
-import urllib.error
 import urllib.parse
-import urllib.request
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -28,6 +27,7 @@ WINDOW_SIZES = (60, 300)
 DEFAULT_HORIZON = 15
 MODEL = {"kind": "REFERENCE", "name": "persistance (maquette locale)", "version": "maquette-0", "run_id": None}
 FORWARDED_HEADERS = ("Authorization", "Content-Type", "Accept", "X-Correlation-ID")
+UPSTREAM_ERRORS = (OSError, http.client.HTTPException)  # API injoignable, délai dépassé, réponse illisible
 
 
 class UpstreamError(Exception):
@@ -90,6 +90,9 @@ def build_forecasts(fetch, query: dict[str, list[str]], back_minutes: int) -> di
 
 
 def make_handler(upstream: str, back_minutes: int):
+    target = urllib.parse.urlsplit(upstream)
+    connection_class = http.client.HTTPSConnection if target.scheme == "https" else http.client.HTTPConnection
+
     class Handler(BaseHTTPRequestHandler):
         def _send(self, status: int, body: bytes, content_type: str, extra: dict[str, str] | None = None):
             self.send_response(status)
@@ -101,13 +104,17 @@ def make_handler(upstream: str, back_minutes: int):
             self.wfile.write(body)
 
         def _call_upstream(self, path: str, body: bytes | None = None) -> tuple[int, bytes, str]:
+            """Seul le chemin vient de l'appelant : l'hôte et le port sont fixés au démarrage (pas de SSRF)."""
+            if not path.startswith("/"):
+                raise ValueError("chemin attendu")
             headers = {name: self.headers[name] for name in FORWARDED_HEADERS if self.headers.get(name)}
-            request = urllib.request.Request(upstream + path, data=body, headers=headers, method=self.command)
+            connection = connection_class(target.hostname, target.port, timeout=30)
             try:
-                with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 : adresse http(s) vérifiée au démarrage
-                    return response.status, response.read(), response.headers.get("Content-Type", "application/json")
-            except urllib.error.HTTPError as error:
-                return error.code, error.read(), error.headers.get("Content-Type", "application/json")
+                connection.request(self.command, target.path + path, body=body, headers=headers)
+                response = connection.getresponse()
+                return response.status, response.read(), response.getheader("Content-Type", "application/json")
+            finally:
+                connection.close()
 
         def _handle(self):
             parsed = urllib.parse.urlsplit(self.path)
@@ -127,7 +134,10 @@ def make_handler(upstream: str, back_minutes: int):
                 return self._send(200, json.dumps(answer).encode(), "application/json", {"X-Novaria-Maquette": "forecasts"})
             try:
                 status, payload, content_type = self._call_upstream(self.path, body)
-            except urllib.error.URLError:
+            except ValueError:
+                problem = {"type": "about:blank", "title": "Requête invalide", "status": 400, "code": "BAD_REQUEST"}
+                return self._send(400, json.dumps(problem).encode(), "application/problem+json")
+            except UPSTREAM_ERRORS:
                 problem = {"type": "about:blank", "title": "API injoignable", "status": 502, "code": "UPSTREAM_UNAVAILABLE"}
                 return self._send(502, json.dumps(problem).encode(), "application/problem+json")
             self._send(status, payload, content_type)
@@ -141,8 +151,8 @@ def make_handler(upstream: str, back_minutes: int):
 
 
 def make_server(upstream: str, port: int, back_minutes: int, host: str = "127.0.0.1") -> ThreadingHTTPServer:
-    if not upstream.startswith(("http://", "https://")):
-        raise ValueError("L'adresse de l'API doit commencer par http:// ou https://")
+    if not upstream.startswith(("http://", "https://")) or not urllib.parse.urlsplit(upstream).hostname:
+        raise ValueError("L'adresse de l'API doit commencer par http:// ou https:// et nommer un hôte")
     return ThreadingHTTPServer((host, port), make_handler(upstream.rstrip("/"), back_minutes))
 
 

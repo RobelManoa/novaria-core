@@ -35,7 +35,8 @@ export function mergeAlert(alerts: Alert[], incoming: Alert): Alert[] {
 }
 
 export function mergeAlerts(alerts: Alert[], incoming: Alert[]): Alert[] {
-  return incoming.reduce(mergeAlert, alerts);
+  // Pas `reduce(mergeAlert, …)` : `reduce` passerait aussi l'index et le tableau en arguments supplémentaires.
+  return incoming.reduce((merged, alert) => mergeAlert(merged, alert), alerts);
 }
 
 /** Alerte à traiter : ni résolue, ni sans suite. */
