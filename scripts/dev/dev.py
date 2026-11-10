@@ -432,6 +432,24 @@ def cmd_db_check_kpi(_: argparse.Namespace) -> int:
     return result.returncode
 
 
+# --------------------------------------------------------------------------- dérive des entrées du modèle (IA-06)
+def drift_check_command(args: argparse.Namespace) -> list[str]:
+    """`docker compose exec` du script de dérive dans le conteneur du traitement (mêmes arguments que `python -m app.drift check`)."""
+    command = ["exec", "-T", "traitement", "python", "-m", "app.drift", "check"]
+    for option, value in (("--reference-run", args.reference_run), ("--current-run", args.current_run)):
+        if value:
+            command += [option, value]
+    if args.json:
+        command.append("--json")
+    return command
+
+
+def cmd_drift_check(args: argparse.Namespace) -> int:
+    """Compare les entrées de l'exécution la plus récente à une exécution de référence ; code 1 si la dérive dépasse le seuil d'alerte (IA-06)."""
+    require_env()
+    return compose(*drift_check_command(args), check=False).returncode
+
+
 # --------------------------------------------------------------------------- événements dans MongoDB (LOC-02)
 EVENT_TEST_SUFFIX = ":db-check"  # identifiant des documents d'essai : supprimés avant et après le contrôle
 MONGO_ADMIN = ('mongosh --quiet -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" '
@@ -1320,6 +1338,10 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("--report", action="store_true", help="enregistre aussi le rapport dans docs/03-donnees/rapport-rejeu-etl.md")
     package = add("etl-package", cmd_etl_package, "empaquette la logique ETL en dist/novaria-etl-<version>.zip (reproductible)")
     add("db-check-kpi", cmd_db_check_kpi, "recalcule les 5 indicateurs sur un jeu fabriqué (transaction annulée) et les compare aux vues")
+    drift = add("drift-check", cmd_drift_check, "script de dérive : compare les entrées de l'exécution la plus récente à une référence (code 1 : dérive)")
+    drift.add_argument("--reference-run", metavar="RUN_ID", help="exécution de référence (DRIFT_REFERENCE_RUN_ID par défaut)")
+    drift.add_argument("--current-run", metavar="RUN_ID", help="exécution courante (la plus récente par défaut)")
+    drift.add_argument("--json", action="store_true", help="écrit le rapport en JSON")
     add("kafka-up", cmd_kafka_up, "démarre Kafka (mode KRaft) et attend qu'il soit prêt")
     add("kafka-topics", cmd_kafka_topics, "crée les 6 sujets du bus s'ils manquent et les vérifie")
     trip = add("kafka-roundtrip", cmd_kafka_roundtrip, "publie un événement, le relit et le valide contre le contrat")

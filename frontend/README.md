@@ -210,7 +210,7 @@ Limites : le jeu de démonstration n'a que des tronçons fluides à sa dernière
 
 Page `Prévisions` (`features/forecasts/`) : la courbe **prévue contre observée** d'un tronçon, le modèle qui a produit la prévision, et un tableau prévu / observé / écart par horizon. Critère de l'issue : **la page affiche la prévision renvoyée par l'API** (`GET /api/v1/forecasts`, opération `listForecasts`).
 
-> **État du serveur (31/10/2026) : la route `/api/v1/forecasts` n'est pas implémentée** (issue IA-06, #82). Le contrat la décrit, la page est écrite contre ce contrat, mais **le critère n'est pas vérifié sur l'API réelle**. Sur la pile locale actuelle, la page affiche « le service de prévision n'est pas encore disponible sur ce serveur » (404). Pour l'essayer, une **maquette** locale sert la route (voir plus bas).
+> **État du serveur (10/11/2026) : la route `/api/v1/forecasts` est servie par une référence par persistance** (`model.kind` = `REFERENCE`, première tranche d'IA-06 #82 : [API des prévisions](../docs/03-donnees/api-previsions.md)). Le code de chargement et de comparaison de la page a été exécuté contre la pile réelle : 23 tronçons, 6 horizons, 10 fenêtres observées. **Ce qui reste ouvert** : aucun modèle entraîné n'existe (`ml/` est vide), donc la date du dernier entraînement et la métrique n'ont pas de sens et pas de champ au contrat ; la prévision par persistance est dans le futur de la dernière donnée, la courbe n'a donc pas de valeur observée à lui comparer (« Pas encore observé ») ; la page n'a pas été rouverte dans un navigateur sur cette API (captures de FE-05 prises sur la maquette).
 
 | Élément | Règle |
 |---|---|

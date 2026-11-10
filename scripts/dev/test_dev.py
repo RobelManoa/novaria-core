@@ -167,6 +167,33 @@ class CommandTests(unittest.TestCase):
                 self.assertRegex(command, r'-p "\$[A-Z_]+"')
 
 
+class DriftCheckTests(unittest.TestCase):
+    def test_la_commande_lance_le_script_de_derive_dans_le_conteneur_du_traitement(self):
+        args = dev.build_parser().parse_args(["drift-check", "--reference-run", "ref", "--current-run", "cur", "--json"])
+        self.assertEqual(dev.drift_check_command(args),
+                         ["exec", "-T", "traitement", "python", "-m", "app.drift", "check",
+                          "--reference-run", "ref", "--current-run", "cur", "--json"])
+
+    def test_sans_option_seul_le_sous_commande_est_transmise(self):
+        args = dev.build_parser().parse_args(["drift-check"])
+        self.assertEqual(dev.drift_check_command(args)[-1], "check")
+
+    def test_le_code_de_sortie_du_script_est_celui_de_la_commande(self):
+        for code in (0, 1, 2):
+            with tempfile.TemporaryDirectory() as tmp:
+                env = Path(tmp) / ".env"
+                env.write_text("A=1\n", encoding="utf-8")
+                with mock.patch.object(dev, "ENV_FILE", env), mock.patch("shutil.which", return_value="/usr/bin/docker"), \
+                        mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], code)) as run:
+                    self.assertEqual(dev.main(["drift-check", "--reference-run", "r"]), code)
+            self.assertEqual(run.call_args.args[0][:3], ["docker", "compose", "exec"])
+
+    def test_sans_env_message_clair(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(dev, "ENV_FILE", Path(tmp) / "absent.env"), \
+                mock.patch("sys.stderr"):
+            self.assertEqual(dev.main(["drift-check"]), 2)
+
+
 class EtlTests(unittest.TestCase):
     """DAT-03 : `etl-paris` lance le pipeline d'ingestion avec le compte svc_traitement, sans mot de passe en argument."""
 

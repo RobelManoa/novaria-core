@@ -175,6 +175,9 @@ services:
       LOGIN_MAX_FAILURES: ${LOGIN_MAX_FAILURES:-5}
       LOGIN_LOCKOUT_S: ${LOGIN_LOCKOUT_S:-900}
       TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+      # Surveillance de la dérive des entrées du modèle de prévision (IA-06) : exécution de référence (le jeu
+      # d'entraînement). Vide : /metrics répond NO_REFERENCE et rien ne se déclenche. Seuils : DRIFT_*_PSI.
+      DRIFT_REFERENCE_RUN_ID: ${DRIFT_REFERENCE_RUN_ID:-}
       # Journal d'audit et compteurs d'usage de l'API (BE-05) : compte « backend » de MongoDB (audit_logs, usage_stats).
       AUDIT_MONGO_URL: mongodb://svc_backend:${MONGO_PASSWORD_BACKEND}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
       MONGO_URL: mongodb://svc_traitement:${MONGO_PASSWORD_TRAITEMENT}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
