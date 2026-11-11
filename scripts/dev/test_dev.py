@@ -212,6 +212,49 @@ class PreparationCheckTests(unittest.TestCase):
         self.assertTrue(dev.PREPARATION_CHECK.is_file())
 
 
+class MlTrainTests(unittest.TestCase):
+    def test_sans_environnement_la_commande_demande_ml_env(self):
+        with mock.patch.object(dev, "ML_VENV", Path("/n/existe/pas")), mock.patch("subprocess.run") as run:
+            self.assertEqual(dev.main(["ml-train", "validation"]), 2)
+        run.assert_not_called()
+
+    def test_la_commande_lance_l_etape_avec_l_interpreteur_de_l_environnement(self):
+        with mock.patch.object(dev, "ml_python", return_value=Path(sys.executable)), \
+                mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(dev.main(["ml-train", "test"]), 0)
+        commande = run.call_args.args[0]
+        self.assertEqual(commande[0], sys.executable)
+        self.assertTrue(commande[1].endswith("entrainer.py"))
+        self.assertEqual(commande[2:], ["test"])
+
+    def test_une_etape_inconnue_est_refusee(self):
+        with self.assertRaises(SystemExit):
+            dev.main(["ml-train", "tout"])
+
+    def test_l_environnement_exige_les_empreintes(self):
+        with mock.patch.object(dev, "ML_VENV", Path("/n/existe/pas")), \
+                mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(dev.main(["ml-env"]), 0)
+        installation = run.call_args_list[-1].args[0]
+        self.assertIn("--require-hashes", installation)
+        self.assertTrue(installation[-1].endswith("requirements.txt"))
+        self.assertEqual(run.call_args_list[0].args[0][1:3], ["-m", "venv"])
+
+    def test_l_interpreteur_depend_du_systeme(self):
+        with mock.patch("os.name", "nt"):
+            self.assertTrue(str(dev.ml_python()).endswith("Scripts/python.exe") or str(dev.ml_python()).endswith("Scripts\\python.exe"))
+        with mock.patch("os.name", "posix"):
+            self.assertTrue(str(dev.ml_python()).endswith("bin/python"))
+
+    def test_les_dependances_ml_ont_toutes_une_empreinte(self):
+        texte = dev.ML_REQUIREMENTS.read_text(encoding="utf-8")
+        paquets = [ligne for ligne in texte.splitlines() if ligne and ligne[0].isalpha()]
+        self.assertTrue(paquets)
+        for paquet in paquets:
+            bloc = texte.split(paquet, 1)[1].split("\n\n", 1)[0]
+            self.assertIn("--hash=sha256:", bloc, paquet)
+
+
 class RpaReportTests(unittest.TestCase):
     def args(self, *extra):
         return dev.build_parser().parse_args(["rpa-report", *extra])

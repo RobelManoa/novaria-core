@@ -71,6 +71,26 @@ def verifier_contre_le_manifeste(manifeste: Mapping, catalogue: tuple[cat.RunSpe
     return ecarts
 
 
+def plis_par_run(runs: Sequence[tuple[str, str]]) -> list[list[str]]:
+    """Validation croisée groupée par run : un pli met de côté le k-ième run de **chaque scénario**.
+
+    `runs` : couples (run_id, scénario). Un run n'est jamais coupé entre apprentissage et validation, et chaque pli garde
+    tous les scénarios dans l'apprentissage (il reste un autre run de chacun). Le nombre de plis est celui du scénario
+    qui a le moins de runs ; les runs en trop vont dans le dernier pli. Aucun tirage au hasard.
+    """
+    par_scenario: dict[str, list[str]] = {}
+    for run_id, scenario in sorted(runs):
+        par_scenario.setdefault(scenario, []).append(run_id)
+    plis = min(len(ids) for ids in par_scenario.values())
+    if plis < 2:
+        raise ValueError("au moins deux runs par scénario sont nécessaires pour une validation croisée groupée")
+    resultat: list[list[str]] = [[] for _ in range(plis)]
+    for ids in par_scenario.values():
+        for rang, run_id in enumerate(ids):
+            resultat[min(rang, plis - 1)].append(run_id)
+    return [sorted(pli) for pli in resultat]
+
+
 # --- Dans l'ordre du temps -----------------------------------------------------------------------
 
 def _verifier_les_parts(parts: Sequence[float]) -> None:
