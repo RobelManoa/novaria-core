@@ -49,6 +49,9 @@ LOGIN = "/api/v1/auth/login"
 USERS = "/api/v1/users"
 INDICATORS = "/api/v1/indicators"
 FORECASTS = "/api/v1/forecasts"
+REPORTS = "/api/v1/reports"
+REPORT_CONTENT = f"{REPORTS}/{{report_id}}/content"
+UNKNOWN_REPORT = "00000000-0000-4000-8000-000000000000"
 PROBLEM_KEYS = {"type", "title", "status", "code", "detail", "correlation_id", "errors"}
 LOWEST_ROLE = min(Role, key=lambda role: ROLE_LEVEL[role])
 
@@ -160,6 +163,19 @@ PROVOKERS = {
         # l'entrepôt de la mise en scène est vide : ni modèle ni référence ne peuvent répondre
         "503": lambda s: s.request("get", FORECASTS, role=Role.VIEWER),
     },
+    ("get", REPORTS): {
+        "401": lambda s: s.request("get", REPORTS),
+        "422": lambda s: s.request("get", REPORTS, role=Role.VIEWER, params={"limit": 0}),
+    },
+    ("get", REPORT_CONTENT): {
+        "401": lambda s: s.client.get(f"{REPORTS}/{UNKNOWN_REPORT}/content"),
+        "404": lambda s: s.client.get(
+            f"{REPORTS}/{UNKNOWN_REPORT}/content", headers=s.token(Role.VIEWER)
+        ),
+        "422": lambda s: s.client.get(
+            f"{REPORTS}/pas-un-uuid/content", headers=s.token(Role.VIEWER)
+        ),
+    },
 }
 
 
@@ -232,6 +248,8 @@ def test_the_only_errors_without_a_test_are_the_written_exemptions():
         ("get", f"{INDICATORS}/latest", "403"),
         ("get", f"{INDICATORS}/{{indicator_id}}", "403"),
         ("get", FORECASTS, "403"),
+        ("get", REPORTS, "403"),
+        ("get", REPORT_CONTENT, "403"),
     }
     assert LOWEST_ROLE == Role.VIEWER, "un rôle plus bas rend ces 403 testables"
 
@@ -321,6 +339,7 @@ def serve_with_failing_database(scene, method: str, path: str, error: Exception)
     headers = scene.token(Role.ADMIN)
     app.dependency_overrides[get_user_repository] = broken(error)
     url = path.replace("{user_id}", UNKNOWN_ID).replace("{indicator_id}", "inconnu")
+    url = url.replace("{report_id}", UNKNOWN_REPORT)
     body = {"username": "u", "password": PASSWORD} if path == LOGIN else None
     if (method, path) == ("post", USERS):
         body = {"username": "nouveau", "password": "un-mot-de-passe-long", "role": "viewer"}

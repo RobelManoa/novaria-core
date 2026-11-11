@@ -29,6 +29,7 @@ from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[2]
 ENV_FILE = ROOT / ".env"
+REPORTS_DIR = ROOT / "var" / "reports"  # dépôt du robot (IA-07), monté en lecture seule dans le traitement
 ENV_EXAMPLE = ROOT / ".env.example"
 PLACEHOLDER = "change-me-local"
 INIT_ENV_HINT = "Créer d'abord le fichier .env :  python scripts/dev/dev.py init-env"
@@ -105,6 +106,8 @@ def compose(*args: str, check: bool = True, capture: bool = False,
 
 def run_compose_step(*args: str) -> int:
     require_env()
+    # Sans ce dossier, Docker créerait le point de montage au nom de root : le robot ne pourrait plus y écrire.
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     return compose(*args, check=False).returncode
 
 
@@ -430,6 +433,46 @@ def cmd_db_check_kpi(_: argparse.Namespace) -> int:
     print(result.stdout, end="")
     print(result.stderr.replace("psql:<stdin>", "verifier.sql"), end="", file=sys.stderr)
     return result.returncode
+
+
+# --------------------------------------------------------------------------- rapport hebdomadaire du robot (IA-07, FE-06)
+RPA_DIR = ROOT / "automation" / "rpa"
+
+
+def rpa_command(args: argparse.Namespace, env_values: dict[str, str], robot_installed: bool) -> list[str]:
+    """Commande du robot : la suite Robot Framework si elle est installée (et sans --sans-robot), sinon le paquet seul."""
+    gateway = env_values.get("GATEWAY_PORT", "8000")
+    api = args.api or f"http://127.0.0.1:{gateway}"
+    if robot_installed and not args.sans_robot:
+        command = [sys.executable, "-m", "robot", "--outputdir", str(ROOT / "var" / "rpa"),
+                   "--variable", f"API:{api}", "--variable", f"DOSSIER:{REPORTS_DIR}"]
+        for name, value in (("DEBUT", args.debut), ("FIN", args.fin)):
+            if value:
+                command += ["--variable", f"{name}:{value}"]
+        return [*command, str(RPA_DIR / "rapport_hebdomadaire.robot")]
+    command = [sys.executable, "-m", "rapport", "--api", api, "--dossier", str(REPORTS_DIR)]
+    for option, value in (("--debut", args.debut), ("--fin", args.fin)):
+        if value:
+            command += [option, value]
+    return command
+
+
+def cmd_rpa_report(args: argparse.Namespace) -> int:
+    """Produit le rapport hebdomadaire et le dépose dans var/reports (la page « Rapports » l'affiche). Compte de service lu dans l'environnement ou .env."""
+    env_values = parse_env(ENV_FILE.read_text(encoding="utf-8")) if ENV_FILE.exists() else {}
+    environment = dict(os.environ)
+    for name in ("NOVARIA_RPA_USER", "NOVARIA_RPA_PASSWORD"):
+        if not environment.get(name) and env_values.get(name):
+            environment[name] = env_values[name]
+        if not environment.get(name):
+            raise DevError(f"{name} est absent (variable d'environnement ou .env). Créer un compte en lecture seule : "
+                           "python3 scripts/dev/dev.py user-create rpa-rapport --role viewer, puis renseigner les deux variables.")
+    robot_installed = importlib.util.find_spec("robot") is not None
+    if not robot_installed and not args.sans_robot:
+        print("Robot Framework n'est pas installé : seul le paquet `rapport` est lancé "
+              "(installer : pip install -r automation/rpa/requirements.txt).", file=sys.stderr)
+    environment["PYTHONPATH"] = os.pathsep.join(filter(None, [str(RPA_DIR), environment.get("PYTHONPATH")]))
+    return subprocess.run(rpa_command(args, env_values, robot_installed), cwd=ROOT, env=environment, check=False).returncode
 
 
 # --------------------------------------------------------------------------- dérive des entrées du modèle (IA-06)
@@ -1338,6 +1381,11 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("--report", action="store_true", help="enregistre aussi le rapport dans docs/03-donnees/rapport-rejeu-etl.md")
     package = add("etl-package", cmd_etl_package, "empaquette la logique ETL en dist/novaria-etl-<version>.zip (reproductible)")
     add("db-check-kpi", cmd_db_check_kpi, "recalcule les 5 indicateurs sur un jeu fabriqué (transaction annulée) et les compare aux vues")
+    rpa = add("rpa-report", cmd_rpa_report, "produit le rapport hebdomadaire (robot, IA-07) et le dépose dans var/reports ; la page Rapports l'affiche")
+    rpa.add_argument("--debut", metavar="AAAA-MM-JJ", help="début de la période (la semaine précédente par défaut)")
+    rpa.add_argument("--fin", metavar="AAAA-MM-JJ", help="fin exclue (début + 7 jours par défaut)")
+    rpa.add_argument("--api", help="adresse de la passerelle (http://127.0.0.1:<GATEWAY_PORT> par défaut)")
+    rpa.add_argument("--sans-robot", action="store_true", help="lance le paquet Python seul, sans Robot Framework")
     drift = add("drift-check", cmd_drift_check, "script de dérive : compare les entrées de l'exécution la plus récente à une référence (code 1 : dérive)")
     drift.add_argument("--reference-run", metavar="RUN_ID", help="exécution de référence (DRIFT_REFERENCE_RUN_ID par défaut)")
     drift.add_argument("--current-run", metavar="RUN_ID", help="exécution courante (la plus récente par défaut)")

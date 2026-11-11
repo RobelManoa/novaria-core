@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     drift_max_rows: int = Field(default=20000, ge=100, le=1000000)
     drift_cache_s: float = Field(default=30, ge=0, le=3600)
 
+    # --- Rapports automatiques (FE-06, IA-07) : dossier où le robot dépose les PDF et leurs
+    # métadonnées, monté en lecture seule dans ce service. Non défini : la liste répond 503.
+    reports_dir: str | None = Field(default=None, max_length=500)
+
     # --- Sécurité applicative (BE-08) -----------------------------------------------------------
     # Origines de navigateur autorisées à lire les réponses (CORS), séparées par des virgules.
     # Vide : aucune origine, donc aucun en-tête CORS (le navigateur n'autorise que la même
