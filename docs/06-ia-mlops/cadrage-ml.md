@@ -62,7 +62,7 @@ Le jeu `novaria-congestion-v1` ([fiche de provenance](../../data/datasets/novari
 | Réponse de la détection | `label_state` | **Interdite** (c'est la cible) | |
 | Réponses de la prévision | `speed_ratio_h5`, `speed_ratio_h15` | **Interdites** | elles contiennent l'**avenir** de la même série : fuite directe |
 
-Valeurs absentes : elles restent absentes. Gradient boosting : prises en charge telles quelles. Régression logistique : médiane de l'entraînement, calculée sur l'entraînement seul.
+Cette classification est **dans le code** : `ml/src/preparation/variables.py` (chaque colonne du jeu y est variable, cible ou interdite avec sa raison ; une colonne ajoutée sans décision fait échouer les tests). Pour la **prévision** (IA-10), le calendrier est permis, calculé depuis l'instant (`calendrier.py`) ; l'état voulu de la minute et l'autre horizon restent interdits. Valeurs absentes : elles restent absentes. Gradient boosting : prises en charge telles quelles. Régression logistique : médiane de l'entraînement, calculée sur l'entraînement seul.
 
 ## 4. Les métriques
 
