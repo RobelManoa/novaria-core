@@ -29,6 +29,7 @@ from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[2]
 ENV_FILE = ROOT / ".env"
+REPORTS_DIR = ROOT / "var" / "reports"  # dépôt du robot (IA-07), monté en lecture seule dans le traitement
 ENV_EXAMPLE = ROOT / ".env.example"
 PLACEHOLDER = "change-me-local"
 INIT_ENV_HINT = "Créer d'abord le fichier .env :  python scripts/dev/dev.py init-env"
@@ -105,6 +106,8 @@ def compose(*args: str, check: bool = True, capture: bool = False,
 
 def run_compose_step(*args: str) -> int:
     require_env()
+    # Sans ce dossier, Docker créerait le point de montage au nom de root : le robot ne pourrait plus y écrire.
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     return compose(*args, check=False).returncode
 
 
@@ -430,6 +433,90 @@ def cmd_db_check_kpi(_: argparse.Namespace) -> int:
     print(result.stdout, end="")
     print(result.stderr.replace("psql:<stdin>", "verifier.sql"), end="", file=sys.stderr)
     return result.returncode
+
+
+# --------------------------------------------------------------------------- jeu d'entraînement v1 (IA-08)
+DATASET_BUILDER = ROOT / "ml" / "src" / "construire_jeu.py"
+
+
+def cmd_dataset_build(args: argparse.Namespace) -> int:
+    """Construit le jeu d'entraînement v1 (runs du simulateur, vérité terrain, Parquet, fiche de provenance) : environ 40 s, bibliothèque standard."""
+    command = [sys.executable, str(DATASET_BUILDER)]
+    if args.sortie:
+        command += ["--sortie", str(args.sortie)]
+    return subprocess.run(command, cwd=ROOT, check=False).returncode
+
+
+# --------------------------------------------------------------------------- règle de référence (IA-01)
+REFERENCE_MESURE = ROOT / "ml" / "src" / "mesurer_reference.py"
+
+
+def cmd_reference_mesure(args: argparse.Namespace) -> int:
+    """Mesure la règle de seuils de l'ADR-028 sur l'entraînement et la validation du jeu v1 (le test n'est pas lisible)."""
+    command = [sys.executable, str(REFERENCE_MESURE)]
+    if args.sensibilite:
+        command.append("--sensibilite")
+    if args.json:
+        command.append("--json")
+    return subprocess.run(command, cwd=ROOT, check=False).returncode
+
+
+# --------------------------------------------------------------------------- rapport hebdomadaire du robot (IA-07, FE-06)
+RPA_DIR = ROOT / "automation" / "rpa"
+
+
+def rpa_command(args: argparse.Namespace, env_values: dict[str, str], robot_installed: bool) -> list[str]:
+    """Commande du robot : la suite Robot Framework si elle est installée (et sans --sans-robot), sinon le paquet seul."""
+    gateway = env_values.get("GATEWAY_PORT", "8000")
+    api = args.api or f"http://127.0.0.1:{gateway}"
+    if robot_installed and not args.sans_robot:
+        command = [sys.executable, "-m", "robot", "--outputdir", str(ROOT / "var" / "rpa"),
+                   "--variable", f"API:{api}", "--variable", f"DOSSIER:{REPORTS_DIR}"]
+        for name, value in (("DEBUT", args.debut), ("FIN", args.fin)):
+            if value:
+                command += ["--variable", f"{name}:{value}"]
+        return [*command, str(RPA_DIR / "rapport_hebdomadaire.robot")]
+    command = [sys.executable, "-m", "rapport", "--api", api, "--dossier", str(REPORTS_DIR)]
+    for option, value in (("--debut", args.debut), ("--fin", args.fin)):
+        if value:
+            command += [option, value]
+    return command
+
+
+def cmd_rpa_report(args: argparse.Namespace) -> int:
+    """Produit le rapport hebdomadaire et le dépose dans var/reports (la page « Rapports » l'affiche). Compte de service lu dans l'environnement ou .env."""
+    env_values = parse_env(ENV_FILE.read_text(encoding="utf-8")) if ENV_FILE.exists() else {}
+    environment = dict(os.environ)
+    for name in ("NOVARIA_RPA_USER", "NOVARIA_RPA_PASSWORD"):
+        if not environment.get(name) and env_values.get(name):
+            environment[name] = env_values[name]
+        if not environment.get(name):
+            raise DevError(f"{name} est absent (variable d'environnement ou .env). Créer un compte en lecture seule : "
+                           "python3 scripts/dev/dev.py user-create rpa-rapport --role viewer, puis renseigner les deux variables.")
+    robot_installed = importlib.util.find_spec("robot") is not None
+    if not robot_installed and not args.sans_robot:
+        print("Robot Framework n'est pas installé : seul le paquet `rapport` est lancé "
+              "(installer : pip install -r automation/rpa/requirements.txt).", file=sys.stderr)
+    environment["PYTHONPATH"] = os.pathsep.join(filter(None, [str(RPA_DIR), environment.get("PYTHONPATH")]))
+    return subprocess.run(rpa_command(args, env_values, robot_installed), cwd=ROOT, env=environment, check=False).returncode
+
+
+# --------------------------------------------------------------------------- dérive des entrées du modèle (IA-06)
+def drift_check_command(args: argparse.Namespace) -> list[str]:
+    """`docker compose exec` du script de dérive dans le conteneur du traitement (mêmes arguments que `python -m app.drift check`)."""
+    command = ["exec", "-T", "traitement", "python", "-m", "app.drift", "check"]
+    for option, value in (("--reference-run", args.reference_run), ("--current-run", args.current_run)):
+        if value:
+            command += [option, value]
+    if args.json:
+        command.append("--json")
+    return command
+
+
+def cmd_drift_check(args: argparse.Namespace) -> int:
+    """Compare les entrées de l'exécution la plus récente à une exécution de référence ; code 1 si la dérive dépasse le seuil d'alerte (IA-06)."""
+    require_env()
+    return compose(*drift_check_command(args), check=False).returncode
 
 
 # --------------------------------------------------------------------------- événements dans MongoDB (LOC-02)
@@ -1320,6 +1407,20 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("--report", action="store_true", help="enregistre aussi le rapport dans docs/03-donnees/rapport-rejeu-etl.md")
     package = add("etl-package", cmd_etl_package, "empaquette la logique ETL en dist/novaria-etl-<version>.zip (reproductible)")
     add("db-check-kpi", cmd_db_check_kpi, "recalcule les 5 indicateurs sur un jeu fabriqué (transaction annulée) et les compare aux vues")
+    dataset = add("dataset-build", cmd_dataset_build, "construit le jeu d'entraînement v1 (IA-08) dans data/datasets/novaria-congestion-v1/, avec sa fiche de provenance")
+    dataset.add_argument("--sortie", type=Path, help="dossier de sortie (data/datasets/novaria-congestion-v1 par défaut)")
+    reference = add("reference-mesure", cmd_reference_mesure, "mesure la règle de seuils (ADR-028) sur l'entraînement et la validation du jeu v1 (IA-01) ; le test n'est pas lisible")
+    reference.add_argument("--sensibilite", action="store_true", help="ajoute les variations d'un réglage à la fois")
+    reference.add_argument("--json", action="store_true", help="rapport JSON")
+    rpa = add("rpa-report", cmd_rpa_report, "produit le rapport hebdomadaire (robot, IA-07) et le dépose dans var/reports ; la page Rapports l'affiche")
+    rpa.add_argument("--debut", metavar="AAAA-MM-JJ", help="début de la période (la semaine précédente par défaut)")
+    rpa.add_argument("--fin", metavar="AAAA-MM-JJ", help="fin exclue (début + 7 jours par défaut)")
+    rpa.add_argument("--api", help="adresse de la passerelle (http://127.0.0.1:<GATEWAY_PORT> par défaut)")
+    rpa.add_argument("--sans-robot", action="store_true", help="lance le paquet Python seul, sans Robot Framework")
+    drift = add("drift-check", cmd_drift_check, "script de dérive : compare les entrées de l'exécution la plus récente à une référence (code 1 : dérive)")
+    drift.add_argument("--reference-run", metavar="RUN_ID", help="exécution de référence (DRIFT_REFERENCE_RUN_ID par défaut)")
+    drift.add_argument("--current-run", metavar="RUN_ID", help="exécution courante (la plus récente par défaut)")
+    drift.add_argument("--json", action="store_true", help="écrit le rapport en JSON")
     add("kafka-up", cmd_kafka_up, "démarre Kafka (mode KRaft) et attend qu'il soit prêt")
     add("kafka-topics", cmd_kafka_topics, "crée les 6 sujets du bus s'ils manquent et les vérifie")
     trip = add("kafka-roundtrip", cmd_kafka_roundtrip, "publie un événement, le relit et le valide contre le contrat")

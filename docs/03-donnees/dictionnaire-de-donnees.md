@@ -265,7 +265,7 @@ Vue en lecture seule (migration `0007`) que l'API des indicateurs interroge ([AP
 
 ### 7.1 État de congestion d'un tronçon (valeurs de départ)
 
-L'état se calcule sur les fenêtres de **1 minute** et change par **hystérésis** : un seuil franchi une seule fois ne suffit pas, pour éviter un état qui clignote. Les valeurs sont des hypothèses de départ, à fixer définitivement dans `docs/06-ia-mlops/cadrage-ml.md` avant tout entraînement ([ADR-028](../01-architecture/adr/ADR-028-etats-de-congestion-et-alertes.md)).
+L'état se calcule sur les fenêtres de **1 minute** et change par **hystérésis** : un seuil franchi une seule fois ne suffit pas, pour éviter un état qui clignote. Les valeurs sont fixées définitivement, sans changement, dans [`docs/06-ia-mlops/cadrage-ml.md`](../06-ia-mlops/cadrage-ml.md) (12/11/2026, section 5.2) : mesurées sur le jeu simulé, à réexaminer avec un jeu réel ou une autre consigne du professeur ([ADR-028](../01-architecture/adr/ADR-028-etats-de-congestion-et-alertes.md)).
 
 ```mermaid
 stateDiagram-v2
@@ -490,11 +490,13 @@ Un jeu = un ensemble de runs, enregistré en Parquet sous `data/datasets/`, acco
 |---|---|---|
 | Clé | `run_id`, `scenario_id`, `seed`, `road_segment_id`, `window_start` | Une ligne par tronçon et fenêtre de 1 minute |
 | Mesures | `vehicle_count`, `flow_veh_per_min`, `average_speed_kmh`, `occupancy_rate`, `max_queue_length_m`, `speed_ratio` | Mêmes définitions que la section 6 |
-| Historique | `speed_ratio_lag1` à `lag5`, `flow_lag1` à `lag5`, moyennes mobiles sur 5 et 15 minutes | Uniquement du **passé** de la ligne |
+| Historique | `speed_ratio_lag1`, `speed_ratio_lag2`, `speed_ratio_lag3`, `speed_ratio_lag4`, `speed_ratio_lag5`, `flow_lag1`, `flow_lag2`, `flow_lag3`, `flow_lag4`, `flow_lag5`, `speed_ratio_ma5`, `speed_ratio_ma15`, `flow_ma5`, `flow_ma15` | Uniquement du **passé** de la ligne : les 1 à 5 minutes précédentes du même tronçon, et la moyenne des valeurs présentes des 5 ou 15 minutes précédentes (noms fixés par IA-08) |
 | Calendrier | `hour_of_day`, `iso_day_of_week`, `is_weekend`, `is_holiday` | UTC |
 | Tronçon | `lane_count`, `length_m`, `free_flow_speed_kmh`, `road_type` | Statiques |
 | Réponse (détection) | `label_state` | **Vérité terrain du simulateur**, pas la sortie de la règle de seuils |
 | Réponse (prévision) | `speed_ratio_h5`, `speed_ratio_h15` | Valeur 5 ou 15 minutes plus tard ; `null` en fin de run |
+
+Une valeur qui n'existe pas (route vide, début ou fin de run, capteur muet) est **absente** (`null`), jamais inventée. Le jeu v1 (`novaria-congestion-v1`, [fiche de provenance](../../data/datasets/novaria-congestion-v1/PROVENANCE.md)) écrit ces colonnes dans cet ordre, en trois fichiers `train.parquet`, `validation.parquet` et `test.parquet`.
 
 | Règle d'évaluation | Détail |
 |---|---|
