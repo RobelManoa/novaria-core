@@ -79,7 +79,7 @@ Sigles employés ci-dessous, développés une fois : p95 (95e centile : 95 % des
 | EXG-TDB-02 | **Indicateurs fidèles.** Afficher ce que dit l'API | Sur un jeu de test, les valeurs affichées (vitesse, débit, état) sont égales à celles de l'API | Doit | Captures et test | À faire | FE-04, BE-04 |
 | EXG-TDB-03 | **Alertes et feux en direct** | Une alerte créée apparaît sans rechargement dans le délai de EXG-NFR-03 ; l'état des feux est visible ; les données viennent des services, jamais de valeurs écrites en dur | Doit | Test de bout en bout et capture | Partiel : une alerte créée apparaît dans la page Alertes sans rechargement, passe à résolue sans action, capture réelle ([alertes](../03-donnees/alertes.md), section 10.4) ; l'état des feux reste à faire (MS-12, MS-14) | MS-14 |
 | EXG-TDB-04 | **Page des prévisions** | La page affiche la prévision renvoyée par l'API, avec son horizon et sa provenance | Devrait | Captures de la page | À faire : page provisoire du socle (FE-01) | FE-05 |
-| EXG-TDB-05 | **Page des rapports automatiques** | Un rapport produit par le robot apparaît dans la liste | Devrait | Captures de la page | À faire : page provisoire du socle (FE-01) | FE-06 |
+| EXG-TDB-05 | **Page des rapports automatiques** | Un rapport produit par le robot apparaît dans la liste | Devrait | Captures de la page | Prouvé : un rapport produit par le robot apparaît dans la liste et se télécharge, sur la pile réelle ([rapports automatiques](../03-donnees/rapports-automatiques.md)) ; planification et étape d'interface du robot restent à faire | FE-06 |
 
 ## 7. Données décisionnelles et ETL
 
@@ -132,6 +132,6 @@ Ces chiffres sont contrôlés par `scripts/dev/test_specifications.py` : il éch
 |---|---|
 | Exigences | 53 |
 | Doit / Devrait / Pourrait | 38 / 14 / 1 |
-| Prouvé / Partiel / À faire | 17 / 21 / 15 |
+| Prouvé / Partiel / À faire | 18 / 21 / 14 |
 
 Lecture : la plupart des exigences sont « Doit » parce qu'elles reprennent les critères d'acceptation de tâches P0 du backlog ; ce qui se discute, ce sont les 14 « Devrait » et le « Pourrait », à abandonner en premier si le planning glisse. Le socle de données (bases, contrats d'événements, contrat d'API) est avancé ; **aucun des quatre services métier n'existe encore** ; le simulateur existe (MS-07) mais n'a pas encore de collecte réelle à laquelle envoyer ses messages. C'est le gros du travail des jalons M2 et M3.

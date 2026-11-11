@@ -3,7 +3,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.api import metrics
 from app.api.responses import use_problem_media_type
-from app.api.v1 import auth, forecasts, health, indicators, users
+from app.api.v1 import auth, forecasts, health, indicators, reports, users
 from app.core.audit import AuditMiddleware
 from app.core.config import Settings, get_settings
 from app.core.cors import cors_options
@@ -47,6 +47,7 @@ def create_app(settings: Settings) -> FastAPI:
     application.include_router(users.router, prefix=API_PREFIX)
     application.include_router(indicators.router, prefix=API_PREFIX)
     application.include_router(forecasts.router, prefix=API_PREFIX)
+    application.include_router(reports.router, prefix=API_PREFIX)
     return application
 
 

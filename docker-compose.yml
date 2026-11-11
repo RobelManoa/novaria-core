@@ -178,10 +178,14 @@ services:
       # Surveillance de la dérive des entrées du modèle de prévision (IA-06) : exécution de référence (le jeu
       # d'entraînement). Vide : /metrics répond NO_REFERENCE et rien ne se déclenche. Seuils : DRIFT_*_PSI.
       DRIFT_REFERENCE_RUN_ID: ${DRIFT_REFERENCE_RUN_ID:-}
+      # Rapports du robot (FE-06, IA-07) : dossier monté en lecture seule ; le robot y dépose, ce service ne fait que lire.
+      REPORTS_DIR: /srv/reports
       # Journal d'audit et compteurs d'usage de l'API (BE-05) : compte « backend » de MongoDB (audit_logs, usage_stats).
       AUDIT_MONGO_URL: mongodb://svc_backend:${MONGO_PASSWORD_BACKEND}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
       MONGO_URL: mongodb://svc_traitement:${MONGO_PASSWORD_TRAITEMENT}@mongo:27017/${MONGO_DB}?authSource=${MONGO_DB}
       MONGO_DB: ${MONGO_DB}
+    volumes:
+      - ./var/reports:/srv/reports:ro
     ports: ["127.0.0.1:${TRAITEMENT_PORT:-8002}:8000"]
     depends_on:
       db-migrate: { condition: service_completed_successfully }
