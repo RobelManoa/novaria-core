@@ -25,6 +25,20 @@ Ordre de travail : congestion d'abord, prévision ensuite ([ADR-015](../docs/01-
 | `parquet.py` | écrivain et lecteur Parquet (sous-ensemble étroit, octets identiques à chaque écriture) |
 | `construire.py`, `provenance.py` | fichiers, manifeste, empreintes, fiche |
 
+## Entraînement et comparaison (IA-03)
+
+`src/entrainement/` compare la règle de seuils et deux candidats scikit-learn (régression logistique, HistGradientBoosting) en suivant le [cadrage ML](../docs/06-ia-mlops/cadrage-ml.md) : réglage sur la validation, validation croisée groupée par run (diagnostic), choix, puis **lecture unique du test**. scikit-learn vit dans `ml/.venv`, installé depuis `requirements.txt` avec ses empreintes (`--require-hashes`) ; le reste de `ml/` reste en bibliothèque standard. Résultats et choix argumenté : [`evaluation/comparaison.md`](evaluation/comparaison.md) (tableaux générés : [`evaluation/resultats.md`](evaluation/resultats.md)).
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Créer l'environnement | `python3 scripts/dev/dev.py ml-env` ou `make ml-env` | `py -3 scripts/dev/dev.py ml-env` |
+| Réglage, validation croisée, choix (environ 1 minute) | `make ml-train ETAPE=validation` | `py -3 scripts/dev/dev.py ml-train validation` |
+| Lecture unique du test (refusée si `evaluation/resultat-test.json` existe) | `make ml-train ETAPE=test` | `py -3 scripts/dev/dev.py ml-train test` |
+| Tableaux `evaluation/resultats.md` | `make ml-train ETAPE=rapport` | `py -3 scripts/dev/dev.py ml-train rapport` |
+| Tests avec scikit-learn (sans lui, ceux qui entraînent sont ignorés) | `ml/.venv/bin/python -m unittest discover -s ml/tests -t ml` | `ml\.venv\Scripts\python.exe -m unittest discover -s ml\tests -t ml` |
+
+Aucun fichier de modèle n'est écrit : pas de `pickle`, rien à charger (cadrage, M3). L'enregistrement est l'affaire d'IA-05.
+
 ## Variables et découpage (IA-02)
 
 `src/preparation/` transforme le jeu v1 en matrices, sans rien du futur : `variables.py` (quelles colonnes entrent dans la détection ou la prévision, lesquelles sont interdites et pourquoi), `calendrier.py` (heure, jour, week-end, sinus et cosinus calculés depuis l'instant), `historique.py` (décalages et moyennes mobiles du passé, recalculés à part), `ajustement.py` (médianes et catégories apprises sur l'entraînement seul ; un ajustement qui reçoit un autre run est refusé), `decoupage.py` (par run et par scénario, empreinte SHA-256, délai de garde pour la prévision dans l'ordre du temps), `controles.py` (recalcul sur les fichiers). **Le fichier de test n'est pas lu.**

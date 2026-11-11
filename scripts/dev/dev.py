@@ -473,6 +473,35 @@ def cmd_preparation_check(args: argparse.Namespace) -> int:
     return subprocess.run(command, cwd=ROOT, check=False).returncode
 
 
+# --------------------------------------------------------------------------- entraînement et comparaison (IA-03)
+ML_REQUIREMENTS = ROOT / "ml" / "requirements.txt"
+ML_VENV = ROOT / "ml" / ".venv"
+ML_TRAIN = ROOT / "ml" / "src" / "entrainer.py"
+ML_ETAPES = ("validation", "test", "rapport")
+
+
+def ml_python() -> Path:
+    """L'interpréteur de l'environnement de l'entraînement (ml/.venv) : `Scripts/python.exe` sous Windows, `bin/python` ailleurs."""
+    return ML_VENV / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+
+
+def cmd_ml_env(_: argparse.Namespace) -> int:
+    """Crée ml/.venv et y installe scikit-learn depuis ml/requirements.txt, **en exigeant les empreintes** (--require-hashes)."""
+    if not ml_python().exists():
+        code = subprocess.run([sys.executable, "-m", "venv", str(ML_VENV)], cwd=ROOT, check=False).returncode
+        if code:
+            return code
+    return subprocess.run([str(ml_python()), "-m", "pip", "install", "--require-hashes", "-r", str(ML_REQUIREMENTS)], cwd=ROOT, check=False).returncode
+
+
+def cmd_ml_train(args: argparse.Namespace) -> int:
+    """Étape de l'IA-03 : validation (réglage, choix), test (une seule lecture) ou rapport (tableaux)."""
+    if not ml_python().exists():
+        print("ml/.venv est absent : lancer d'abord « ml-env » (scikit-learn y est installé avec ses empreintes).", file=sys.stderr)
+        return 2
+    return subprocess.run([str(ml_python()), str(ML_TRAIN), args.etape], cwd=ROOT, check=False).returncode
+
+
 # --------------------------------------------------------------------------- rapport hebdomadaire du robot (IA-07, FE-06)
 RPA_DIR = ROOT / "automation" / "rpa"
 
@@ -1426,6 +1455,9 @@ def build_parser() -> argparse.ArgumentParser:
     reference.add_argument("--json", action="store_true", help="rapport JSON")
     preparation = add("preparation-check", cmd_preparation_check, "vérifie le découpage et les variables du jeu v1 (IA-02) : variables permises, aucune fuite du futur, empreinte du découpage ; le test n'est pas lu")
     preparation.add_argument("--json", action="store_true", help="rapport JSON")
+    add("ml-env", cmd_ml_env, "crée ml/.venv et y installe scikit-learn depuis ml/requirements.txt (empreintes exigées)")
+    train = add("ml-train", cmd_ml_train, "entraînement et comparaison (IA-03) : validation, test (lu une seule fois) ou rapport ; nécessite ml-env")
+    train.add_argument("etape", choices=ML_ETAPES, help="validation : réglage et choix ; test : lecture unique ; rapport : ml/evaluation/resultats.md")
     rpa = add("rpa-report", cmd_rpa_report, "produit le rapport hebdomadaire (robot, IA-07) et le dépose dans var/reports ; la page Rapports l'affiche")
     rpa.add_argument("--debut", metavar="AAAA-MM-JJ", help="début de la période (la semaine précédente par défaut)")
     rpa.add_argument("--fin", metavar="AAAA-MM-JJ", help="fin exclue (début + 7 jours par défaut)")
