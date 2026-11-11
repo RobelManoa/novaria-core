@@ -265,7 +265,7 @@ Vue en lecture seule (migration `0007`) que l'API des indicateurs interroge ([AP
 
 ### 7.1 État de congestion d'un tronçon (valeurs de départ)
 
-L'état se calcule sur les fenêtres de **1 minute** et change par **hystérésis** : un seuil franchi une seule fois ne suffit pas, pour éviter un état qui clignote. Les valeurs sont des hypothèses de départ, à fixer définitivement dans `docs/06-ia-mlops/cadrage-ml.md` avant tout entraînement ([ADR-028](../01-architecture/adr/ADR-028-etats-de-congestion-et-alertes.md)).
+L'état se calcule sur les fenêtres de **1 minute** et change par **hystérésis** : un seuil franchi une seule fois ne suffit pas, pour éviter un état qui clignote. Les valeurs sont fixées définitivement, sans changement, dans [`docs/06-ia-mlops/cadrage-ml.md`](../06-ia-mlops/cadrage-ml.md) (12/11/2026, section 5.2) : mesurées sur le jeu simulé, à réexaminer avec un jeu réel ou une autre consigne du professeur ([ADR-028](../01-architecture/adr/ADR-028-etats-de-congestion-et-alertes.md)).
 
 ```mermaid
 stateDiagram-v2

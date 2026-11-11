@@ -182,6 +182,21 @@ class DatasetBuildTests(unittest.TestCase):
         self.assertTrue(dev.DATASET_BUILDER.is_file())
 
 
+class ReferenceMesureTests(unittest.TestCase):
+    def test_la_commande_lance_la_mesure_avec_les_options_demandees(self):
+        with mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(dev.main(["reference-mesure", "--sensibilite", "--json"]), 0)
+        commande = run.call_args.args[0]
+        self.assertTrue(commande[1].endswith("mesurer_reference.py"))
+        self.assertEqual(commande[2:], ["--sensibilite", "--json"])
+
+    def test_sans_option_le_code_de_sortie_est_transmis(self):
+        with mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 1)) as run:
+            self.assertEqual(dev.main(["reference-mesure"]), 1)
+        self.assertEqual(len(run.call_args.args[0]), 2)
+        self.assertTrue(dev.REFERENCE_MESURE.is_file())
+
+
 class RpaReportTests(unittest.TestCase):
     def args(self, *extra):
         return dev.build_parser().parse_args(["rpa-report", *extra])

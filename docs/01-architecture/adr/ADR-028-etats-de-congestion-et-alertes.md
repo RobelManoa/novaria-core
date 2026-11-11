@@ -3,7 +3,7 @@
 | Champ | Valeur |
 |---|---|
 | Date | 20/10/2026 |
-| Statut | Proposée : seuils de départ, à fixer définitivement dans le cadrage ML (IA-01) |
+| Statut | Proposée : seuils fixés définitivement, sans changement, dans le [cadrage ML](../../06-ia-mlops/cadrage-ml.md) du 12/11/2026 (IA-01) ; question Q1 au professeur sans réponse |
 | Décideurs | Manoa Robel, Daddy Luciano |
 | Validation du professeur | À demander avec les indicateurs (ADR-014) |
 | Issues liées | IA-01, IA-08, MS-09, MS-10, MS-11, DAT-10 |
@@ -43,7 +43,7 @@ L'usager reçoit une alerte quand la circulation se dégrade. Deux erreurs coût
 6. La **cause** d'une alerte reste `UNKNOWN` tant qu'aucun événement confirmé n'existe : une baisse de vitesse ne prouve pas un accident.
 7. Un classificateur appris est **comparé** à cette règle ; il la remplace seulement s'il la bat au seuil fixé avant l'entraînement. Le label d'apprentissage est la **vérité terrain** du générateur, pas la sortie de la règle ([ADR-027](ADR-027-jeux-de-donnees-et-provenance.md)).
 
-| Transition | Condition de départ (à fixer dans `cadrage-ml.md`) |
+| Transition | Condition (fixée dans [`cadrage-ml.md`](../../06-ia-mlops/cadrage-ml.md), section 5.2) |
 |---|---|
 | FREE_FLOW → SLOW | ratio < 0,60 pendant 2 fenêtres |
 | SLOW → CONGESTED | ratio < 0,35 pendant 2 fenêtres |

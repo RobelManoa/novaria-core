@@ -447,6 +447,20 @@ def cmd_dataset_build(args: argparse.Namespace) -> int:
     return subprocess.run(command, cwd=ROOT, check=False).returncode
 
 
+# --------------------------------------------------------------------------- règle de référence (IA-01)
+REFERENCE_MESURE = ROOT / "ml" / "src" / "mesurer_reference.py"
+
+
+def cmd_reference_mesure(args: argparse.Namespace) -> int:
+    """Mesure la règle de seuils de l'ADR-028 sur l'entraînement et la validation du jeu v1 (le test n'est pas lisible)."""
+    command = [sys.executable, str(REFERENCE_MESURE)]
+    if args.sensibilite:
+        command.append("--sensibilite")
+    if args.json:
+        command.append("--json")
+    return subprocess.run(command, cwd=ROOT, check=False).returncode
+
+
 # --------------------------------------------------------------------------- rapport hebdomadaire du robot (IA-07, FE-06)
 RPA_DIR = ROOT / "automation" / "rpa"
 
@@ -1395,6 +1409,9 @@ def build_parser() -> argparse.ArgumentParser:
     add("db-check-kpi", cmd_db_check_kpi, "recalcule les 5 indicateurs sur un jeu fabriqué (transaction annulée) et les compare aux vues")
     dataset = add("dataset-build", cmd_dataset_build, "construit le jeu d'entraînement v1 (IA-08) dans data/datasets/novaria-congestion-v1/, avec sa fiche de provenance")
     dataset.add_argument("--sortie", type=Path, help="dossier de sortie (data/datasets/novaria-congestion-v1 par défaut)")
+    reference = add("reference-mesure", cmd_reference_mesure, "mesure la règle de seuils (ADR-028) sur l'entraînement et la validation du jeu v1 (IA-01) ; le test n'est pas lisible")
+    reference.add_argument("--sensibilite", action="store_true", help="ajoute les variations d'un réglage à la fois")
+    reference.add_argument("--json", action="store_true", help="rapport JSON")
     rpa = add("rpa-report", cmd_rpa_report, "produit le rapport hebdomadaire (robot, IA-07) et le dépose dans var/reports ; la page Rapports l'affiche")
     rpa.add_argument("--debut", metavar="AAAA-MM-JJ", help="début de la période (la semaine précédente par défaut)")
     rpa.add_argument("--fin", metavar="AAAA-MM-JJ", help="fin exclue (début + 7 jours par défaut)")
