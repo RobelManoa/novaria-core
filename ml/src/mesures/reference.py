@@ -16,6 +16,7 @@ from jeu_entrainement import catalogue, parquet
 from jeu_entrainement.fenetres import importer_le_moteur
 from jeu_entrainement.simulation import RACINE
 from mesures.metriques import Mesures, mesurer
+from preparation.donnees import EnsembleReserve  # noqa: F401 : la même exception pour tous les lecteurs du jeu
 
 DOSSIER_JEU = RACINE / "data" / "datasets" / catalogue.JEU_ID
 ENSEMBLES_LISIBLES = ("train", "validation")
@@ -30,10 +31,6 @@ VARIATIONS = (
     ("degrade_windows", (1, 3)),
     ("recover_windows", (2, 4, 5)),
 )
-
-
-class EnsembleReserve(ValueError):
-    """Le test ne se lit qu'à l'évaluation finale."""
 
 
 def importer_la_regle():

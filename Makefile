@@ -6,7 +6,7 @@ DEV = $(PY) scripts/dev/dev.py
 PY_API ?= $(if $(wildcard venv/bin/python),venv/bin/python,$(PY))
 DEV_API = $(PY_API) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint format new-service quality-up quality-down hooks terraform-check drift-check dataset-build test-ml reference-mesure
+.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint format new-service quality-up quality-down hooks terraform-check drift-check dataset-build test-ml reference-mesure preparation-check
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -129,6 +129,8 @@ test-ml:       ## Tests du jeu d'entraînement (ml/tests, bibliothèque standard
 	$(PY) -m unittest discover -s ml/tests -t ml
 reference-mesure: ## Mesure la règle de seuils (ADR-028) sur l'entraînement et la validation du jeu v1 (IA-01, 11 s) ; make reference-mesure SENS=1 : ajoute les variations de réglages
 	$(DEV) reference-mesure $(if $(SENS),--sensibilite,)
+preparation-check: ## Vérifie le découpage et les variables du jeu v1 (IA-02) : variables permises, aucune fuite du futur, empreinte du découpage (3 s)
+	$(DEV) preparation-check
 drift-check:    ## Script de dérive (IA-06) : entrées de l'exécution la plus récente contre une référence ; make drift-check REF=<run_id> ; code 1 si dérive
 	$(DEV) drift-check $(if $(REF),--reference-run $(REF),)
 terraform-check: ## Contrôles Terraform sans compte AWS (Docker) : fmt, init, validate, tflint, Snyk IaC ; make terraform-check LOCK=1 : régénère le verrou

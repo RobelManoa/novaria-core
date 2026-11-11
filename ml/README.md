@@ -25,6 +25,15 @@ Ordre de travail : congestion d'abord, prévision ensuite ([ADR-015](../docs/01-
 | `parquet.py` | écrivain et lecteur Parquet (sous-ensemble étroit, octets identiques à chaque écriture) |
 | `construire.py`, `provenance.py` | fichiers, manifeste, empreintes, fiche |
 
+## Variables et découpage (IA-02)
+
+`src/preparation/` transforme le jeu v1 en matrices, sans rien du futur : `variables.py` (quelles colonnes entrent dans la détection ou la prévision, lesquelles sont interdites et pourquoi), `calendrier.py` (heure, jour, week-end, sinus et cosinus calculés depuis l'instant), `historique.py` (décalages et moyennes mobiles du passé, recalculés à part), `ajustement.py` (médianes et catégories apprises sur l'entraînement seul ; un ajustement qui reçoit un autre run est refusé), `decoupage.py` (par run et par scénario, empreinte SHA-256, délai de garde pour la prévision dans l'ordre du temps), `controles.py` (recalcul sur les fichiers). **Le fichier de test n'est pas lu.**
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Vérifier découpage, variables et absence de fuite (environ 3 s) | `python3 scripts/dev/dev.py preparation-check` ou `make preparation-check` | `py -3 scripts/dev/dev.py preparation-check` |
+| Rapport JSON | ajouter `--json` | ajouter `--json` |
+
 ## Cadrage et règle de référence (IA-01)
 
 Le [cadrage ML](../docs/06-ia-mlops/cadrage-ml.md) fixe, avant tout entraînement, la cible, les quatre métriques, les seuils de l'ADR-028 et le seuil d'acceptation. `src/mesures/` en contient le code : `metriques.py` (F1 macro, rappel de `CONGESTED`, délai de détection, fausses alertes par tronçon et par jour ; fonctions pures) et `reference.py` (la règle du traitement en flux rejouée sur le jeu). **L'ensemble de test n'est pas lisible** par cet outil : IA-03 l'ouvre une seule fois, après le choix du candidat.

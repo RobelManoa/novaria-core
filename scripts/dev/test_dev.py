@@ -197,6 +197,21 @@ class ReferenceMesureTests(unittest.TestCase):
         self.assertTrue(dev.REFERENCE_MESURE.is_file())
 
 
+class PreparationCheckTests(unittest.TestCase):
+    def test_la_commande_lance_la_verification_avec_ses_options(self):
+        with mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(dev.main(["preparation-check", "--json"]), 0)
+        commande = run.call_args.args[0]
+        self.assertTrue(commande[1].endswith("preparer_variables.py"))
+        self.assertEqual(commande[2:], ["--json"])
+
+    def test_sans_option_le_code_de_sortie_est_transmis(self):
+        with mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 1)) as run:
+            self.assertEqual(dev.main(["preparation-check"]), 1)
+        self.assertEqual(len(run.call_args.args[0]), 2)
+        self.assertTrue(dev.PREPARATION_CHECK.is_file())
+
+
 class RpaReportTests(unittest.TestCase):
     def args(self, *extra):
         return dev.build_parser().parse_args(["rpa-report", *extra])

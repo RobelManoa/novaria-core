@@ -461,6 +461,18 @@ def cmd_reference_mesure(args: argparse.Namespace) -> int:
     return subprocess.run(command, cwd=ROOT, check=False).returncode
 
 
+# --------------------------------------------------------------------------- variables et découpage (IA-02)
+PREPARATION_CHECK = ROOT / "ml" / "src" / "preparer_variables.py"
+
+
+def cmd_preparation_check(args: argparse.Namespace) -> int:
+    """Vérifie le découpage (par run et par scénario) et les variables (permises, sans fuite) du jeu v1 ; le test n'est pas lu."""
+    command = [sys.executable, str(PREPARATION_CHECK)]
+    if args.json:
+        command.append("--json")
+    return subprocess.run(command, cwd=ROOT, check=False).returncode
+
+
 # --------------------------------------------------------------------------- rapport hebdomadaire du robot (IA-07, FE-06)
 RPA_DIR = ROOT / "automation" / "rpa"
 
@@ -1412,6 +1424,8 @@ def build_parser() -> argparse.ArgumentParser:
     reference = add("reference-mesure", cmd_reference_mesure, "mesure la règle de seuils (ADR-028) sur l'entraînement et la validation du jeu v1 (IA-01) ; le test n'est pas lisible")
     reference.add_argument("--sensibilite", action="store_true", help="ajoute les variations d'un réglage à la fois")
     reference.add_argument("--json", action="store_true", help="rapport JSON")
+    preparation = add("preparation-check", cmd_preparation_check, "vérifie le découpage et les variables du jeu v1 (IA-02) : variables permises, aucune fuite du futur, empreinte du découpage ; le test n'est pas lu")
+    preparation.add_argument("--json", action="store_true", help="rapport JSON")
     rpa = add("rpa-report", cmd_rpa_report, "produit le rapport hebdomadaire (robot, IA-07) et le dépose dans var/reports ; la page Rapports l'affiche")
     rpa.add_argument("--debut", metavar="AAAA-MM-JJ", help="début de la période (la semaine précédente par défaut)")
     rpa.add_argument("--fin", metavar="AAAA-MM-JJ", help="fin exclue (début + 7 jours par défaut)")
