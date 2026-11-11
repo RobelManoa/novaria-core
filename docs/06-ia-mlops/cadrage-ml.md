@@ -279,7 +279,9 @@ Les chiffres des sections 5 et 6 sortent de cette commande. Un test (`ml/tests/t
 
 ## 12. Avenants
 
-Aucun au 12/11/2026. Un avenant donne : la date, la valeur changée, la raison, et le commit qui précède l'évaluation concernée.
+**Précision de mise en œuvre (IA-03, 12/11/2026, écrite après la lecture du test, code et sélection écrits avant).** Le cadrage (section 6) prévoit la confirmation sur 2 fenêtres quand A1 et A2 sont remplies et A5 manquée. Le code l'essaie dès qu'**aucun réglage brut n'est éligible** sur la validation. Les valeurs des sections 5 et 6 n'ont pas changé. Voir [`ml/evaluation/comparaison.md`](../../ml/evaluation/comparaison.md), section 8.
+
+Aucun avenant de valeur au 12/11/2026. Un avenant donne : la date, la valeur changée, la raison, et le commit qui précède l'évaluation concernée.
 
 ## 13. À faire relire
 
