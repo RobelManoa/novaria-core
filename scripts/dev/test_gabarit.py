@@ -46,7 +46,7 @@ CODE_PARTAGE = ["app/core/redaction.py", "app/core/unhandled.py", "app/core/erro
                 "app/api/security.py"]
 PAS_UNE_COPIE = {"app/core/errors.py": {"traitement"}}
 JOBS_OBLIGATOIRES = {"backend", "frontend", "gitleaks", "snyk", "docker", "sonarqube"}
-JOBS_D_APPUI = {"services", "service", "etl"}  # découverte des services, matrice (MS-05) et tests de data/etl, voir test_ci.py
+JOBS_D_APPUI = {"services", "service", "etl", "ml"}  # découverte des services, matrice (MS-05) et tests de data/etl, voir test_ci.py
 
 
 def lire(chemin: str) -> str:
