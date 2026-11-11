@@ -35,6 +35,7 @@ def _regression_logistique(params: dict):
     return make_pipeline(
         StandardScaler(),
         LogisticRegression(C=params["C"], class_weight=params["class_weight"], max_iter=2000, random_state=SEED),
+        memory=None,  # aucun cache disque : un entraînement ne laisse rien derrière lui
     )
 
 

@@ -5,6 +5,7 @@ ignorés sans lui. Aucun test ne lit le vrai fichier de test du jeu v1 : la cha�
 fabriqué dans un dossier temporaire.
 """
 
+import contextlib
 import dataclasses
 import json
 import shutil
@@ -30,6 +31,17 @@ except ImportError:
     SKLEARN = False
 
 F, S, C = "FREE_FLOW", "SLOW", "CONGESTED"
+
+
+@contextlib.contextmanager
+def chemins(dossier: Path, selection="selection.json", resultat="resultat-test.json", rapport_md="resultats.md"):
+    """Les fichiers de résultats vivent dans `tracabilite` : on les redirige vers un dossier temporaire."""
+    with mock.patch.object(tracabilite, "SELECTION", dossier / selection), \
+            mock.patch.object(tracabilite, "RESULTAT_TEST", dossier / resultat), \
+            mock.patch.object(tracabilite, "RAPPORT", dossier / rapport_md):
+        yield
+
+
 JOURS = 14 * 1440
 
 
@@ -224,25 +236,23 @@ class TestCandidatsEtPlis(unittest.TestCase):
 
 class TestGardesDuTest(unittest.TestCase):
     def test_un_second_essai_sur_le_test_est_refuse(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            sortie = Path(tmp) / "resultat-test.json"
-            sortie.write_text("{}", encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp, chemins(Path(tmp)):
+            tracabilite.RESULTAT_TEST.write_text("{}", encoding="utf-8")
             with self.assertRaises(tracabilite.ControleDeSecurite) as e:
-                execution.etape_test(sortie=sortie, selection_json=Path(tmp) / "selection.json")
+                execution.etape_test()
             self.assertIn("déjà été lu", str(e.exception))
 
     def test_le_test_n_est_pas_lu_sans_selection_prealable(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, chemins(Path(tmp)):
             with self.assertRaises(tracabilite.ControleDeSecurite) as e:
-                execution.etape_test(sortie=Path(tmp) / "r.json", selection_json=Path(tmp) / "absente.json")
+                execution.etape_test()
             self.assertIn("étape validation", str(e.exception))
 
     def test_une_selection_sans_candidat_n_ouvre_pas_le_test(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            sel = Path(tmp) / "selection.json"
-            sel.write_text(json.dumps({"etape": "validation", "choix": {"candidat": None}}), encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp, chemins(Path(tmp)):
+            tracabilite.SELECTION.write_text(json.dumps({"etape": "validation", "choix": {"candidat": None}}), encoding="utf-8")
             with self.assertRaises(tracabilite.ControleDeSecurite):
-                execution.etape_test(sortie=Path(tmp) / "r.json", selection_json=sel)
+                execution.etape_test()
 
     def test_le_fichier_de_test_du_jeu_est_ferme_par_defaut(self):
         with self.assertRaises(donnees.EnsembleReserve):
@@ -260,7 +270,6 @@ class TestChaineComplete(unittest.TestCase):
         cls.catalogue = petit_catalogue()
         construire.construire(cls.dossier, cls.catalogue)
         cls.sortie_selection = Path(cls._tmp.name) / "selection.json"
-        cls.sortie_test = Path(cls._tmp.name) / "resultat-test.json"
         cls.appels = []
         reel = donnees.charger
 
@@ -268,8 +277,8 @@ class TestChaineComplete(unittest.TestCase):
             cls.appels.append((ensemble, kwargs.get("evaluation_finale", False)))
             return reel(ensemble, *args, **kwargs)
 
-        with mock.patch.object(donnees, "charger", espion):
-            cls.selection = execution.etape_validation(cls.dossier, cls.sortie_selection, message=lambda _: None, catalogue=cls.catalogue)
+        with mock.patch.object(donnees, "charger", espion), chemins(Path(cls._tmp.name)):
+            cls.selection = execution.etape_validation(cls.dossier, message=lambda _: None, catalogue=cls.catalogue)
         cls.appels_validation = list(cls.appels)
 
     @classmethod
@@ -314,9 +323,9 @@ class TestChaineComplete(unittest.TestCase):
         vus = []
         reel = evaluation.preparer
 
-        def espion(c, entrainement, runs_entrainement):
+        def espion(entrainement, runs_entrainement):
             vus.append({ligne["run_id"] for ligne in entrainement})
-            return reel(c, entrainement, runs_entrainement)
+            return reel(entrainement, runs_entrainement)
 
         retenu = selection.Retenu(selection.Essai(0, candidats.LOGISTIQUE.grille[0], mesures(), mesures(), []), "brut")
         with mock.patch.object(evaluation, "preparer", espion):
@@ -331,7 +340,7 @@ class TestChaineComplete(unittest.TestCase):
         validation = donnees.charger("validation", self.dossier)
         runs_train = {r.run_id for r in self.catalogue if r.ensemble == cat.TRAIN}
         with self.assertRaises(ajustement.FuiteDInformation):
-            evaluation.preparer(candidats.LOGISTIQUE, train + validation, runs_train)
+            evaluation.preparer(train + validation, runs_train)
 
     def test_un_jeu_modifie_arrete_la_validation_avant_tout_entrainement(self):
         copie = Path(self._tmp.name) / "jeu-abime"
@@ -339,15 +348,15 @@ class TestChaineComplete(unittest.TestCase):
         octets = bytearray((copie / "train.parquet").read_bytes())
         octets[200] ^= 0xFF
         (copie / "train.parquet").write_bytes(bytes(octets))
-        with self.assertRaises(tracabilite.ControleDeSecurite) as e:
-            execution.etape_validation(copie, Path(self._tmp.name) / "x.json", message=lambda _: None, catalogue=self.catalogue)
+        with chemins(Path(self._tmp.name), selection="x.json"), self.assertRaises(tracabilite.ControleDeSecurite) as e:
+            execution.etape_validation(copie, message=lambda _: None, catalogue=self.catalogue)
         self.assertIn("S1", str(e.exception))
 
     def test_test_unique_puis_refus_du_second_essai_puis_rapport(self):
-        selection_json = Path(self._tmp.name) / "selection-test.json"
         choix = json.loads(self.sortie_selection.read_text(encoding="utf-8"))
         if choix["choix"]["candidat"] is None:  # petit jeu : aucun réglage éligible ; on force un choix pour exercer l'étape
             choix["choix"].update(candidat="logistique", variante="brut", params=candidats.LOGISTIQUE.grille[0])
+        selection_json = Path(self._tmp.name) / "selection-test.json"
         selection_json.write_text(json.dumps(choix), encoding="utf-8")
         lectures = []
         reel = donnees.charger
@@ -356,8 +365,8 @@ class TestChaineComplete(unittest.TestCase):
             lectures.append((ensemble, kwargs.get("evaluation_finale", False)))
             return reel(ensemble, *args, **kwargs)
 
-        with mock.patch.object(donnees, "charger", espion):
-            resultat = execution.etape_test(self.dossier, selection_json, self.sortie_test, message=lambda _: None, catalogue=self.catalogue)
+        with mock.patch.object(donnees, "charger", espion), chemins(Path(self._tmp.name), selection="selection-test.json"):
+            resultat = execution.etape_test(self.dossier, message=lambda _: None, catalogue=self.catalogue)
         self.assertEqual(lectures.count(("test", True)), 1, "le test est lu une seule fois")
         self.assertEqual([e for e, final in lectures if final], ["test"])
         test_runs = {r.run_id for r in self.catalogue if r.ensemble == cat.TEST}
@@ -371,9 +380,11 @@ class TestChaineComplete(unittest.TestCase):
         self.assertEqual(resultat["decision"] == "accepté", all(c["remplie"] for c in resultat["conditions"]))
         self.assertEqual(sum(sum(ligne.values()) for ligne in resultat["matrice_modele"].values()),
                          len(donnees.charger("test", self.dossier, evaluation_finale=True)))
-        with self.assertRaises(tracabilite.ControleDeSecurite):
-            execution.etape_test(self.dossier, selection_json, self.sortie_test, message=lambda _: None, catalogue=self.catalogue)
-        texte = rapport.ecrire(selection_json, self.sortie_test, Path(self._tmp.name) / "resultats.md")
+        with chemins(Path(self._tmp.name), selection="selection-test.json"):
+            with self.assertRaises(tracabilite.ControleDeSecurite):
+                execution.etape_test(self.dossier, message=lambda _: None, catalogue=self.catalogue)
+            texte = rapport.ecrire()
+        self.assertEqual((Path(self._tmp.name) / "resultats.md").read_text(encoding="utf-8"), texte)
         for morceau in ("Traçabilité", "Règle de seuils (référence)", "Validation croisée groupée par run", "Conditions d'acceptation", "Matrice de confusion", "Décision"):
             self.assertIn(morceau, texte)
 
@@ -383,16 +394,16 @@ class TestChaineComplete(unittest.TestCase):
         octets = bytearray((copie / "test.parquet").read_bytes())
         octets[200] ^= 0xFF
         (copie / "test.parquet").write_bytes(bytes(octets))
-        with self.assertRaises(tracabilite.ControleDeSecurite):
-            execution.etape_test(copie, self.sortie_selection, Path(self._tmp.name) / "r2.json", message=lambda _: None, catalogue=self.catalogue)
+        with chemins(Path(self._tmp.name), resultat="r2.json"), self.assertRaises(tracabilite.ControleDeSecurite):
+            execution.etape_test(copie, message=lambda _: None, catalogue=self.catalogue)
 
     def test_un_autre_jeu_coherent_est_refuse_parce_que_son_empreinte_n_est_pas_celle_de_la_selection(self):
         """Un jeu entièrement refait (manifeste compris) passe S1 seul ; l'empreinte écrite dans la sélection le trahit."""
         autre = Path(self._tmp.name) / "jeu-autre"
         construire.construire(autre, petit_catalogue(decalage_graine=1))
         self.assertEqual(tracabilite.exiger_le_jeu_intact(autre), json.loads((autre / "manifest.json").read_text(encoding="utf-8"))["empreinte_du_jeu"])
-        with self.assertRaises(tracabilite.ControleDeSecurite) as e:
-            execution.etape_test(autre, self.sortie_selection, Path(self._tmp.name) / "r3.json", message=lambda _: None, catalogue=self.catalogue)
+        with chemins(Path(self._tmp.name), resultat="r3.json"), self.assertRaises(tracabilite.ControleDeSecurite) as e:
+            execution.etape_test(autre, message=lambda _: None, catalogue=self.catalogue)
         self.assertIn("empreinte", str(e.exception))
 
     def test_le_rapport_sans_test_dit_qu_il_n_est_pas_lu(self):

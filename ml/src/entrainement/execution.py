@@ -16,8 +16,8 @@ REGLE_DE_CHOIX = (
 )
 
 
-def etape_validation(dossier: Path = donnees.DOSSIER_JEU, sortie: Path = tracabilite.SELECTION, message=print,
-                     catalogue: tuple = cat.CATALOGUE) -> dict:
+def etape_validation(dossier: Path = donnees.DOSSIER_JEU, message=print, catalogue: tuple = cat.CATALOGUE) -> dict:
+    """Réglage, validation croisée et choix ; écrit `tracabilite.SELECTION`. Le dossier du jeu n'est que lu."""
     empreinte = tracabilite.exiger_le_jeu_intact(dossier)
     message(f"S1 : jeu intact ({empreinte[:12]}…)")
     train, validation = donnees.charger("train", dossier), donnees.charger("validation", dossier)
@@ -48,8 +48,8 @@ def etape_validation(dossier: Path = donnees.DOSSIER_JEU, sortie: Path = tracabi
     resultat["choix"] = {"candidat": nom, "variante": retenus[nom].variante if nom else None,
                         "params": retenus[nom].essai.params if nom else None, "raison": raison}
     message(f"Choix : {nom} — {raison}")
-    sortie.parent.mkdir(parents=True, exist_ok=True)
-    sortie.write_text(json.dumps(resultat, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tracabilite.SELECTION.parent.mkdir(parents=True, exist_ok=True)
+    tracabilite.SELECTION.write_text(json.dumps(resultat, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return resultat
 
 
@@ -57,7 +57,7 @@ def _reproductible(c, retenu, train, validation, runs_train) -> bool:
     """Deux entraînements identiques (même graine, mêmes données) donnent les mêmes prédictions et les mêmes mesures."""
     sorties = []
     for _ in range(2):
-        preparation = evaluation.preparer(c, train, runs_train)
+        preparation = evaluation.preparer(train, runs_train)
         x, y = preparation.transformer(train, imputer=c.imputer)
         modele, _ = candidats.ajuster(c, retenu.essai.params, x, y)
         _, predits = evaluation.predictions(modele, preparation, validation, c.imputer)
@@ -65,15 +65,14 @@ def _reproductible(c, retenu, train, validation, runs_train) -> bool:
     return sorties[0] == sorties[1]
 
 
-def etape_test(dossier: Path = donnees.DOSSIER_JEU, selection_json: Path = tracabilite.SELECTION,
-               sortie: Path = tracabilite.RESULTAT_TEST, message=print, catalogue: tuple = cat.CATALOGUE) -> dict:
-    """Lit le test **une seule fois**, pour le candidat choisi et pour la règle."""
-    if sortie.exists():
+def etape_test(dossier: Path = donnees.DOSSIER_JEU, message=print, catalogue: tuple = cat.CATALOGUE) -> dict:
+    """Lit le test **une seule fois**, pour le candidat choisi et pour la règle ; lit `tracabilite.SELECTION`, écrit `tracabilite.RESULTAT_TEST`."""
+    if tracabilite.RESULTAT_TEST.exists():
         raise tracabilite.ControleDeSecurite(
-            f"{sortie.name} existe : le test a déjà été lu. Un second essai est un avenant du cadrage (section 12), pas une relance")
-    if not selection_json.is_file():
+            f"{tracabilite.RESULTAT_TEST.name} existe : le test a déjà été lu. Un second essai est un avenant du cadrage (section 12), pas une relance")
+    if not tracabilite.SELECTION.is_file():
         raise tracabilite.ControleDeSecurite("selection.json absent : faire d'abord l'étape validation (le choix précède la lecture du test)")
-    choix = json.loads(selection_json.read_text(encoding="utf-8"))
+    choix = json.loads(tracabilite.SELECTION.read_text(encoding="utf-8"))
     if choix.get("etape") != "validation" or choix["choix"]["candidat"] is None:
         raise tracabilite.ControleDeSecurite("selection.json ne désigne aucun candidat : rien à évaluer sur le test")
     empreinte = tracabilite.exiger_le_jeu_intact(dossier, choix["tracabilite"]["dataset_sha256"])
@@ -82,7 +81,7 @@ def etape_test(dossier: Path = donnees.DOSSIER_JEU, selection_json: Path = traca
     params, confirmation = choix["choix"]["params"], choix["choix"]["variante"] == "confirme"
     train = donnees.charger("train", dossier)
     runs_train = [r.run_id for r in cat.par_ensemble(catalogue)[cat.TRAIN]]
-    preparation = evaluation.preparer(c, train, runs_train)
+    preparation = evaluation.preparer(train, runs_train)
     x, y = preparation.transformer(train, imputer=c.imputer)
     modele, avertissements = candidats.ajuster(c, params, x, y)
     message("Lecture du test (une seule fois)…")
@@ -95,7 +94,7 @@ def etape_test(dossier: Path = donnees.DOSSIER_JEU, selection_json: Path = traca
     resultat = {
         "etape": "test",
         "lu_le": datetime.now(UTC).isoformat(timespec="seconds"),
-        "selection_sha256": tracabilite.sha256_fichier(selection_json),
+        "selection_sha256": tracabilite.sha256_fichier(tracabilite.SELECTION),
         "tracabilite": tracabilite.tracabilite(empreinte),
         "candidat": c.nom, "libelle": c.libelle, "params": params, "variante": choix["choix"]["variante"],
         "avertissements_d_entrainement": avertissements,
@@ -107,7 +106,7 @@ def etape_test(dossier: Path = donnees.DOSSIER_JEU, selection_json: Path = traca
         "conditions": [x.en_dict() for x in liste],
         "decision": "accepté" if acceptation.accepte(liste) else "rejeté",
     }
-    sortie.write_text(json.dumps(resultat, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tracabilite.RESULTAT_TEST.write_text(json.dumps(resultat, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     for x_ in liste:
         message(f"  {x_.numero} {'remplie' if x_.remplie else 'MANQUÉE'} : {x_.libelle} (modèle {x_.modele if x_.modele is None else round(x_.modele, 4)}, exigé {x_.exige})")
     message(f"Décision : modèle {resultat['decision']}")

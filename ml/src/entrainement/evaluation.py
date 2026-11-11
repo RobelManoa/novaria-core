@@ -70,7 +70,7 @@ def predictions(modele, preparation: ajustement.Preparation, lignes: list[dict],
     return matrice, [str(etat) for etat in modele.predict(matrice)]
 
 
-def preparer(c: candidats.Candidat, entrainement: list[dict], runs_entrainement) -> ajustement.Preparation:
+def preparer(entrainement: list[dict], runs_entrainement) -> ajustement.Preparation:
     """La préparation ajustée sur l'entraînement **seul** : un autre run est refusé."""
     return ajustement.Preparation(variables.DETECTION).ajuster(entrainement, runs_permis=set(runs_entrainement))
 

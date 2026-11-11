@@ -56,7 +56,7 @@ class Retenu:
 def essayer_la_grille(c: Candidat, entrainement: list[dict], validation: list[dict], runs_entrainement, message=lambda _: None) -> list[Essai]:
     if len(c.grille) > candidats.MAX_COMBINAISONS:
         raise ValueError(f"{c.nom} : {len(c.grille)} réglages, le cadrage en permet {candidats.MAX_COMBINAISONS} au plus")
-    preparation = evaluation.preparer(c, entrainement, runs_entrainement)
+    preparation = evaluation.preparer(entrainement, runs_entrainement)
     x_train, y_train = preparation.transformer(entrainement, imputer=c.imputer)
     x_val, _ = preparation.transformer(validation, imputer=c.imputer)
     essais = []
@@ -102,7 +102,7 @@ def validation_croisee_groupee(c: Candidat, retenu: Retenu, lignes: list[dict], 
         a_part_set = set(a_part)
         apprentissage = [ligne for ligne in lignes if ligne["run_id"] not in a_part_set]
         evaluation_pli = [ligne for ligne in lignes if ligne["run_id"] in a_part_set]
-        preparation = evaluation.preparer(c, apprentissage, {ligne["run_id"] for ligne in apprentissage})
+        preparation = evaluation.preparer(apprentissage, {ligne["run_id"] for ligne in apprentissage})
         x, y = preparation.transformer(apprentissage, imputer=c.imputer)
         modele, _ = candidats.ajuster(c, retenu.essai.params, x, y)
         _, predits = evaluation.predictions(modele, preparation, evaluation_pli, c.imputer)
