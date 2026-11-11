@@ -167,6 +167,21 @@ class CommandTests(unittest.TestCase):
                 self.assertRegex(command, r'-p "\$[A-Z_]+"')
 
 
+class DatasetBuildTests(unittest.TestCase):
+    def test_la_commande_lance_le_constructeur_du_jeu_avec_la_sortie_demandee(self):
+        with mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(dev.main(["dataset-build", "--sortie", "x"]), 0)
+        commande = run.call_args.args[0]
+        self.assertTrue(commande[1].endswith("construire_jeu.py"))
+        self.assertEqual(commande[-2:], ["--sortie", "x"])
+
+    def test_sans_option_la_sortie_est_celle_du_constructeur_et_le_code_est_transmis(self):
+        with mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 1)) as run:
+            self.assertEqual(dev.main(["dataset-build"]), 1)
+        self.assertNotIn("--sortie", run.call_args.args[0])
+        self.assertTrue(dev.DATASET_BUILDER.is_file())
+
+
 class RpaReportTests(unittest.TestCase):
     def args(self, *extra):
         return dev.build_parser().parse_args(["rpa-report", *extra])

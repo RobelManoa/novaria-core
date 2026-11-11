@@ -435,6 +435,18 @@ def cmd_db_check_kpi(_: argparse.Namespace) -> int:
     return result.returncode
 
 
+# --------------------------------------------------------------------------- jeu d'entraînement v1 (IA-08)
+DATASET_BUILDER = ROOT / "ml" / "src" / "construire_jeu.py"
+
+
+def cmd_dataset_build(args: argparse.Namespace) -> int:
+    """Construit le jeu d'entraînement v1 (runs du simulateur, vérité terrain, Parquet, fiche de provenance) : environ 40 s, bibliothèque standard."""
+    command = [sys.executable, str(DATASET_BUILDER)]
+    if args.sortie:
+        command += ["--sortie", str(args.sortie)]
+    return subprocess.run(command, cwd=ROOT, check=False).returncode
+
+
 # --------------------------------------------------------------------------- rapport hebdomadaire du robot (IA-07, FE-06)
 RPA_DIR = ROOT / "automation" / "rpa"
 
@@ -1381,6 +1393,8 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("--report", action="store_true", help="enregistre aussi le rapport dans docs/03-donnees/rapport-rejeu-etl.md")
     package = add("etl-package", cmd_etl_package, "empaquette la logique ETL en dist/novaria-etl-<version>.zip (reproductible)")
     add("db-check-kpi", cmd_db_check_kpi, "recalcule les 5 indicateurs sur un jeu fabriqué (transaction annulée) et les compare aux vues")
+    dataset = add("dataset-build", cmd_dataset_build, "construit le jeu d'entraînement v1 (IA-08) dans data/datasets/novaria-congestion-v1/, avec sa fiche de provenance")
+    dataset.add_argument("--sortie", type=Path, help="dossier de sortie (data/datasets/novaria-congestion-v1 par défaut)")
     rpa = add("rpa-report", cmd_rpa_report, "produit le rapport hebdomadaire (robot, IA-07) et le dépose dans var/reports ; la page Rapports l'affiche")
     rpa.add_argument("--debut", metavar="AAAA-MM-JJ", help="début de la période (la semaine précédente par défaut)")
     rpa.add_argument("--fin", metavar="AAAA-MM-JJ", help="fin exclue (début + 7 jours par défaut)")
