@@ -32,3 +32,8 @@ var/
 # données volumineuses (documenter la source dans data/datasets/README.md)
 data/datasets/*
 !data/datasets/README.md
+# jeu d'entraînement v1 (IA-08) : seules la fiche de provenance et le manifeste sont versionnés ; les fichiers Parquet se régénèrent
+!data/datasets/novaria-congestion-v1/
+data/datasets/novaria-congestion-v1/*
+!data/datasets/novaria-congestion-v1/PROVENANCE.md
+!data/datasets/novaria-congestion-v1/manifest.json

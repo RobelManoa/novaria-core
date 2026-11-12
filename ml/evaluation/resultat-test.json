@@ -1,0 +1,154 @@
+{
+  "etape": "test",
+  "lu_le": "2026-11-11T21:27:34+00:00",
+  "selection_sha256": "876c217f3faaa329083eacce172fd0f6a1213afe8c3122e5faecaf077c5b4d39",
+  "tracabilite": {
+    "dataset_id": "novaria-congestion-v1",
+    "dataset_sha256": "5fc6f1832bd9f02dcf86de0e56dfbafb0854b57041819e6452820325c195c19e",
+    "seed": 42,
+    "git_sha": "880fa90b7fbc048714e663a1a43cb1c28a4eb8fd",
+    "code_modifie_non_commite": true,
+    "versions": {
+      "python": "3.14.4",
+      "scikit-learn": "1.9.1",
+      "numpy": "2.5.4",
+      "scipy": "1.18.1"
+    }
+  },
+  "candidat": "logistique",
+  "libelle": "Régression logistique multiclasse (variables centrées et réduites)",
+  "params": {
+    "C": 10.0,
+    "class_weight": "balanced"
+  },
+  "variante": "confirme",
+  "avertissements_d_entrainement": [],
+  "runs_d_entrainement": [
+    "ds1-calme-s11",
+    "ds1-calme-s12",
+    "ds1-pointe-s21",
+    "ds1-pointe-s22",
+    "ds1-incident-s31",
+    "ds1-incident-s32"
+  ],
+  "runs_du_test": [
+    "ds1-calme-s14",
+    "ds1-incident-s34",
+    "ds1-pointe-s24"
+  ],
+  "modele": {
+    "f1_macro": 0.9814,
+    "rappel_congested": 0.9799,
+    "precision_congested": 0.9669,
+    "par_classe": {
+      "FREE_FLOW": [
+        0.9988,
+        0.9984,
+        0.9986
+      ],
+      "SLOW": [
+        0.9731,
+        0.9711,
+        0.9721
+      ],
+      "CONGESTED": [
+        0.9669,
+        0.9799,
+        0.9733
+      ]
+    },
+    "episodes": 9,
+    "episodes_manques": 0,
+    "delai_median_min": 1,
+    "delai_max_min": 1,
+    "alertes": 12,
+    "fausses_alertes": 3,
+    "fausses_alertes_par_troncon_et_jour": 0.2143,
+    "troncons_jours": 14.0
+  },
+  "regle": {
+    "f1_macro": 0.9681,
+    "rappel_congested": 0.9785,
+    "precision_congested": 0.9406,
+    "par_classe": {
+      "FREE_FLOW": [
+        0.9964,
+        0.9976,
+        0.997
+      ],
+      "SLOW": [
+        0.9652,
+        0.9315,
+        0.9481
+      ],
+      "CONGESTED": [
+        0.9406,
+        0.9785,
+        0.9592
+      ]
+    },
+    "episodes": 9,
+    "episodes_manques": 0,
+    "delai_median_min": 1,
+    "delai_max_min": 1,
+    "alertes": 10,
+    "fausses_alertes": 1,
+    "fausses_alertes_par_troncon_et_jour": 0.0714,
+    "troncons_jours": 14.0
+  },
+  "matrice_modele": {
+    "FREE_FLOW": {
+      "FREE_FLOW": 17916,
+      "SLOW": 6,
+      "CONGESTED": 3
+    },
+    "SLOW": {
+      "FREE_FLOW": 0,
+      "SLOW": 1473,
+      "CONGESTED": 17
+    },
+    "CONGESTED": {
+      "FREE_FLOW": 0,
+      "SLOW": 8,
+      "CONGESTED": 737
+    }
+  },
+  "conditions": [
+    {
+      "condition": "A1",
+      "libelle": "F1 macro ≥ référence + 0,01",
+      "modele": 0.9814,
+      "exige": "≥ 0.9781",
+      "remplie": true
+    },
+    {
+      "condition": "A2",
+      "libelle": "rappel de CONGESTED ≥ référence + 0,01",
+      "modele": 0.9799,
+      "exige": "≥ 0.9885",
+      "remplie": false
+    },
+    {
+      "condition": "A3",
+      "libelle": "délai médian ≤ référence",
+      "modele": 1,
+      "exige": "≤ 1 min",
+      "remplie": true
+    },
+    {
+      "condition": "A4",
+      "libelle": "aucun épisode manqué",
+      "modele": 0.0,
+      "exige": "0",
+      "remplie": true
+    },
+    {
+      "condition": "A5",
+      "libelle": "fausses alertes ≤ 0,10 par tronçon et par jour",
+      "modele": 0.2143,
+      "exige": "≤ 0.1",
+      "remplie": false
+    }
+  ],
+  "decision": "rejeté"
+}

@@ -1,0 +1,2 @@
+# Mesure de couverture de ml/ pour la CI (job « ml ») : seul coverage s'ajoute aux dépendances d'entraînement.
+coverage>=7.6,<8.0

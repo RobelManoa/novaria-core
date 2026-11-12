@@ -5,7 +5,7 @@ Un contrat par service ([ADR-008](../../docs/01-architecture/adr/ADR-008-microse
 | Fichier | Service | Rôle | Opérations |
 |---|---|---|---|
 | `api-metier.openapi.yaml` | API métier (portée par `services/traitement` tant que le point ouvert n° 1 des diagrammes C4 n'est pas tranché ; BE-02 et BE-03) | Santé, authentification, comptes | 7 |
-| `traitement.openapi.yaml` | Traitement | Référentiel, indicateurs, prévisions, rapports | 10 (les trois d'indicateurs existent : [API des indicateurs](../../docs/03-donnees/api-indicateurs.md) ; les deux de rapports sont une Proposition, FE-06) |
+| `traitement.openapi.yaml` | Traitement | Référentiel, indicateurs, prévisions, rapports | 10 (les trois d'indicateurs existent : [API des indicateurs](../../docs/03-donnees/api-indicateurs.md) ; les prévisions sont servies par une référence : [API des prévisions](../../docs/03-donnees/api-previsions.md) ; les deux de rapports sont servis depuis le 10/11/2026 mais restent une Proposition à relire, FE-06 : [Rapports automatiques](../../docs/03-donnees/rapports-automatiques.md)) |
 | `alerte.openapi.yaml` | Alerte usager | Alertes, règles, flux SSE (Server-Sent Events) | 8 |
 | `reponse.openapi.yaml` | Réponse extérieure | État des feux, commande manuelle | 5 |
 | `collecte.openapi.yaml` | Collecte | Dépôt des mesures par le simulateur (réseau interne) | 2 |
@@ -97,7 +97,7 @@ Proposition à valider : trois rôles hiérarchiques. Un rôle inclut les droits
 | Traitement | Référentiel | `GET /intersections`, `/intersections/{id}`, `/road-segments` | `viewer` | MS-10 |
 | Traitement | Indicateurs | `GET /indicators`, `/indicators/latest`, `/indicators/{id}` | `viewer` | BE-04, MS-10 |
 | Traitement | Prévisions | `GET /forecasts` | `viewer` | IA-06 |
-| Traitement | Rapports | `GET /reports`, `/reports/{id}/content` (Proposition) | `viewer` | IA-07 (robot) |
+| Traitement | Rapports | `GET /reports`, `/reports/{id}/content` (Proposition, servies) | `viewer` | FE-06, IA-07 (robot) |
 | Alerte usager | Alertes | `GET /alerts`, `/alerts/{id}` ; `POST /alerts/{id}/acknowledge`, `/resolve` ; `GET /alert-rules` ; `PATCH /alert-rules/{id}` | `viewer`, `operator`, `admin` | MS-11 |
 | Alerte usager | Flux | `GET /events/stream` (SSE) | `viewer` | MS-11 |
 | Réponse extérieure | Feux | `GET /signals`, `/signals/{id}`, `/signals/{id}/commands` ; `POST /signals/{id}/commands` | `viewer`, `operator` | MS-12 |

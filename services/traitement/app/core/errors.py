@@ -50,6 +50,9 @@ INTERNAL_ERROR = ProblemKind(500, "INTERNAL_ERROR", "internal-error", "Erreur in
 UPSTREAM_UNAVAILABLE = ProblemKind(
     503, "UPSTREAM_UNAVAILABLE", "upstream-unavailable", "Service indisponible"
 )
+FORECAST_UNAVAILABLE = ProblemKind(
+    503, "FORECAST_UNAVAILABLE", "forecast-unavailable", "Prévision indisponible"
+)
 
 
 @dataclass(eq=False)

@@ -210,7 +210,7 @@ Limites : le jeu de démonstration n'a que des tronçons fluides à sa dernière
 
 Page `Prévisions` (`features/forecasts/`) : la courbe **prévue contre observée** d'un tronçon, le modèle qui a produit la prévision, et un tableau prévu / observé / écart par horizon. Critère de l'issue : **la page affiche la prévision renvoyée par l'API** (`GET /api/v1/forecasts`, opération `listForecasts`).
 
-> **État du serveur (31/10/2026) : la route `/api/v1/forecasts` n'est pas implémentée** (issue IA-06, #82). Le contrat la décrit, la page est écrite contre ce contrat, mais **le critère n'est pas vérifié sur l'API réelle**. Sur la pile locale actuelle, la page affiche « le service de prévision n'est pas encore disponible sur ce serveur » (404). Pour l'essayer, une **maquette** locale sert la route (voir plus bas).
+> **État du serveur (10/11/2026) : la route `/api/v1/forecasts` est servie par une référence par persistance** (`model.kind` = `REFERENCE`, première tranche d'IA-06 #82 : [API des prévisions](../docs/03-donnees/api-previsions.md)). Le code de chargement et de comparaison de la page a été exécuté contre la pile réelle : 23 tronçons, 6 horizons, 10 fenêtres observées. **Ce qui reste ouvert** : aucun modèle entraîné n'existe (`ml/` est vide), donc la date du dernier entraînement et la métrique n'ont pas de sens et pas de champ au contrat ; la prévision par persistance est dans le futur de la dernière donnée, la courbe n'a donc pas de valeur observée à lui comparer (« Pas encore observé ») ; la page n'a pas été rouverte dans un navigateur sur cette API (captures de FE-05 prises sur la maquette).
 
 | Élément | Règle |
 |---|---|
@@ -246,7 +246,7 @@ Puis ouvrir http://localhost:5173/, menu **Prévisions**. Sur des fenêtres d'un
 
 Page `Rapports` (`features/reports/`) : la **liste des rapports générés** par le robot (titre, période couverte, date de génération, taille, empreinte SHA-256) et leur **téléchargement**. Critère de l'issue : **un rapport produit par le robot apparaît dans la liste** (`GET /api/v1/reports`, opération `listReports`).
 
-> **État du serveur (05/11/2026) : ni la route ni le robot n'existent.** `GET /api/v1/reports` et `GET /api/v1/reports/{report_id}/content` sont une **Proposition de contrat** ajoutée à `traitement.openapi.yaml` (à relire par Daddy) ; le robot (IA-07) n'est pas écrit (`automation/rpa/` ne contient qu'un README). La page est écrite contre ce contrat : **le critère n'est pas vérifié de bout en bout**. Sur la pile locale actuelle, la page affiche « le service des rapports n'est pas encore disponible sur ce serveur » (404).
+> **État du serveur (10/11/2026) : la route est servie et un robot produit les rapports.** `GET /api/v1/reports` et `GET /api/v1/reports/{report_id}/content` sont servies par le service de traitement (lecture du dossier où le robot dépose ; contrat toujours en **Proposition**, à relire par Daddy). Le robot (IA-07, première tranche : partie API) existe dans `automation/rpa/`. **Le critère est vérifié de bout en bout sous Linux** : un rapport produit par le robot apparaît dans la liste et se télécharge (empreinte identique) : [Rapports automatiques](../docs/03-donnees/rapports-automatiques.md). Captures : `docs/Capture d'ecran/FE-06-API-*.png`. Restent : la planification hebdomadaire, l'étape d'interface du robot, Windows et macOS.
 
 | Élément | Règle |
 |---|---|
@@ -256,7 +256,7 @@ Page `Rapports` (`features/reports/`) : la **liste des rapports générés** par
 | Erreurs | Liste : 404 = route non servie, dite comme telle ; autres erreurs avec la référence de corrélation ; « Réessayer ». Téléchargement : l'échec nomme le rapport ; 404 = « rapport introuvable, peut-être supprimé » (le contrat ne prévoit pas d'autre sens) |
 | Non fait | Vérifier l'empreinte du fichier reçu (`crypto.subtle` n'existe que sur HTTPS ou localhost) ; filtrer par période ; afficher la provenance des données du rapport (absente du contrat proposé : question pour Daddy) ; Windows et macOS (captures prises avec Chrome sous Linux) |
 
-La passerelle route `/api/v1/reports` vers `traitement` (`gateway/nginx.conf`) : le service ne la sert pas encore. Mise en page : une carte par rapport sous 64 rem, un tableau à partir de 64 rem ; entre 64 et 80 rem environ, le tableau est plus large que la page et la colonne « Téléchargement » reste collée à droite.
+La passerelle route `/api/v1/reports` vers `traitement` (`gateway/nginx.conf`). Mise en page : une carte par rapport sous 64 rem, un tableau à partir de 64 rem ; entre 64 et 80 rem environ, le tableau est plus large que la page et la colonne « Téléchargement » reste collée à droite.
 
 ### Essayer la page avec la maquette
 

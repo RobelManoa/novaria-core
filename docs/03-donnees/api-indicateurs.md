@@ -90,7 +90,8 @@ Preuve sous Linux : [À COMPLÉTER par Manoa Robel].
 | Sujet | Position actuelle |
 |---|---|
 | Enregistrement des exécutions (`dim_run`) | À faire par le simulateur et le chargeur ETL ; sans lui, l'API reste vide |
-| Prévisions (`/forecasts`), tronçons (`/road-segments`), carrefours (`/intersections`) | Hors de BE-04 ; même contrat, routes non implémentées |
+| Tronçons (`/road-segments`), carrefours (`/intersections`) | Hors de BE-04 ; même contrat, routes non implémentées |
+| Prévisions (`/forecasts`) | Servies depuis le 10/11/2026 par une référence par persistance : [API des prévisions](api-previsions.md) |
 | Compte de lecture | L'API lit avec `svc_traitement` (déjà donné au service), en session lecture seule, plutôt qu'avec `svc_lecture` : un test de la pile interdit ce second compte dans les services |
 | Fenêtre de 5 minutes | Servie à la demande (`window_size_s=300`) ; l'état de ces fenêtres est un point ouvert du dictionnaire (section 12). **Piège constaté** : les fenêtres de démonstration du chargeur (DAT-06) sont de 5 minutes ; sans `window_size_s=300`, la liste (60 par défaut) et `latest` (une minute seulement, par contrat) sont vides |
 | Index | La clé primaire de la table sert le détail ; les listes parcourent l'index `window_start`. À mesurer sur un gros run avant d'ajouter d'autres index |

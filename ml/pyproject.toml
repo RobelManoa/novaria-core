@@ -1,0 +1,13 @@
+# Configuration de la mesure de couverture de ml/ (job « ml » de la CI, transmis à SonarQube). ml/ n'est pas un paquet :
+# ce fichier ne déclare ni projet ni dépendances (voir requirements.in et requirements-dev.in).
+
+[tool.coverage.run]
+branch = true
+# Les points d'entrée (construire_jeu.py, mesurer_reference.py, preparer_variables.py, entrainer.py) ne contiennent que
+# l'ajout au chemin d'import et l'appel de main() ; main() est testé dans chaque paquet.
+omit = ["src/*.py"]
+
+[tool.coverage.report]
+# Barrière de couverture, comme BE-07 : sous ce seuil, `coverage xml` échoue (donc le job « ml » de la CI aussi).
+# Le Quality Gate de SonarQube s'applique en plus, sur le code nouveau (80 %).
+fail_under = 80

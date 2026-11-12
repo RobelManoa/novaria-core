@@ -12,6 +12,19 @@ Abréviations : API (Application Programming Interface, interface de programmati
 
 Toutes les informations de ce document ont été relevées à la source le **26/10/2026** (liste en section 7). Un point non vérifié est signalé « non vérifié ».
 
+## 0. Jeu simulé v1 (IA-08) : `novaria-congestion-v1`
+
+Le jeu d'entraînement de la détection de congestion vient du simulateur, pas d'un jeu réel : 12 runs (journée calme, heure de pointe, incident ponctuel, avec capteur muet, messages en retard et en doublon), 80 640 lignes, trois fichiers Parquet découpés **par run et par scénario**. Les fichiers ne sont pas versionnés (ils se régénèrent) ; la **fiche de provenance** et le **manifeste** le sont.
+
+| Élément | Où |
+|---|---|
+| Fiche de provenance (origine, licence, couverture, variables, qualité, limites, empreintes SHA-256) | [`novaria-congestion-v1/PROVENANCE.md`](novaria-congestion-v1/PROVENANCE.md) |
+| Manifeste (empreintes, runs, colonnes, mesures de qualité) | [`novaria-congestion-v1/manifest.json`](novaria-congestion-v1/manifest.json) |
+| Construire | `python3 ml/src/construire_jeu.py` (Linux) · `py -3 ml/src/construire_jeu.py` (Windows) · `make dataset-build` |
+| Tester | `python3 -m unittest discover -s ml/tests -t ml` (Linux) · `py -3 -m unittest discover -s ml\tests -t ml` (Windows) |
+
+Les sections suivantes concernent les jeux **réels** ouverts (ETL, tutoriel, prévision).
+
 ## 1. Résultat
 
 | Rôle | Jeu | Licence | Verdict |

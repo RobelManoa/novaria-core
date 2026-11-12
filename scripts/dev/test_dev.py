@@ -167,6 +167,215 @@ class CommandTests(unittest.TestCase):
                 self.assertRegex(command, r'-p "\$[A-Z_]+"')
 
 
+class DatasetBuildTests(unittest.TestCase):
+    def test_la_commande_lance_le_constructeur_du_jeu_avec_la_sortie_demandee(self):
+        with mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(dev.main(["dataset-build", "--sortie", "x"]), 0)
+        commande = run.call_args.args[0]
+        self.assertTrue(commande[1].endswith("construire_jeu.py"))
+        self.assertEqual(commande[-2:], ["--sortie", "x"])
+
+    def test_sans_option_la_sortie_est_celle_du_constructeur_et_le_code_est_transmis(self):
+        with mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 1)) as run:
+            self.assertEqual(dev.main(["dataset-build"]), 1)
+        self.assertNotIn("--sortie", run.call_args.args[0])
+        self.assertTrue(dev.DATASET_BUILDER.is_file())
+
+
+class ReferenceMesureTests(unittest.TestCase):
+    def test_la_commande_lance_la_mesure_avec_les_options_demandees(self):
+        with mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(dev.main(["reference-mesure", "--sensibilite", "--json"]), 0)
+        commande = run.call_args.args[0]
+        self.assertTrue(commande[1].endswith("mesurer_reference.py"))
+        self.assertEqual(commande[2:], ["--sensibilite", "--json"])
+
+    def test_sans_option_le_code_de_sortie_est_transmis(self):
+        with mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 1)) as run:
+            self.assertEqual(dev.main(["reference-mesure"]), 1)
+        self.assertEqual(len(run.call_args.args[0]), 2)
+        self.assertTrue(dev.REFERENCE_MESURE.is_file())
+
+
+class PreparationCheckTests(unittest.TestCase):
+    def test_la_commande_lance_la_verification_avec_ses_options(self):
+        with mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(dev.main(["preparation-check", "--json"]), 0)
+        commande = run.call_args.args[0]
+        self.assertTrue(commande[1].endswith("preparer_variables.py"))
+        self.assertEqual(commande[2:], ["--json"])
+
+    def test_sans_option_le_code_de_sortie_est_transmis(self):
+        with mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 1)) as run:
+            self.assertEqual(dev.main(["preparation-check"]), 1)
+        self.assertEqual(len(run.call_args.args[0]), 2)
+        self.assertTrue(dev.PREPARATION_CHECK.is_file())
+
+
+class MlTrainTests(unittest.TestCase):
+    def test_sans_environnement_la_commande_demande_ml_env(self):
+        with mock.patch.object(dev, "ML_VENV", Path("/n/existe/pas")), mock.patch("subprocess.run") as run:
+            self.assertEqual(dev.main(["ml-train", "validation"]), 2)
+        run.assert_not_called()
+
+    def test_la_commande_lance_l_etape_avec_l_interpreteur_de_l_environnement(self):
+        with mock.patch.object(dev, "ml_python", return_value=Path(sys.executable)), \
+                mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(dev.main(["ml-train", "test"]), 0)
+        commande = run.call_args.args[0]
+        self.assertEqual(commande[0], sys.executable)
+        self.assertTrue(commande[1].endswith("entrainer.py"))
+        self.assertEqual(commande[2:], ["test"])
+
+    def test_une_etape_inconnue_est_refusee(self):
+        with self.assertRaises(SystemExit):
+            dev.main(["ml-train", "tout"])
+
+    def test_l_environnement_exige_les_empreintes(self):
+        with mock.patch.object(dev, "ML_VENV", Path("/n/existe/pas")), \
+                mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(dev.main(["ml-env"]), 0)
+        installation = run.call_args_list[-1].args[0]
+        self.assertIn("--require-hashes", installation)
+        self.assertTrue(installation[-1].endswith("requirements.txt"))
+        self.assertEqual(run.call_args_list[0].args[0][1:3], ["-m", "venv"])
+
+    def test_l_interpreteur_depend_du_systeme(self):
+        with mock.patch("os.name", "nt"):
+            self.assertTrue(str(dev.ml_python()).endswith("Scripts/python.exe") or str(dev.ml_python()).endswith("Scripts\\python.exe"))
+        with mock.patch("os.name", "posix"):
+            self.assertTrue(str(dev.ml_python()).endswith("bin/python"))
+
+    def test_les_dependances_ml_ont_toutes_une_empreinte(self):
+        texte = dev.ML_REQUIREMENTS.read_text(encoding="utf-8")
+        paquets = [ligne for ligne in texte.splitlines() if ligne and ligne[0].isalpha()]
+        self.assertTrue(paquets)
+        for paquet in paquets:
+            bloc = texte.split(paquet, 1)[1].split("\n\n", 1)[0]
+            self.assertIn("--hash=sha256:", bloc, paquet)
+
+
+class MlRegistreTests(unittest.TestCase):
+    def test_sans_environnement_la_commande_demande_ml_env(self):
+        with mock.patch.object(dev, "ML_VENV", Path("/n/existe/pas")), mock.patch("subprocess.run") as run:
+            self.assertEqual(dev.main(["ml-registre", "lister"]), 2)
+            self.assertEqual(dev.main(["ml-registre-essai"]), 2)
+        run.assert_not_called()
+
+    def test_la_commande_transmet_l_adresse_svc_ml_sans_l_afficher_et_les_options(self):
+        env = {"MONGO_DB": "novaria", "MONGO_PASSWORD_ML": "secret-d-essai"}
+        with mock.patch.object(dev, "ml_python", return_value=Path(sys.executable)), mock.patch.object(dev, "require_env"), \
+                mock.patch.object(dev, "etl_environment", return_value=env), \
+                mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(dev.main(["ml-registre", "lignee", "ia03-x", "--jeu"]), 0)
+        commande = run.call_args.args[0]
+        self.assertTrue(commande[1].endswith("registre_cli.py"))
+        self.assertEqual(commande[2:], ["lignee", "ia03-x", "--jeu"])
+        adresse = run.call_args.kwargs["env"]["MONGO_URL"]
+        self.assertTrue(adresse.startswith("mongodb://svc_ml:"))
+        self.assertNotIn("secret-d-essai", " ".join(commande), "le mot de passe ne passe pas par les arguments")
+
+    def test_une_commande_inconnue_est_refusee(self):
+        with self.assertRaises(SystemExit):
+            dev.main(["ml-registre", "supprimer-tout"])
+
+    def test_l_essai_utilise_un_projet_jetable_et_le_supprime(self):
+        env = {"MONGO_DB": "novaria", "MONGO_PASSWORD_ML": "x"}
+        appels = []
+        avant = os.environ.get("COMPOSE_PROJECT_NAME")
+        with mock.patch.object(dev, "ml_python", return_value=Path(sys.executable)), mock.patch.object(dev, "require_env"), \
+                mock.patch.object(dev, "etl_environment", return_value=env), mock.patch.object(dev, "free_port", return_value=40123), \
+                mock.patch.object(dev, "run_compose_step", side_effect=lambda *a: appels.append(("step", a)) or 0), \
+                mock.patch.object(dev, "compose", side_effect=lambda *a, **k: appels.append(("compose", a))), \
+                mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(dev.main(["ml-registre-essai"]), 0)
+        self.assertEqual(appels[0], ("step", ("up", "-d", "--wait", "mongo")))
+        self.assertEqual(appels[-1][0], "compose")
+        self.assertEqual(appels[-1][1][0], "down")
+        self.assertIn("-v", appels[-1][1])
+        self.assertIn(":40123/", run.call_args.kwargs["env"]["REGISTRE_MONGO_URL"])
+        self.assertEqual(os.environ.get("COMPOSE_PROJECT_NAME"), avant, "le projet jetable ne reste pas dans l'environnement")
+
+    def test_l_essai_supprime_le_projet_meme_si_les_conteneurs_ne_demarrent_pas(self):
+        appels = []
+        with mock.patch.object(dev, "ml_python", return_value=Path(sys.executable)), mock.patch.object(dev, "require_env"), \
+                mock.patch.object(dev, "free_port", return_value=40124), \
+                mock.patch.object(dev, "run_compose_step", return_value=1), \
+                mock.patch.object(dev, "compose", side_effect=lambda *a, **k: appels.append(a)):
+            self.assertEqual(dev.main(["ml-registre-essai"]), 1)
+        self.assertEqual(appels[0][0], "down")
+
+
+class RpaReportTests(unittest.TestCase):
+    def args(self, *extra):
+        return dev.build_parser().parse_args(["rpa-report", *extra])
+
+    def test_la_suite_robot_recoit_l_api_le_dossier_et_la_periode(self):
+        commande = dev.rpa_command(self.args("--debut", "2026-10-19", "--fin", "2026-10-26"), {"GATEWAY_PORT": "8100"}, True)
+        self.assertEqual(commande[1:3], ["-m", "robot"])
+        self.assertIn("API:http://127.0.0.1:8100", commande)
+        self.assertIn(f"DOSSIER:{dev.REPORTS_DIR}", commande)
+        self.assertIn("DEBUT:2026-10-19", commande)
+        self.assertIn("FIN:2026-10-26", commande)
+        self.assertTrue(commande[-1].endswith("rapport_hebdomadaire.robot"))
+
+    def test_sans_robot_ou_sans_installation_le_paquet_seul_est_lance(self):
+        for installe, option in ((False, []), (True, ["--sans-robot"])):
+            commande = dev.rpa_command(self.args(*option), {}, installe)
+            self.assertEqual(commande[1:3], ["-m", "rapport"])
+            self.assertIn("http://127.0.0.1:8000", commande)
+
+    def test_aucun_mot_de_passe_dans_la_commande(self):
+        for installe in (True, False):
+            self.assertNotIn("password", " ".join(dev.rpa_command(self.args(), {"NOVARIA_RPA_PASSWORD": "x-secret"}, installe)).lower())
+            self.assertNotIn("x-secret", " ".join(dev.rpa_command(self.args(), {"NOVARIA_RPA_PASSWORD": "x-secret"}, installe)))
+
+    def test_sans_compte_de_service_le_message_dit_quoi_faire(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(dev, "ENV_FILE", Path(tmp) / ".env"), \
+                mock.patch.dict("os.environ", {}, clear=True), self.assertRaises(dev.DevError) as contexte:
+            dev.cmd_rpa_report(self.args())
+        self.assertIn("NOVARIA_RPA_USER", str(contexte.exception))
+        self.assertIn("user-create", str(contexte.exception))
+
+    def test_le_compte_peut_venir_de_env_et_le_code_de_sortie_est_celui_du_robot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env = Path(tmp) / ".env"
+            env.write_text("NOVARIA_RPA_USER=robot\nNOVARIA_RPA_PASSWORD=mot-de-passe-12\n", encoding="utf-8")
+            with mock.patch.object(dev, "ENV_FILE", env), mock.patch.dict("os.environ", {}, clear=True), \
+                    mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 1)) as run:
+                self.assertEqual(dev.cmd_rpa_report(self.args("--sans-robot")), 1)
+        environnement = run.call_args.kwargs["env"]
+        self.assertEqual((environnement["NOVARIA_RPA_USER"], environnement["NOVARIA_RPA_PASSWORD"]), ("robot", "mot-de-passe-12"))
+        self.assertIn(str(dev.RPA_DIR), environnement["PYTHONPATH"])
+
+
+class DriftCheckTests(unittest.TestCase):
+    def test_la_commande_lance_le_script_de_derive_dans_le_conteneur_du_traitement(self):
+        args = dev.build_parser().parse_args(["drift-check", "--reference-run", "ref", "--current-run", "cur", "--json"])
+        self.assertEqual(dev.drift_check_command(args),
+                         ["exec", "-T", "traitement", "python", "-m", "app.drift", "check",
+                          "--reference-run", "ref", "--current-run", "cur", "--json"])
+
+    def test_sans_option_seul_le_sous_commande_est_transmise(self):
+        args = dev.build_parser().parse_args(["drift-check"])
+        self.assertEqual(dev.drift_check_command(args)[-1], "check")
+
+    def test_le_code_de_sortie_du_script_est_celui_de_la_commande(self):
+        for code in (0, 1, 2):
+            with tempfile.TemporaryDirectory() as tmp:
+                env = Path(tmp) / ".env"
+                env.write_text("A=1\n", encoding="utf-8")
+                with mock.patch.object(dev, "ENV_FILE", env), mock.patch("shutil.which", return_value="/usr/bin/docker"), \
+                        mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], code)) as run:
+                    self.assertEqual(dev.main(["drift-check", "--reference-run", "r"]), code)
+            self.assertEqual(run.call_args.args[0][:3], ["docker", "compose", "exec"])
+
+    def test_sans_env_message_clair(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(dev, "ENV_FILE", Path(tmp) / "absent.env"), \
+                mock.patch("sys.stderr"):
+            self.assertEqual(dev.main(["drift-check"]), 2)
+
+
 class EtlTests(unittest.TestCase):
     """DAT-03 : `etl-paris` lance le pipeline d'ingestion avec le compte svc_traitement, sans mot de passe en argument."""
 
