@@ -588,13 +588,20 @@ def rpa_command(args: argparse.Namespace, env_values: dict[str, str], robot_inst
     return command
 
 
-def cmd_rpa_report(args: argparse.Namespace) -> int:
-    """Produit le rapport hebdomadaire et le dépose dans var/reports (la page « Rapports » l'affiche). Compte de service lu dans l'environnement ou .env."""
+RPA_OBLIGATOIRES = ("NOVARIA_RPA_USER", "NOVARIA_RPA_PASSWORD")
+# Reprises et notification par courriel : lues dans .env si elles n'y sont pas déjà dans l'environnement (jamais en argument).
+RPA_FACULTATIVES = ("NOVARIA_RPA_TENTATIVES", "NOVARIA_RPA_ATTENTE_S", "NOVARIA_RPA_SMTP", "NOVARIA_RPA_DESTINATAIRE",
+                    "NOVARIA_RPA_EXPEDITEUR", "NOVARIA_RPA_SMTP_UTILISATEUR", "NOVARIA_RPA_SMTP_MOT_DE_PASSE")
+
+
+def rpa_environment(args: argparse.Namespace) -> tuple[dict[str, str], dict[str, str], bool]:
+    """(environnement du robot, variables de .env, Robot Framework installé) : le compte de service vient de l'environnement ou de .env."""
     env_values = parse_env(ENV_FILE.read_text(encoding="utf-8")) if ENV_FILE.exists() else {}
     environment = dict(os.environ)
-    for name in ("NOVARIA_RPA_USER", "NOVARIA_RPA_PASSWORD"):
+    for name in (*RPA_OBLIGATOIRES, *RPA_FACULTATIVES):
         if not environment.get(name) and env_values.get(name):
             environment[name] = env_values[name]
+    for name in RPA_OBLIGATOIRES:
         if not environment.get(name):
             raise DevError(f"{name} est absent (variable d'environnement ou .env). Créer un compte en lecture seule : "
                            "python3 scripts/dev/dev.py user-create rpa-rapport --role viewer, puis renseigner les deux variables.")
@@ -603,7 +610,29 @@ def cmd_rpa_report(args: argparse.Namespace) -> int:
         print("Robot Framework n'est pas installé : seul le paquet `rapport` est lancé "
               "(installer : pip install -r automation/rpa/requirements.txt).", file=sys.stderr)
     environment["PYTHONPATH"] = os.pathsep.join(filter(None, [str(RPA_DIR), environment.get("PYTHONPATH")]))
+    return environment, env_values, robot_installed
+
+
+def cmd_rpa_report(args: argparse.Namespace) -> int:
+    """Produit le rapport hebdomadaire et le dépose dans var/reports (la page « Rapports » l'affiche). Compte de service lu dans l'environnement ou .env."""
+    environment, env_values, robot_installed = rpa_environment(args)
     return subprocess.run(rpa_command(args, env_values, robot_installed), cwd=ROOT, env=environment, check=False).returncode
+
+
+def rpa_planner_command(args: argparse.Namespace, env_values: dict[str, str], robot_installed: bool) -> list[str]:
+    """Le planificateur (`python -m rapport.planificateur`) autour de la commande de `rpa-report`."""
+    command = [sys.executable, "-m", "rapport.planificateur", "--jour", args.jour, "--heure", args.heure, "--dossier", str(REPORTS_DIR)]
+    if args.sans_rattrapage:
+        command.append("--sans-rattrapage")
+    if args.executions:
+        command += ["--executions", str(args.executions)]
+    return [*command, "--", *rpa_command(args, env_values, robot_installed)]
+
+
+def cmd_rpa_planifier(args: argparse.Namespace) -> int:
+    """Planifie le rapport chaque semaine sans cron ni Planificateur de tâches (processus au premier plan ; Ctrl+C l'arrête)."""
+    environment, env_values, robot_installed = rpa_environment(args)
+    return subprocess.run(rpa_planner_command(args, env_values, robot_installed), cwd=ROOT, env=environment, check=False).returncode
 
 
 # --------------------------------------------------------------------------- dérive des entrées du modèle (IA-06)
@@ -1530,6 +1559,15 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline.add_argument("etape", nargs="?", default="tout", choices=ML_PIPELINE_ETAPES)
     pipeline.add_argument("--mongo", action="store_true", help="écrit les runs dans model_runs (MongoDB, compte svc_ml) au lieu de var/pipeline/model_runs/")
     pipeline.add_argument("--sans-audit", action="store_true", help="n'appelle pas pip-audit (S4 reste « non vérifié »)")
+    planifier = add("rpa-planifier", cmd_rpa_planifier, "planifie le rapport hebdomadaire (IA-07) sans cron : attend le créneau, rattrape un rapport manquant au démarrage")
+    planifier.add_argument("--jour", default="lundi", help="jour de la semaine (lundi par défaut)")
+    planifier.add_argument("--heure", default="07:00", metavar="HH:MM", help="heure du poste (07:00 par défaut)")
+    planifier.add_argument("--sans-rattrapage", action="store_true", help="n'attend que le créneau, même si le rapport de la semaine manque")
+    planifier.add_argument("--executions", type=int, help="s'arrête après ce nombre de lancements (essai)")
+    planifier.add_argument("--debut", metavar="AAAA-MM-JJ", help="période fixe au lieu de la semaine précédente (essai)")
+    planifier.add_argument("--fin", metavar="AAAA-MM-JJ", help="fin exclue de la période fixe (essai)")
+    planifier.add_argument("--api", help="adresse de la passerelle (http://127.0.0.1:<GATEWAY_PORT> par défaut)")
+    planifier.add_argument("--sans-robot", action="store_true", help="lance le paquet Python seul, sans Robot Framework")
     rpa = add("rpa-report", cmd_rpa_report, "produit le rapport hebdomadaire (robot, IA-07) et le dépose dans var/reports ; la page Rapports l'affiche")
     rpa.add_argument("--debut", metavar="AAAA-MM-JJ", help="début de la période (la semaine précédente par défaut)")
     rpa.add_argument("--fin", metavar="AAAA-MM-JJ", help="fin exclue (début + 7 jours par défaut)")

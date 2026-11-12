@@ -102,7 +102,7 @@ Sigles employés ci-dessous, développés une fois : p95 (95e centile : 95 % des
 | EXG-IA-05 | **Dérive surveillée** | Une dérive simulée (vitesses décalées par rapport au jeu d'entraînement) déclenche l'alarme | Devrait | Test sur données décalées | Partiel : dérive simulée détectée ([surveillance](../03-donnees/surveillance-derive.md)), référence = exécution simulée faute de modèle entraîné | IA-06 |
 | EXG-IA-06 | **Anomalies de capteur** (critère proposé, à confirmer dans IA-09) | Chaque anomalie injectée par le simulateur est détectée par la règle robuste ; la comparaison avec Isolation Forest est consignée | Devrait | `ml/evaluation/` | À faire | IA-09 |
 | EXG-IA-07 | **Prévision de vitesse** | Sur METR-LA, le modèle retenu bat la persistance et la moyenne glissante en MAE aux horizons 5, 15 et 30 minutes, ou l'écart est documenté ; il est aussi testé sur un run simulé | Devrait | `ml/evaluation/` | À faire | IA-10 |
-| EXG-IA-08 | **Rapport hebdomadaire par robot** | Un rapport d'indicateurs est produit sans intervention manuelle | Devrait | `automation/rpa/` | À faire | IA-07 |
+| EXG-IA-08 | **Rapport hebdomadaire par robot** | Un rapport d'indicateurs est produit sans intervention manuelle | Devrait | `automation/rpa/` | Prouvé (12/11/2026, Linux, pile Docker locale) : le planificateur `dev.py rpa-planifier` rattrape au démarrage le rapport manquant puis se déclenche **seul** au créneau, la suite Robot Framework dépose le PDF, l'API le liste et le sert (SHA-256 conforme), un courriel part vers un serveur SMTP d'essai local ; échec volontaire : 3 tentatives, puis `ERREUR` au journal et par courriel ; aucun secret dans les journaux ([preuve](../../automation/rpa/preuves/planification-2026-11-12.txt), [rapports automatiques](../03-donnees/rapports-automatiques.md)). **Non éprouvés en réel** : la ligne `cron` et la tâche du Planificateur de tâches Windows (modèles vérifiés par des tests) ; Windows ; l'étape d'interface du robot (non faite) | IA-07 |
 
 ## 9. Exigences non fonctionnelles
 
@@ -132,6 +132,6 @@ Ces chiffres sont contrôlés par `scripts/dev/test_specifications.py` : il éch
 |---|---|
 | Exigences | 53 |
 | Doit / Devrait / Pourrait | 38 / 14 / 1 |
-| Prouvé / Partiel / À faire | 19 / 23 / 11 |
+| Prouvé / Partiel / À faire | 20 / 23 / 10 |
 
 Lecture : la plupart des exigences sont « Doit » parce qu'elles reprennent les critères d'acceptation de tâches P0 du backlog ; ce qui se discute, ce sont les 14 « Devrait » et le « Pourrait », à abandonner en premier si le planning glisse. Le socle de données (bases, contrats d'événements, contrat d'API) est avancé ; **aucun des quatre services métier n'existe encore** ; le simulateur existe (MS-07) mais n'a pas encore de collecte réelle à laquelle envoyer ses messages. C'est le gros du travail des jalons M2 et M3.

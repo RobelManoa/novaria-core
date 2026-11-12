@@ -1,0 +1,13 @@
+# Rapport hebdomadaire de Novaria Core sous Linux (IA-07) : équivalent local d'un déclencheur planifié AWS (EventBridge Scheduler).
+# Installation (une fois) :
+#   1. remplacer /CHEMIN/VERS/novaria-core par le dossier du dépôt (chemin absolu) ;
+#   2. avoir lancé `python3 scripts/dev/dev.py up` : le robot lit l'API (passerelle), et un fichier .env avec NOVARIA_RPA_USER et
+#      NOVARIA_RPA_PASSWORD (compte de service en lecture seule : `dev.py user-create rpa-rapport --role viewer`) ;
+#   3. crontab -e, coller la ligne ci-dessous (ou : (crontab -l ; cat automation/rpa/planification/novaria-rapport.cron) | crontab - ).
+# Retrait : crontab -e, supprimer la ligne.
+# Chaque lundi à 07:00, heure du poste : rapport de la semaine ISO précédente (lundi 00:00 UTC inclus au lundi suivant exclu).
+# 07:00 convient aux fuseaux de UTC-12 à UTC+7 ; au-delà, choisir une heure plus tardive (le lundi n'a pas encore commencé en UTC).
+# Relancer est sans effet de bord : un rapport par semaine, la relance le remplace. Le robot rejoue 3 fois si l'API est occupée.
+# Le journal du robot est ajouté à var/log/rpa-rapport.log (dossier ignoré par git) ; le code de sortie 1 signale un échec
+# (une ligne ERREUR est aussi écrite dans var/reports/notifications.log).
+0 7 * * 1 cd /CHEMIN/VERS/novaria-core && mkdir -p var/log && python3 scripts/dev/dev.py rpa-report >> var/log/rpa-rapport.log 2>&1

@@ -385,6 +385,57 @@ class RpaReportTests(unittest.TestCase):
         self.assertIn(str(dev.RPA_DIR), environnement["PYTHONPATH"])
 
 
+class RpaPlanifierTests(unittest.TestCase):
+    def args(self, *extra):
+        return dev.build_parser().parse_args(["rpa-planifier", *extra])
+
+    def test_le_planificateur_entoure_la_commande_de_rpa_report(self):
+        commande = dev.rpa_planner_command(self.args("--jour", "mardi", "--heure", "08:15", "--executions", "2"), {"GATEWAY_PORT": "8100"}, False)
+        self.assertEqual(commande[1:3], ["-m", "rapport.planificateur"])
+        separation = commande.index("--")
+        options, robot = commande[:separation], commande[separation + 1:]
+        self.assertEqual(options[options.index("--jour") + 1], "mardi")
+        self.assertEqual(options[options.index("--heure") + 1], "08:15")
+        self.assertEqual(options[options.index("--executions") + 1], "2")
+        self.assertEqual(options[options.index("--dossier") + 1], str(dev.REPORTS_DIR))
+        self.assertEqual(robot, dev.rpa_command(self.args(), {"GATEWAY_PORT": "8100"}, False), "la même commande que rpa-report")
+
+    def test_par_defaut_lundi_sept_heures_avec_rattrapage(self):
+        commande = dev.rpa_planner_command(self.args(), {}, False)
+        self.assertEqual((commande[commande.index("--jour") + 1], commande[commande.index("--heure") + 1]), ("lundi", "07:00"))
+        self.assertNotIn("--sans-rattrapage", commande)
+        self.assertIn("--sans-rattrapage", dev.rpa_planner_command(self.args("--sans-rattrapage"), {}, False))
+
+    def test_une_periode_fixe_est_transmise_au_robot_pour_les_essais(self):
+        commande = dev.rpa_planner_command(self.args("--debut", "2026-10-19", "--sans-robot"), {}, True)
+        self.assertEqual(commande[commande.index("--debut") + 1], "2026-10-19")
+
+    def test_aucun_secret_dans_la_commande_du_planificateur(self):
+        commande = " ".join(dev.rpa_planner_command(self.args(), {"NOVARIA_RPA_PASSWORD": "x-secret"}, True))
+        self.assertNotIn("x-secret", commande)
+        self.assertNotIn("password", commande.lower())
+
+    def test_le_compte_et_les_reglages_de_courrier_viennent_de_env_sans_ecraser_l_environnement(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env = Path(tmp) / ".env"
+            env.write_text("NOVARIA_RPA_USER=robot\nNOVARIA_RPA_PASSWORD=mot-de-passe-12\nNOVARIA_RPA_SMTP=127.0.0.1:1025\n"
+                           "NOVARIA_RPA_DESTINATAIRE=equipe@example.org\nNOVARIA_RPA_TENTATIVES=4\n", encoding="utf-8")
+            with mock.patch.object(dev, "ENV_FILE", env), mock.patch.dict("os.environ", {"NOVARIA_RPA_TENTATIVES": "2"}, clear=True), \
+                    mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+                self.assertEqual(dev.cmd_rpa_planifier(self.args("--sans-robot")), 0)
+        environnement = run.call_args.kwargs["env"]
+        self.assertEqual(environnement["NOVARIA_RPA_SMTP"], "127.0.0.1:1025")
+        self.assertEqual(environnement["NOVARIA_RPA_TENTATIVES"], "2", "l'environnement du shell prime sur .env")
+        self.assertIn(str(dev.RPA_DIR), environnement["PYTHONPATH"])
+        self.assertNotIn("mot-de-passe-12", " ".join(run.call_args.args[0]))
+
+    def test_sans_compte_de_service_le_message_dit_quoi_faire(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(dev, "ENV_FILE", Path(tmp) / ".env"), \
+                mock.patch.dict("os.environ", {}, clear=True), self.assertRaises(dev.DevError) as contexte:
+            dev.cmd_rpa_planifier(self.args())
+        self.assertIn("NOVARIA_RPA_USER", str(contexte.exception))
+
+
 class DriftCheckTests(unittest.TestCase):
     def test_la_commande_lance_le_script_de_derive_dans_le_conteneur_du_traitement(self):
         args = dev.build_parser().parse_args(["drift-check", "--reference-run", "ref", "--current-run", "cur", "--json"])

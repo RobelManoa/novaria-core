@@ -14,7 +14,7 @@ from robot.api.deco import keyword, library
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from rapport import api, chaine, contenu, depot, periode, synthese  # noqa: E402
+from rapport import api, chaine, contenu, depot, notification, periode, synthese  # noqa: E402
 
 
 @library(scope="SUITE", auto_keywords=False)
@@ -35,13 +35,14 @@ class NovariaRapport:
     def se_connecter(self, base_api: str) -> None:
         """Ouvre une session avec le compte de service en lecture seule ; le jeton n'est pas rendu."""
         utilisateur, mot_de_passe = chaine.identifiants()
-        self._jeton = api.se_connecter(base_api, utilisateur, mot_de_passe)
+        self._jeton = chaine.avec_reprises(lambda: api.se_connecter(base_api, utilisateur, mot_de_passe), signaler=logger.warn)
 
     @keyword("Lire les indicateurs")
     def lire_les_indicateurs(self, base_api: str, quand):
         if self._jeton is None:
             raise AssertionError("Se connecter doit précéder la lecture des indicateurs")
-        donnees = api.lire_indicateurs(base_api, self._jeton, quand.api(quand.debut), quand.api(quand.fin))
+        donnees = chaine.avec_reprises(lambda: api.lire_indicateurs(base_api, self._jeton, quand.api(quand.debut), quand.api(quand.fin)),
+                                       signaler=logger.warn)
         logger.info(f"{len(donnees.lignes)} fenêtres lues (tronqué : {donnees.tronque})")
         return donnees
 
@@ -62,5 +63,5 @@ class NovariaRapport:
 
     @keyword("Notifier")
     def notifier(self, dossier: str, niveau: str, message: str):
-        """Notification simulée : une ligne dans `notifications.log`."""
-        depot.notifier(Path(dossier), niveau, message, datetime.now(UTC))
+        """Une ligne dans `notifications.log`, et un courriel si `NOVARIA_RPA_SMTP` est défini."""
+        notification.notifier(Path(dossier), niveau, message, datetime.now(UTC))
