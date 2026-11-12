@@ -47,7 +47,10 @@ TRAVAILLEURS = {"traitement-flux": ("traitement", "svc_traitement"),
 # Les services d'alerte et de réponse vérifient eux-mêmes les jetons de l'API métier (contrat : bearerAuth) : ils reçoivent
 # la clé de signature, donc ils pourraient aussi en émettre. Exception documentée (docs/03-donnees/alertes.md et feux.md,
 # section « Choix à valider »), à lever avec MS-13 (vérification à la passerelle) ou avec une signature asymétrique.
-VERIFIE_LES_JETONS = {"alerte", "reponse"}
+# Depuis MS-13 la passerelle les vérifie aussi, avant tout service : elle reçoit la clé (gateway/README.md, « Secrets »).
+# Les services gardent la leur (défense en profondeur) ; la lever demande une signature asymétrique, où la passerelle
+# n'aurait que la clé publique.
+VERIFIE_LES_JETONS = {"alerte", "reponse", "passerelle"}
 # Séparation écriture et lecture (MS-10) : l'API de consultation lit l'entrepôt avec le compte en lecture seule
 # `svc_lecture` ; seul ce service le reçoit. Les processus d'écriture gardent `svc_traitement`.
 LIT_L_ENTREPOT = {"traitement"}
@@ -275,7 +278,9 @@ class SujetsKafkaCreesAuDemarrage(unittest.TestCase):
     def test_le_script_a_des_fins_de_ligne_unix(self):
         # un CRLF (poste Windows) ferait échouer le script dans le conteneur Linux
         self.assertNotIn(b"\r", (RACINE / "infra" / "kafka" / "init-topics.sh").read_bytes())
-        self.assertNotIn(b"\r", (RACINE / "gateway" / "nginx.conf").read_bytes())
+        for fichier in (RACINE / "gateway").glob("*"):
+            if fichier.is_file() and fichier.suffix in {".conf", ".js", ".json"}:
+                self.assertNotIn(b"\r", fichier.read_bytes(), fichier.name)  # montés dans un conteneur Linux
 
     @unittest.skipIf(yaml is None, "PyYAML absent : pip install pyyaml")
     def test_la_tache_attend_le_broker_et_monte_le_script_en_lecture_seule(self):
@@ -317,7 +322,10 @@ def route(chemin: str, table: list[tuple[str, str, str]]) -> str:
 class PasserelleRouteLesContrats(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.table = emplacements((RACINE / "gateway" / "nginx.conf").read_text(encoding="utf-8"))
+        # Les routes des contrats sont générées dans routes.conf (MS-13) ; nginx.conf ajoute la sonde, le dépôt des mesures
+        # (interne) et le refus de tout le reste.
+        cls.table = emplacements((RACINE / "gateway" / "routes.conf").read_text(encoding="utf-8")) + [
+            ("=", "/health", "200"), ("^~", "/api/v1/measurements", "404"), ("", "/", "404")]
 
     def chemins(self, service: str) -> list[str]:
         doc = yaml.safe_load((RACINE / "contracts" / "openapi" / f"{service}.openapi.yaml").read_text(encoding="utf-8"))
@@ -353,13 +361,18 @@ class PasserelleRouteLesContrats(unittest.TestCase):
             self.assertEqual(route(chemin, self.table), "404", chemin)
 
     def test_le_flux_sse_n_est_pas_mis_en_tampon(self):
-        nginx = (RACINE / "gateway" / "nginx.conf").read_text(encoding="utf-8")
-        bloc = re.search(r"location = /api/v1/events/stream \{(.*?)\n  \}", nginx, re.S).group(1)
+        routes = (RACINE / "gateway" / "routes.conf").read_text(encoding="utf-8")
+        bloc = re.search(r"location = /api/v1/events/stream \{(.*?)\n  \}", routes, re.S).group(1)
         self.assertIn("proxy_buffering off", bloc)
+        frontend = (RACINE / "frontend" / "nginx.conf").read_text(encoding="utf-8")
+        bloc = re.search(r"location = /api/v1/events/stream \{(.*?)\n  \}", frontend, re.S).group(1)
+        self.assertIn("proxy_buffering off", bloc)  # le flux traverse aussi le nginx du front-end
 
     def test_les_erreurs_de_la_passerelle_suivent_le_format_problem(self):
-        nginx = (RACINE / "gateway" / "nginx.conf").read_text(encoding="utf-8")
-        for code in re.findall(r'return (?:404|503) \'(\{.*?\})\';', nginx):
+        nginx = "\n".join((RACINE / "gateway" / f).read_text(encoding="utf-8") for f in ("nginx.conf", "routes.conf"))
+        corps_vus = re.findall(r'return (?:400|401|403|404|405|429|503) \'(\{.*?\})\';', nginx)
+        self.assertGreaterEqual(len(corps_vus), 8)
+        for code in corps_vus:
             corps = json.loads(code.replace("$correlation_id", "x"))
             self.assertEqual(set(corps), {"type", "title", "status", "code", "detail", "correlation_id"})
         doc = yaml.safe_load((RACINE / "contracts" / "openapi" / "common.yaml").read_text(encoding="utf-8"))
@@ -367,14 +380,17 @@ class PasserelleRouteLesContrats(unittest.TestCase):
         self.assertLessEqual(set(re.findall(r'"code":"([A-Z_]+)"', nginx)), codes)
 
     def test_la_correlation_est_transmise_et_renvoyee(self):
-        nginx = (RACINE / "gateway" / "nginx.conf").read_text(encoding="utf-8")
-        self.assertIn("proxy_set_header X-Correlation-ID $correlation_id;", nginx)
-        self.assertIn("add_header X-Correlation-ID $correlation_id always;", nginx)
+        self.assertIn("proxy_set_header X-Correlation-ID $correlation_id;",
+                      (RACINE / "gateway" / "upstream.conf").read_text(encoding="utf-8"))
+        # renvoyée sur toute réponse par le filtre d'en-têtes (auth.js)
+        self.assertIn('"X-Correlation-ID": options.correlationId', (RACINE / "gateway" / "auth.js").read_text(encoding="utf-8"))
 
     def test_le_frontend_passe_par_la_passerelle(self):
         self.assertIn("proxy_pass http://passerelle:8000;", (RACINE / "frontend" / "nginx.conf").read_text(encoding="utf-8"))
         passerelle = compose()["services"]["passerelle"]
-        self.assertIn("./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro", passerelle["volumes"])
+        self.assertIn("./gateway/nginx.conf:/etc/nginx/nginx.conf:ro", passerelle["volumes"])
+        self.assertIn("./gateway:/etc/nginx/gateway:ro", passerelle["volumes"])
+        self.assertNotIn("slim", passerelle["image"])  # la variante « slim » n'a pas njs, dont la passerelle dépend
 
 
 class Simulateur(unittest.TestCase):

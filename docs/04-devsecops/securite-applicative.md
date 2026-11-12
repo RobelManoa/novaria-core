@@ -21,7 +21,7 @@ Abréviations : **CORS** (Cross-Origin Resource Sharing, partage des ressources 
 | Aucun secret dans les journaux | Le code n'en écrit pas ; un filet masque ce qui échapperait | `app/core/redaction.py` | `tests/unit/test_secrets_in_logs.py` |
 | Secrets Manager documenté | Correspondance variable par variable avec AWS, rien de créé | section 6 | `scripts/dev/test_secrets_environnement.py` (tâches ECS) |
 
-Ces mécanismes sont dans le service `services/traitement`, qui porte l'API métier (authentification, comptes) et l'API des indicateurs. Les services `collecte`, `alerte` et `reponse` sont des squelettes sans API publique : ils recevront ces mécanismes avec leurs routes, ou la passerelle (MS-13) les portera pour tous.
+Ces mécanismes sont dans le service `services/traitement`, qui porte l'API métier (authentification, comptes) et l'API des indicateurs. Depuis MS-13, la **passerelle** porte aussi, pour tous les services, le contrôle du jeton et des rôles, la limitation de débit générale, CORS et les en-têtes de sécurité ([passerelle](../../gateway/README.md), [ADR-029](../01-architecture/adr/ADR-029-passerelle-et-authentification.md)) ; les mécanismes de ce document restent en place dans le service (défense en profondeur).
 
 ## 2. CORS restreint
 
@@ -90,7 +90,7 @@ Derrière un relais, l'adresse de la connexion est celle du relais. `TRUSTED_PRO
 | Adresse réelle derrière Docker Desktop | Sous Windows et macOS, les connexions venues de l'hôte peuvent toutes arriver avec la même adresse interne : la limite par adresse serait alors commune à tous les appels de l'hôte (**non vérifié** : l'essai de bout en bout lance `uvicorn` hors Docker). La limite par identifiant n'est pas touchée | Sans effet attendu sous Linux et en production, à constater sur la pile Compose |
 | Accès direct au service | Le port 8002 du traitement est publié sur `127.0.0.1` : un appel direct peut écrire un `X-Forwarded-For` falsifié et contourner la limite par adresse (pas celle par identifiant) | Ne publier que la passerelle, hors local |
 | Mémoire | Bornée à 10 000 clés par limite ; au-delà les plus anciennes sont oubliées | |
-| Autres routes | Seule la connexion est limitée (périmètre de l'issue) | Limite générale à la passerelle (MS-13) |
+| Autres routes | Seule la connexion est limitée dans le service (périmètre de BE-08) | **Fait (MS-13)** : limite générale à la passerelle, 20 requêtes par seconde par adresse ([passerelle](../../gateway/README.md), section 4) |
 
 ## 5. Secrets lus depuis l'environnement
 
@@ -260,7 +260,7 @@ Pour la rejouer, voir la section 7. Résultat de Manoa : [À COMPLÉTER par Mano
 
 | Sujet | Position actuelle | Suite |
 |---|---|---|
-| Services `collecte`, `alerte`, `reponse` | Squelettes sans API publique : CORS, en-têtes et limitation absents | Avec leurs routes, ou à la passerelle (MS-13) |
+| Services `collecte`, `alerte`, `reponse` | CORS, en-têtes et limitation de débit posés **par la passerelle** (MS-13) ; un appel direct au port d'un service les contourne (ports publiés sur `127.0.0.1` pour le développement) | Ne publier que la passerelle hors du poste de développement |
 | Simulateur (`simulator/`, MS-07), API de pilotage d'un run | Sans authentification, CORS, en-têtes ni limitation de débit ; publiée sur `127.0.0.1` seulement. Protégée par : corps limité à 64 Ko, un seul run à la fois, durée (7 jours), débit et nombre d'anomalies bornés, `run_id` sans points seuls ni chemin, journal sans query string ni corps (`simulator/README.md`, section 10) | À reprendre si elle est exposée au-delà de `127.0.0.1` (passerelle, MS-13) |
 | Compteur de limitation | En mémoire du processus (section 4) | Magasin partagé si le service est répliqué |
 | `Strict-Transport-Security` | Appartient au point qui termine TLS | Au déploiement |

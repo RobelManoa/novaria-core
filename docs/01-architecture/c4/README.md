@@ -79,7 +79,7 @@ Les deux noms sont déduits de [ADR-008](../adr/ADR-008-microservices.md) et de 
 | Nom | Technologie | Dossier | Responsabilité | État |
 |---|---|---|---|---|
 | Tableau de bord | React, Vite, TypeScript | `frontend/` | Affiche indicateurs, alertes, état des feux ; envoie la commande manuelle | Existe (socle FE-01) |
-| Passerelle d'API | Nginx ou Traefik | `gateway/` | Point d'entrée unique : routage `/api/<service>`, authentification, limitation de débit, CORS | Planifié (MS-13) |
+| Passerelle d'API | Nginx (njs) | `gateway/` | Point d'entrée unique : routage `/api/<service>` généré depuis les contrats, **jeton et rôle contrôlés avant tout service**, limitation de débit, CORS, en-têtes de sécurité ; nginx avec njs : [gateway/README.md](../../../gateway/README.md), [ADR-029](../adr/ADR-029-passerelle-et-authentification.md) | Existe (MS-13) |
 | API métier | Python, FastAPI | `services/traitement/` (ancien `backend/`) | Utilisateurs, rôles et jetons ; audit et statistiques d'usage | Existe (squelette : `/health`), dossier partagé avec le Service Traitement tant que le point ouvert 1 n'est pas tranché |
 | Simulateur IoT | Python | `simulator/` | Génère des mesures de capteurs reproductibles (graine) avec anomalies injectables | Existe (MS-07) : fichier, sortie standard ou envoi à la collecte (essayé contre la vraie collecte par MS-08) |
 | Service Collecte | Python, FastAPI | `services/collecte/` | Reçoit, valide, dédoublonne, stocke le brut, publie `iot.raw` | Existe (MS-08) : HTTP et « MQTT simulé », [preuve et débit](../../03-donnees/collecte.md) |
