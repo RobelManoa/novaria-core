@@ -122,7 +122,7 @@ Sigles employés ci-dessous, développés une fois : p95 (95e centile : 95 % des
 | EXG-NFR-12 | **Sauvegarde et restauration** | Après restauration, les données sont utilisables et les totaux identiques | Doit | `docs/08-exploitation/restauration.md` | Partiel : procédure documentée dans `sauvegarde-restauration-locale.md`, non rejouée ici | CLD-15, LOC-03 |
 | EXG-NFR-13 | **Provenance visible** ([ADR-027](../01-architecture/adr/ADR-027-jeux-de-donnees-et-provenance.md)) | Tout enregistrement (mesure, indicateur, alerte, jeu) porte `source_type` ; le tableau de bord signale les données simulées ; 0 enregistrement sans provenance | Doit | Tests de contrat et capture | Partiel : champ obligatoire dans les contrats et les validateurs | MS-14, MS-08 |
 | EXG-NFR-14 | **Extensibilité vers UrbanHub** ([registre](../07-gestion/registre-des-demandes.md), R-18) | Un nouveau domaine s'ajoute depuis le gabarit de service sans modifier le code d'un service existant | Devrait | Service créé depuis le gabarit, CI verte | À faire | MS-04 |
-| EXG-NFR-15 | **Accessibilité et français** | Aucune erreur bloquante à l'audit d'accessibilité ; tous les textes affichés sont en français | Pourrait | Rapport d'audit | À faire | FE-07 |
+| EXG-NFR-15 | **Accessibilité et français** | Aucune erreur bloquante à l'audit d'accessibilité ; tous les textes affichés sont en français | Pourrait | Rapport d'audit | Prouvé : audit axe-core dans Edge (WCAG 2.0, 2.1 et 2.2, niveaux A et AA) sur 44 écrans (7 pages, thèmes clair et sombre, ordinateur, mobile et 320 px, états d'erreur, tiroir ouvert) : 0 violation, 34 scénarios clavier réussis, 0 texte en anglais, aucun défilement horizontal à 320 px ; 2 défauts trouvés et corrigés (tableaux défilants sans accès au clavier, focus perdu dans le tiroir quand les animations sont réduites) ; garde-fous dans la CI (`frontend/tests/accessibility/`) ; [rapport](../../frontend/audit/rapport-accessibilite.md) et [méthode](../../frontend/README.md#accessibilité-de-base-et-textes-en-français-fe-07). Non fait : essai avec un lecteur d'écran, Firefox et Safari, audit dans la CI | FE-07 |
 
 ## Bilan à la date du document
 
@@ -132,6 +132,6 @@ Ces chiffres sont contrôlés par `scripts/dev/test_specifications.py` : il éch
 |---|---|
 | Exigences | 53 |
 | Doit / Devrait / Pourrait | 38 / 14 / 1 |
-| Prouvé / Partiel / À faire | 20 / 22 / 11 |
+| Prouvé / Partiel / À faire | 21 / 22 / 10 |
 
 Lecture : la plupart des exigences sont « Doit » parce qu'elles reprennent les critères d'acceptation de tâches P0 du backlog ; ce qui se discute, ce sont les 14 « Devrait » et le « Pourrait », à abandonner en premier si le planning glisse. Le socle de données (bases, contrats d'événements, contrat d'API) est avancé ; **aucun des quatre services métier n'existe encore** ; le simulateur existe (MS-07) mais n'a pas encore de collecte réelle à laquelle envoyer ses messages. C'est le gros du travail des jalons M2 et M3.

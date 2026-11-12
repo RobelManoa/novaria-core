@@ -60,7 +60,10 @@ button {
   *,
   *::before,
   *::after {
-    transition-duration: 0.01ms !important;
+    /* Durée nulle, pas « presque nulle » : une transition de 0,01 ms démarre à l'ancienne valeur et garde
+       un tiroir en visibility: hidden au moment où le focus doit y entrer (focus perdu au clavier). */
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
