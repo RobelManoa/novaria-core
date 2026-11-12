@@ -1,0 +1,2 @@
+# Robot Framework pour la suite rapport_hebdomadaire.robot (IA-07, ADR-019). Le paquet `rapport` n'a aucune dépendance.
+robotframework==7.5.1
