@@ -49,8 +49,9 @@ Ces secrets sont créés par `dev.py init-env` (valeurs aléatoires, fichier en 
 | L11 | `MONGO_PASSWORD_ML` | Rôle du service de machine learning | Chaque membre |
 | L12 | `JWT_SECRET` | Signature des jetons d'authentification du back-end (BE-03) ; 32 caractères au minimum, la valeur d'exemple est refusée hors de l'environnement local (BE-08). **Lue aussi par le service d'alerte** (MS-11) et par le service de réponse (MS-12), qui vérifient eux-mêmes les jetons : exception documentée dans [alertes](../03-donnees/alertes.md), section 9, et [feux](../03-donnees/feux.md), section 9 | Chaque membre |
 | L13 | `NOVARIA_RPA_PASSWORD` | Mot de passe du compte de service **en lecture seule** du robot du rapport hebdomadaire (IA-07, nom : `NOVARIA_RPA_USER`) ; lu par `dev.py rpa-report` dans `.env`, jamais écrit dans un fichier du robot, un rapport ou un journal | Chaque membre |
+| L14 | `NOVARIA_RPA_SMTP_MOT_DE_PASSE` | **Facultatif.** Mot de passe du compte du serveur de courrier qui envoie la notification du robot (IA-07, avec `NOVARIA_RPA_SMTP_UTILISATEUR`). Absent de `.env.example` : il n'existe que dans le `.env` de qui configure un courriel ; le robot refuse de présenter un compte sur un canal non chiffré et ne l'écrit dans aucun journal ni message d'erreur (testé) | Chaque membre |
 
-| Élément commun à L1 à L13 | Valeur |
+| Élément commun à L1 à L14 | Valeur |
 |---|---|
 | Lieu de stockage | Fichier `.env` à la racine du dépôt de chaque poste |
 | Expiration | Aucune |
