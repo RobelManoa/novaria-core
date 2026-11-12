@@ -3,7 +3,7 @@
 | Champ | Valeur |
 |---|---|
 | Date | 17/10/2026, réécrite le 20/10/2026 (la version du 17/10, statut « Proposée », donnait la prévision en premier) |
-| Statut | Proposée : choix fondé sur le cadrage ML (IA-01) à écrire avant tout entraînement |
+| Statut | Proposée : choix fondé sur le [cadrage ML](../../06-ia-mlops/cadrage-ml.md), écrit le 12/11/2026 avant tout entraînement (IA-01) |
 | Décideurs | Manoa Robel (responsable de l'intelligence artificielle), Daddy Luciano (relecture) |
 | Validation du professeur | À consigner (niveau Machine Learning : Implémenté ou Prototype, point 1 de GES-06) |
 | Issues liées | IA-01, IA-02, IA-03, IA-06, IA-08, IA-09, IA-10, IA-11, MS-10, MS-11, MS-12 |
