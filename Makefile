@@ -6,7 +6,7 @@ DEV = $(PY) scripts/dev/dev.py
 PY_API ?= $(if $(wildcard venv/bin/python),venv/bin/python,$(PY))
 DEV_API = $(PY_API) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint format new-service quality-up quality-down hooks terraform-check drift-check dataset-build test-ml reference-mesure preparation-check ml-env ml-train ml-registre ml-registre-essai
+.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint format new-service quality-up quality-down hooks terraform-check drift-check dataset-build test-ml reference-mesure preparation-check ml-env ml-train ml-registre ml-registre-essai ml-pipeline
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -141,6 +141,8 @@ ml-registre:   ## Registre des modèles (IA-04) : make ml-registre C=importer-ia
 	$(DEV) ml-registre $(C)
 ml-registre-essai: ## Tests du registre contre un MongoDB jetable (Docker ; projet Compose à part supprimé ensuite)
 	$(DEV) ml-registre-essai
+ml-pipeline:   ## Pipeline MLSecOps en local (IA-05) : make ml-pipeline [ETAPE=evaluer|porte|enregistrer|tout] [MONGO=1] ; code 1 si la porte est fermée (modèle sous le seuil)
+	$(DEV) ml-pipeline $(ETAPE) $(if $(MONGO),--mongo,)
 drift-check:    ## Script de dérive (IA-06) : entrées de l'exécution la plus récente contre une référence ; make drift-check REF=<run_id> ; code 1 si dérive
 	$(DEV) drift-check $(if $(REF),--reference-run $(REF),)
 terraform-check: ## Contrôles Terraform sans compte AWS (Docker) : fmt, init, validate, tflint, Snyk IaC ; make terraform-check LOCK=1 : régénère le verrou

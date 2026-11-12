@@ -25,6 +25,15 @@ Ordre de travail : congestion d'abord, prévision ensuite ([ADR-015](../docs/01-
 | `parquet.py` | écrivain et lecteur Parquet (sous-ensemble étroit, octets identiques à chaque écriture) |
 | `construire.py`, `provenance.py` | fichiers, manifeste, empreintes, fiche |
 
+## Pipeline MLSecOps (IA-05)
+
+`src/pipeline/` entraîne la configuration figée par IA-03, l'évalue, applique le seuil et des contrôles de sécurité (jeu intact, artefact relu, format sans `pickle`, dépendances auditées, fiche relue, code commité, métriques reproduites), puis ferme une **porte** : un modèle sous le seuil n'est pas enregistré (code de sortie 1). Le flux de travail `.github/workflows/mlsecops.yml` le lance à la main, sans aucun paramètre. Documentation, équivalent SageMaker (non exécuté) et limites : [pipeline MLSecOps](../docs/06-ia-mlops/pipeline-mlsecops.md).
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Pipeline complet (code 1 si la porte est fermée) | `make ml-pipeline` | `py -3 scripts/dev/dev.py ml-pipeline` |
+| Avec le registre MongoDB | `make ml-pipeline MONGO=1` | `py -3 scripts/dev/dev.py ml-pipeline --mongo` |
+
 ## Registre des modèles (IA-04)
 
 `src/registre/` enregistre chaque entraînement dans `model_runs` (MongoDB, compte `svc_ml`) et stocke les modèles dans `var/models/` derrière le port `ObjectStore` (S3 (Simple Storage Service) documenté, non exécuté). Un modèle en service se relie à son entraînement, à sa révision Git et à l'empreinte de son jeu ; un fichier de modèle altéré est refusé, et aucun `pickle` n'est jamais chargé (format JSON `novaria-modele-lineaire`). Documentation, contrôles de sécurité, limites et preuves : [`registry/README.md`](registry/README.md).
