@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "format:check": "prettier --check src",
     "test": "vitest run --coverage",
+    "e2e": "playwright test",
     "a11y:audit": "node scripts/audit-a11y.mjs"
   },
   "dependencies": {
@@ -22,9 +23,11 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@playwright/test": "1.64.1",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.6.8",
+    "@types/node": "22.20.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
@@ -35,7 +38,7 @@
     "globals": "^15.14.0",
     "jsdom": "^25.0.0",
     "openapi-typescript": "^7.13.0",
-    "playwright-core": "^1.52.0",
+    "playwright-core": "1.64.1",
     "prettier": "^3.4.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.72.1",

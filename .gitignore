@@ -16,6 +16,10 @@ coverage.xml
 node_modules/
 dist/
 coverage/
+# parcours de bout en bout (Playwright) : rapport HTML, traces, journal local
+e2e-report/
+test-results/
+e2e-run.log
 # terraform
 .terraform/
 *.tfstate
