@@ -1,0 +1,54 @@
+# Transcription brute de l'essai local du pipeline MLSecOps, 12/11/2026 : voir docs/06-ia-mlops/pipeline-mlsecops.md.
+# Aucun mot de passe n'apparaît (l'adresse svc_ml passe par l'environnement) ; le MongoDB était jetable.
+
+# Pipeline MLSecOps (IA-05) : essai local du 12/11/2026 (Linux, Python 3.14, scikit-learn 1.9.1)
+# Registre : MongoDB JETABLE (projet Compose à part, supprimé ensuite), compte svc_ml. Magasin : var/models/ (rien n'y est écrit).
+# Code non commité au moment de l'essai : T1 échoue, ce qui est attendu et affiché.
+
+$ pipeline evaluer
+S1 : SHA-256 recalculés, conformes au manifeste et à l'empreinte attendue
+Entraînement : Régression logistique multiclasse (variables centrées et réduites), réglage {'C': 10.0, 'class_weight': 'balanced'}
+  S1 réussi : jeu de données intact et identique à celui de la sélection (SHA-256 recalculés, conformes au manifeste et à l'empreinte attendue)
+  S2 réussi : l'artefact exporté prédit comme le modèle évalué (20160 prédictions comparées, 0 écart(s))
+  S3 réussi : format de modèle sans exécution de code (novaria-modele-lineaire, relu sans exécuter de code)
+  S4 réussi : dépendances ML sans vulnérabilité connue (pip-audit) (9 dépendances auditées, aucune vulnérabilité connue ; nomenclature (SBOM) écrite)
+  S5 ÉCHEC : fiche du modèle écrite et relue par l'autre membre (relecture par l'autre membre absente (ligne « Relue par : nom, date »))
+  T1 ÉCHEC : code commité : le modèle se refait depuis sa révision Git (révision ed043c25b5 avec du code non commité)
+  R1 réussi : métriques reproduites à l'identique (toutes les métriques du test recalculées sont identiques)
+  A1 remplie : F1 macro ≥ référence + 0,01 (modèle 0.9814, exigé ≥ 0.9781)
+  A2 MANQUÉE : rappel de CONGESTED ≥ référence + 0,01 (modèle 0.9799, exigé ≥ 0.9885)
+  A3 remplie : délai médian ≤ référence (modèle 1, exigé ≤ 1 min)
+  A4 remplie : aucun épisode manqué (modèle 0.0, exigé 0)
+  A5 MANQUÉE : fausses alertes ≤ 0,10 par tronçon et par jour (modèle 0.2143, exigé ≤ 0.1)
+Décision : modèle rejeté
+[code de sortie : 0]
+
+$ pipeline porte
+Porte FERMÉE : modèle sous le seuil ou non conforme, il n'est pas enregistré (4 raison(s))
+  - A2 manquée : rappel de CONGESTED ≥ référence + 0,01 (modèle 0.9799, exigé ≥ 0.9885)
+  - A5 manquée : fausses alertes ≤ 0,10 par tronçon et par jour (modèle 0.2143, exigé ≤ 0.1)
+  - S5 en échec : fiche du modèle écrite et relue par l'autre membre (relecture par l'autre membre absente (ligne « Relue par : nom, date »))
+  - T1 en échec : code commité : le modèle se refait depuis sa révision Git (révision ed043c25b5 avec du code non commité)
+[code de sortie : 1]
+
+$ pipeline enregistrer
+[stderr] Porte fermée : ia05-logistique-876c217f-ed043c25-modifie : décision « rejeté », modèle non enregistré
+[code de sortie : 1]
+
+$ registre lister
+[
+  {
+    "run_id": "ia05-logistique-876c217f-ed043c25-modifie",
+    "created_at": "2026-11-12T12:09:36.137000+00:00",
+    "git_sha": "ed043c25b597a5a07844a94406eb81cd779b8303",
+    "dataset_sha256": "5fc6f1832bd9f02dcf86de0e56dfbafb0854b57041819e6452820325c195c19e",
+    "status": "rejected"
+  }
+]
+[code de sortie : 0]
+
+# La porte est fermée : le run est « rejected » dans model_runs, aucun fichier de modèle, aucun modèle en service.
+
+$ registre en-service
+Aucun modèle enregistré : la règle de seuils reste le classificateur en service (ADR-015).
+[code de sortie : 0]

@@ -546,6 +546,26 @@ def cmd_ml_registre_essai(_: argparse.Namespace) -> int:
                 os.environ[name] = value
 
 
+# --------------------------------------------------------------------------- pipeline MLSecOps (IA-05)
+ML_PIPELINE = ROOT / "ml" / "src" / "executer_pipeline.py"
+ML_PIPELINE_ETAPES = ("evaluer", "porte", "enregistrer", "tout")
+
+
+def cmd_ml_pipeline(args: argparse.Namespace) -> int:
+    """Pipeline MLSecOps en local : évaluer, porte (bloque sous le seuil), enregistrer ; registre en fichiers, ou MongoDB avec --mongo."""
+    if not ml_python().exists():
+        print("ml/.venv est absent : lancer d'abord « ml-env ».", file=sys.stderr)
+        return 2
+    environment = {**os.environ, "PYTHONUTF8": "1"}
+    if args.mongo:
+        require_env()
+        environment["MONGO_URL"] = mongo_url(etl_environment(), "svc_ml", "MONGO_PASSWORD_ML")
+    command = [str(ml_python()), str(ML_PIPELINE), args.etape]
+    if args.sans_audit:
+        command.append("--sans-audit")
+    return subprocess.run(command, cwd=ROOT, env=environment, check=False).returncode
+
+
 # --------------------------------------------------------------------------- rapport hebdomadaire du robot (IA-07, FE-06)
 RPA_DIR = ROOT / "automation" / "rpa"
 
@@ -1506,6 +1526,10 @@ def build_parser() -> argparse.ArgumentParser:
     registre.add_argument("commande", choices=ML_REGISTRE_COMMANDES)
     registre.add_argument("options", nargs=argparse.REMAINDER, help="arguments de la commande (lignee <run> --jeu)")
     add("ml-registre-essai", cmd_ml_registre_essai, "tests du registre contre un MongoDB jetable (projet Compose à part, supprimé ensuite) ; nécessite Docker et ml-env")
+    pipeline = add("ml-pipeline", cmd_ml_pipeline, "pipeline MLSecOps (IA-05) : evaluer, porte (bloque un modèle sous le seuil), enregistrer, ou tout ; code 1 si la porte est fermée")
+    pipeline.add_argument("etape", nargs="?", default="tout", choices=ML_PIPELINE_ETAPES)
+    pipeline.add_argument("--mongo", action="store_true", help="écrit les runs dans model_runs (MongoDB, compte svc_ml) au lieu de var/pipeline/model_runs/")
+    pipeline.add_argument("--sans-audit", action="store_true", help="n'appelle pas pip-audit (S4 reste « non vérifié »)")
     rpa = add("rpa-report", cmd_rpa_report, "produit le rapport hebdomadaire (robot, IA-07) et le dépose dans var/reports ; la page Rapports l'affiche")
     rpa.add_argument("--debut", metavar="AAAA-MM-JJ", help="début de la période (la semaine précédente par défaut)")
     rpa.add_argument("--fin", metavar="AAAA-MM-JJ", help="fin exclue (début + 7 jours par défaut)")

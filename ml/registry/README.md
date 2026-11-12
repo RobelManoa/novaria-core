@@ -127,8 +127,8 @@ L'adresse MongoDB (compte `svc_ml`) est lue dans `.env` par `dev.py` et passée 
 | Limite | Conséquence |
 |---|---|
 | **Seul un modèle linéaire a un format sûr.** `HistGradientBoostingClassifier` n'en a pas (skops et ONNX n'ont pas été essayés) | un modèle de ce type ne peut pas être enregistré. Le candidat d'IA-03 (logistique) l'était |
-| Aucun modèle n'est réellement en service | le modèle d'IA-03 est rejeté ; l'API sert la règle. Le branchement du **service d'inférence** au magasin (`charger_le_modele_en_service`) n'est pas fait : IA-05 / services |
-| La garde de promotion se limite à la décision | le calcul de la décision et les conditions S1 à S5 sont IA-05 |
+| Aucun modèle n'est réellement en service | le modèle d'IA-03 est rejeté ; l'API sert la règle. Le branchement du **service d'inférence** au magasin (`charger_le_modele_en_service`) n'est pas fait (services) |
+| La garde de promotion se limite à la décision | le calcul de la décision et les contrôles de sécurité sont dans le [pipeline MLSecOps](../../docs/06-ia-mlops/pipeline-mlsecops.md) (IA-05) ; `promouvoir` seul ne refait pas ces contrôles |
 | Pas de signature cryptographique | qui peut réécrire le modèle, le manifeste **et** le pointeur dans `var/models/` fait servir ce qu'il veut, tant que le format est valide. Les empreintes protègent d'une altération, pas d'un attaquant qui contrôle tout le magasin |
 | `svc_ml` garde `update` sur `model_runs` | la base n'interdit pas de réécrire un document `registered` ; seul le code s'en abstient (mises à jour conditionnelles) |
 | Le registre n'écrit que dans un dossier local | **S3 est documenté, non exécuté** : le port `ObjectStore` se transpose (une clé = un objet ; `put` sans écrasement = écriture conditionnelle), l'adaptateur n'est pas écrit ; la prise en charge de l'écriture conditionnelle par le S3 visé est **à vérifier** |
