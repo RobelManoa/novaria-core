@@ -89,8 +89,23 @@ jobs:
       - run: npm run format:check
       - run: npm test
       - run: npm run build
+      # Parcours de bout en bout (FE-08) : connexion -> tableau de bord, dans Chromium, sur l'application construite ci-dessus.
+      # L'API est simulée (frontend/e2e/support.ts) ; le job garde son nom « frontend ».
+      - name: Installer le navigateur du parcours de bout en bout
+        run: npx playwright install --with-deps chromium
+      - name: Parcours de bout en bout
+        run: npx playwright test
       - uses: actions/upload-artifact@v7
         with: { name: coverage-frontend, path: frontend/coverage/lcov.info }
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-frontend
+          path: |
+            frontend/e2e-report
+            frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 14
 
   # Pipelines d'ingestion et de nettoyage (data/etl) : tests sans réseau ni base, couverture remise à SonarQube
   # (data/etl/coverage.xml). Job d'appui : seul « sonarqube » l'attend, aucun contrôle obligatoire ne change de nom.
