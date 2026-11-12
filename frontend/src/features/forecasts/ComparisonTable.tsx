@@ -1,3 +1,4 @@
+import ScrollRegion from "@/components/ScrollRegion";
 import { formatDateTime, formatNumber } from "@/features/dashboard/format";
 import { STATE_LABELS } from "@/features/dashboard/labels";
 import type { ComparisonRow } from "./compare";
@@ -21,7 +22,7 @@ function missingObserved(row: ComparisonRow, observedUntil: number | null): stri
 /** Une ligne par horizon : prévu, état prévu, observé à l'instant visé et écart. Valeurs brutes de l'API. */
 export default function ComparisonTable({ rows, observedUntil }: Readonly<ComparisonTableProps>) {
   return (
-    <div className={styles.wrap}>
+    <ScrollRegion label="Prévu et observé, par horizon" className={styles.wrap}>
       <table className={styles.table}>
         <caption className={styles.caption}>Prévu et observé, par horizon</caption>
         <thead>
@@ -55,6 +56,6 @@ export default function ComparisonTable({ rows, observedUntil }: Readonly<Compar
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   );
 }

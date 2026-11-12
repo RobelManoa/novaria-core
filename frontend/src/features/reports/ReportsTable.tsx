@@ -1,3 +1,4 @@
+import ScrollRegion from "@/components/ScrollRegion";
 import { formatDateTime } from "@/features/dashboard/format";
 import type { Report } from "@/services/traitement";
 import { formatFileSize, shortHash } from "./format";
@@ -21,7 +22,7 @@ export default function ReportsTable({
   onDownload,
 }: Readonly<ReportsTableProps>) {
   return (
-    <div className={styles.wrap}>
+    <ScrollRegion label="Rapports générés par le robot" className={styles.wrap}>
       <table className={styles.table} role="table">
         <caption className={styles.caption}>Rapports générés par le robot</caption>
         <thead role="rowgroup">
@@ -89,6 +90,6 @@ export default function ReportsTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   );
 }

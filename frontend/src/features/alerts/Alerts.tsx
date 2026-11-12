@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ScrollRegion from "@/components/ScrollRegion";
 import StateMessage from "@/components/StateMessage";
 import { useAuth } from "@/features/auth/AuthContext";
 import { formatDateTime } from "@/features/dashboard/format";
@@ -147,7 +148,10 @@ export default function Alerts() {
             : "Aucune alerte n'a encore été émise."}
         </StateMessage>
       ) : (
-        <div className={styles.wrap}>
+        <ScrollRegion
+          label="Alertes, de la plus récente à la plus ancienne"
+          className={styles.wrap}
+        >
           <table className={styles.table}>
             <caption className={styles.caption}>
               Alertes, de la plus récente à la plus ancienne
@@ -177,7 +181,7 @@ export default function Alerts() {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       )}
     </div>
   );

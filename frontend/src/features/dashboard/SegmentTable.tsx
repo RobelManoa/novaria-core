@@ -1,3 +1,4 @@
+import ScrollRegion from "@/components/ScrollRegion";
 import type { Indicator } from "@/services/traitement";
 import { formatDateTime, formatNumber } from "./format";
 import { STATE_LABELS } from "./labels";
@@ -6,7 +7,7 @@ import styles from "./SegmentTable.module.css";
 /** Dernière fenêtre de chaque tronçon : les valeurs brutes de l'API, sans calcul. */
 export default function SegmentTable({ items }: Readonly<{ items: readonly Indicator[] }>) {
   return (
-    <div className={styles.wrap}>
+    <ScrollRegion label="Dernière fenêtre de chaque tronçon" className={styles.wrap}>
       <table className={styles.table}>
         <caption className={styles.caption}>Dernière fenêtre de chaque tronçon</caption>
         <thead>
@@ -34,6 +35,6 @@ export default function SegmentTable({ items }: Readonly<{ items: readonly Indic
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   );
 }
