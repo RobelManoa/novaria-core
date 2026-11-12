@@ -8,6 +8,7 @@ npm run dev        # http://localhost:5173 (proxy /api vers le backend, port 800
 npm test           # vitest + couverture (coverage/lcov.info)
 npm run lint && npm run format:check
 npm run build      # contrôle de types puis construction
+npm run e2e        # parcours de bout en bout dans un navigateur (après npm run build ; voir « Tests du front-end »)
 npm run a11y:audit # audit d'accessibilité dans Edge ou Chrome (après npm run build), rapport dans audit/
 ```
 
@@ -305,6 +306,23 @@ Critère de l'issue : **aucune erreur bloquante dans l'audit d'accessibilité** 
 Le script a été éprouvé en cassant le code exprès (puis restauré) : un contraste de texte réduit (25 violations de contraste, dont 7 dans les graphiques), un champ sans libellé (7), un tableau sans focus (8), la règle de mouvement remise à 0,01 ms (6 échecs clavier) : tous détectés, la commande sort en erreur.
 
 **Non fait ou non vérifié** (aussi dans le rapport) : **aucun essai avec un lecteur d'écran** (NVDA, VoiceOver) : les noms et rôles sont contrôlés par axe, pas écoutés ; un seul navigateur (Edge, moteur Chromium), ni Firefox ni Safari ; données simulées ; la lisibilité des graphiques SVG sur un téléphone (texte d'axe d'environ 9 px à 360 px, voir `TimeSeriesChart.module.css`) n'est pas un critère WCAG et n'a pas été changée ; l'équivalence entre un graphique et son tableau de valeurs n'est pas vérifiée automatiquement ; le thème « Système » n'a pas été mesuré séparément (il applique l'un des deux jeux, que les tests de jetons gardent identiques).
+
+## Tests du front-end (FE-08)
+
+Rapport complet, chiffres et limites : [`rapport-tests.md`](rapport-tests.md).
+
+| Niveau | Outil | Où | Commande |
+|---|---|---|---|
+| Composants, hooks, services, pages | Vitest + Testing Library (jsdom) | `tests/` (403 tests) | `npm test` |
+| Accessibilité (structure) | axe-core sous jsdom | `tests/accessibility/` | `npm test` |
+| Parcours de bout en bout : connexion → tableau de bord | Playwright (`@playwright/test` 1.64.1) | `e2e/` | `npm run build`, puis `npm run e2e` |
+
+- **Couverture** : mesurée sur `src/` seulement ; `npm test` **échoue sous 70 %** (instructions, branches, fonctions, lignes : `vite.config.ts`). Mesure du 12/11/2026 : 98,96 % / 94,28 % / 99,19 % / 99,56 %.
+- **Parcours Playwright** : un vrai navigateur ouvre l'application construite (`vite preview`, port 4173) ; **seule l'API est simulée** (`e2e/support.ts`), avec les réponses réelles enregistrées de `tests/fixtures/dashboard-api.json`. Le parcours vérifie la redirection sans session, un mot de passe refusé, la connexion, le jeton (`sessionStorage` seulement, `Authorization: Bearer` sur chaque appel), les valeurs affichées contre celles de l'API, le changement de zone et de période, la navigation, le rechargement et la déconnexion ; deux autres tests couvrent une session refusée par le serveur et une panne de l'API suivie de « Réessayer ». Ce n'est pas un essai contre le service, la passerelle et les bases.
+- **Navigateur** : en CI, Chromium de Playwright (`npx playwright install --with-deps chromium`). Sur un poste qui a déjà Edge ou Chrome, `E2E_CHANNEL=msedge` (ou `chrome`) évite le téléchargement. Playwright 1.52 se bloquait sous Node 24 : ne pas redescendre sous 1.64.
+- **Sorties** : `e2e-report/` (rapport HTML et `resultats.json`) et `test-results/` (captures et traces d'un échec), ignorés par Git.
+- **CI** : le job `frontend` exécute `npm test` (donc le seuil de 70 %). L'étape du parcours de bout en bout est **proposée dans un commit séparé** de `ci.yml`, à valider par les deux membres (CLAUDE.md, §6) ; tant qu'elle n'est pas fusionnée et exécutée, le parcours ne tourne qu'en local.
+- **Poste à faible mémoire** : si des délais sont dépassés, `npx vitest run --maxWorkers=2 --testTimeout=30000`.
 
 ## Vérifier avant une pull request
 
