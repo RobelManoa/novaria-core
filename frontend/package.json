@@ -11,7 +11,8 @@
     "api:check": "node scripts/api-types.mjs --check",
     "lint": "eslint .",
     "format:check": "prettier --check src",
-    "test": "vitest run --coverage"
+    "test": "vitest run --coverage",
+    "a11y:audit": "node scripts/audit-a11y.mjs"
   },
   "dependencies": {
     "openapi-fetch": "^0.17.0",
@@ -28,11 +29,13 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
     "@vitest/coverage-v8": "^5.0.5",
+    "axe-core": "^4.10.3",
     "eslint": "^9.17.0",
     "eslint-plugin-react-hooks": "^5.1.0",
     "globals": "^15.14.0",
     "jsdom": "^25.0.0",
     "openapi-typescript": "^7.13.0",
+    "playwright-core": "^1.52.0",
     "prettier": "^3.4.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.72.1",

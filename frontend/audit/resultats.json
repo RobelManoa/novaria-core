@@ -1,0 +1,1000 @@
+{
+  "date": "2026-11-12",
+  "axeVersion": "4.10.3",
+  "playwright": "1.52.0",
+  "browser": "157.0.4341.46 (Edge)",
+  "scenarios": [
+    {
+      "name": "connexion · clair · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 24,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Connexion · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 7
+    },
+    {
+      "name": "connexion · clair · mobile",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 24,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Connexion · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 7
+    },
+    {
+      "name": "connexion · sombre · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 24,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Connexion · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 7
+    },
+    {
+      "name": "connexion · sombre · mobile",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 24,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Connexion · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 7
+    },
+    {
+      "name": "connexion · clair · 320 px (reflux)",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 24,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Connexion · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 7
+    },
+    {
+      "name": "tableau-de-bord · clair · ordinateur",
+      "svgTextsChecked": 16,
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "count": 16,
+          "targets": [
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(1) > text[y=\"212\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(2) > text[y=\"162\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(3) > text[y=\"112\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(4) > text[y=\"62\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(5) > text[y=\"12\"][x=\"38\"][dy=\"0.32em\"]"
+          ],
+          "outsideSvgText": 0
+        }
+      ],
+      "passes": 51,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Tableau de bord · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 339
+    },
+    {
+      "name": "tableau-de-bord · clair · mobile",
+      "svgTextsChecked": 16,
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "count": 16,
+          "targets": [
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(1) > text[y=\"212\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(2) > text[y=\"162\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(3) > text[y=\"112\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(4) > text[y=\"62\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(5) > text[y=\"12\"][x=\"38\"][dy=\"0.32em\"]"
+          ],
+          "outsideSvgText": 0
+        }
+      ],
+      "passes": 51,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Tableau de bord · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 339
+    },
+    {
+      "name": "tableau-de-bord · sombre · ordinateur",
+      "svgTextsChecked": 16,
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "count": 16,
+          "targets": [
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(1) > text[y=\"212\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(2) > text[y=\"162\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(3) > text[y=\"112\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(4) > text[y=\"62\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(5) > text[y=\"12\"][x=\"38\"][dy=\"0.32em\"]"
+          ],
+          "outsideSvgText": 0
+        }
+      ],
+      "passes": 51,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Tableau de bord · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 339
+    },
+    {
+      "name": "tableau-de-bord · sombre · mobile",
+      "svgTextsChecked": 16,
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "count": 16,
+          "targets": [
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(1) > text[y=\"212\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(2) > text[y=\"162\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(3) > text[y=\"112\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(4) > text[y=\"62\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(5) > text[y=\"12\"][x=\"38\"][dy=\"0.32em\"]"
+          ],
+          "outsideSvgText": 0
+        }
+      ],
+      "passes": 51,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Tableau de bord · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 339
+    },
+    {
+      "name": "tableau-de-bord · clair · 320 px (reflux)",
+      "svgTextsChecked": 16,
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "count": 16,
+          "targets": [
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(1) > text[y=\"212\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(2) > text[y=\"162\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(3) > text[y=\"112\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(4) > text[y=\"62\"][x=\"38\"][dy=\"0.32em\"]",
+            "figure:nth-child(1) > ._svg_10anc_22[viewBox=\"0 0 480 240\"][role=\"img\"] > g:nth-child(5) > text[y=\"12\"][x=\"38\"][dy=\"0.32em\"]"
+          ],
+          "outsideSvgText": 0
+        }
+      ],
+      "passes": 51,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Tableau de bord · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 339
+    },
+    {
+      "name": "alertes · clair · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 49,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Alertes · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 73
+    },
+    {
+      "name": "alertes · clair · mobile",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 47,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Alertes · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 73
+    },
+    {
+      "name": "alertes · sombre · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 49,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Alertes · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 73
+    },
+    {
+      "name": "alertes · sombre · mobile",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 47,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Alertes · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 73
+    },
+    {
+      "name": "alertes · clair · 320 px (reflux)",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 47,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Alertes · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 73
+    },
+    {
+      "name": "feux · clair · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 42,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Feux de circulation · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 30
+    },
+    {
+      "name": "feux · clair · mobile",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 40,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Feux de circulation · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 30
+    },
+    {
+      "name": "feux · sombre · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 42,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Feux de circulation · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 30
+    },
+    {
+      "name": "feux · sombre · mobile",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 40,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Feux de circulation · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 30
+    },
+    {
+      "name": "feux · clair · 320 px (reflux)",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 40,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Feux de circulation · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 30
+    },
+    {
+      "name": "previsions · clair · ordinateur",
+      "svgTextsChecked": 9,
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "count": 9,
+          "targets": [
+            "text[y=\"232\"]",
+            "text[y=\"178\"]",
+            "text[y=\"124\"]",
+            "text[y=\"70\"]",
+            "text[y=\"16\"]"
+          ],
+          "outsideSvgText": 0
+        }
+      ],
+      "passes": 52,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Prévisions · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 166
+    },
+    {
+      "name": "previsions · clair · mobile",
+      "svgTextsChecked": 9,
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "count": 9,
+          "targets": [
+            "text[y=\"232\"]",
+            "text[y=\"178\"]",
+            "text[y=\"124\"]",
+            "text[y=\"70\"]",
+            "text[y=\"16\"]"
+          ],
+          "outsideSvgText": 0
+        }
+      ],
+      "passes": 53,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Prévisions · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 166
+    },
+    {
+      "name": "previsions · sombre · ordinateur",
+      "svgTextsChecked": 9,
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "count": 9,
+          "targets": [
+            "text[y=\"232\"]",
+            "text[y=\"178\"]",
+            "text[y=\"124\"]",
+            "text[y=\"70\"]",
+            "text[y=\"16\"]"
+          ],
+          "outsideSvgText": 0
+        }
+      ],
+      "passes": 52,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Prévisions · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 166
+    },
+    {
+      "name": "previsions · sombre · mobile",
+      "svgTextsChecked": 9,
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "count": 9,
+          "targets": [
+            "text[y=\"232\"]",
+            "text[y=\"178\"]",
+            "text[y=\"124\"]",
+            "text[y=\"70\"]",
+            "text[y=\"16\"]"
+          ],
+          "outsideSvgText": 0
+        }
+      ],
+      "passes": 53,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Prévisions · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 166
+    },
+    {
+      "name": "previsions · clair · 320 px (reflux)",
+      "svgTextsChecked": 9,
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "count": 9,
+          "targets": [
+            "text[y=\"232\"]",
+            "text[y=\"178\"]",
+            "text[y=\"124\"]",
+            "text[y=\"70\"]",
+            "text[y=\"16\"]"
+          ],
+          "outsideSvgText": 0
+        }
+      ],
+      "passes": 53,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Prévisions · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 166
+    },
+    {
+      "name": "rapports · clair · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 49,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Rapports · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 69
+    },
+    {
+      "name": "rapports · clair · mobile",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 47,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Rapports · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 69
+    },
+    {
+      "name": "rapports · sombre · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 49,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Rapports · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 69
+    },
+    {
+      "name": "rapports · sombre · mobile",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 47,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Rapports · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 69
+    },
+    {
+      "name": "rapports · clair · 320 px (reflux)",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 47,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Rapports · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 69
+    },
+    {
+      "name": "page-introuvable · clair · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 43,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Page introuvable · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 30
+    },
+    {
+      "name": "page-introuvable · clair · mobile",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 41,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Page introuvable · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 30
+    },
+    {
+      "name": "page-introuvable · sombre · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 43,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Page introuvable · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 30
+    },
+    {
+      "name": "page-introuvable · sombre · mobile",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 41,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Page introuvable · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 30
+    },
+    {
+      "name": "page-introuvable · clair · 320 px (reflux)",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 41,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Page introuvable · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 30
+    },
+    {
+      "name": "connexion · identifiants refusés · clair · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 33,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Connexion · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 8
+    },
+    {
+      "name": "connexion · identifiants refusés · sombre · mobile",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 33,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Connexion · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 8
+    },
+    {
+      "name": "tableau-de-bord · erreur du serveur · clair · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 43,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Tableau de bord · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 42
+    },
+    {
+      "name": "tableau-de-bord · erreur du serveur · sombre · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 43,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Tableau de bord · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 42
+    },
+    {
+      "name": "previsions · service absent · clair · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 42,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Prévisions · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 32
+    },
+    {
+      "name": "alertes · toutes les alertes · clair · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 49,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Alertes · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 84
+    },
+    {
+      "name": "alertes · toutes les alertes · sombre · ordinateur",
+      "svgTextsChecked": 0,
+      "violations": [],
+      "incomplete": [],
+      "passes": 49,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Alertes · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 84
+    },
+    {
+      "name": "tiroir de navigation ouvert · clair · mobile",
+      "svgTextsChecked": 16,
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "skip-link",
+          "help": "The skip-link target should exist and be focusable",
+          "count": 1,
+          "targets": [
+            "._skip_1onaj_1"
+          ],
+          "outsideSvgText": 1
+        }
+      ],
+      "passes": 26,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Tableau de bord · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 339
+    },
+    {
+      "name": "tiroir de navigation ouvert · sombre · mobile",
+      "svgTextsChecked": 16,
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "skip-link",
+          "help": "The skip-link target should exist and be focusable",
+          "count": 1,
+          "targets": [
+            "._skip_1onaj_1"
+          ],
+          "outsideSvgText": 1
+        }
+      ],
+      "passes": 26,
+      "english": [],
+      "info": {
+        "lang": "fr",
+        "title": "Tableau de bord · Novaria Core",
+        "h1": 1,
+        "overflow": 0
+      },
+      "textCount": 339
+    }
+  ],
+  "keyboard": [
+    {
+      "name": "ordinateur : le premier Tab atteint le lien « Aller au contenu »",
+      "passed": true,
+      "detail": "{\"tag\":\"a\",\"name\":\"Aller au contenu\",\"visibleIndicator\":true,\"onScreen\":true,\"id\":null}"
+    },
+    {
+      "name": "ordinateur : Entrée sur le lien d'évitement place le focus sur le contenu principal",
+      "passed": true,
+      "detail": "focus sur « contenu »"
+    },
+    {
+      "name": "ordinateur : 15 arrêts de tabulation sur le tableau de bord, tous nommés",
+      "passed": true,
+      "detail": "Aller au contenu → Novaria Core → Clair → Se déconnecter → Tableau de bord → Alertes → Feux de circulation → Prévisions → Rapports → PériodeDernière heure6 dernières heures24 dernières heures → Taille des fenêtres1 minute5 minutes → ZoneTout le réseauCarrefour INT_01Carrefour INT_02Carrefour INT_03Carrefour INT_04Carrefour INT_05Carrefour INT_06 → Voir les valeurs → Voir les valeurs → Dernière fen"
+    },
+    {
+      "name": "ordinateur : chaque arrêt de tabulation a un indicateur de focus visible",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "ordinateur : aucun arrêt de tabulation n'est hors de l'écran",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "mobile : le premier Tab atteint le lien « Aller au contenu »",
+      "passed": true,
+      "detail": "{\"tag\":\"a\",\"name\":\"Aller au contenu\",\"visibleIndicator\":true,\"onScreen\":true,\"id\":null}"
+    },
+    {
+      "name": "mobile : Entrée sur le lien d'évitement place le focus sur le contenu principal",
+      "passed": true,
+      "detail": "focus sur « contenu »"
+    },
+    {
+      "name": "mobile : 11 arrêts de tabulation sur le tableau de bord, tous nommés",
+      "passed": true,
+      "detail": "Aller au contenu → Ouvrir le menu → Novaria Core → Clair → Se déconnecter → PériodeDernière heure6 dernières heures24 dernières heures → Taille des fenêtres1 minute5 minutes → ZoneTout le réseauCarrefour INT_01Carrefour INT_02Carrefour INT_03Carrefour INT_04Carrefour INT_05Carrefour INT_06 → Voir les valeurs → Voir les valeurs → Dernière fenêtre de chaque tronçon"
+    },
+    {
+      "name": "mobile : chaque arrêt de tabulation a un indicateur de focus visible",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "mobile : aucun arrêt de tabulation n'est hors de l'écran",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "mobile : ouvrir le menu au clavier place le focus dans la navigation",
+      "passed": true,
+      "detail": "focus dans « Navigation principale »"
+    },
+    {
+      "name": "mobile : douze Tab de suite restent dans le tiroir (focus piégé)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "mobile : douze Maj+Tab de suite restent dans le tiroir",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "mobile : Échap ferme le tiroir et rend le focus au bouton de menu",
+      "passed": true,
+      "detail": "focus sur « Ouvrir le menu »"
+    },
+    {
+      "name": "mobile : le tiroir fermé n'est plus atteignable (inert)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "ordinateur : après un changement de page, le focus est sur le titre (h1) de la nouvelle page",
+      "passed": true,
+      "detail": "{\"tag\":\"H1\",\"text\":\"Alertes\",\"title\":\"Alertes · Novaria Core\"}"
+    },
+    {
+      "name": "ordinateur : le titre du document change avec la page",
+      "passed": true,
+      "detail": "Alertes · Novaria Core"
+    },
+    {
+      "name": "ordinateur : le formulaire de connexion s'envoie avec Entrée et l'erreur est annoncée (role=alert, en français)",
+      "passed": true,
+      "detail": "Identifiant ou mot de passe incorrect."
+    },
+    {
+      "name": "ordinateur : texte à 200 % sans défilement horizontal de la page (1.4.4)",
+      "passed": true,
+      "detail": "débordement de 0 px"
+    },
+    {
+      "name": "ordinateur : le premier Tab atteint le lien « Aller au contenu » [mouvement réduit]",
+      "passed": true,
+      "detail": "{\"tag\":\"a\",\"name\":\"Aller au contenu\",\"visibleIndicator\":true,\"onScreen\":true,\"id\":null}"
+    },
+    {
+      "name": "ordinateur : Entrée sur le lien d'évitement place le focus sur le contenu principal [mouvement réduit]",
+      "passed": true,
+      "detail": "focus sur « contenu »"
+    },
+    {
+      "name": "ordinateur : 15 arrêts de tabulation sur le tableau de bord, tous nommés [mouvement réduit]",
+      "passed": true,
+      "detail": "Aller au contenu → Novaria Core → Clair → Se déconnecter → Tableau de bord → Alertes → Feux de circulation → Prévisions → Rapports → PériodeDernière heure6 dernières heures24 dernières heures → Taille des fenêtres1 minute5 minutes → ZoneTout le réseauCarrefour INT_01Carrefour INT_02Carrefour INT_03Carrefour INT_04Carrefour INT_05Carrefour INT_06 → Voir les valeurs → Voir les valeurs → Dernière fen"
+    },
+    {
+      "name": "ordinateur : chaque arrêt de tabulation a un indicateur de focus visible [mouvement réduit]",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "ordinateur : aucun arrêt de tabulation n'est hors de l'écran [mouvement réduit]",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "mobile : le premier Tab atteint le lien « Aller au contenu » [mouvement réduit]",
+      "passed": true,
+      "detail": "{\"tag\":\"a\",\"name\":\"Aller au contenu\",\"visibleIndicator\":true,\"onScreen\":true,\"id\":null}"
+    },
+    {
+      "name": "mobile : Entrée sur le lien d'évitement place le focus sur le contenu principal [mouvement réduit]",
+      "passed": true,
+      "detail": "focus sur « contenu »"
+    },
+    {
+      "name": "mobile : 11 arrêts de tabulation sur le tableau de bord, tous nommés [mouvement réduit]",
+      "passed": true,
+      "detail": "Aller au contenu → Ouvrir le menu → Novaria Core → Clair → Se déconnecter → PériodeDernière heure6 dernières heures24 dernières heures → Taille des fenêtres1 minute5 minutes → ZoneTout le réseauCarrefour INT_01Carrefour INT_02Carrefour INT_03Carrefour INT_04Carrefour INT_05Carrefour INT_06 → Voir les valeurs → Voir les valeurs → Dernière fenêtre de chaque tronçon"
+    },
+    {
+      "name": "mobile : chaque arrêt de tabulation a un indicateur de focus visible [mouvement réduit]",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "mobile : aucun arrêt de tabulation n'est hors de l'écran [mouvement réduit]",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "mobile : ouvrir le menu au clavier place le focus dans la navigation [mouvement réduit]",
+      "passed": true,
+      "detail": "focus dans « Navigation principale »"
+    },
+    {
+      "name": "mobile : douze Tab de suite restent dans le tiroir (focus piégé) [mouvement réduit]",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "mobile : douze Maj+Tab de suite restent dans le tiroir [mouvement réduit]",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "mobile : Échap ferme le tiroir et rend le focus au bouton de menu [mouvement réduit]",
+      "passed": true,
+      "detail": "focus sur « Ouvrir le menu »"
+    },
+    {
+      "name": "mobile : le tiroir fermé n'est plus atteignable (inert) [mouvement réduit]",
+      "passed": true,
+      "detail": ""
+    }
+  ]
+}
