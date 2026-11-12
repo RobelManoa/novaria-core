@@ -20,6 +20,7 @@ DESCRIPTIONS: dict[int | str, str] = {
     409: "Conflit avec l'état de la ressource ; code `CONFLICT`.",
     422: "Entrée invalide ; code `VALIDATION_ERROR`. `errors` liste chaque champ fautif.",
     429: "Limite de débit atteinte ; code `RATE_LIMITED`.",
+    503: "Modèle et référence indisponibles ; code `FORECAST_UNAVAILABLE`.",
     "5XX": "Erreur interne ou base injoignable ; code `INTERNAL_ERROR` ou `UPSTREAM_UNAVAILABLE`.",
 }
 

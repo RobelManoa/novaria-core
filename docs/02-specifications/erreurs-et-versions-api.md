@@ -33,9 +33,10 @@ Le type de contenu est `application/problem+json`. Le corps ne contient **jamais
 | `VALIDATION_ERROR` | 422 | Entrée invalide (section 2) | `app/core/errors.py` |
 | `INTERNAL_ERROR` | 500 | Toute erreur imprévue (section 3) | `app/core/unhandled.py` |
 | `UPSTREAM_UNAVAILABLE` | 503 | Base de données injoignable ou saturée, authentification non configurée | `app/core/errors.py`, `app/db/session.py` |
+| `FORECAST_UNAVAILABLE` | 503 | Aucune donnée dans l'entrepôt : ni modèle ni référence ne peuvent répondre (`GET /api/v1/forecasts`) | `app/api/v1/forecasts.py`, `app/core/errors.py` |
 | `RATE_LIMITED` | 429 | Limitation du débit de la connexion (BE-08), avec l'en-tête `Retry-After` (secondes à attendre) | `app/api/v1/auth.py`, `app/core/ratelimit.py` |
 
-Les codes `INVALID_STATE_TRANSITION`, `COMMAND_IN_PROGRESS`, `UNSAFE_COMMAND` et `FORECAST_UNAVAILABLE` du contrat appartiennent à d'autres services.
+Les codes `INVALID_STATE_TRANSITION`, `COMMAND_IN_PROGRESS` et `UNSAFE_COMMAND` du contrat appartiennent à d'autres services.
 
 Autres erreurs HTTP du cadre (par exemple 400 ou 413 levées par Starlette) : le code HTTP est conservé, le `code` est `VALIDATION_ERROR` (4xx) ou `INTERNAL_ERROR` (5xx), le `detail` est « Requête refusée. » ou « Erreur interne. ». Le texte anglais du cadre n'est jamais repris.
 
