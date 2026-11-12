@@ -48,6 +48,28 @@ class Preparation:
         self._ajustee = True
         return self
 
+    @classmethod
+    def depuis_parametres(cls, usage: Usage, parametres: dict) -> "Preparation":
+        """Refait la préparation d'un modèle enregistré depuis `parametres()` : aucune donnée n'est relue.
+
+        Les médianes et les catégories doivent être exactement celles que l'usage demande : un artefact altéré ou venu
+        d'un autre usage est refusé plutôt que complété.
+        """
+        if parametres.get("usage") != usage.nom:
+            raise ValueError(f"paramètres de l'usage {parametres.get('usage')!r}, {usage.nom!r} attendu")
+        attendues = {c for c in usage.numeriques if c not in calendrier.NOMS}
+        medianes, categories = parametres.get("medianes"), parametres.get("categories")
+        if not isinstance(medianes, dict) or set(medianes) != attendues:
+            raise ValueError("médianes absentes ou différentes des variables de l'usage")
+        if not isinstance(categories, dict) or set(categories) != set(usage.categorielles):
+            raise ValueError("catégories absentes ou différentes des variables de l'usage")
+        preparation = cls(usage)
+        preparation.medianes = {nom: _nombre_fini(valeur, nom) for nom, valeur in medianes.items()}
+        preparation.categories = {nom: _liste_de_textes(valeur, nom) for nom, valeur in categories.items()}
+        preparation.runs_d_ajustement = _liste_de_textes(parametres.get("runs_d_ajustement", []), "runs_d_ajustement")
+        preparation._ajustee = True
+        return preparation
+
     def noms(self) -> list[str]:
         """Les colonnes de la matrice, dans l'ordre : numériques, puis une colonne par catégorie (`road_type=LOCAL`)."""
         self._exiger_ajustement()
@@ -97,6 +119,18 @@ class Preparation:
     def _exiger_ajustement(self) -> None:
         if not self._ajustee:
             raise RuntimeError("appeler ajuster (entraînement seul) avant d'utiliser la préparation")
+
+
+def _nombre_fini(valeur, nom: str) -> float:
+    if isinstance(valeur, bool) or not isinstance(valeur, (int, float)) or not math.isfinite(valeur):
+        raise ValueError(f"{nom} : nombre fini attendu")
+    return float(valeur)
+
+
+def _liste_de_textes(valeur, nom: str) -> list[str]:
+    if not isinstance(valeur, list) or not all(isinstance(v, str) for v in valeur):
+        raise ValueError(f"{nom} : liste de textes attendue")
+    return list(valeur)
 
 
 def contient_nan(matrice: list[list[float]]) -> bool:

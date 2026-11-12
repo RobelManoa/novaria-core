@@ -502,6 +502,50 @@ def cmd_ml_train(args: argparse.Namespace) -> int:
     return subprocess.run([str(ml_python()), str(ML_TRAIN), args.etape], cwd=ROOT, check=False).returncode
 
 
+# --------------------------------------------------------------------------- registre des modèles (IA-04)
+ML_REGISTRE = ROOT / "ml" / "src" / "registre_cli.py"
+ML_REGISTRE_COMMANDES = ("importer-ia03", "lister", "en-service", "lignee", "charger")
+
+
+def cmd_ml_registre(args: argparse.Namespace) -> int:
+    """Lit ou alimente le registre des modèles (model_runs dans MongoDB, modèles dans var/models/) avec le compte svc_ml."""
+    if not ml_python().exists():
+        print("ml/.venv est absent : lancer d'abord « ml-env » (pymongo et scikit-learn y sont installés avec leurs empreintes).", file=sys.stderr)
+        return 2
+    require_env()
+    environment = {**os.environ, "MONGO_URL": mongo_url(etl_environment(), "svc_ml", "MONGO_PASSWORD_ML"), "PYTHONUTF8": "1"}
+    return subprocess.run([str(ml_python()), str(ML_REGISTRE), args.commande, *args.options], cwd=ROOT, env=environment, check=False).returncode
+
+
+def cmd_ml_registre_essai(_: argparse.Namespace) -> int:
+    """Tests du registre contre un vrai MongoDB jetable (projet Compose à part, compte svc_ml, validateur et index réels)."""
+    if not ml_python().exists():
+        print("ml/.venv est absent : lancer d'abord « ml-env ».", file=sys.stderr)
+        return 2
+    require_env()
+    project = f"novaria-ml-{secrets.token_hex(3)}"
+    ports = {"MONGO_PORT": str(free_port())}
+    saved = {name: os.environ.get(name) for name in INTEGRATION_ISOLATION}
+    os.environ.update({"COMPOSE_PROJECT_NAME": project, **ports})
+    print(f"MongoDB jetable : projet Compose {project} (Mongo :{ports['MONGO_PORT']})")
+    try:
+        code = run_compose_step("up", "-d", "--wait", "mongo")
+        if code != 0:
+            return code
+        adresse = mongo_url({**etl_environment(), **ports}, "svc_ml", "MONGO_PASSWORD_ML")
+        environment = {**os.environ, "REGISTRE_MONGO_URL": adresse, "PYTHONUTF8": "1"}
+        return subprocess.run([str(ml_python()), "-m", "unittest", "discover", "-s", "ml/tests", "-t", "ml", "-p", "test_registre.py", "-v"],
+                              cwd=ROOT, env=environment, check=False).returncode
+    finally:
+        compose("down", "-v", "--remove-orphans", check=False)
+        print(f"Projet {project} supprimé (conteneurs, réseau et volumes).")
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
 # --------------------------------------------------------------------------- rapport hebdomadaire du robot (IA-07, FE-06)
 RPA_DIR = ROOT / "automation" / "rpa"
 
@@ -1458,6 +1502,10 @@ def build_parser() -> argparse.ArgumentParser:
     add("ml-env", cmd_ml_env, "crée ml/.venv et y installe scikit-learn depuis ml/requirements.txt (empreintes exigées)")
     train = add("ml-train", cmd_ml_train, "entraînement et comparaison (IA-03) : validation, test (lu une seule fois) ou rapport ; nécessite ml-env")
     train.add_argument("etape", choices=ML_ETAPES, help="validation : réglage et choix ; test : lecture unique ; rapport : ml/evaluation/resultats.md")
+    registre = add("ml-registre", cmd_ml_registre, "registre des modèles (IA-04) : importer-ia03, lister, en-service, lignee <run> [--jeu], charger ; nécessite la pile (db-up) et ml-env")
+    registre.add_argument("commande", choices=ML_REGISTRE_COMMANDES)
+    registre.add_argument("options", nargs=argparse.REMAINDER, help="arguments de la commande (lignee <run> --jeu)")
+    add("ml-registre-essai", cmd_ml_registre_essai, "tests du registre contre un MongoDB jetable (projet Compose à part, supprimé ensuite) ; nécessite Docker et ml-env")
     rpa = add("rpa-report", cmd_rpa_report, "produit le rapport hebdomadaire (robot, IA-07) et le dépose dans var/reports ; la page Rapports l'affiche")
     rpa.add_argument("--debut", metavar="AAAA-MM-JJ", help="début de la période (la semaine précédente par défaut)")
     rpa.add_argument("--fin", metavar="AAAA-MM-JJ", help="fin exclue (début + 7 jours par défaut)")
