@@ -1,5 +1,13 @@
-import type { operations, paths } from "@/types/api/reponse";
+import type { components, operations, paths } from "@/types/api/reponse";
 import { createApiClient, unwrap, type JsonBody, type Query } from "./client";
+
+export type SignalState = components["schemas"]["SignalState"];
+export type SignalPhase = components["schemas"]["SignalPhase"];
+export type SignalDecision = components["schemas"]["SignalDecision"];
+export type SignalCommand = components["schemas"]["SignalCommand"];
+export type SignalCommandRequest = components["schemas"]["SignalCommandRequest"];
+export type SignalMode = SignalState["mode"];
+export type Approach = SignalPhase["green_approaches"][number];
 
 // Réponse extérieure : état des feux et commande manuelle (contracts/openapi/reponse.openapi.yaml).
 const client = createApiClient<paths>();

@@ -8,6 +8,7 @@ npm run dev        # http://localhost:5173 (proxy /api vers le backend, port 800
 npm test           # vitest + couverture (coverage/lcov.info)
 npm run lint && npm run format:check
 npm run build      # contrôle de types puis construction
+npm run e2e        # parcours de bout en bout (pile Docker + Chrome ; voir docs/03-donnees/tableau-de-bord.md)
 ```
 
 Formater : `npx prettier --write src`.
@@ -18,9 +19,9 @@ Formater : `npx prettier --write src`.
 |---|---|
 | `app/` | Assemblage : `App.tsx`, `router.tsx` (tableau de routes exporté), `bootstrap.tsx` (montage), `AppShell/` (mise en page) |
 | `pages/` | Une page par route (`LoginPage`, `DashboardPage`, `AlertsPage`, `TrafficLightsPage`, `ForecastsPage`, `ReportsPage`, `NotFoundPage`) |
-| `features/` | Fonctionnalités : `navigation/` (entrées du menu), `theme/` (thème et sélecteur), `api-status/` (état de l'API), `auth/` (connexion, session, routes protégées), `dashboard/` (tableau de bord des indicateurs), `forecasts/` (page des prévisions), `reports/` (page des rapports) |
+| `features/` | Fonctionnalités : `navigation/` (entrées du menu), `theme/` (thème et sélecteur), `api-status/` (état de l'API), `auth/` (connexion, session, routes protégées), `dashboard/` (tableau de bord des indicateurs), `forecasts/` (page des prévisions), `reports/` (page des rapports), `alerts/` (alertes en direct), `overview/` (vue d'ensemble en direct par service et par carrefour), `signals/` (état des feux, commande manuelle, historique) |
 | `components/` | Composants génériques sans logique métier (`PageHeader`, `SkipLink`, `IconButton`, `Container`, `VisuallyHidden`, `ComingSoon`, `StatCard`, `StateMessage`) |
-| `hooks/` | `useMediaQuery`, `useDisclosure`, `useEscapeKey`, `useFocusTrap`, `useScrollLock`, `useAsyncResource` (chargement asynchrone avec clé) |
+| `hooks/` | `useMediaQuery`, `useDisclosure`, `useEscapeKey`, `useFocusTrap`, `useScrollLock`, `useAsyncResource` (chargement asynchrone avec clé), `usePolling` (relecture à intervalle fixe) |
 | `services/` | Tous les appels à l'API : un module par service (`apiMetier`, `traitement`, `alerte`, `reponse`), le client commun (`client.ts`), les erreurs (`errors.ts`) et le jeton de session (`session.ts`) |
 | `styles/` | `tokens.css` (jetons), `global.css` (base), `breakpoints.ts` (points de rupture) |
 | `types/` | Types partagés ; `types/api/` est **généré** depuis les contrats OpenAPI : ne pas le modifier à la main |

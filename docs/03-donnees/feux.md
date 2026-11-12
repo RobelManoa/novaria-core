@@ -119,6 +119,8 @@ Le délai sans recommandation (point ouvert S3) est **le plus court de** la vali
 
 **Le journal passe avant l'effet.** La commande est décidée par le contrôleur, **écrite dans `audit_logs`**, et seulement alors rendue effective ; si MongoDB ne répond pas, l'état est rétabli et la réponse est `503`. Un opérateur ne peut pas agir sans laisser de trace. C'est le contraire de l'API métier ([journalisation d'audit](../02-specifications/journalisation-audit.md), section 4 : écriture « au mieux »), et c'est voulu pour les feux. Un **refus**, lui, reste un refus : si le journal est en panne, il est renvoyé quand même (et compté `audit_lost`).
 
+**Interface** : la page « Feux de circulation » (état, commande, historique) est décrite dans [tableau de bord](tableau-de-bord.md).
+
 **Qui peut commander** : `operator` et `admin` ; le `viewer` lit l'état et l'historique. L'acteur du journal est le `sub` du jeton (un identifiant de compte, jamais un nom).
 
 ## 7. Journal d'audit (MongoDB)
