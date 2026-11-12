@@ -255,6 +255,57 @@ class MlTrainTests(unittest.TestCase):
             self.assertIn("--hash=sha256:", bloc, paquet)
 
 
+class MlRegistreTests(unittest.TestCase):
+    def test_sans_environnement_la_commande_demande_ml_env(self):
+        with mock.patch.object(dev, "ML_VENV", Path("/n/existe/pas")), mock.patch("subprocess.run") as run:
+            self.assertEqual(dev.main(["ml-registre", "lister"]), 2)
+            self.assertEqual(dev.main(["ml-registre-essai"]), 2)
+        run.assert_not_called()
+
+    def test_la_commande_transmet_l_adresse_svc_ml_sans_l_afficher_et_les_options(self):
+        env = {"MONGO_DB": "novaria", "MONGO_PASSWORD_ML": "secret-d-essai"}
+        with mock.patch.object(dev, "ml_python", return_value=Path(sys.executable)), mock.patch.object(dev, "require_env"), \
+                mock.patch.object(dev, "etl_environment", return_value=env), \
+                mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(dev.main(["ml-registre", "lignee", "ia03-x", "--jeu"]), 0)
+        commande = run.call_args.args[0]
+        self.assertTrue(commande[1].endswith("registre_cli.py"))
+        self.assertEqual(commande[2:], ["lignee", "ia03-x", "--jeu"])
+        adresse = run.call_args.kwargs["env"]["MONGO_URL"]
+        self.assertTrue(adresse.startswith("mongodb://svc_ml:"))
+        self.assertNotIn("secret-d-essai", " ".join(commande), "le mot de passe ne passe pas par les arguments")
+
+    def test_une_commande_inconnue_est_refusee(self):
+        with self.assertRaises(SystemExit):
+            dev.main(["ml-registre", "supprimer-tout"])
+
+    def test_l_essai_utilise_un_projet_jetable_et_le_supprime(self):
+        env = {"MONGO_DB": "novaria", "MONGO_PASSWORD_ML": "x"}
+        appels = []
+        avant = os.environ.get("COMPOSE_PROJECT_NAME")
+        with mock.patch.object(dev, "ml_python", return_value=Path(sys.executable)), mock.patch.object(dev, "require_env"), \
+                mock.patch.object(dev, "etl_environment", return_value=env), mock.patch.object(dev, "free_port", return_value=40123), \
+                mock.patch.object(dev, "run_compose_step", side_effect=lambda *a: appels.append(("step", a)) or 0), \
+                mock.patch.object(dev, "compose", side_effect=lambda *a, **k: appels.append(("compose", a))), \
+                mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(dev.main(["ml-registre-essai"]), 0)
+        self.assertEqual(appels[0], ("step", ("up", "-d", "--wait", "mongo")))
+        self.assertEqual(appels[-1][0], "compose")
+        self.assertEqual(appels[-1][1][0], "down")
+        self.assertIn("-v", appels[-1][1])
+        self.assertIn(":40123/", run.call_args.kwargs["env"]["REGISTRE_MONGO_URL"])
+        self.assertEqual(os.environ.get("COMPOSE_PROJECT_NAME"), avant, "le projet jetable ne reste pas dans l'environnement")
+
+    def test_l_essai_supprime_le_projet_meme_si_les_conteneurs_ne_demarrent_pas(self):
+        appels = []
+        with mock.patch.object(dev, "ml_python", return_value=Path(sys.executable)), mock.patch.object(dev, "require_env"), \
+                mock.patch.object(dev, "free_port", return_value=40124), \
+                mock.patch.object(dev, "run_compose_step", return_value=1), \
+                mock.patch.object(dev, "compose", side_effect=lambda *a, **k: appels.append(a)):
+            self.assertEqual(dev.main(["ml-registre-essai"]), 1)
+        self.assertEqual(appels[0][0], "down")
+
+
 class RpaReportTests(unittest.TestCase):
     def args(self, *extra):
         return dev.build_parser().parse_args(["rpa-report", *extra])

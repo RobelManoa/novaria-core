@@ -25,6 +25,16 @@ Ordre de travail : congestion d'abord, prévision ensuite ([ADR-015](../docs/01-
 | `parquet.py` | écrivain et lecteur Parquet (sous-ensemble étroit, octets identiques à chaque écriture) |
 | `construire.py`, `provenance.py` | fichiers, manifeste, empreintes, fiche |
 
+## Registre des modèles (IA-04)
+
+`src/registre/` enregistre chaque entraînement dans `model_runs` (MongoDB, compte `svc_ml`) et stocke les modèles dans `var/models/` derrière le port `ObjectStore` (S3 (Simple Storage Service) documenté, non exécuté). Un modèle en service se relie à son entraînement, à sa révision Git et à l'empreinte de son jeu ; un fichier de modèle altéré est refusé, et aucun `pickle` n'est jamais chargé (format JSON `novaria-modele-lineaire`). Documentation, contrôles de sécurité, limites et preuves : [`registry/README.md`](registry/README.md).
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Écrire le run d'IA-03 dans `model_runs` | `make ml-registre C=importer-ia03` | `py -3 scripts/dev/dev.py ml-registre importer-ia03` |
+| Lignée d'un modèle, jeu recalculé | `make ml-registre C="lignee <run> --jeu"` | `py -3 scripts/dev/dev.py ml-registre lignee <run> --jeu` |
+| Tests contre un MongoDB jetable (Docker) | `make ml-registre-essai` | `py -3 scripts/dev/dev.py ml-registre-essai` |
+
 ## Entraînement et comparaison (IA-03)
 
 `src/entrainement/` compare la règle de seuils et deux candidats scikit-learn (régression logistique, HistGradientBoosting) en suivant le [cadrage ML](../docs/06-ia-mlops/cadrage-ml.md) : réglage sur la validation, validation croisée groupée par run (diagnostic), choix, puis **lecture unique du test**. scikit-learn vit dans `ml/.venv`, installé depuis `requirements.txt` avec ses empreintes (`--require-hashes`) ; le reste de `ml/` reste en bibliothèque standard. Résultats et choix argumenté : [`evaluation/comparaison.md`](evaluation/comparaison.md) (tableaux générés : [`evaluation/resultats.md`](evaluation/resultats.md)).
