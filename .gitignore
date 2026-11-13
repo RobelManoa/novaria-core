@@ -37,3 +37,7 @@ data/datasets/*
 data/datasets/novaria-congestion-v1/*
 !data/datasets/novaria-congestion-v1/PROVENANCE.md
 !data/datasets/novaria-congestion-v1/manifest.json
+
+# Playwright (frontend)
+frontend/test-results/
+frontend/playwright-report/

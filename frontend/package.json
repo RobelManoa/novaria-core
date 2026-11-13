@@ -11,7 +11,8 @@
     "api:check": "node scripts/api-types.mjs --check",
     "lint": "eslint .",
     "format:check": "prettier --check src",
-    "test": "vitest run --coverage"
+    "test": "vitest run --coverage",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "openapi-fetch": "^0.17.0",
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@playwright/test": "1.64.1",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.6.8",
