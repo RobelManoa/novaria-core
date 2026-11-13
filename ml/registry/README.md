@@ -57,7 +57,7 @@ stateDiagram-v2
 
 | Module | Rôle |
 |---|---|
-| `stockage.py` | **port `ObjectStore`** (`put`, `get`, `exists`) et adaptateur `StockageLocal` (`var/models/`, `STORAGE_BACKEND=local`). Clés strictes `<run_id>/modele.json`, jamais de chemin ; écriture atomique |
+| `ml/src/stockage/` (paquet commun, sorti du registre par LOC-05) | **port `ObjectStore`** (`put`, `get`, `exists`, `list`) et adaptateur `StockageLocal` (`var/models/`, `STORAGE_BACKEND=local`). Clés strictes `<run_id>/modele.json`, jamais de chemin ; écriture atomique. Voir [stockage d'objets](../../docs/03-donnees/stockage-objets.md) |
 | `documents.py`, `runs.py` | le document `model_runs` ([dictionnaire](../../docs/03-donnees/dictionnaire-de-donnees.md), section 10.6) ; port `RunStore`, adaptateurs mémoire (essais) et MongoDB (`svc_ml`) |
 | `format_lineaire.py` | format `novaria-modele-lineaire` : une régression logistique en JSON, relue sans exécuter de code |
 | `registre.py` | `Registre` : enregistrer, rejeter, promouvoir, remettre en service |

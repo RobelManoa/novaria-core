@@ -23,7 +23,7 @@ from jeu_entrainement.simulation import RACINE
 from registre import documents, importer_ia03, lignee, service
 from registre.registre import Registre
 from registre.runs import MongoRunStore
-from registre.stockage import StockageLocal
+from stockage import ObjectStore, StockageNonConfigure, ouvrir_magasin
 
 RACINE_DU_MAGASIN = RACINE / "var" / "models"
 
@@ -32,10 +32,11 @@ class Configuration(RuntimeError):
     pass
 
 
-def magasin() -> StockageLocal:
-    if os.environ.get("STORAGE_BACKEND", "local") != "local":
-        raise Configuration("STORAGE_BACKEND : seul « local » existe ; S3 est documenté, non exécuté (ADR-025)")
-    return StockageLocal(RACINE_DU_MAGASIN)
+def magasin() -> ObjectStore:
+    try:
+        return ouvrir_magasin(RACINE_DU_MAGASIN)
+    except StockageNonConfigure as erreur:
+        raise Configuration(str(erreur)) from erreur
 
 
 def registre() -> Registre:

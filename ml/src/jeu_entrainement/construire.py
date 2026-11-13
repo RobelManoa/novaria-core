@@ -14,6 +14,7 @@ from pathlib import Path
 
 from jeu_entrainement import VERSION_DU_CODE, catalogue as cat
 from jeu_entrainement import fenetres, lignes, parquet, provenance, simulation
+from stockage import ouvrir_magasin_de_jeu, ranger_a_l_identique, sha256
 
 RACINE = simulation.RACINE
 SORTIE_PAR_DEFAUT = RACINE / "data" / "datasets" / cat.JEU_ID
@@ -23,14 +24,6 @@ SORTIE_PAR_DEFAUT = RACINE / "data" / "datasets" / cat.JEU_ID
 class Jeu:
     dossier: Path
     manifeste: dict
-
-
-def sha256(chemin: Path) -> str:
-    resume = hashlib.sha256()
-    with chemin.open("rb") as fichier:
-        for bloc in iter(lambda: fichier.read(1 << 20), b""):
-            resume.update(bloc)
-    return resume.hexdigest()
 
 
 def empreinte_du_jeu(fichiers: dict[str, dict]) -> str:
@@ -70,14 +63,14 @@ def construire(sortie: Path = SORTIE_PAR_DEFAUT, runs: tuple[cat.RunSpec, ...] =
             "moteur": {cle: moteur.get(cle, 0) for cle in ("accepted", "duplicates", "late", "excluded", "empty_windows")},
             "messages_livres": len(resultat.livraisons), "capteur_muet_intervalles": sum(1 for v in resultat.verite if "SILENT" in v["anomalies"]),
         })
-    sortie.mkdir(parents=True, exist_ok=True)
+    magasin = ouvrir_magasin_de_jeu(sortie)  # port ObjectStore (ADR-025) : jamais d'écriture directe
     fichiers: dict[str, dict] = {}
     for ensemble in cat.ENSEMBLES:
         nom = f"{ensemble}.parquet"
-        parquet.ecrire(sortie / nom, lignes.COLONNES, par_ensemble[ensemble])
+        octets = parquet.encoder(lignes.COLONNES, par_ensemble[ensemble])
         fichiers[nom] = {
-            "ensemble": ensemble, "lignes": len(par_ensemble[ensemble]), "octets": (sortie / nom).stat().st_size,
-            "sha256": sha256(sortie / nom), "runs": [s.run_id for s in runs if s.ensemble == ensemble],
+            "ensemble": ensemble, "lignes": len(par_ensemble[ensemble]), "octets": len(octets),
+            "sha256": ranger_a_l_identique(magasin, nom, octets), "runs": [s.run_id for s in runs if s.ensemble == ensemble],
             "valeurs_absentes": absences(par_ensemble[ensemble]),
             "etats": {e: n for e, n in sorted(Counter(x[lignes.NOMS.index("label_state")] for x in par_ensemble[ensemble]).items())},
         }
@@ -91,6 +84,7 @@ def construire(sortie: Path = SORTIE_PAR_DEFAUT, runs: tuple[cat.RunSpec, ...] =
         "colonnes": [{"nom": c.nom, "type": c.type, "facultative": c.facultative} for c in lignes.COLONNES],
         "fichiers": fichiers, "runs": description_des_runs, "empreinte_du_jeu": empreinte_du_jeu(fichiers),
     }
-    (sortie / "manifest.json").write_text(json.dumps(manifeste, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
-    (sortie / "PROVENANCE.md").write_text(provenance.rediger(manifeste), encoding="utf-8", newline="\n")
+    texte_du_manifeste = json.dumps(manifeste, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    ranger_a_l_identique(magasin, "manifest.json", texte_du_manifeste.encode("utf-8"))
+    ranger_a_l_identique(magasin, "PROVENANCE.md", provenance.rediger(manifeste).encode("utf-8"))
     return Jeu(sortie, manifeste)

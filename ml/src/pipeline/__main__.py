@@ -17,12 +17,12 @@ from entrainement import candidats, tracabilite
 from pipeline import decision, etapes
 from registre.registre import RegistreErreur
 from registre.runs import FichierRunStore, MongoRunStore
-from registre.stockage import StockageLocal
+from stockage import StockageNonConfigure, ouvrir_magasin
 
 
 def magasins():
     runs = MongoRunStore.depuis_l_adresse(os.environ["MONGO_URL"]) if os.environ.get("MONGO_URL") else FichierRunStore(pipeline.RUNS)
-    return runs, StockageLocal(pipeline.MAGASIN)
+    return runs, ouvrir_magasin(pipeline.MAGASIN)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     except (tracabilite.ControleDeSecurite, decision.DecisionIncoherente, RegistreErreur) as erreur:
         print(f"Refusé : {erreur}", file=sys.stderr)
         return 3
-    except (candidats.SklearnAbsent, FileNotFoundError, KeyError) as erreur:
+    except (candidats.SklearnAbsent, FileNotFoundError, KeyError, StockageNonConfigure) as erreur:
         print(f"Configuration : {erreur}", file=sys.stderr)
         return 2
     return 0

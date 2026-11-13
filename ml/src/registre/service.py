@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from registre import documents
 from registre.format_lineaire import NOM as FORMAT, FormatInvalide, ModeleLineaire
 from registre.registre import POINTEUR, cle_du_manifeste, cle_du_modele
-from registre.stockage import ObjectStore, StockageErreur, sha256
+from stockage import ObjectStore, StockageErreur, sha256
 
 journal = logging.getLogger("registre")
 

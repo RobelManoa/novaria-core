@@ -298,8 +298,8 @@ def column_chunk(column: Colonne, values: Sequence[object], offset: int) -> tupl
     return chunk, Struct().i64(2, offset).struct(3, meta), len(chunk)
 
 
-def ecrire(chemin: Path, colonnes: Sequence[Colonne], lignes: Sequence[Sequence[object]], *, taille_groupe: int = ROW_GROUP_SIZE) -> None:
-    """Écrit `lignes` (tuples dans l'ordre des colonnes) ; fichier identique octet pour octet à chaque appel."""
+def encoder(colonnes: Sequence[Colonne], lignes: Sequence[Sequence[object]], *, taille_groupe: int = ROW_GROUP_SIZE) -> bytes:
+    """Les octets d'un fichier Parquet de `lignes` (tuples dans l'ordre des colonnes) ; identiques à chaque appel."""
     if not colonnes:
         raise ParquetError("au moins une colonne")
     if len({c.nom for c in colonnes}) != len(colonnes):
@@ -330,8 +330,7 @@ def ecrire(chemin: Path, colonnes: Sequence[Colonne], lignes: Sequence[Sequence[
         .end()
     )
     out += footer + struct.pack("<I", len(footer)) + MAGIC
-    chemin.parent.mkdir(parents=True, exist_ok=True)
-    chemin.write_bytes(bytes(out))
+    return bytes(out)
 
 
 # -------------------------------------------------------------------------------------- lecture
@@ -368,9 +367,8 @@ def decode_values(kind: str, data: bytes, position: int, count: int) -> list[obj
     return values
 
 
-def lire(chemin: Path) -> tuple[list[Colonne], list[tuple]]:
-    """Relit un fichier écrit par `ecrire` : colonnes et lignes (toutes les pages sont PLAIN, sans compression)."""
-    data = chemin.read_bytes()
+def decoder(data: bytes) -> tuple[list[Colonne], list[tuple]]:
+    """Relit les octets écrits par `encoder` : colonnes et lignes (toutes les pages sont PLAIN, sans compression)."""
     if data[:4] != MAGIC or data[-4:] != MAGIC:
         raise ParquetError("ce n'est pas un fichier Parquet (signature PAR1 absente)")
     footer_size = struct.unpack_from("<I", data, len(data) - 8)[0]

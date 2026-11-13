@@ -10,6 +10,7 @@ from pathlib import Path
 
 from mesures import reference
 from mesures.metriques import Mesures
+from stockage import ObjetAbsent
 
 
 def ligne(nom: str, m: Mesures) -> str:
@@ -31,7 +32,7 @@ def main(argv: list[str] | None = None) -> int:
     rapport: dict = {}
     try:
         ensembles = {nom: reference.charger(nom, arguments.jeu) for nom in noms}
-    except (reference.EnsembleReserve, FileNotFoundError) as erreur:
+    except (reference.EnsembleReserve, FileNotFoundError, ObjetAbsent) as erreur:
         print(f"Échec : {erreur}", file=sys.stderr)
         return 1
     if len(ensembles) > 1:
