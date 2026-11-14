@@ -20,6 +20,7 @@ Le jeu d'entraînement de la détection de congestion vient du simulateur, pas d
 |---|---|
 | Fiche de provenance (origine, licence, couverture, variables, qualité, limites, empreintes SHA-256) | [`novaria-congestion-v1/PROVENANCE.md`](novaria-congestion-v1/PROVENANCE.md) |
 | Manifeste (empreintes, runs, colonnes, mesures de qualité) | [`novaria-congestion-v1/manifest.json`](novaria-congestion-v1/manifest.json) |
+| Stockage | écrit et relu par le port `ObjectStore` ([stockage d'objets](../../docs/03-donnees/stockage-objets.md)) : reconstruire à l'identique est sans effet, un autre contenu est refusé |
 | Construire | `python3 ml/src/construire_jeu.py` (Linux) · `py -3 ml/src/construire_jeu.py` (Windows) · `make dataset-build` |
 | Tester | `python3 -m unittest discover -s ml/tests -t ml` (Linux) · `py -3 -m unittest discover -s ml\tests -t ml` (Windows) |
 

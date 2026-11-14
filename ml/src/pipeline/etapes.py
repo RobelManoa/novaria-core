@@ -13,7 +13,7 @@ from preparation import donnees
 from registre import format_lineaire
 from registre.registre import Registre, RegistreErreur
 from registre.runs import RunDejaEnregistre, RunStore
-from registre.stockage import ObjectStore, sha256
+from stockage import ObjectStore, sha256
 
 
 def configuration_figee() -> tuple[dict, dict, str]:

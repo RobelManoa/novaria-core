@@ -11,7 +11,8 @@ from tests import support  # noqa: F401 : chemins d'import
 
 from jeu_entrainement import integrite
 from jeu_entrainement.__main__ import main
-from jeu_entrainement.construire import SORTIE_PAR_DEFAUT, empreinte_du_jeu, sha256
+from jeu_entrainement.construire import SORTIE_PAR_DEFAUT, empreinte_du_jeu
+from stockage import sha256
 
 
 def fabriquer(dossier: Path) -> dict:
@@ -19,7 +20,7 @@ def fabriquer(dossier: Path) -> dict:
     fichiers = {}
     for nom, octets in (("train.parquet", b"PAR1 entrainement PAR1"), ("test.parquet", b"PAR1 test PAR1")):
         (dossier / nom).write_bytes(octets)
-        fichiers[nom] = {"octets": len(octets), "sha256": sha256(dossier / nom)}
+        fichiers[nom] = {"octets": len(octets), "sha256": sha256(octets)}
     manifeste = {"dataset_id": "jeu-d-essai", "fichiers": fichiers, "empreinte_du_jeu": empreinte_du_jeu(fichiers)}
     (dossier / "manifest.json").write_text(json.dumps(manifeste), encoding="utf-8")
     return manifeste
@@ -64,12 +65,20 @@ class Integrite(unittest.TestCase):
     def test_un_manifeste_reecrit_avec_les_fichiers_est_vu_par_l_empreinte_attendue(self):
         ancienne = self.manifeste["empreinte_du_jeu"]
         (self.dossier / "train.parquet").write_bytes(b"PAR1 donnees empoisonnees PAR1")
-        fabriquer_apres = {"octets": (self.dossier / "train.parquet").stat().st_size, "sha256": sha256(self.dossier / "train.parquet")}
+        fabriquer_apres = {"octets": (self.dossier / "train.parquet").stat().st_size, "sha256": sha256((self.dossier / "train.parquet").read_bytes())}
         self.manifeste["fichiers"]["train.parquet"] = fabriquer_apres
         self.manifeste["empreinte_du_jeu"] = empreinte_du_jeu(self.manifeste["fichiers"])
         (self.dossier / "manifest.json").write_text(json.dumps(self.manifeste), encoding="utf-8")
         self.assertEqual(integrite.verifier(self.dossier), [], "cohérent en lui-même : seul l'empreinte citée ailleurs le trahit")
         self.assertIn("différente de l'empreinte attendue", integrite.verifier(self.dossier, ancienne)[0])
+
+    def test_un_nom_de_fichier_hors_regle_est_un_ecart_pas_une_exception(self):
+        self.manifeste["fichiers"]["../evade.parquet"] = {"octets": 1, "sha256": "0" * 64}
+        self.manifeste["empreinte_du_jeu"] = empreinte_du_jeu(self.manifeste["fichiers"])
+        (self.dossier / "manifest.json").write_text(json.dumps(self.manifeste), encoding="utf-8")
+        ecarts = integrite.verifier(self.dossier)
+        self.assertEqual(len(ecarts), 1)
+        self.assertIn("../evade.parquet : illisible", ecarts[0])
 
     def test_manifeste_absent_ou_illisible(self):
         (self.dossier / "manifest.json").write_text("pas du json", encoding="utf-8")

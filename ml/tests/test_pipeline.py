@@ -33,7 +33,7 @@ from pipeline import __main__ as cli
 from pipeline import controles, decision, etapes
 from preparation import donnees
 from registre.runs import FichierRunStore, MemoireRunStore
-from registre.stockage import StockageLocal, sha256
+from stockage import StockageLocal, sha256
 
 try:
     import sklearn  # noqa: F401
@@ -681,6 +681,14 @@ class TestLigneDeCommande(unittest.TestCase):
                 mock.patch.object(cli.MongoRunStore, "depuis_l_adresse", return_value=MemoireRunStore()) as fabrique:
             runs, _ = cli.magasins()
         fabrique.assert_called_once_with("mongodb://x")
+
+    def test_un_adaptateur_de_stockage_inconnu_est_une_erreur_de_configuration(self):
+        erreur = StringIO()
+        with mock.patch.dict(os.environ, {"STORAGE_BACKEND": "s3"}), redirect_stderr(erreur):
+            os.environ.pop("MONGO_URL", None)
+            code = cli.main(["evaluer"])  # `magasins` n'est pas remplacé : c'est lui qu'on essaie
+        self.assertEqual(code, 2)
+        self.assertIn("S3 est documenté, non exécuté", erreur.getvalue())
 
     def test_la_connexion_est_fermee(self):
         runs = mock.Mock()

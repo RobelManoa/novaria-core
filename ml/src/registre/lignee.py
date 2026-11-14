@@ -15,7 +15,7 @@ from jeu_entrainement.simulation import RACINE
 from registre import documents
 from registre.format_lineaire import NOM as FORMAT
 from registre.registre import POINTEUR, cle_du_manifeste, cle_du_modele
-from registre.stockage import ObjectStore, StockageErreur, sha256
+from stockage import ObjectStore, StockageErreur, sha256
 
 
 @dataclass

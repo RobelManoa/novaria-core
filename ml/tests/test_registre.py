@@ -29,7 +29,7 @@ from registre import documents, format_lineaire, importer_ia03, lignee, service
 from registre import __main__ as cli
 from registre.registre import POINTEUR, Registre, RegistreErreur, cle_du_manifeste, cle_du_modele
 from registre.runs import FichierRunStore, MemoireRunStore, MongoRunStore, RunDejaEnregistre
-from registre.stockage import ObjetAbsent, ObjetDejaEcrit, StockageErreur, StockageLocal, sha256
+from stockage import ObjetAbsent, ObjetDejaEcrit, StockageErreur, StockageLocal, sha256
 
 try:
     import sklearn  # noqa: F401
@@ -152,8 +152,10 @@ class TestStockage(TempTestCase):
     def test_objet_absent_et_trop_gros(self):
         with self.assertRaises(ObjetAbsent):
             self.magasin.get("run-9/modele.json")
-        with mock.patch("registre.stockage.TAILLE_MAX", 4), self.assertRaises(StockageErreur):
-            self.magasin.put("run-1/gros.json", b"12345")
+        petit = StockageLocal(self.dossier / "petit", taille_max=4)
+        with self.assertRaises(StockageErreur):
+            petit.put("run-1/gros.json", b"12345")
+        petit.put("run-1/ok.json", b"1234")
 
     def test_aucun_fichier_temporaire_ne_reste(self):
         self.magasin.put("run-1/modele.json", b"abc")

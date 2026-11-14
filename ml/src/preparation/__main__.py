@@ -10,6 +10,7 @@ from pathlib import Path
 
 from jeu_entrainement import catalogue, integrite
 from preparation import controles, decoupage, donnees, variables
+from stockage import ObjetAbsent
 
 
 def verifier(dossier: Path) -> dict[str, list[str]]:
@@ -44,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     try:
         rapport = verifier(arguments.jeu)
-    except FileNotFoundError as erreur:
+    except (FileNotFoundError, ObjetAbsent) as erreur:
         print(f"Échec : {erreur} (construire le jeu : python3 ml/src/construire_jeu.py)", file=sys.stderr)
         return 1
     empreinte = decoupage.empreinte_du_decoupage()

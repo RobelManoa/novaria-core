@@ -212,7 +212,7 @@ class TestSurLeJeu(unittest.TestCase):
         self.assertIn("f1_macro", rapport["train"]["regle"])
 
     def test_les_classes_du_jeu_sont_celles_de_la_mesure(self):
-        _, lignes = parquet.lire(reference.DOSSIER_JEU / "validation.parquet")
+        _, lignes = parquet.decoder((reference.DOSSIER_JEU / "validation.parquet").read_bytes())
         self.assertEqual({ligne[-3] for ligne in lignes}, set(m.ETATS))
 
 
