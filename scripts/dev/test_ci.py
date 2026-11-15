@@ -28,7 +28,7 @@ except ImportError:  # pragma: no cover - dépend du poste
 RACINE = Path(__file__).resolve().parents[2]
 CI = RACINE / ".github" / "workflows" / "ci.yml"
 OBLIGATOIRES = {"backend", "frontend", "gitleaks", "snyk", "docker", "sonarqube"}
-JOBS_D_APPUI = {"services", "service", "etl"}  # découverte, matrice et tests de data/etl : ce ne sont pas des contrôles obligatoires
+JOBS_D_APPUI = {"services", "service", "etl", "bigdata"}  # découverte, matrice, tests de data/etl et du prototype data/bigdata : pas des contrôles obligatoires
 BASH = shutil.which("bash")
 JQ = shutil.which("jq")
 
@@ -229,7 +229,7 @@ class SonarRecoitLaCouvertureDeTousLesServices(unittest.TestCase):
         cls.doc = charger()
 
     def test_sonarqube_attend_backend_frontend_et_etl(self):
-        self.assertEqual(sorted(self.doc["jobs"]["sonarqube"]["needs"]), ["backend", "etl", "frontend"])
+        self.assertEqual(sorted(self.doc["jobs"]["sonarqube"]["needs"]), ["backend", "bigdata", "etl", "frontend"])
 
     def test_le_job_etl_mesure_la_couverture_de_data_etl_et_la_depose(self):
         job = self.doc["jobs"]["etl"]

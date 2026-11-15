@@ -962,6 +962,34 @@ def cmd_terraform_check(args: argparse.Namespace) -> int:
     return code
 
 
+# --------------------------------------------------------------------------- prototype Big Data (DAT-08)
+def cmd_bigdata_build(_: argparse.Namespace) -> int:
+    """Construit l'image du prototype Big Data (PySpark en mode local, Java 21) ; la première fois, plusieurs minutes."""
+    import bigdata_docker
+
+    require_docker()
+    return subprocess.run(bigdata_docker.commande_de_construction(ROOT), check=False).returncode
+
+
+def cmd_bigdata(args: argparse.Namespace) -> int:
+    """Lance le prototype dans son image : generer, nettoyer, verifier ou mesurer (voir data/bigdata/README.md)."""
+    import bigdata_docker
+
+    require_docker()
+    arguments = [mot for mot in args.arguments if mot != "--"]
+    if not arguments:
+        raise DevError("Indiquer la commande du prototype, par exemple :  dev.py bigdata generer --jours 30")
+    return subprocess.run(bigdata_docker.commande_de_lancement(ROOT, arguments, args.cpus, args.memoire), check=False).returncode
+
+
+def cmd_bigdata_test(args: argparse.Namespace) -> int:
+    """Lance les tests du prototype dans son image (PySpark et Java y sont : aucun test n'est ignoré)."""
+    import bigdata_docker
+
+    require_docker()
+    return subprocess.run(bigdata_docker.commande_de_test(ROOT, args.cpus, args.memoire), check=False).returncode
+
+
 # --------------------------------------------------------------------------- tableau de bord en local (FE-04)
 FRONTEND_DIR = ROOT / "frontend"
 API_PORT = 8000  # cible du proxy de Vite (frontend/vite.config.ts)
@@ -1342,6 +1370,14 @@ def build_parser() -> argparse.ArgumentParser:
     tf.add_argument("--sans-snyk", action="store_true", help="écarte l'analyse Snyk IaC (le résultat reste « incomplet » dans le compte rendu de l'issue)")
     tf.add_argument("--lock", action="store_true", help="régénère .terraform.lock.hcl (réseau nécessaire) au lieu de contrôler")
     tf.add_argument("--verbose", action="store_true", help="montre la sortie de chaque outil, pas seulement celle des échecs")
+    bd = add("bigdata-build", cmd_bigdata_build, "construit l'image du prototype Big Data, PySpark local (DAT-08, Docker)")
+    bd = add("bigdata", cmd_bigdata, "lance le prototype Big Data dans son image : generer, nettoyer, verifier, mesurer (Docker)")
+    bd.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
+    bd.add_argument("--memoire", default="6g", help="mémoire allouée au conteneur (6g par défaut)")
+    bd.add_argument("arguments", nargs=argparse.REMAINDER, help="arguments de « python -m bigdata », après -- (par exemple -- mesurer --jours 7)")
+    bdt = add("bigdata-test", cmd_bigdata_test, "tests du prototype Big Data dans son image (Docker)")
+    bdt.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
+    bdt.add_argument("--memoire", default="6g", help="mémoire allouée au conteneur (6g par défaut)")
     add("ps", cmd_ps, "état des conteneurs")
     logs = add("logs", cmd_logs, "suit les journaux")
     logs.add_argument("services", nargs="*", help="services (tous par défaut)")

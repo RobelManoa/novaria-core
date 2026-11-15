@@ -44,7 +44,7 @@ Plusieurs ADR (Architecture Decision Record, enregistrement de décision d'archi
 | S3 (Simple Storage Service) | Jeux de données, modèles, sauvegardes | Dossier `var/` (volume), `backups/` | Port `ObjectStore` : `STORAGE_BACKEND=local` |
 | MSK (Managed Streaming for Apache Kafka) | Bus d'événements | Kafka en mode KRaft dans Docker Compose (LOC-04) | `KAFKA_BOOTSTRAP_SERVERS` |
 | Service géré Flink | Fenêtres temps réel | Flink dans Docker Compose, ou consommateur Python en repli ([ADR-011](ADR-011-temps-reel-et-batch.md)) | Même code de fenêtre |
-| EMR (Elastic MapReduce) | Prototype Big Data | PySpark en mode local (DAT-08) | Même programme, maître `local[*]` |
+| EMR (Elastic MapReduce) | Prototype Big Data | PySpark en mode local, dans un conteneur (DAT-08, [rapport](../../03-donnees/prototype-bigdata.md)) | Même programme ; le maître est fixé à `local[N]` dans `ouvrir_session` : sur EMR, la plateforme le fixe (adaptation non écrite) |
 | Glue | Catalogue et ETL (Extract, Transform, Load) | Scripts Python d'ETL, catalogue = [dictionnaire de données](../../03-donnees/dictionnaire-de-donnees.md) | Documenté ; Glue non exécuté |
 | SageMaker | Entraînement et service de modèles | Entraînement local (scikit-learn), registre dans MongoDB `model_runs` ([ADR-017](ADR-017-mlops-mlsecops.md)) | Même script d'entraînement |
 | CloudWatch | Journaux, métriques, alarmes | Journaux JSON (JavaScript Object Notation) sur la sortie standard, point `/metrics` des services (MS-16) | Format de journal identique |
