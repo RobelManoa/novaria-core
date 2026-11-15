@@ -88,7 +88,7 @@ kafka-roundtrip: ## Publie mesure-valide.json sur iot.raw, le relit et le valide
 	$(DEV) kafka-roundtrip
 
 test:          ## Tests des services + frontend + scripts du poste
-	@for d in services/*/; do (cd $$d && python -m pytest) || exit 1; done
+	@for d in services/*/; do (cd $$d && $(abspath $(PY_API)) -m pytest) || exit 1; done
 	cd frontend && npm test
 	$(PY) -m unittest discover -s scripts/dev
 	$(PY) -m unittest discover -s data/etl/tests
