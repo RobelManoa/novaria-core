@@ -22,6 +22,8 @@ from tests.contract.test_errors_contract import IMPLEMENTED, USERS, assert_probl
 from tests.openapi_checks import API, TRAITEMENT, load
 
 TOOLING = {"/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
+# Points d'exploitation : hors de `/api/v1`, hors du contrat OpenAPI (IA-06, ADR-025).
+OPERATIONS = {"/metrics"}
 NOT_FOUND = {"NOT_FOUND"}
 
 
@@ -35,10 +37,11 @@ def test_the_policy_publishes_a_single_version_for_now():
 
 
 def test_every_router_is_included_under_the_version_prefix():
-    """Les routeurs sont inclus avec `API_PREFIX` ; seules les pages de documentation échappent."""
+    """Les routeurs sont inclus avec `API_PREFIX` ; échappent seulement les pages de documentation
+    et `/metrics`, point d'exploitation hors du contrat (IA-06)."""
     plain = {route.path for route in app.routes if hasattr(route, "path")}
     included = [route for route in app.routes if not hasattr(route, "path")]
-    assert plain == TOOLING
+    assert plain == TOOLING | OPERATIONS
     assert len(included) >= 4, "santé, authentification, comptes, indicateurs"
     assert {route.include_context.prefix for route in included} == {API_PREFIX}
 

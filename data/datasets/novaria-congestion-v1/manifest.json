@@ -1,0 +1,700 @@
+{
+  "colonnes": [
+    {
+      "facultative": false,
+      "nom": "run_id",
+      "type": "string"
+    },
+    {
+      "facultative": false,
+      "nom": "scenario_id",
+      "type": "string"
+    },
+    {
+      "facultative": false,
+      "nom": "seed",
+      "type": "int64"
+    },
+    {
+      "facultative": false,
+      "nom": "road_segment_id",
+      "type": "string"
+    },
+    {
+      "facultative": false,
+      "nom": "window_start",
+      "type": "timestamp"
+    },
+    {
+      "facultative": false,
+      "nom": "vehicle_count",
+      "type": "int32"
+    },
+    {
+      "facultative": false,
+      "nom": "flow_veh_per_min",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "average_speed_kmh",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "occupancy_rate",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "max_queue_length_m",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "speed_ratio",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "speed_ratio_lag1",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "speed_ratio_lag2",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "speed_ratio_lag3",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "speed_ratio_lag4",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "speed_ratio_lag5",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "flow_lag1",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "flow_lag2",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "flow_lag3",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "flow_lag4",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "flow_lag5",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "speed_ratio_ma5",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "speed_ratio_ma15",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "flow_ma5",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "flow_ma15",
+      "type": "double"
+    },
+    {
+      "facultative": false,
+      "nom": "hour_of_day",
+      "type": "int32"
+    },
+    {
+      "facultative": false,
+      "nom": "iso_day_of_week",
+      "type": "int32"
+    },
+    {
+      "facultative": false,
+      "nom": "is_weekend",
+      "type": "bool"
+    },
+    {
+      "facultative": false,
+      "nom": "is_holiday",
+      "type": "bool"
+    },
+    {
+      "facultative": false,
+      "nom": "lane_count",
+      "type": "int32"
+    },
+    {
+      "facultative": false,
+      "nom": "length_m",
+      "type": "int32"
+    },
+    {
+      "facultative": false,
+      "nom": "free_flow_speed_kmh",
+      "type": "double"
+    },
+    {
+      "facultative": false,
+      "nom": "road_type",
+      "type": "string"
+    },
+    {
+      "facultative": false,
+      "nom": "label_state",
+      "type": "string"
+    },
+    {
+      "facultative": true,
+      "nom": "speed_ratio_h5",
+      "type": "double"
+    },
+    {
+      "facultative": true,
+      "nom": "speed_ratio_h15",
+      "type": "double"
+    }
+  ],
+  "dataset_id": "novaria-congestion-v1",
+  "empreinte_du_jeu": "5fc6f1832bd9f02dcf86de0e56dfbafb0854b57041819e6452820325c195c19e",
+  "fichiers": {
+    "test.parquet": {
+      "ensemble": "test",
+      "etats": {
+        "CONGESTED": 745,
+        "FREE_FLOW": 17925,
+        "SLOW": 1490
+      },
+      "lignes": 20160,
+      "octets": 5686929,
+      "runs": [
+        "ds1-calme-s14",
+        "ds1-pointe-s24",
+        "ds1-incident-s34"
+      ],
+      "sha256": "3a8fc3073a8b0795b542a7bf220686a2689eaf8e9dcb7625f4df8b9a5d75ac6a",
+      "valeurs_absentes": {
+        "average_speed_kmh": 761,
+        "flow_lag1": 72,
+        "flow_lag2": 144,
+        "flow_lag3": 216,
+        "flow_lag4": 288,
+        "flow_lag5": 360,
+        "flow_ma15": 72,
+        "flow_ma5": 72,
+        "max_queue_length_m": 47,
+        "occupancy_rate": 47,
+        "speed_ratio": 761,
+        "speed_ratio_h15": 1821,
+        "speed_ratio_h5": 1108,
+        "speed_ratio_lag1": 826,
+        "speed_ratio_lag2": 895,
+        "speed_ratio_lag3": 965,
+        "speed_ratio_lag4": 1032,
+        "speed_ratio_lag5": 1099,
+        "speed_ratio_ma15": 85,
+        "speed_ratio_ma5": 110
+      }
+    },
+    "train.parquet": {
+      "ensemble": "train",
+      "etats": {
+        "CONGESTED": 1490,
+        "FREE_FLOW": 35850,
+        "SLOW": 2980
+      },
+      "lignes": 40320,
+      "octets": 11371476,
+      "runs": [
+        "ds1-calme-s11",
+        "ds1-calme-s12",
+        "ds1-pointe-s21",
+        "ds1-pointe-s22",
+        "ds1-incident-s31",
+        "ds1-incident-s32"
+      ],
+      "sha256": "2499018d62ab37111049ec20e2072a54fee431911751393b19a0e14b00ed78c6",
+      "valeurs_absentes": {
+        "average_speed_kmh": 1555,
+        "flow_lag1": 144,
+        "flow_lag2": 288,
+        "flow_lag3": 432,
+        "flow_lag4": 576,
+        "flow_lag5": 720,
+        "flow_ma15": 144,
+        "flow_ma5": 144,
+        "max_queue_length_m": 57,
+        "occupancy_rate": 57,
+        "speed_ratio": 1555,
+        "speed_ratio_h15": 3667,
+        "speed_ratio_h5": 2258,
+        "speed_ratio_lag1": 1687,
+        "speed_ratio_lag2": 1824,
+        "speed_ratio_lag3": 1964,
+        "speed_ratio_lag4": 2101,
+        "speed_ratio_lag5": 2243,
+        "speed_ratio_ma15": 164,
+        "speed_ratio_ma5": 190
+      }
+    },
+    "validation.parquet": {
+      "ensemble": "validation",
+      "etats": {
+        "CONGESTED": 745,
+        "FREE_FLOW": 17925,
+        "SLOW": 1490
+      },
+      "lignes": 20160,
+      "octets": 5687250,
+      "runs": [
+        "ds1-calme-s13",
+        "ds1-pointe-s23",
+        "ds1-incident-s33"
+      ],
+      "sha256": "68453e870964ee3272ed8949bc6f7afeb79b7c1b9ffec9f5213e887c2fb538fd",
+      "valeurs_absentes": {
+        "average_speed_kmh": 770,
+        "flow_lag1": 72,
+        "flow_lag2": 144,
+        "flow_lag3": 216,
+        "flow_lag4": 288,
+        "flow_lag5": 360,
+        "flow_ma15": 72,
+        "flow_ma5": 72,
+        "max_queue_length_m": 33,
+        "occupancy_rate": 33,
+        "speed_ratio": 770,
+        "speed_ratio_h15": 1831,
+        "speed_ratio_h5": 1123,
+        "speed_ratio_lag1": 840,
+        "speed_ratio_lag2": 911,
+        "speed_ratio_lag3": 980,
+        "speed_ratio_lag4": 1045,
+        "speed_ratio_lag5": 1114,
+        "speed_ratio_ma15": 80,
+        "speed_ratio_ma5": 100
+      }
+    }
+  },
+  "origine": {
+    "format": "Parquet, colonnes PLAIN, sans compression, écrit par ml/src/jeu_entrainement/parquet.py",
+    "generateur": "simulator/novaria_sim",
+    "moteur_de_fenetres": "services/traitement/app/flux/windows.py",
+    "source_type": "SIMULATED",
+    "version_du_constructeur": "1.0.0",
+    "version_du_generateur": "1.0.0"
+  },
+  "runs": [
+    {
+      "anomalies": [],
+      "capteur_muet_intervalles": 0,
+      "debut": "2026-10-20T08:00:00Z",
+      "duree_s": 21600,
+      "ensemble": "train",
+      "etats": {
+        "FREE_FLOW": 8640
+      },
+      "lignes": 8640,
+      "messages_livres": 51840,
+      "moteur": {
+        "accepted": 51840,
+        "duplicates": 0,
+        "empty_windows": 0,
+        "excluded": 0,
+        "late": 0
+      },
+      "note": "sans anomalie",
+      "qualite": {
+        "etats_melanges": 0,
+        "fenetres": 8640,
+        "fenetres_incompletes": 0,
+        "fenetres_vides": 0
+      },
+      "run_id": "ds1-calme-s11",
+      "scenario_id": "journee-calme",
+      "seed": 11
+    },
+    {
+      "anomalies": [
+        "muet:sensor=SENSOR_003,at=+3600,duration=10m"
+      ],
+      "capteur_muet_intervalles": 60,
+      "debut": "2026-10-20T08:00:00Z",
+      "duree_s": 21600,
+      "ensemble": "train",
+      "etats": {
+        "FREE_FLOW": 8640
+      },
+      "lignes": 8640,
+      "messages_livres": 51780,
+      "moteur": {
+        "accepted": 51780,
+        "duplicates": 0,
+        "empty_windows": 10,
+        "excluded": 0,
+        "late": 0
+      },
+      "note": "capteur muet pendant 10 minutes",
+      "qualite": {
+        "etats_melanges": 0,
+        "fenetres": 8640,
+        "fenetres_incompletes": 2,
+        "fenetres_vides": 9
+      },
+      "run_id": "ds1-calme-s12",
+      "scenario_id": "journee-calme",
+      "seed": 12
+    },
+    {
+      "anomalies": [
+        "retard:sensor=SENSOR_010,at=+1800,duration=20m,delay=120"
+      ],
+      "capteur_muet_intervalles": 0,
+      "debut": "2026-10-20T08:00:00Z",
+      "duree_s": 21600,
+      "ensemble": "validation",
+      "etats": {
+        "FREE_FLOW": 8640
+      },
+      "lignes": 8640,
+      "messages_livres": 51840,
+      "moteur": {
+        "accepted": 51720,
+        "duplicates": 0,
+        "empty_windows": 22,
+        "excluded": 0,
+        "late": 120
+      },
+      "note": "messages en retard de 2 minutes (refusés par le traitement)",
+      "qualite": {
+        "etats_melanges": 0,
+        "fenetres": 8640,
+        "fenetres_incompletes": 2,
+        "fenetres_vides": 19
+      },
+      "run_id": "ds1-calme-s13",
+      "scenario_id": "journee-calme",
+      "seed": 13
+    },
+    {
+      "anomalies": [
+        "doublon:sensor=SENSOR_001,at=+1200,duration=30m,copies=2,lag=3"
+      ],
+      "capteur_muet_intervalles": 0,
+      "debut": "2026-10-20T08:00:00Z",
+      "duree_s": 21600,
+      "ensemble": "test",
+      "etats": {
+        "FREE_FLOW": 8640
+      },
+      "lignes": 8640,
+      "messages_livres": 52200,
+      "moteur": {
+        "accepted": 51840,
+        "duplicates": 360,
+        "empty_windows": 0,
+        "excluded": 0,
+        "late": 0
+      },
+      "note": "messages reçus trois fois",
+      "qualite": {
+        "etats_melanges": 0,
+        "fenetres": 8640,
+        "fenetres_incompletes": 0,
+        "fenetres_vides": 0
+      },
+      "run_id": "ds1-calme-s14",
+      "scenario_id": "journee-calme",
+      "seed": 14
+    },
+    {
+      "anomalies": [],
+      "capteur_muet_intervalles": 0,
+      "debut": "2026-10-20T06:00:00Z",
+      "duree_s": 18000,
+      "ensemble": "train",
+      "etats": {
+        "CONGESTED": 720,
+        "FREE_FLOW": 5080,
+        "SLOW": 1400
+      },
+      "lignes": 7200,
+      "messages_livres": 43200,
+      "moteur": {
+        "accepted": 43200,
+        "duplicates": 0,
+        "empty_windows": 0,
+        "excluded": 0,
+        "late": 0
+      },
+      "note": "sans anomalie",
+      "qualite": {
+        "etats_melanges": 56,
+        "fenetres": 7200,
+        "fenetres_incompletes": 0,
+        "fenetres_vides": 0
+      },
+      "run_id": "ds1-pointe-s21",
+      "scenario_id": "heure-de-pointe",
+      "seed": 21
+    },
+    {
+      "anomalies": [
+        "retard:sensor=SENSOR_002,at=+5400,duration=30m,delay=120",
+        "doublon:sensor=SENSOR_004,at=+5400,duration=30m,copies=1,lag=2"
+      ],
+      "capteur_muet_intervalles": 0,
+      "debut": "2026-10-20T06:00:00Z",
+      "duree_s": 18000,
+      "ensemble": "train",
+      "etats": {
+        "CONGESTED": 720,
+        "FREE_FLOW": 5080,
+        "SLOW": 1400
+      },
+      "lignes": 7200,
+      "messages_livres": 43380,
+      "moteur": {
+        "accepted": 43020,
+        "duplicates": 180,
+        "empty_windows": 34,
+        "excluded": 0,
+        "late": 180
+      },
+      "note": "retards et doublons pendant la montée",
+      "qualite": {
+        "etats_melanges": 56,
+        "fenetres": 7200,
+        "fenetres_incompletes": 2,
+        "fenetres_vides": 29
+      },
+      "run_id": "ds1-pointe-s22",
+      "scenario_id": "heure-de-pointe",
+      "seed": 22
+    },
+    {
+      "anomalies": [
+        "muet:sensor=SENSOR_001,at=+6000,duration=15m"
+      ],
+      "capteur_muet_intervalles": 90,
+      "debut": "2026-10-20T06:00:00Z",
+      "duree_s": 18000,
+      "ensemble": "validation",
+      "etats": {
+        "CONGESTED": 720,
+        "FREE_FLOW": 5080,
+        "SLOW": 1400
+      },
+      "lignes": 7200,
+      "messages_livres": 43110,
+      "moteur": {
+        "accepted": 43110,
+        "duplicates": 0,
+        "empty_windows": 16,
+        "excluded": 0,
+        "late": 0
+      },
+      "note": "capteur muet pendant la saturation",
+      "qualite": {
+        "etats_melanges": 56,
+        "fenetres": 7200,
+        "fenetres_incompletes": 2,
+        "fenetres_vides": 14
+      },
+      "run_id": "ds1-pointe-s23",
+      "scenario_id": "heure-de-pointe",
+      "seed": 23
+    },
+    {
+      "anomalies": [
+        "retard:sensor=SENSOR_002,at=+6600,duration=20m,delay=120",
+        "muet:sensor=SENSOR_004,at=+7200,duration=10m"
+      ],
+      "capteur_muet_intervalles": 60,
+      "debut": "2026-10-20T06:00:00Z",
+      "duree_s": 18000,
+      "ensemble": "test",
+      "etats": {
+        "CONGESTED": 720,
+        "FREE_FLOW": 5080,
+        "SLOW": 1400
+      },
+      "lignes": 7200,
+      "messages_livres": 43140,
+      "moteur": {
+        "accepted": 43020,
+        "duplicates": 0,
+        "empty_windows": 32,
+        "excluded": 0,
+        "late": 120
+      },
+      "note": "retards puis capteur muet",
+      "qualite": {
+        "etats_melanges": 56,
+        "fenetres": 7200,
+        "fenetres_incompletes": 4,
+        "fenetres_vides": 28
+      },
+      "run_id": "ds1-pointe-s24",
+      "scenario_id": "heure-de-pointe",
+      "seed": 24
+    },
+    {
+      "anomalies": [],
+      "capteur_muet_intervalles": 0,
+      "debut": "2026-10-20T07:30:00Z",
+      "duree_s": 10800,
+      "ensemble": "train",
+      "etats": {
+        "CONGESTED": 25,
+        "FREE_FLOW": 4205,
+        "SLOW": 90
+      },
+      "lignes": 4320,
+      "messages_livres": 25920,
+      "moteur": {
+        "accepted": 25920,
+        "duplicates": 0,
+        "empty_windows": 0,
+        "excluded": 0,
+        "late": 0
+      },
+      "note": "sans anomalie",
+      "qualite": {
+        "etats_melanges": 9,
+        "fenetres": 4320,
+        "fenetres_incompletes": 0,
+        "fenetres_vides": 0
+      },
+      "run_id": "ds1-incident-s31",
+      "scenario_id": "incident-ponctuel",
+      "seed": 31
+    },
+    {
+      "anomalies": [
+        "muet:sensor=SENSOR_005,at=+2400,duration=20m"
+      ],
+      "capteur_muet_intervalles": 120,
+      "debut": "2026-10-20T07:30:00Z",
+      "duree_s": 10800,
+      "ensemble": "train",
+      "etats": {
+        "CONGESTED": 25,
+        "FREE_FLOW": 4205,
+        "SLOW": 90
+      },
+      "lignes": 4320,
+      "messages_livres": 25800,
+      "moteur": {
+        "accepted": 25800,
+        "duplicates": 0,
+        "empty_windows": 22,
+        "excluded": 0,
+        "late": 0
+      },
+      "note": "le capteur de l'incident se tait pendant l'incident",
+      "qualite": {
+        "etats_melanges": 9,
+        "fenetres": 4320,
+        "fenetres_incompletes": 2,
+        "fenetres_vides": 19
+      },
+      "run_id": "ds1-incident-s32",
+      "scenario_id": "incident-ponctuel",
+      "seed": 32
+    },
+    {
+      "anomalies": [
+        "doublon:sensor=SENSOR_006,at=+2400,duration=20m,copies=2,lag=3"
+      ],
+      "capteur_muet_intervalles": 0,
+      "debut": "2026-10-20T07:30:00Z",
+      "duree_s": 10800,
+      "ensemble": "validation",
+      "etats": {
+        "CONGESTED": 25,
+        "FREE_FLOW": 4205,
+        "SLOW": 90
+      },
+      "lignes": 4320,
+      "messages_livres": 26160,
+      "moteur": {
+        "accepted": 25920,
+        "duplicates": 240,
+        "empty_windows": 0,
+        "excluded": 0,
+        "late": 0
+      },
+      "note": "messages reçus trois fois",
+      "qualite": {
+        "etats_melanges": 9,
+        "fenetres": 4320,
+        "fenetres_incompletes": 0,
+        "fenetres_vides": 0
+      },
+      "run_id": "ds1-incident-s33",
+      "scenario_id": "incident-ponctuel",
+      "seed": 33
+    },
+    {
+      "anomalies": [
+        "retard:sensor=SENSOR_007,at=+2400,duration=20m,delay=120"
+      ],
+      "capteur_muet_intervalles": 0,
+      "debut": "2026-10-20T07:30:00Z",
+      "duree_s": 10800,
+      "ensemble": "test",
+      "etats": {
+        "CONGESTED": 25,
+        "FREE_FLOW": 4205,
+        "SLOW": 90
+      },
+      "lignes": 4320,
+      "messages_livres": 25920,
+      "moteur": {
+        "accepted": 25800,
+        "duplicates": 0,
+        "empty_windows": 22,
+        "excluded": 0,
+        "late": 120
+      },
+      "note": "messages en retard de 2 minutes (refusés par le traitement)",
+      "qualite": {
+        "etats_melanges": 9,
+        "fenetres": 4320,
+        "fenetres_incompletes": 2,
+        "fenetres_vides": 19
+      },
+      "run_id": "ds1-incident-s34",
+      "scenario_id": "incident-ponctuel",
+      "seed": 34
+    }
+  ],
+  "version": 1
+}

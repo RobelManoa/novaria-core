@@ -1,0 +1,43 @@
+Capture de l'alerte locale de dérive (IA-06, #82) : poste Linux de Manoa Robel, 10/11/2026, pile Docker locale.
+Données simulées : référence = journee-calme (run ia06-ref-calme, 2 h, graine 1) ; dérive simulée = heure-de-pointe (run ia06-deriv-pointe, 3 h, graine 42).
+Les deux runs ont traversé collecte, Kafka, traitement en flux et pipeline jusqu'à dwh.fact_traffic_window (17 280 et 25 920 mesures acceptées, 0 rejet).
+
+=== 1. Indicateur : curl http://127.0.0.1:8002/metrics (lignes de métriques, sans commentaires) ===
+novaria_input_drift_psi{feature="speed_ratio"} 0.938910
+novaria_input_drift_psi{feature="flow_veh_per_min"} 4.793956
+novaria_input_drift_psi{feature="occupancy_rate"} 6.001401
+novaria_input_drift_alert 1
+novaria_input_drift_check_ok 1
+novaria_input_drift_status{status="OK"} 0
+novaria_input_drift_status{status="WARN"} 0
+novaria_input_drift_status{status="ALERT"} 1
+novaria_input_drift_status{status="INSUFFICIENT_DATA"} 0
+novaria_input_drift_status{status="NO_REFERENCE"} 0
+novaria_input_drift_status{status="NO_DATA"} 0
+novaria_input_drift_threshold{level="warn"} 0.1
+novaria_input_drift_threshold{level="alert"} 0.25
+novaria_input_drift_runs_info{reference_run_id="ia06-ref-calme",current_run_id="ia06-deriv-pointe"} 1
+novaria_input_drift_checked_timestamp_seconds 1794320307
+
+=== 2. Journal : docker compose logs traitement | grep app.drift (une ligne JSON) ===
+{"ts": "2026-11-10T14:18:26.822Z", "level": "WARNING", "service": "traitement", "logger": "app.drift", "message": "dérive des entrées détectée", "correlation_id": "42efd609-6e1d-4f4e-8377-65ca3e700fe0", "event": "input_drift", "status": "ALERT", "reference_run_id": "ia06-ref-calme", "current_run_id": "ia06-deriv-pointe", "alert_threshold": 0.25, "features": {"occupancy_rate": 6.0014, "flow_veh_per_min": 4.794, "speed_ratio": 0.9389}, "means": {"occupancy_rate": {"reference": 0.0032, "current": 0.0954}, "flow_veh_per_min": {"reference": 0.5285, "current": 8.6394}, "speed_ratio": {"reference": 0.9011, "current": 0.6689}}}
+
+=== 3. Script : python3 scripts/dev/dev.py drift-check --reference-run ia06-ref-calme ===
+Dérive des entrées : ALERT
+  référence : ia06-ref-calme
+  courante  : ia06-deriv-pointe
+  seuils PSI : avertissement 0.1, alerte 0.25
+  speed_ratio        PSI  0.9348  ALERT  moyenne 0.901 -> 0.670  (1058 et 4271 valeurs)
+  flow_veh_per_min   PSI  4.8000  ALERT  moyenne 0.528 -> 8.637  (2880 et 4306 valeurs)
+  occupancy_rate     PSI  6.0068  ALERT  moyenne 0.003 -> 0.095  (2880 et 4306 valeurs)
+code de sortie : 1
+
+=== 4. Témoin : python3 scripts/dev/dev.py drift-check --reference-run ia06-ref-calme --current-run ia06-ref-calme ===
+Dérive des entrées : OK
+  référence : ia06-ref-calme
+  courante  : ia06-ref-calme
+  seuils PSI : avertissement 0.1, alerte 0.25
+  speed_ratio        PSI  0.0000  OK     moyenne 0.901 -> 0.901  (1058 et 1058 valeurs)
+  flow_veh_per_min   PSI  0.0000  OK     moyenne 0.528 -> 0.528  (2880 et 2880 valeurs)
+  occupancy_rate     PSI  0.0000  OK     moyenne 0.003 -> 0.003  (2880 et 2880 valeurs)
+code de sortie : 0

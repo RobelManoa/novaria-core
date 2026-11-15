@@ -112,7 +112,7 @@ Les deux noms sont déduits de [ADR-008](../adr/ADR-008-microservices.md) et de 
 
 | Nom | Responsabilité | Couche | État |
 |---|---|---|---|
-| API de lecture | Sert indicateurs et prévisions en lecture seule | Adaptateur d'entrée | Partiel : les trois routes d'indicateurs existent (BE-04, `app/api/v1/indicators.py`), lues avec un compte en lecture seule (MS-10) ; prévisions planifiées (IA-06) |
+| API de lecture | Sert indicateurs et prévisions en lecture seule | Adaptateur d'entrée | Partiel : les trois routes d'indicateurs existent (BE-04, `app/api/v1/indicators.py`), lues avec un compte en lecture seule (MS-10) ; la route de prévisions est servie par une référence par persistance depuis le 10/11/2026 (IA-06, première tranche : [API des prévisions](../03-donnees/api-previsions.md)), le modèle entraîné reste à faire |
 | Consommateur de mesures | Lit `iot.raw` | Adaptateur d'entrée | Existe (MS-09) : `app/flux/adapters/kafka_io.py` |
 | Cas d'usage de traitement | Orchestre nettoyage, agrégation, recommandation | Application | Planifié |
 | Nettoyage et qualité | Types, bornes, doublons, rejets avec motif | Domaine | Planifié (DAT-04) |

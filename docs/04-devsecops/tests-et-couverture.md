@@ -99,6 +99,7 @@ Résumé par ensemble (barrière de 70 % atteinte partout) :
 | `services/collecte`, `alerte`, `reponse` | 139 réussis chacun | 335 | 42 | 100 % | `pytest` |
 | `services/_gabarit` | 138 réussis, 1 ignoré | 335 | 42 | 100 % | `pytest` |
 | `data/etl` | 189 réussis, 3 ignorés | 1 174 | 234 | 96 % | `coverage run` |
+| `ml` (état de `dev-ia` au 12/11/2026, comme la CI : Python 3.12, sans scikit-learn, **sans le jeu v1** qui n'est pas dans Git) | 173 réussis, 25 ignorés | 1 225 | 400 | 84 % | `coverage run` (job `ml`) |
 
 La seule branche partielle restante, `app/repositories/audit.py` 39→exit, est la sortie d'une boucle de deux essais dont la seconde lève toujours : elle ne peut pas être atteinte.
 
@@ -110,7 +111,8 @@ Ce que l'intégration ajoute à la couverture sans base : 8 instructions de `mig
 |---|---|---|
 | `pyproject.toml` de chaque service et du gabarit | `[tool.coverage.report] fail_under = 70` et `[tool.coverage.run] branch = true` | `pytest` échoue sous 70 % ; le job `service` de la CI, donc le contrôle obligatoire `backend`, échoue avec lui |
 | `data/etl/pyproject.toml` | Idem | `coverage xml` échoue sous 70 % ; le job `etl` de la CI échoue |
-| SonarQube Cloud (`sonar-project.properties`) | `sonar.qualitygate.wait=true` ; lit `services/*/coverage.xml` et `data/etl/coverage.xml` | Le Quality Gate de SonarQube décide de la fusion (contrôle obligatoire `sonarqube`) |
+| `ml/pyproject.toml` | `[tool.coverage.report] fail_under = 80` et `branch = true` ; les points d'entrée `ml/src/*.py` sont omis | `coverage xml` échoue sous 80 % ; le job `ml` de la CI échoue |
+| SonarQube Cloud (`sonar-project.properties`) | `sonar.qualitygate.wait=true` ; lit `services/*/coverage.xml`, `data/etl/coverage.xml` et `ml/coverage.xml` | Le Quality Gate de SonarQube décide de la fusion (contrôle obligatoire `sonarqube`) |
 
 Preuve que la barrière est active : `pytest tests/unit/test_health.py` dans `services/collecte` (couverture 27 %) répond `FAIL Required test coverage of 70.0% not reached. Total coverage: 27.06%` et sort avec le code 1. Pour l'ETL, `coverage xml` après un seul fichier de tests répond `Coverage failure: total of 0 is less than fail-under=70` (code 2) ; après la suite complète, code 0.
 
@@ -163,3 +165,22 @@ Une version très proche de ce job (chemin de cache différent) a passé `action
 | Intégration de Kafka | Hors périmètre de BE-07 (PostgreSQL et MongoDB) ; `dev.py kafka-roundtrip` existe |
 | Port libre | Le port est choisi libre puis rendu au système avant le démarrage du conteneur : un autre programme peut le prendre entre-temps (très rare) ; relancer la commande |
 | Sous-ensemble de tests | Échoue sur la barrière sans `--no-cov` |
+
+## 8. Le job `ml` de la CI (IA-03, proposition à approuver)
+
+Le Quality Gate de SonarQube exige 80 % de couverture sur le code nouveau. `ml/` (jeu d'entraînement, préparation, mesures, entraînement) n'envoyait aucun rapport : ses pull requests recevaient 0 % et le contrôle `sonarqube` échouait (constaté sur les pull requests 235 et 236, qui contenaient du code de `ml/`).
+
+| Changement | Fichier |
+|---|---|
+| Nouveau job d'appui `ml` : installe `ml/requirements-dev.txt` (coverage) puis, si le fichier existe, `ml/requirements.txt` (scikit-learn), **toujours avec `--require-hashes`** ; lance `coverage run --source=src -m unittest discover -s tests -t .` ; dépose `ml/coverage.xml` | `.github/workflows/ci.yml` |
+| `sonarqube` attend `ml`, télécharge `coverage-ml` dans `ml/` | `.github/workflows/ci.yml` |
+| Sonar lit `ml/coverage.xml` | `sonar-project.properties` |
+| Barrière `fail_under = 80`, branches, points d'entrée omis | `ml/pyproject.toml` |
+| Verrou de coverage avec empreintes, toutes plateformes | `ml/requirements-dev.in`, `ml/requirements-dev.txt` |
+| `JOBS_D_APPUI` contient `ml`, `sonarqube` attend `ml`, `reportPaths` complet, installations avec empreintes, barrière présente | `scripts/dev/test_ci.py`, `scripts/dev/test_gabarit.py` |
+
+Ce que cette proposition **ne change pas** : aucun contrôle obligatoire ne change de nom (`backend`, `frontend`, `gitleaks`, `snyk`, `docker`, `sonarqube`), aucun filtre de chemin, aucun test supprimé, aucun seuil abaissé. Elle **ajoute** une mesure, comme le job `etl`.
+
+**Vérifié** (12/11/2026, Linux, Python 3.12.16 comme la CI) : 198 tests, 25 ignorés (le jeu v1 absent), `coverage xml` écrit, 84 % de couverture (barrière de 80 % tenue), `ml/coverage.xml` cite les fichiers avec leur chemin depuis `ml/` ; 34 tests de `scripts/dev/test_ci.py` verts. **Non vérifié** : l'exécution réelle du job sur GitHub, et la lecture du rapport par SonarQube (à lire sur la pull request : la couverture de `ml/` doit sortir de 0 %). Les dépendances de `ml/requirements.txt` (arrivées avec IA-03) ne sont installées par ce job qu'après la fusion d'IA-03 ; l'analyse Snyk de ces dépendances reste hors de la CI (le job `snyk` ne parcourt que `services/*/`).
+
+**Accord requis** : cette pull request modifie des contrôles de la CI. `CLAUDE.md` (section 6) exige l'accord écrit des deux membres avant fusion : Manoa Robel (auteur) et Daddy Luciano (relecture).
