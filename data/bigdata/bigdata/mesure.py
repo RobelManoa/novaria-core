@@ -153,7 +153,5 @@ def mesurer(arguments: Namespace) -> dict:
             })
         premiere = next(iter(empreintes.values()))
         parites.append({"jours": jours, "empreintes_identiques": all(e == premiere for e in empreintes.values()), "moteurs": list(empreintes)})
-    resultat = {"environnement": environnement(), "mesures": mesures, "parite": parites, "horodatage": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-    if getattr(arguments, "rapport", None):
-        Path(arguments.rapport).write_text(json.dumps(resultat, ensure_ascii=False, indent=1, sort_keys=True) + "\n", encoding="utf-8")
-    return resultat
+    # Le rapport est le document JSON rendu sur la sortie standard : le rediriger vers un fichier (`> mesure.json`).
+    return {"environnement": environnement(), "mesures": mesures, "parite": parites, "horodatage": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}

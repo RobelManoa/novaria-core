@@ -8,8 +8,8 @@ RUN apt-get update \
     && apt-get upgrade -y \
     && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt /tmp/requirements.txt
-RUN pip install --require-hashes -r /tmp/requirements.txt
-RUN useradd --uid 1000 --create-home novaria && mkdir -p /data && chown novaria /data
+RUN pip install --require-hashes -r /tmp/requirements.txt \
+    && useradd --uid 1000 --create-home novaria && mkdir -p /data && chown novaria /data
 USER novaria
 ENV PYTHONPATH=/repo/data/bigdata:/repo/data/etl
 WORKDIR /repo/data/bigdata

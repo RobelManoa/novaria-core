@@ -101,7 +101,7 @@ def _texte_instant(instant: datetime, forme: int) -> str:
     return (instant + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%S+02:00")
 
 
-def _ligne_valide(hasard: random.Random, capteur: int, instant: datetime, jour: date) -> tuple[list[str], str]:
+def _ligne_valide(hasard: random.Random, capteur: int, instant: datetime) -> tuple[list[str], str]:
     """Une ligne qui passe toutes les règles ; rend aussi son drapeau (« MISSING_OCCUPANCY » ou « »)."""
     heure = instant.hour
     profil = 0.25 + 0.75 * max(0.0, 1 - abs(heure - 8.5) / 6) + 0.6 * max(0.0, 1 - abs(heure - 17.5) / 6)
@@ -129,8 +129,8 @@ def _ligne_valide(hasard: random.Random, capteur: int, instant: datetime, jour: 
     return ligne, flag
 
 
-def _ligne_defectueuse(hasard: random.Random, genre: str, capteur: int, instant: datetime, jour: date) -> list[str]:
-    ligne, _ = _ligne_valide(hasard, capteur, instant, jour)
+def _ligne_defectueuse(hasard: random.Random, genre: str, capteur: int, instant: datetime) -> list[str]:
+    ligne, _ = _ligne_valide(hasard, capteur, instant)
     iu_ac, t_1h, debit, occupation, etat = 0, 2, 3, 4, 5
     if genre == "DEBIT_ABSENT":
         ligne[debit] = ""
@@ -197,14 +197,14 @@ def contenu_du_jour(jour: date, capteurs: int = CAPTEURS_PAR_DEFAUT, graine: int
                     genre = nom
                     break
             if genre is None:
-                ligne, drapeau = _ligne_valide(hasard, capteur, instant, jour)
+                ligne, drapeau = _ligne_valide(hasard, capteur, instant)
                 attendu.propres += 1
                 if drapeau:
                     attendu.drapeaux[drapeau] += 1
                 if hasard.random() < PART_DOUBLONS:
                     valides.append(ligne)
             else:
-                ligne = _ligne_defectueuse(hasard, genre, capteur, instant, jour)
+                ligne = _ligne_defectueuse(hasard, genre, capteur, instant)
                 attendu.rejetees += 1
                 attendu.par_regle[REGLE_DE[genre]] += 1
             attendu.lues += 1

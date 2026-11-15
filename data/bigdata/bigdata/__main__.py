@@ -107,7 +107,7 @@ def construire_parseur() -> argparse.ArgumentParser:
     parseur = argparse.ArgumentParser(prog="python -m bigdata", description=__doc__.splitlines()[0])
     sous = parseur.add_subparsers(dest="commande", required=True)
     rapport = sous.add_parser("rapport")
-    rapport.add_argument("--entree", type=Path, required=True, help="rapport JSON écrit par « mesurer --rapport »")
+    rapport.add_argument("--entree", type=Path, required=True, help="rapport JSON : la sortie de « mesurer » redirigée vers un fichier")
     for nom in ("generer", "nettoyer", "verifier", "mesurer"):
         s = sous.add_parser(nom)
         s.add_argument("--dossier", type=Path, default=Path("/data/paris"), help="fichiers bruts (et leur vérité terrain)")
@@ -122,7 +122,6 @@ def construire_parseur() -> argparse.ArgumentParser:
             s.add_argument("--jours", default="1,7,30", help="tailles à mesurer : nombre de jours, séparés par des virgules")
             s.add_argument("--moteurs", default="python-sequentiel,python-parallele:4,spark:1,spark:4")
             s.add_argument("--repetitions", type=int, default=1)
-            s.add_argument("--rapport", type=Path, default=None, help="fichier JSON du rapport de mesure")
         else:
             s.add_argument("--moteur", choices=MOTEURS, required=True)
             s.add_argument("--jours", type=int, required=True)

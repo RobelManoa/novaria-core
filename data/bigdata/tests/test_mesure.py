@@ -67,7 +67,7 @@ class Mesure(unittest.TestCase):
             return sorties[commande[3]](commande[commande.index("--moteur") + 1])
 
         arguments = Namespace(
-            dossier=Path("/d"), sortie=Path("/s"), memoire_spark="1g", temporaire="/t", jours="1", moteurs="a:1,b:2", repetitions=2, rapport=None
+            dossier=Path("/d"), sortie=Path("/s"), memoire_spark="1g", temporaire="/t", jours="1", moteurs="a:1,b:2", repetitions=2
         )
         with mock.patch.object(mesure, "lancer", faux_lancer), mock.patch("bigdata.jeu.fichiers_du_jeu", return_value=[Path("x.csv")]), \
                 mock.patch("bigdata.jeu.octets_et_lignes", return_value=(1000, 10)):
