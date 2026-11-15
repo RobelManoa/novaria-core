@@ -132,6 +132,6 @@ Ces chiffres sont contrôlés par `scripts/dev/test_specifications.py` : il éch
 |---|---|
 | Exigences | 53 |
 | Doit / Devrait / Pourrait | 38 / 14 / 1 |
-| Prouvé / Partiel / À faire | 20 / 23 / 10 |
+| Prouvé / Partiel / À faire | 17 / 20 / 16 |
 
 Lecture : la plupart des exigences sont « Doit » parce qu'elles reprennent les critères d'acceptation de tâches P0 du backlog ; ce qui se discute, ce sont les 14 « Devrait » et le « Pourrait », à abandonner en premier si le planning glisse. Le socle de données (bases, contrats d'événements, contrat d'API) est avancé ; **aucun des quatre services métier n'existe encore** ; le simulateur existe (MS-07) mais n'a pas encore de collecte réelle à laquelle envoyer ses messages. C'est le gros du travail des jalons M2 et M3.

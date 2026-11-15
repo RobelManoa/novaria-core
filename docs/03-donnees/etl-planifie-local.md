@@ -196,7 +196,7 @@ Pile proposée le 30/10/2026 pour le projet, rapprochée de ce que le dépôt do
 |---|---|---|
 | Transport des événements | Apache Kafka | Décidé ([ADR-009](../01-architecture/adr/ADR-009-bus-evenements.md)), local en mode KRaft |
 | Traitement temps réel | Apache Flink | Décidé ([ADR-011](../01-architecture/adr/ADR-011-temps-reel-et-batch.md)) ; non implémenté |
-| **ETL par lots** | **Apache Spark (PySpark)** | Spark décidé pour le Big Data ([ADR-016](../01-architecture/adr/ADR-016-big-data.md), DAT-08) ; l'ETL est en Python ([ADR-013](../01-architecture/adr/ADR-013-integration-donnees.md)) ; **Glue = Spark géré : section 6** |
+| **ETL par lots** | **Apache Spark (PySpark)** | Spark décidé pour le Big Data ([ADR-016](../01-architecture/adr/ADR-016-big-data.md)) ; prototype local fait (DAT-08, [rapport](prototype-bigdata.md)) ; l'ETL est en Python ([ADR-013](../01-architecture/adr/ADR-013-integration-donnees.md)) ; **Glue = Spark géré : section 6** |
 | Intégration et ingestion | Apache NiFi | **Écarté** par l'ADR-013 (option E) : sources simples |
 | Stockage distribué | SeaweedFS | **Non documenté** : l'ADR-025 prévoit un dossier local derrière le port `ObjectStore` ; SeaweedFS en serait un adaptateur S3 |
 | Bases | MongoDB, PostgreSQL | Décidé et implémenté ([ADR-002](../01-architecture/adr/ADR-002-postgresql-mongodb.md)) |

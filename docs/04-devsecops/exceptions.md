@@ -63,9 +63,8 @@ Chaque exception de `.snyk` a ces quatre éléments, vérifiés par un test (sec
 
 | Identifiant Snyk | Composant | Image | Raison | Créée le | Expiration | Registre |
 |---|---|---|---|---|---|---|
-| SNYK-DEBIAN13-ZLIB-19520500 | zlib1g (Out-of-bounds Write) | backend (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-10-17 | 2026-11-15 | R10 |
-| SNYK-DEBIAN13-ATTR-17678182 | libattr1 (Link Following) | backend (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-10-17 | 2026-11-15 | R10 |
-| SNYK-DEBIAN13-ACL-17677866 | libacl1 (Link Following) | backend (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-10-17 | 2026-11-15 | R10 |
+| SNYK-DEBIAN13-ATTR-17678182 | libattr1 (Link Following) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian, revérifié le 15/11/2026 (renouvellement de l'exception du 17/10/2026) | 2026-11-15 | 2026-12-09 | R10 |
+| SNYK-DEBIAN13-ACL-17677866 | libacl1 (Link Following) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian, revérifié le 15/11/2026 (renouvellement de l'exception du 17/10/2026) | 2026-11-15 | 2026-12-09 | R10 |
 | SNYK-DEBIAN13-SQLITE3-22119065 | libsqlite3-0 (Out-of-bounds Write) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-11-03 | 2026-12-03 | R10 |
 | SNYK-DEBIAN13-SQLITE3-22119091 | libsqlite3-0 (Out-of-bounds Write) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-11-03 | 2026-12-03 | R10 |
 | SNYK-DEBIAN13-SQLITE3-22119098 | libsqlite3-0 (Out-of-bounds Write) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-11-03 | 2026-12-03 | R10 |
@@ -159,3 +158,18 @@ Décision proposée : trois exceptions de 30 jours (création le 03/11/2026, exp
 | Les exceptions suffisent-elles ? | **Non vérifié** : la CLI Snyk n'est pas installée sur le poste de cette revue. La preuve sera le job `docker` vert après fusion |
 
 Décision proposée : une exception de 30 jours (création le 05/11/2026, expiration le **05/12/2026**, avant le 10/12/2026), à approuver par l'**autre** membre du binôme (section 3). Elle se renouvelle séparément, après une nouvelle vérification (section 4).
+
+## 14. Revue du 15/11/2026 : expiration des exceptions du 17/10/2026 (échec des contrôles `docker` de `main` et de la pull request #257)
+
+| Vérification | Résultat |
+|---|---|
+| Ce qui échoue | Les trois exceptions du 17/10/2026 (zlib1g, libattr1, libacl1) expirent le **15/11/2026**. Le job `docker` du push sur `main` (15/11/2026, 15:09 UTC) et celui de la pull request #257 (Dependabot, `dnspython` dans `data/etl`) échouent : `snyk container test` signale deux failles **high** (`attr/libattr1`, `acl/libacl1`, Link Following) dans l'image `python:3.15-slim` des **quatre services Python**. L'image du front-end est saine. La pull request #257 ne change pas l'image de base : la cause n'est pas son code |
+| Failles | SNYK-DEBIAN13-ATTR-17678182 et SNYK-DEBIAN13-ACL-17677866 |
+| zlib1g, SNYK-DEBIAN13-ZLIB-19520500 | **Corrigée.** Dans `python:3.15-slim` tirée le 15/11/2026, après `apt-get update`, `apt-get changelog zlib1g` montre la version `1:1.3.dfsg+really1.3.1-1+deb13u1` (trixie-security, 01/11/2026) qui corrige CVE-2026-85091 (le numéro CVE vient de la page Snyk lue le 27/10/2026, section 10). La ligne `apt-get upgrade` des Dockerfile l'installe, et le journal du 15/11/2026 ne signale plus cette faille. **Exception supprimée** (section 9) |
+| zlib1g, SNYK-DEBIAN13-ZLIB-22249554 | **Non corrigée** d'après le même changelog, qui ne cite pas CVE-2026-76844. Exception du 05/11/2026 conservée, sans changement (expiration le 05/12/2026) |
+| libattr1 et libacl1 | `apt-cache policy` après `apt-get update` : installée = candidate (`1:2.5.2-3` et `2.3.2-2+b1`). **Aucune mise à jour publiée** par Debian 13. Les pages Snyk n'ont pas été relues ce jour (le quota d'essais privés de Snyk est atteint) : la vérification est celle de la version installée |
+| Les exceptions suffisent-elles ? | **Non vérifié** : la CLI Snyk n'est pas installée sur le poste de cette revue, et le quota de Snyk est atteint. La preuve sera le job `docker` vert après fusion |
+
+Décision proposée : suppression de l'exception ZLIB-19520500 ; renouvellement de ATTR-17678182 et ACL-17677866 pour une durée de 24 jours (création le 15/11/2026, expiration le **09/12/2026**, dernier jour autorisé, section 4), à approuver par l'**autre** membre du binôme (section 3). Un nouveau renouvellement n'est pas possible après le 09/12/2026 (section 9) : sans correctif de Debian à cette date, il faut une autre solution (changer d'image de base, par exemple) et la décider avant.
+
+Autre point constaté le même jour : le contrôle `snyk` (dépendances) échoue aussi sur la pull request #257 avec le message « You have used your limit of private tests » : c'est le **quota mensuel de 200 essais privés** de l'organisation Snyk, pas une faille. Aucun changement de contrôle n'est proposé ici (section 6 de `CLAUDE.md`) ; voir la décision à prendre dans la description de la pull request.
