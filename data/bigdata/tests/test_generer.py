@@ -63,6 +63,12 @@ class Generateur(unittest.TestCase):
         self.assertGreater(attendu.drapeaux["MISSING_OCCUPANCY"], 0)
         self.assertGreater(attendu.propres, attendu.lues * 0.7)
 
+    def test_un_jour_apres_l_horloge_du_nettoyage_est_refuse(self):
+        generer.contenu_du_jour(date(2026, 11, 14), capteurs=2)  # dernier jour entier avant l'horloge
+        for jour in (date(2026, 11, 15), date(2026, 11, 29)):
+            with self.subTest(jour=jour), self.assertRaises(ValueError):
+                generer.contenu_du_jour(jour, capteurs=2)
+
     def test_etat_pour_suit_les_seuils_officiels(self):
         self.assertEqual([generer.etat_pour(k) for k in (0, 14.99, 15, 29.9, 30, 49.9, 50, 99)],
                          ["Fluide", "Fluide", "Pré-saturé", "Pré-saturé", "Saturé", "Saturé", "Bloqué", "Bloqué"])

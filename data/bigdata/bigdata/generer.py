@@ -177,6 +177,9 @@ def _ligne_defectueuse(hasard: random.Random, genre: str, capteur: int, instant:
 
 def contenu_du_jour(jour: date, capteurs: int = CAPTEURS_PAR_DEFAUT, graine: int = GRAINE_PAR_DEFAUT) -> tuple[bytes, Attendu]:
     """Les octets du fichier d'un jour, et ce que le nettoyage doit en tirer."""
+    if datetime(jour.year, jour.month, jour.day, tzinfo=UTC) + timedelta(days=1) > MAINTENANT:
+        # Après l'horloge du nettoyage, toute ligne serait refusée (FUTURE_TIMESTAMP) : la vérité terrain serait fausse.
+        raise ValueError(f"le jour {jour.isoformat()} dépasse l'horloge du nettoyage ({MAINTENANT:%Y-%m-%d %H:%M} UTC) : choisir un début plus ancien")
     hasard = random.Random(f"{graine}|{jour.isoformat()}|{capteurs}")
     attendu = Attendu()
     sortie = io.StringIO(newline="")
