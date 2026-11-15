@@ -4,9 +4,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api.deps import reset_login_throttle
+from app.api.v1.reports import get_report_service
 from app.core.config import get_settings
 from app.db.session import get_indicator_repository, get_user_repository
 from app.main import app
+from app.services.reports import FileReportStore, ReportService
 from tests.fakes import SECRET, FakeIndicatorRepository, FakeUserRepository, Journal
 from tests.scene import Scene
 
@@ -45,9 +47,20 @@ def journal() -> Journal:
 
 
 @pytest.fixture
-def client(secret, repo, indicators, journal):
+def reports_dir(tmp_path):
+    """Le dossier où le robot dépose ses rapports : vide, propre à chaque test."""
+    directory = tmp_path / "rapports"
+    directory.mkdir()
+    return directory
+
+
+@pytest.fixture
+def client(secret, repo, indicators, journal, reports_dir):
     app.dependency_overrides[get_user_repository] = lambda: repo
     app.dependency_overrides[get_indicator_repository] = lambda: indicators
+    app.dependency_overrides[get_report_service] = lambda: ReportService(
+        FileReportStore(reports_dir)
+    )
     app.state.observer = journal.observer
     try:
         yield TestClient(app)

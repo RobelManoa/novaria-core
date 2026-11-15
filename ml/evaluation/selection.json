@@ -1,0 +1,1484 @@
+{
+  "etape": "validation",
+  "regle_de_choix": "Au plus 12 réglages par candidat, mesurés sur la validation. Un réglage est éligible si ses fausses alertes restent sous 0,10 par tronçon et par jour (A5) ; sinon sa variante avec confirmation sur 2 fenêtres est jugée. Le réglage retenu a le meilleur F1 macro de validation parmi les éligibles. Entre candidats : meilleur F1 macro de validation, le plus simple à moins de 0,002. La validation croisée groupée par run ne choisit rien.",
+  "tracabilite": {
+    "dataset_id": "novaria-congestion-v1",
+    "dataset_sha256": "5fc6f1832bd9f02dcf86de0e56dfbafb0854b57041819e6452820325c195c19e",
+    "seed": 42,
+    "git_sha": "880fa90b7fbc048714e663a1a43cb1c28a4eb8fd",
+    "code_modifie_non_commite": true,
+    "versions": {
+      "python": "3.14.4",
+      "scikit-learn": "1.9.1",
+      "numpy": "2.5.4",
+      "scipy": "1.18.1"
+    }
+  },
+  "reference_validation": {
+    "f1_macro": 0.9749,
+    "rappel_congested": 0.9705,
+    "precision_congested": 0.9602,
+    "par_classe": {
+      "FREE_FLOW": [
+        0.9977,
+        0.9974,
+        0.9975
+      ],
+      "SLOW": [
+        0.963,
+        0.9611,
+        0.962
+      ],
+      "CONGESTED": [
+        0.9602,
+        0.9705,
+        0.9653
+      ]
+    },
+    "episodes": 9,
+    "episodes_manques": 0,
+    "delai_median_min": 1,
+    "delai_max_min": 1,
+    "alertes": 10,
+    "fausses_alertes": 1,
+    "fausses_alertes_par_troncon_et_jour": 0.0714,
+    "troncons_jours": 14.0
+  },
+  "candidats": {
+    "logistique": {
+      "libelle": "Régression logistique multiclasse (variables centrées et réduites)",
+      "essais": [
+        {
+          "indice": 0,
+          "params": {
+            "C": 0.01,
+            "class_weight": null
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": true,
+          "brut": {
+            "f1_macro": 0.9892,
+            "rappel_congested": 0.9678,
+            "precision_congested": 0.9917,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9988,
+                0.9999,
+                0.9994
+              ],
+              "SLOW": [
+                0.9892,
+                0.9879,
+                0.9886
+              ],
+              "CONGESTED": [
+                0.9917,
+                0.9678,
+                0.9796
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 2,
+            "alertes": 12,
+            "fausses_alertes": 3,
+            "fausses_alertes_par_troncon_et_jour": 0.2143,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.9784,
+            "rappel_congested": 0.9584,
+            "precision_congested": 0.9794,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9976,
+                0.9986,
+                0.9981
+              ],
+              "SLOW": [
+                0.9691,
+                0.9678,
+                0.9684
+              ],
+              "CONGESTED": [
+                0.9794,
+                0.9584,
+                0.9688
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 2,
+            "delai_max_min": 3,
+            "alertes": 10,
+            "fausses_alertes": 1,
+            "fausses_alertes_par_troncon_et_jour": 0.0714,
+            "troncons_jours": 14.0
+          }
+        },
+        {
+          "indice": 1,
+          "params": {
+            "C": 0.01,
+            "class_weight": "balanced"
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": true,
+          "brut": {
+            "f1_macro": 0.9933,
+            "rappel_congested": 0.9852,
+            "precision_congested": 0.9946,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9999,
+                0.9993,
+                0.9996
+              ],
+              "SLOW": [
+                0.9847,
+                0.996,
+                0.9903
+              ],
+              "CONGESTED": [
+                0.9946,
+                0.9852,
+                0.9899
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 0,
+            "delai_max_min": 1,
+            "alertes": 13,
+            "fausses_alertes": 4,
+            "fausses_alertes_par_troncon_et_jour": 0.2857,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.9826,
+            "rappel_congested": 0.9732,
+            "precision_congested": 0.9864,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9984,
+                0.998,
+                0.9982
+              ],
+              "SLOW": [
+                0.9642,
+                0.9758,
+                0.97
+              ],
+              "CONGESTED": [
+                0.9864,
+                0.9732,
+                0.9797
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 2,
+            "alertes": 10,
+            "fausses_alertes": 1,
+            "fausses_alertes_par_troncon_et_jour": 0.0714,
+            "troncons_jours": 14.0
+          }
+        },
+        {
+          "indice": 2,
+          "params": {
+            "C": 0.1,
+            "class_weight": null
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": true,
+          "brut": {
+            "f1_macro": 0.995,
+            "rappel_congested": 0.9826,
+            "precision_congested": 1.0,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9998,
+                0.9999,
+                0.9999
+              ],
+              "SLOW": [
+                0.99,
+                0.998,
+                0.994
+              ],
+              "CONGESTED": [
+                1.0,
+                0.9826,
+                0.9912
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 0,
+            "delai_max_min": 1,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.9841,
+            "rappel_congested": 0.9718,
+            "precision_congested": 0.9877,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9985,
+                0.9986,
+                0.9985
+              ],
+              "SLOW": [
+                0.9707,
+                0.9772,
+                0.9739
+              ],
+              "CONGESTED": [
+                0.9877,
+                0.9718,
+                0.9797
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 2,
+            "alertes": 10,
+            "fausses_alertes": 1,
+            "fausses_alertes_par_troncon_et_jour": 0.0714,
+            "troncons_jours": 14.0
+          }
+        },
+        {
+          "indice": 3,
+          "params": {
+            "C": 0.1,
+            "class_weight": "balanced"
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": true,
+          "brut": {
+            "f1_macro": 0.9937,
+            "rappel_congested": 0.9839,
+            "precision_congested": 0.9946,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9999,
+                0.9996,
+                0.9998
+              ],
+              "SLOW": [
+                0.9874,
+                0.9966,
+                0.992
+              ],
+              "CONGESTED": [
+                0.9946,
+                0.9839,
+                0.9892
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 0,
+            "delai_max_min": 1,
+            "alertes": 14,
+            "fausses_alertes": 5,
+            "fausses_alertes_par_troncon_et_jour": 0.3571,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.9841,
+            "rappel_congested": 0.9718,
+            "precision_congested": 0.9877,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9987,
+                0.9984,
+                0.9985
+              ],
+              "SLOW": [
+                0.9688,
+                0.9792,
+                0.974
+              ],
+              "CONGESTED": [
+                0.9877,
+                0.9718,
+                0.9797
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 2,
+            "alertes": 10,
+            "fausses_alertes": 1,
+            "fausses_alertes_par_troncon_et_jour": 0.0714,
+            "troncons_jours": 14.0
+          }
+        },
+        {
+          "indice": 4,
+          "params": {
+            "C": 1.0,
+            "class_weight": null
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": true,
+          "brut": {
+            "f1_macro": 0.9943,
+            "rappel_congested": 0.9812,
+            "precision_congested": 0.9986,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9999,
+                0.9998,
+                0.9999
+              ],
+              "SLOW": [
+                0.9887,
+                0.998,
+                0.9933
+              ],
+              "CONGESTED": [
+                0.9986,
+                0.9812,
+                0.9898
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 0,
+            "delai_max_min": 1,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.9835,
+            "rappel_congested": 0.9691,
+            "precision_congested": 0.9877,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9985,
+                0.9986,
+                0.9986
+              ],
+              "SLOW": [
+                0.9694,
+                0.9779,
+                0.9736
+              ],
+              "CONGESTED": [
+                0.9877,
+                0.9691,
+                0.9783
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 2,
+            "alertes": 10,
+            "fausses_alertes": 1,
+            "fausses_alertes_par_troncon_et_jour": 0.0714,
+            "troncons_jours": 14.0
+          }
+        },
+        {
+          "indice": 5,
+          "params": {
+            "C": 1.0,
+            "class_weight": "balanced"
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": true,
+          "brut": {
+            "f1_macro": 0.9931,
+            "rappel_congested": 0.9812,
+            "precision_congested": 0.9946,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9999,
+                0.9997,
+                0.9998
+              ],
+              "SLOW": [
+                0.9867,
+                0.9966,
+                0.9917
+              ],
+              "CONGESTED": [
+                0.9946,
+                0.9812,
+                0.9878
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 0,
+            "delai_max_min": 1,
+            "alertes": 14,
+            "fausses_alertes": 5,
+            "fausses_alertes_par_troncon_et_jour": 0.3571,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.9839,
+            "rappel_congested": 0.9691,
+            "precision_congested": 0.9877,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9987,
+                0.9986,
+                0.9987
+              ],
+              "SLOW": [
+                0.9695,
+                0.9799,
+                0.9746
+              ],
+              "CONGESTED": [
+                0.9877,
+                0.9691,
+                0.9783
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 2,
+            "alertes": 10,
+            "fausses_alertes": 1,
+            "fausses_alertes_par_troncon_et_jour": 0.0714,
+            "troncons_jours": 14.0
+          }
+        },
+        {
+          "indice": 6,
+          "params": {
+            "C": 10.0,
+            "class_weight": null
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": true,
+          "brut": {
+            "f1_macro": 0.994,
+            "rappel_congested": 0.9812,
+            "precision_congested": 0.9973,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9999,
+                0.9998,
+                0.9999
+              ],
+              "SLOW": [
+                0.988,
+                0.998,
+                0.993
+              ],
+              "CONGESTED": [
+                0.9973,
+                0.9812,
+                0.9892
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 0,
+            "delai_max_min": 1,
+            "alertes": 12,
+            "fausses_alertes": 3,
+            "fausses_alertes_par_troncon_et_jour": 0.2143,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.9837,
+            "rappel_congested": 0.9691,
+            "precision_congested": 0.9877,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9987,
+                0.9986,
+                0.9986
+              ],
+              "SLOW": [
+                0.9694,
+                0.9792,
+                0.9743
+              ],
+              "CONGESTED": [
+                0.9877,
+                0.9691,
+                0.9783
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 2,
+            "alertes": 10,
+            "fausses_alertes": 1,
+            "fausses_alertes_par_troncon_et_jour": 0.0714,
+            "troncons_jours": 14.0
+          }
+        },
+        {
+          "indice": 7,
+          "params": {
+            "C": 10.0,
+            "class_weight": "balanced"
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": true,
+          "brut": {
+            "f1_macro": 0.9937,
+            "rappel_congested": 0.9826,
+            "precision_congested": 0.9959,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9999,
+                0.9996,
+                0.9998
+              ],
+              "SLOW": [
+                0.9867,
+                0.9973,
+                0.992
+              ],
+              "CONGESTED": [
+                0.9959,
+                0.9826,
+                0.9892
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 0,
+            "delai_max_min": 1,
+            "alertes": 13,
+            "fausses_alertes": 4,
+            "fausses_alertes_par_troncon_et_jour": 0.2857,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.9843,
+            "rappel_congested": 0.9705,
+            "precision_congested": 0.9877,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9988,
+                0.9986,
+                0.9987
+              ],
+              "SLOW": [
+                0.9701,
+                0.9805,
+                0.9753
+              ],
+              "CONGESTED": [
+                0.9877,
+                0.9705,
+                0.979
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 2,
+            "alertes": 10,
+            "fausses_alertes": 1,
+            "fausses_alertes_par_troncon_et_jour": 0.0714,
+            "troncons_jours": 14.0
+          }
+        }
+      ],
+      "retenu": {
+        "indice": 7,
+        "params": {
+          "C": 10.0,
+          "class_weight": "balanced"
+        },
+        "variante": "confirme",
+        "validation": {
+          "f1_macro": 0.9843,
+          "rappel_congested": 0.9705,
+          "precision_congested": 0.9877,
+          "par_classe": {
+            "FREE_FLOW": [
+              0.9988,
+              0.9986,
+              0.9987
+            ],
+            "SLOW": [
+              0.9701,
+              0.9805,
+              0.9753
+            ],
+            "CONGESTED": [
+              0.9877,
+              0.9705,
+              0.979
+            ]
+          },
+          "episodes": 9,
+          "episodes_manques": 0,
+          "delai_median_min": 1,
+          "delai_max_min": 2,
+          "alertes": 10,
+          "fausses_alertes": 1,
+          "fausses_alertes_par_troncon_et_jour": 0.0714,
+          "troncons_jours": 14.0
+        }
+      },
+      "reproductible": true,
+      "validation_croisee_groupee": {
+        "plis": [
+          {
+            "pli": 1,
+            "runs_a_part": [
+              "ds1-calme-s11",
+              "ds1-incident-s31",
+              "ds1-pointe-s21"
+            ],
+            "modele": {
+              "f1_macro": 0.9879,
+              "rappel_congested": 0.9879,
+              "precision_congested": 0.9866,
+              "par_classe": {
+                "FREE_FLOW": [
+                  0.9987,
+                  0.9986,
+                  0.9986
+                ],
+                "SLOW": [
+                  0.9779,
+                  0.9779,
+                  0.9779
+                ],
+                "CONGESTED": [
+                  0.9866,
+                  0.9879,
+                  0.9873
+                ]
+              },
+              "episodes": 9,
+              "episodes_manques": 0,
+              "delai_median_min": 1,
+              "delai_max_min": 1,
+              "alertes": 9,
+              "fausses_alertes": 0,
+              "fausses_alertes_par_troncon_et_jour": 0.0,
+              "troncons_jours": 14.0
+            },
+            "regle": {
+              "f1_macro": 0.9793,
+              "rappel_congested": 0.9893,
+              "precision_congested": 0.9621,
+              "par_classe": {
+                "FREE_FLOW": [
+                  0.9987,
+                  0.9974,
+                  0.998
+                ],
+                "SLOW": [
+                  0.9638,
+                  0.9651,
+                  0.9645
+                ],
+                "CONGESTED": [
+                  0.9621,
+                  0.9893,
+                  0.9755
+                ]
+              },
+              "episodes": 9,
+              "episodes_manques": 0,
+              "delai_median_min": 1,
+              "delai_max_min": 1,
+              "alertes": 9,
+              "fausses_alertes": 0,
+              "fausses_alertes_par_troncon_et_jour": 0.0,
+              "troncons_jours": 14.0
+            }
+          },
+          {
+            "pli": 2,
+            "runs_a_part": [
+              "ds1-calme-s12",
+              "ds1-incident-s32",
+              "ds1-pointe-s22"
+            ],
+            "modele": {
+              "f1_macro": 0.9758,
+              "rappel_congested": 0.9839,
+              "precision_congested": 0.9397,
+              "par_classe": {
+                "FREE_FLOW": [
+                  0.9984,
+                  0.9982,
+                  0.9983
+                ],
+                "SLOW": [
+                  0.9781,
+                  0.9577,
+                  0.9678
+                ],
+                "CONGESTED": [
+                  0.9397,
+                  0.9839,
+                  0.9613
+                ]
+              },
+              "episodes": 9,
+              "episodes_manques": 0,
+              "delai_median_min": 1,
+              "delai_max_min": 4,
+              "alertes": 12,
+              "fausses_alertes": 3,
+              "fausses_alertes_par_troncon_et_jour": 0.2143,
+              "troncons_jours": 14.0
+            },
+            "regle": {
+              "f1_macro": 0.974,
+              "rappel_congested": 0.9638,
+              "precision_congested": 0.9716,
+              "par_classe": {
+                "FREE_FLOW": [
+                  0.996,
+                  0.9975,
+                  0.9967
+                ],
+                "SLOW": [
+                  0.9646,
+                  0.951,
+                  0.9578
+                ],
+                "CONGESTED": [
+                  0.9716,
+                  0.9638,
+                  0.9677
+                ]
+              },
+              "episodes": 9,
+              "episodes_manques": 0,
+              "delai_median_min": 1,
+              "delai_max_min": 20,
+              "alertes": 9,
+              "fausses_alertes": 0,
+              "fausses_alertes_par_troncon_et_jour": 0.0,
+              "troncons_jours": 14.0
+            }
+          },
+          {
+            "pli": 3,
+            "runs_a_part": [
+              "ds1-calme-s13",
+              "ds1-incident-s33",
+              "ds1-pointe-s23"
+            ],
+            "modele": {
+              "f1_macro": 0.9843,
+              "rappel_congested": 0.9705,
+              "precision_congested": 0.9877,
+              "par_classe": {
+                "FREE_FLOW": [
+                  0.9988,
+                  0.9986,
+                  0.9987
+                ],
+                "SLOW": [
+                  0.9701,
+                  0.9805,
+                  0.9753
+                ],
+                "CONGESTED": [
+                  0.9877,
+                  0.9705,
+                  0.979
+                ]
+              },
+              "episodes": 9,
+              "episodes_manques": 0,
+              "delai_median_min": 1,
+              "delai_max_min": 2,
+              "alertes": 10,
+              "fausses_alertes": 1,
+              "fausses_alertes_par_troncon_et_jour": 0.0714,
+              "troncons_jours": 14.0
+            },
+            "regle": {
+              "f1_macro": 0.9749,
+              "rappel_congested": 0.9705,
+              "precision_congested": 0.9602,
+              "par_classe": {
+                "FREE_FLOW": [
+                  0.9977,
+                  0.9974,
+                  0.9975
+                ],
+                "SLOW": [
+                  0.963,
+                  0.9611,
+                  0.962
+                ],
+                "CONGESTED": [
+                  0.9602,
+                  0.9705,
+                  0.9653
+                ]
+              },
+              "episodes": 9,
+              "episodes_manques": 0,
+              "delai_median_min": 1,
+              "delai_max_min": 1,
+              "alertes": 10,
+              "fausses_alertes": 1,
+              "fausses_alertes_par_troncon_et_jour": 0.0714,
+              "troncons_jours": 14.0
+            }
+          }
+        ],
+        "modele": {
+          "f1_macro": {
+            "moyenne": 0.9827,
+            "ecart_type": 0.0062,
+            "min": 0.9758,
+            "max": 0.9879
+          },
+          "rappel_congested": {
+            "moyenne": 0.9808,
+            "ecart_type": 0.0091,
+            "min": 0.9705,
+            "max": 0.9879
+          },
+          "fausses_alertes_par_troncon_et_jour": {
+            "moyenne": 0.0952,
+            "ecart_type": 0.1091,
+            "min": 0.0,
+            "max": 0.2143
+          }
+        },
+        "regle": {
+          "f1_macro": {
+            "moyenne": 0.9761,
+            "ecart_type": 0.0028,
+            "min": 0.974,
+            "max": 0.9793
+          },
+          "rappel_congested": {
+            "moyenne": 0.9745,
+            "ecart_type": 0.0132,
+            "min": 0.9638,
+            "max": 0.9893
+          },
+          "fausses_alertes_par_troncon_et_jour": {
+            "moyenne": 0.0238,
+            "ecart_type": 0.0412,
+            "min": 0.0,
+            "max": 0.0714
+          }
+        }
+      }
+    },
+    "gradient": {
+      "libelle": "HistGradientBoostingClassifier",
+      "essais": [
+        {
+          "indice": 0,
+          "params": {
+            "learning_rate": 0.05,
+            "max_leaf_nodes": 15,
+            "class_weight": null
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": false,
+          "brut": {
+            "f1_macro": 0.9936,
+            "rappel_congested": 0.9879,
+            "precision_congested": 0.984,
+            "par_classe": {
+              "FREE_FLOW": [
+                1.0,
+                0.9992,
+                0.9996
+              ],
+              "SLOW": [
+                0.9913,
+                0.9993,
+                0.9953
+              ],
+              "CONGESTED": [
+                0.984,
+                0.9879,
+                0.9859
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 0,
+            "delai_max_min": 0,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.982,
+            "rappel_congested": 0.9758,
+            "precision_congested": 0.9719,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9987,
+                0.9978,
+                0.9982
+              ],
+              "SLOW": [
+                0.97,
+                0.9779,
+                0.9739
+              ],
+              "CONGESTED": [
+                0.9719,
+                0.9758,
+                0.9739
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 1,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          }
+        },
+        {
+          "indice": 1,
+          "params": {
+            "learning_rate": 0.05,
+            "max_leaf_nodes": 15,
+            "class_weight": "balanced"
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": false,
+          "brut": {
+            "f1_macro": 0.9918,
+            "rappel_congested": 0.9839,
+            "precision_congested": 0.9813,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9999,
+                0.9992,
+                0.9996
+              ],
+              "SLOW": [
+                0.9893,
+                0.9973,
+                0.9933
+              ],
+              "CONGESTED": [
+                0.9813,
+                0.9839,
+                0.9826
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 0,
+            "delai_max_min": 0,
+            "alertes": 12,
+            "fausses_alertes": 3,
+            "fausses_alertes_par_troncon_et_jour": 0.2143,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.9804,
+            "rappel_congested": 0.9718,
+            "precision_congested": 0.9705,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9985,
+                0.9978,
+                0.9982
+              ],
+              "SLOW": [
+                0.968,
+                0.9758,
+                0.9719
+              ],
+              "CONGESTED": [
+                0.9705,
+                0.9718,
+                0.9712
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 1,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          }
+        },
+        {
+          "indice": 2,
+          "params": {
+            "learning_rate": 0.05,
+            "max_leaf_nodes": 31,
+            "class_weight": null
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": false,
+          "brut": {
+            "f1_macro": 0.9939,
+            "rappel_congested": 0.9879,
+            "precision_congested": 0.9853,
+            "par_classe": {
+              "FREE_FLOW": [
+                1.0,
+                0.9992,
+                0.9996
+              ],
+              "SLOW": [
+                0.9914,
+                1.0,
+                0.9957
+              ],
+              "CONGESTED": [
+                0.9853,
+                0.9879,
+                0.9866
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 0,
+            "delai_max_min": 0,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.9823,
+            "rappel_congested": 0.9758,
+            "precision_congested": 0.9732,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9987,
+                0.9978,
+                0.9982
+              ],
+              "SLOW": [
+                0.9701,
+                0.9785,
+                0.9743
+              ],
+              "CONGESTED": [
+                0.9732,
+                0.9758,
+                0.9745
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 1,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          }
+        },
+        {
+          "indice": 3,
+          "params": {
+            "learning_rate": 0.05,
+            "max_leaf_nodes": 31,
+            "class_weight": "balanced"
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": false,
+          "brut": {
+            "f1_macro": 0.9921,
+            "rappel_congested": 0.9839,
+            "precision_congested": 0.9826,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9999,
+                0.9992,
+                0.9996
+              ],
+              "SLOW": [
+                0.9894,
+                0.998,
+                0.9937
+              ],
+              "CONGESTED": [
+                0.9826,
+                0.9839,
+                0.9832
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 0,
+            "delai_max_min": 0,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.9804,
+            "rappel_congested": 0.9718,
+            "precision_congested": 0.9705,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9985,
+                0.9978,
+                0.9982
+              ],
+              "SLOW": [
+                0.968,
+                0.9758,
+                0.9719
+              ],
+              "CONGESTED": [
+                0.9705,
+                0.9718,
+                0.9712
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 1,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          }
+        },
+        {
+          "indice": 4,
+          "params": {
+            "learning_rate": 0.1,
+            "max_leaf_nodes": 15,
+            "class_weight": null
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": false,
+          "brut": {
+            "f1_macro": 0.9937,
+            "rappel_congested": 0.9879,
+            "precision_congested": 0.9853,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9999,
+                0.9991,
+                0.9995
+              ],
+              "SLOW": [
+                0.9907,
+                0.9993,
+                0.995
+              ],
+              "CONGESTED": [
+                0.9853,
+                0.9879,
+                0.9866
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 0,
+            "delai_max_min": 0,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.9822,
+            "rappel_congested": 0.9758,
+            "precision_congested": 0.9732,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9986,
+                0.9978,
+                0.9982
+              ],
+              "SLOW": [
+                0.97,
+                0.9779,
+                0.9739
+              ],
+              "CONGESTED": [
+                0.9732,
+                0.9758,
+                0.9745
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 1,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          }
+        },
+        {
+          "indice": 5,
+          "params": {
+            "learning_rate": 0.1,
+            "max_leaf_nodes": 15,
+            "class_weight": "balanced"
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": false,
+          "brut": {
+            "f1_macro": 0.9921,
+            "rappel_congested": 0.9839,
+            "precision_congested": 0.9826,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9999,
+                0.9992,
+                0.9996
+              ],
+              "SLOW": [
+                0.9894,
+                0.998,
+                0.9937
+              ],
+              "CONGESTED": [
+                0.9826,
+                0.9839,
+                0.9832
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 0,
+            "delai_max_min": 0,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.9804,
+            "rappel_congested": 0.9718,
+            "precision_congested": 0.9705,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9985,
+                0.9978,
+                0.9982
+              ],
+              "SLOW": [
+                0.968,
+                0.9758,
+                0.9719
+              ],
+              "CONGESTED": [
+                0.9705,
+                0.9718,
+                0.9712
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 1,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          }
+        },
+        {
+          "indice": 6,
+          "params": {
+            "learning_rate": 0.1,
+            "max_leaf_nodes": 31,
+            "class_weight": null
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": false,
+          "brut": {
+            "f1_macro": 0.9936,
+            "rappel_congested": 0.9879,
+            "precision_congested": 0.984,
+            "par_classe": {
+              "FREE_FLOW": [
+                1.0,
+                0.9992,
+                0.9996
+              ],
+              "SLOW": [
+                0.9913,
+                0.9993,
+                0.9953
+              ],
+              "CONGESTED": [
+                0.984,
+                0.9879,
+                0.9859
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 0,
+            "delai_max_min": 0,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.982,
+            "rappel_congested": 0.9758,
+            "precision_congested": 0.9719,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9987,
+                0.9978,
+                0.9982
+              ],
+              "SLOW": [
+                0.97,
+                0.9779,
+                0.9739
+              ],
+              "CONGESTED": [
+                0.9719,
+                0.9758,
+                0.9739
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 1,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          }
+        },
+        {
+          "indice": 7,
+          "params": {
+            "learning_rate": 0.1,
+            "max_leaf_nodes": 31,
+            "class_weight": "balanced"
+          },
+          "avertissements": [],
+          "eligible_brut": false,
+          "eligible_confirme": false,
+          "brut": {
+            "f1_macro": 0.9921,
+            "rappel_congested": 0.9839,
+            "precision_congested": 0.9826,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9999,
+                0.9992,
+                0.9996
+              ],
+              "SLOW": [
+                0.9894,
+                0.998,
+                0.9937
+              ],
+              "CONGESTED": [
+                0.9826,
+                0.9839,
+                0.9832
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 0,
+            "delai_max_min": 0,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          },
+          "confirme": {
+            "f1_macro": 0.9804,
+            "rappel_congested": 0.9718,
+            "precision_congested": 0.9705,
+            "par_classe": {
+              "FREE_FLOW": [
+                0.9985,
+                0.9978,
+                0.9982
+              ],
+              "SLOW": [
+                0.968,
+                0.9758,
+                0.9719
+              ],
+              "CONGESTED": [
+                0.9705,
+                0.9718,
+                0.9712
+              ]
+            },
+            "episodes": 9,
+            "episodes_manques": 0,
+            "delai_median_min": 1,
+            "delai_max_min": 1,
+            "alertes": 11,
+            "fausses_alertes": 2,
+            "fausses_alertes_par_troncon_et_jour": 0.1429,
+            "troncons_jours": 14.0
+          }
+        }
+      ],
+      "retenu": null
+    }
+  },
+  "choix": {
+    "candidat": "logistique",
+    "variante": "confirme",
+    "params": {
+      "C": 10.0,
+      "class_weight": "balanced"
+    },
+    "raison": "meilleur F1 macro de validation parmi les candidats éligibles (0.9843)"
+  }
+}

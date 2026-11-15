@@ -47,6 +47,19 @@ class Settings(BaseSettings):
     # avertissement est journalisé au premier appel).
     audit_mongo_url: SecretStr | None = None
 
+    # --- Surveillance de la dérive des entrées (IA-06, ADR-017). Sans exécution de référence, la
+    # surveillance répond `NO_REFERENCE` et ne déclenche rien. Seuils de PSI : valeurs de départ.
+    drift_reference_run_id: str | None = Field(default=None, max_length=80)
+    drift_warn_psi: float = Field(default=0.10, gt=0, le=10)
+    drift_alert_psi: float = Field(default=0.25, gt=0, le=10)
+    drift_min_samples: int = Field(default=100, ge=10, le=100000)
+    drift_max_rows: int = Field(default=20000, ge=100, le=1000000)
+    drift_cache_s: float = Field(default=30, ge=0, le=3600)
+
+    # --- Rapports automatiques (FE-06, IA-07) : dossier où le robot dépose les PDF et leurs
+    # métadonnées, monté en lecture seule dans ce service. Non défini : la liste répond 503.
+    reports_dir: str | None = Field(default=None, max_length=500)
+
     # --- Sécurité applicative (BE-08) -----------------------------------------------------------
     # Origines de navigateur autorisées à lire les réponses (CORS), séparées par des virgules.
     # Vide : aucune origine, donc aucun en-tête CORS (le navigateur n'autorise que la même
@@ -82,6 +95,13 @@ class Settings(BaseSettings):
                     "sans chemin ni joker"
                 )
         return value
+
+    @model_validator(mode="after")
+    def drift_thresholds_are_ordered(self) -> "Settings":
+        """Refusé au démarrage plutôt qu'à la première lecture de `/metrics`."""
+        if not self.drift_warn_psi < self.drift_alert_psi:
+            raise ValueError("DRIFT_WARN_PSI doit être inférieur à DRIFT_ALERT_PSI")
+        return self
 
     @model_validator(mode="after")
     def example_values_are_local_only(self) -> "Settings":
