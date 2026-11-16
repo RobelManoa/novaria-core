@@ -28,7 +28,7 @@ except ImportError:  # pragma: no cover - dépend du poste
 RACINE = Path(__file__).resolve().parents[2]
 CI = RACINE / ".github" / "workflows" / "ci.yml"
 OBLIGATOIRES = {"backend", "frontend", "gitleaks", "snyk", "docker", "sonarqube"}
-JOBS_D_APPUI = {"services", "service", "etl"}  # découverte, matrice et tests de data/etl : ce ne sont pas des contrôles obligatoires
+JOBS_D_APPUI = {"services", "service", "etl", "ml"}  # découverte, matrice, tests de data/etl et de ml : ce ne sont pas des contrôles obligatoires
 BASH = shutil.which("bash")
 JQ = shutil.which("jq")
 
@@ -228,8 +228,8 @@ class SonarRecoitLaCouvertureDeTousLesServices(unittest.TestCase):
     def setUpClass(cls):
         cls.doc = charger()
 
-    def test_sonarqube_attend_backend_frontend_et_etl(self):
-        self.assertEqual(sorted(self.doc["jobs"]["sonarqube"]["needs"]), ["backend", "etl", "frontend"])
+    def test_sonarqube_attend_backend_frontend_etl_et_ml(self):
+        self.assertEqual(sorted(self.doc["jobs"]["sonarqube"]["needs"]), ["backend", "etl", "frontend", "ml"])
 
     def test_le_job_etl_mesure_la_couverture_de_data_etl_et_la_depose(self):
         job = self.doc["jobs"]["etl"]
@@ -245,8 +245,33 @@ class SonarRecoitLaCouvertureDeTousLesServices(unittest.TestCase):
                               if str(e.get("uses", "")).startswith("actions/download-artifact") and e["with"].get("name") == "coverage-etl")
         self.assertEqual(telechargement["path"], "data/etl")
         sonar = (RACINE / "sonar-project.properties").read_text(encoding="utf-8")
-        self.assertIn("sonar.python.coverage.reportPaths=services/*/coverage.xml,data/etl/coverage.xml", sonar)
+        self.assertIn("sonar.python.coverage.reportPaths=services/*/coverage.xml,data/etl/coverage.xml,ml/coverage.xml", sonar)
         self.assertRegex(sonar, r"(?m)^sonar\.sources=.*,data,")
+
+    def test_le_job_ml_mesure_la_couverture_de_ml_avec_des_dependances_a_empreintes_et_la_depose(self):
+        job = self.doc["jobs"]["ml"]
+        self.assertEqual(job["defaults"]["run"]["working-directory"], "ml")
+        commandes = [str(e.get("run", "")) for e in job["steps"]]
+        self.assertTrue(any("coverage run --source=src" in c and "unittest discover -s tests -t ." in c for c in commandes))
+        self.assertTrue(any("coverage xml -o coverage.xml" in c for c in commandes))
+        installations = [c for c in commandes if "pip install" in c]
+        self.assertEqual(len(installations), 2)
+        self.assertTrue(all("--require-hashes" in c for c in installations), "aucune dépendance sans empreinte")
+        self.assertTrue(any("requirements-dev.txt" in c for c in installations))
+        depot = next(e["with"] for e in job["steps"] if str(e.get("uses", "")).startswith("actions/upload-artifact"))
+        self.assertEqual((depot["name"], depot["path"]), ("coverage-ml", "ml/coverage.xml"))
+
+    def test_sonarqube_remet_le_rapport_de_ml_la_ou_sonar_le_cherche(self):
+        telechargement = next(e["with"] for e in self.doc["jobs"]["sonarqube"]["steps"]
+                              if str(e.get("uses", "")).startswith("actions/download-artifact") and e["with"].get("name") == "coverage-ml")
+        self.assertEqual(telechargement["path"], "ml")
+        sonar = (RACINE / "sonar-project.properties").read_text(encoding="utf-8")
+        self.assertRegex(sonar, r"(?m)^sonar\.sources=.*,ml\b")
+
+    def test_la_barriere_de_couverture_de_ml_existe(self):
+        reglages = (RACINE / "ml" / "pyproject.toml").read_text(encoding="utf-8")
+        self.assertRegex(reglages, r"(?m)^fail_under = (\d+)")
+        self.assertGreaterEqual(int(re.search(r"(?m)^fail_under = (\d+)", reglages).group(1)), 70)
 
     def test_il_telecharge_les_rapports_de_tous_les_services(self):
         telechargements = [e["with"] for e in self.doc["jobs"]["sonarqube"]["steps"]

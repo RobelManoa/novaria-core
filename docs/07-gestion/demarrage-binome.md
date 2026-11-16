@@ -103,4 +103,4 @@ Conflits de fichiers fréquents : `docs/07-gestion/*` et `docs/01-architecture/a
 | Premier essai sous Windows | À faire (LOC-01) | Daddy |
 | Premier essai réel de MongoDB sous Docker | À faire (LOC-02) | Manoa |
 | Job de CI pour les contrôles Terraform | Proposition à approuver avant toute modification de la CI (LOC-06) | Les deux |
-| Seuils de congestion | Valeurs de départ, à fixer après un premier run (IA-01, ADR-028) | Manoa |
+| Seuils de congestion | Fixés le 12/11/2026 après un premier run, valeurs de l'ADR-028 inchangées ([cadrage ML](../06-ia-mlops/cadrage-ml.md), IA-01) ; question Q1 au professeur sans réponse | Manoa |

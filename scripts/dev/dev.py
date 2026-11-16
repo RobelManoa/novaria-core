@@ -447,6 +447,105 @@ def cmd_dataset_build(args: argparse.Namespace) -> int:
     return subprocess.run(command, cwd=ROOT, check=False).returncode
 
 
+# --------------------------------------------------------------------------- règle de référence (IA-01)
+REFERENCE_MESURE = ROOT / "ml" / "src" / "mesurer_reference.py"
+
+
+def cmd_reference_mesure(args: argparse.Namespace) -> int:
+    """Mesure la règle de seuils de l'ADR-028 sur l'entraînement et la validation du jeu v1 (le test n'est pas lisible)."""
+    command = [sys.executable, str(REFERENCE_MESURE)]
+    if args.sensibilite:
+        command.append("--sensibilite")
+    if args.json:
+        command.append("--json")
+    return subprocess.run(command, cwd=ROOT, check=False).returncode
+
+
+# --------------------------------------------------------------------------- variables et découpage (IA-02)
+PREPARATION_CHECK = ROOT / "ml" / "src" / "preparer_variables.py"
+
+
+def cmd_preparation_check(args: argparse.Namespace) -> int:
+    """Vérifie le découpage (par run et par scénario) et les variables (permises, sans fuite) du jeu v1 ; le test n'est pas lu."""
+    command = [sys.executable, str(PREPARATION_CHECK)]
+    if args.json:
+        command.append("--json")
+    return subprocess.run(command, cwd=ROOT, check=False).returncode
+
+
+# --------------------------------------------------------------------------- entraînement et comparaison (IA-03)
+ML_REQUIREMENTS = ROOT / "ml" / "requirements.txt"
+ML_VENV = ROOT / "ml" / ".venv"
+ML_TRAIN = ROOT / "ml" / "src" / "entrainer.py"
+ML_ETAPES = ("validation", "test", "rapport")
+
+
+def ml_python() -> Path:
+    """L'interpréteur de l'environnement de l'entraînement (ml/.venv) : `Scripts/python.exe` sous Windows, `bin/python` ailleurs."""
+    return ML_VENV / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+
+
+def cmd_ml_env(_: argparse.Namespace) -> int:
+    """Crée ml/.venv et y installe scikit-learn depuis ml/requirements.txt, **en exigeant les empreintes** (--require-hashes)."""
+    if not ml_python().exists():
+        code = subprocess.run([sys.executable, "-m", "venv", str(ML_VENV)], cwd=ROOT, check=False).returncode
+        if code:
+            return code
+    return subprocess.run([str(ml_python()), "-m", "pip", "install", "--require-hashes", "-r", str(ML_REQUIREMENTS)], cwd=ROOT, check=False).returncode
+
+
+def cmd_ml_train(args: argparse.Namespace) -> int:
+    """Étape de l'IA-03 : validation (réglage, choix), test (une seule lecture) ou rapport (tableaux)."""
+    if not ml_python().exists():
+        print("ml/.venv est absent : lancer d'abord « ml-env » (scikit-learn y est installé avec ses empreintes).", file=sys.stderr)
+        return 2
+    return subprocess.run([str(ml_python()), str(ML_TRAIN), args.etape], cwd=ROOT, check=False).returncode
+
+
+# --------------------------------------------------------------------------- registre des modèles (IA-04)
+ML_REGISTRE = ROOT / "ml" / "src" / "registre_cli.py"
+ML_REGISTRE_COMMANDES = ("importer-ia03", "lister", "en-service", "lignee", "charger")
+
+
+def cmd_ml_registre(args: argparse.Namespace) -> int:
+    """Lit ou alimente le registre des modèles (model_runs dans MongoDB, modèles dans var/models/) avec le compte svc_ml."""
+    if not ml_python().exists():
+        print("ml/.venv est absent : lancer d'abord « ml-env » (pymongo et scikit-learn y sont installés avec leurs empreintes).", file=sys.stderr)
+        return 2
+    require_env()
+    environment = {**os.environ, "MONGO_URL": mongo_url(etl_environment(), "svc_ml", "MONGO_PASSWORD_ML"), "PYTHONUTF8": "1"}
+    return subprocess.run([str(ml_python()), str(ML_REGISTRE), args.commande, *args.options], cwd=ROOT, env=environment, check=False).returncode
+
+
+def cmd_ml_registre_essai(_: argparse.Namespace) -> int:
+    """Tests du registre contre un vrai MongoDB jetable (projet Compose à part, compte svc_ml, validateur et index réels)."""
+    if not ml_python().exists():
+        print("ml/.venv est absent : lancer d'abord « ml-env ».", file=sys.stderr)
+        return 2
+    require_env()
+    project = f"novaria-ml-{secrets.token_hex(3)}"
+    ports = {"MONGO_PORT": str(free_port())}
+    saved = {name: os.environ.get(name) for name in INTEGRATION_ISOLATION}
+    os.environ.update({"COMPOSE_PROJECT_NAME": project, **ports})
+    print(f"MongoDB jetable : projet Compose {project} (Mongo :{ports['MONGO_PORT']})")
+    try:
+        code = run_compose_step("up", "-d", "--wait", "mongo")
+        if code != 0:
+            return code
+        adresse = mongo_url({**etl_environment(), **ports}, "svc_ml", "MONGO_PASSWORD_ML")
+        environment = {**os.environ, "REGISTRE_MONGO_URL": adresse, "PYTHONUTF8": "1"}
+        return subprocess.run([str(ml_python()), "-m", "unittest", "discover", "-s", "ml/tests", "-t", "ml", "-p", "test_registre.py", "-v"],
+                              cwd=ROOT, env=environment, check=False).returncode
+    finally:
+        compose("down", "-v", "--remove-orphans", check=False)
+        print(f"Projet {project} supprimé (conteneurs, réseau et volumes).")
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
 # --------------------------------------------------------------------------- rapport hebdomadaire du robot (IA-07, FE-06)
 RPA_DIR = ROOT / "automation" / "rpa"
 
@@ -1395,6 +1494,18 @@ def build_parser() -> argparse.ArgumentParser:
     add("db-check-kpi", cmd_db_check_kpi, "recalcule les 5 indicateurs sur un jeu fabriqué (transaction annulée) et les compare aux vues")
     dataset = add("dataset-build", cmd_dataset_build, "construit le jeu d'entraînement v1 (IA-08) dans data/datasets/novaria-congestion-v1/, avec sa fiche de provenance")
     dataset.add_argument("--sortie", type=Path, help="dossier de sortie (data/datasets/novaria-congestion-v1 par défaut)")
+    reference = add("reference-mesure", cmd_reference_mesure, "mesure la règle de seuils (ADR-028) sur l'entraînement et la validation du jeu v1 (IA-01) ; le test n'est pas lisible")
+    reference.add_argument("--sensibilite", action="store_true", help="ajoute les variations d'un réglage à la fois")
+    reference.add_argument("--json", action="store_true", help="rapport JSON")
+    preparation = add("preparation-check", cmd_preparation_check, "vérifie le découpage et les variables du jeu v1 (IA-02) : variables permises, aucune fuite du futur, empreinte du découpage ; le test n'est pas lu")
+    preparation.add_argument("--json", action="store_true", help="rapport JSON")
+    add("ml-env", cmd_ml_env, "crée ml/.venv et y installe scikit-learn depuis ml/requirements.txt (empreintes exigées)")
+    train = add("ml-train", cmd_ml_train, "entraînement et comparaison (IA-03) : validation, test (lu une seule fois) ou rapport ; nécessite ml-env")
+    train.add_argument("etape", choices=ML_ETAPES, help="validation : réglage et choix ; test : lecture unique ; rapport : ml/evaluation/resultats.md")
+    registre = add("ml-registre", cmd_ml_registre, "registre des modèles (IA-04) : importer-ia03, lister, en-service, lignee <run> [--jeu], charger ; nécessite la pile (db-up) et ml-env")
+    registre.add_argument("commande", choices=ML_REGISTRE_COMMANDES)
+    registre.add_argument("options", nargs=argparse.REMAINDER, help="arguments de la commande (lignee <run> --jeu)")
+    add("ml-registre-essai", cmd_ml_registre_essai, "tests du registre contre un MongoDB jetable (projet Compose à part, supprimé ensuite) ; nécessite Docker et ml-env")
     rpa = add("rpa-report", cmd_rpa_report, "produit le rapport hebdomadaire (robot, IA-07) et le dépose dans var/reports ; la page Rapports l'affiche")
     rpa.add_argument("--debut", metavar="AAAA-MM-JJ", help="début de la période (la semaine précédente par défaut)")
     rpa.add_argument("--fin", metavar="AAAA-MM-JJ", help="fin exclue (début + 7 jours par défaut)")

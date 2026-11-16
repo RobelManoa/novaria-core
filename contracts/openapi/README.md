@@ -15,7 +15,7 @@ Chaque service décrit sa propre sonde `GET /api/v1/health` (même contenu parto
 
 ## Routage derrière la passerelle
 
-Tous les chemins commencent par `/api/v1`, comme dans BE-01 : le client du tableau de bord n'a pas à connaître les services. La passerelle (MS-13) route par préfixe.
+Tous les chemins commencent par `/api/v1`, comme dans BE-01 : le client du tableau de bord n'a pas à connaître les services. La passerelle (MS-13) en génère ses routes, leurs méthodes et leurs rôles (`python scripts/dev/gateway_routes.py`) : `x-required-role` et `security: []` des contrats y font foi.
 
 | Préfixe | Service |
 |---|---|

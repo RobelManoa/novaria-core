@@ -1,6 +1,6 @@
 # Rapport des tests du front-end (FE-08, #76)
 
-Mesures du 12/11/2026, sur Windows 11, Node 24.14, Edge 157. Rédigé à la main à partir des sorties de `npm test` et de `npm run e2e` ; à refaire quand les chiffres changent.
+Mesures du 12/11/2026, sur Windows 11, Node 24.14, Edge 157. Rédigé à la main à partir des sorties de `npm test` et de `npm run e2e:simule` ; à refaire quand les chiffres changent.
 
 ## Résultat
 
@@ -9,7 +9,7 @@ Mesures du 12/11/2026, sur Windows 11, Node 24.14, Edge 157. Rédigé à la main
 | Tests de composants (Vitest + Testing Library) | **403 tests dans 42 fichiers, tous réussis** (389 avant FE-08 : +14, ci-dessous) |
 | Un parcours Playwright : connexion → tableau de bord | **3 tests réussis** en 25 s dans Edge (`e2e/connexion-tableau-de-bord.spec.ts`) |
 | Couverture ≥ 70 % | **98,96 % des instructions, 94,28 % des branches, 99,19 % des fonctions, 99,56 % des lignes** ; `npm test` échoue sous 70 % (`vite.config.ts`) |
-| Le parcours de bout en bout passe en CI | **Non vérifié.** Il passe en local. L'étape de CI est écrite dans un commit séparé (`ci.yml`) qui demande l'accord écrit des deux membres (CLAUDE.md, §6) ; tant qu'elle n'est pas fusionnée et exécutée sur GitHub, le critère n'est pas atteint |
+| Le parcours de bout en bout passe en CI | **Étape présente dans `ci.yml` depuis la fusion de la PR #250 ; son exécution sur GitHub n'est pas vérifiée dans ce rapport** (voir les exécutions du job `frontend`). Le critère n'est atteint que si ce job est vert |
 
 ## Parcours de bout en bout
 
@@ -80,7 +80,7 @@ cd frontend
 npm ci
 npm test                                   # Vitest, couverture, seuil de 70 %
 npm run build
-E2E_CHANNEL=msedge npm run e2e             # ou sans E2E_CHANNEL après : npx playwright install chromium
+E2E_CHANNEL=msedge npm run e2e:simule             # ou sans E2E_CHANNEL après : npx playwright install chromium
 ```
 
-`npm run e2e` écrit le rapport HTML dans `e2e-report/` (ignoré par Git) et, en cas d'échec, une capture et une trace dans `test-results/`.
+`npm run e2e:simule` écrit le rapport HTML dans `e2e-report/` (ignoré par Git) et, en cas d'échec, une capture et une trace dans `test-results/`.

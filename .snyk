@@ -6,18 +6,14 @@
 #         expires: 2026-12-10T00:00:00.000Z
 version: v1.25.0
 ignore:
-  SNYK-DEBIAN13-ZLIB-19520500:
-    - '*':
-        reason: aucun correctif amont Debian 13, voir docs/04-devsecops/exceptions.md
-        expires: 2026-11-15T00:00:00.000Z
   SNYK-DEBIAN13-ATTR-17678182:
     - '*':
         reason: aucun correctif amont Debian 13, voir docs/04-devsecops/exceptions.md
-        expires: 2026-11-15T00:00:00.000Z
+        expires: 2026-12-09T00:00:00.000Z
   SNYK-DEBIAN13-ACL-17677866:
     - '*':
         reason: aucun correctif amont Debian 13, voir docs/04-devsecops/exceptions.md
-        expires: 2026-11-15T00:00:00.000Z
+        expires: 2026-12-09T00:00:00.000Z
   SNYK-DEBIAN13-SQLITE3-22119065:
     - '*':
         reason: aucun correctif amont Debian 13, voir docs/04-devsecops/exceptions.md

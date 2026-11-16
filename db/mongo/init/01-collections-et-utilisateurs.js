@@ -164,6 +164,13 @@ const collections = {
         metrics: { bsonType: "object" },
         model_sha256: { bsonType: "string", pattern: "^[0-9a-f]{64}$" },
         status: { enum: ["trained", "rejected", "registered"] },
+        // Lignée d'un modèle (IA-04) : facultatifs, ajoutés sans casser les documents déjà écrits.
+        git_dirty: { bsonType: "bool" },
+        dataset_id: { bsonType: "string" },
+        model_uri: { bsonType: "string" },
+        model_format: { bsonType: "string" },
+        registered_at: { bsonType: "date" },
+        reason: { bsonType: "string" },
       },
     },
   },

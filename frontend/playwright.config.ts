@@ -1,39 +1,41 @@
 import { defineConfig } from "@playwright/test";
 
 /**
- * Parcours de bout en bout (FE-08) : un vrai navigateur ouvre l'application CONSTRUITE (`npm run build`), servie
- * par `vite preview`. Seule l'API est simulée (voir e2e/support.ts) ; tout le reste est réel : routeur, session,
- * client d'API, mise en page, CSS.
+ * Parcours de bout en bout (MS-14) : le navigateur, le front (Vite) et la pile Docker réelle derrière la
+ * passerelle (`make up` / `dev.py up`). Rien n'est simulé. Les comptes viennent de l'environnement :
+ * E2E_OPERATOR_USER, E2E_VIEWER_USER, E2E_PASSWORD (jamais écrits dans un fichier du dépôt).
  *
- * Navigateur : dans la CI, Chromium installé par `npx playwright install --with-deps chromium`. Sur un poste qui a
- * déjà un navigateur, `E2E_CHANNEL=msedge` (ou `chrome`) évite le téléchargement.
+ * Lancer :  npm run e2e   (Chrome installé sur le poste ; E2E_CHROME_PATH pour un autre chemin)
  */
-const PORT = 4173;
-const channel = process.env.E2E_CHANNEL || undefined;
+const PORT = 5173;
 
 export default defineConfig({
   testDir: "e2e",
-  // Pas de nouvelle tentative : un test instable doit échouer, pas passer au deuxième essai.
+  testMatch: "**/*.e2e.ts",
+  fullyParallel: false,
+  workers: 1,
   retries: 0,
-  forbidOnly: Boolean(process.env.CI),
-  timeout: 60_000,
-  expect: { timeout: 10_000 },
-  reporter: [
-    ["list"],
-    ["html", { outputFolder: "e2e-report", open: "never" }],
-    ["json", { outputFile: "e2e-report/resultats.json" }],
-  ],
+  timeout: 90_000,
+  expect: { timeout: 15_000 },
+  reporter: [["list"]],
+  outputDir: "test-results",
   use: {
-    baseURL: `http://127.0.0.1:${PORT}`,
-    channel,
+    baseURL: process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`,
+    channel: process.env.E2E_CHROME_PATH ? undefined : "chrome",
+    launchOptions: process.env.E2E_CHROME_PATH
+      ? { executablePath: process.env.E2E_CHROME_PATH }
+      : {},
     locale: "fr-FR",
-    trace: "retain-on-failure",
-    screenshot: "only-on-failure",
+    viewport: { width: 1280, height: 900 },
+    trace: "off",
   },
-  webServer: {
-    command: `node node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port ${PORT} --strictPort`,
-    url: `http://127.0.0.1:${PORT}`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
+  webServer: process.env.E2E_BASE_URL
+    ? undefined
+    : {
+        // API_TARGET : la passerelle de la pile locale (port GATEWAY_PORT, 8000 par défaut).
+        command: `node node_modules/vite/bin/vite.js --host 127.0.0.1 --port ${PORT} --strictPort`,
+        url: `http://127.0.0.1:${PORT}`,
+        reuseExistingServer: true,
+        env: { API_TARGET: process.env.API_TARGET ?? "http://127.0.0.1:8000" },
+      },
 });

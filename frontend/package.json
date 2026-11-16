@@ -13,6 +13,7 @@
     "format:check": "prettier --check src",
     "test": "vitest run --coverage",
     "e2e": "playwright test",
+    "e2e:simule": "playwright test -c playwright.simule.config.ts",
     "a11y:audit": "node scripts/audit-a11y.mjs"
   },
   "dependencies": {

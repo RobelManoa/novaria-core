@@ -8,7 +8,8 @@ npm run dev        # http://localhost:5173 (proxy /api vers le backend, port 800
 npm test           # vitest + couverture (coverage/lcov.info)
 npm run lint && npm run format:check
 npm run build      # contrôle de types puis construction
-npm run e2e        # parcours de bout en bout dans un navigateur (après npm run build ; voir « Tests du front-end »)
+npm run e2e        # parcours de bout en bout sur la pile Docker réelle, avec Chrome (MS-14 ; voir docs/03-donnees/tableau-de-bord.md)
+npm run e2e:simule # parcours de bout en bout sur l'API simulée (FE-08, après npm run build ; voir « Tests du front-end »)
 npm run a11y:audit # audit d'accessibilité dans Edge ou Chrome (après npm run build), rapport dans audit/
 ```
 
@@ -20,9 +21,9 @@ Formater : `npx prettier --write src`.
 |---|---|
 | `app/` | Assemblage : `App.tsx`, `router.tsx` (tableau de routes exporté), `bootstrap.tsx` (montage), `AppShell/` (mise en page) |
 | `pages/` | Une page par route (`LoginPage`, `DashboardPage`, `AlertsPage`, `TrafficLightsPage`, `ForecastsPage`, `ReportsPage`, `NotFoundPage`) |
-| `features/` | Fonctionnalités : `navigation/` (entrées du menu), `theme/` (thème et sélecteur), `api-status/` (état de l'API), `auth/` (connexion, session, routes protégées), `dashboard/` (tableau de bord des indicateurs), `forecasts/` (page des prévisions), `reports/` (page des rapports) |
+| `features/` | Fonctionnalités : `navigation/` (entrées du menu), `theme/` (thème et sélecteur), `api-status/` (état de l'API), `auth/` (connexion, session, routes protégées), `dashboard/` (tableau de bord des indicateurs), `forecasts/` (page des prévisions), `reports/` (page des rapports), `alerts/` (alertes en direct), `overview/` (vue d'ensemble en direct par service et par carrefour), `signals/` (état des feux, commande manuelle, historique) |
 | `components/` | Composants génériques sans logique métier (`PageHeader`, `SkipLink`, `IconButton`, `Container`, `VisuallyHidden`, `ComingSoon`, `StatCard`, `StateMessage`, `ScrollRegion`) |
-| `hooks/` | `useMediaQuery`, `useDisclosure`, `useEscapeKey`, `useFocusTrap`, `useScrollLock`, `useAsyncResource` (chargement asynchrone avec clé) |
+| `hooks/` | `useMediaQuery`, `useDisclosure`, `useEscapeKey`, `useFocusTrap`, `useScrollLock`, `useAsyncResource` (chargement asynchrone avec clé), `usePolling` (relecture à intervalle fixe) |
 | `services/` | Tous les appels à l'API : un module par service (`apiMetier`, `traitement`, `alerte`, `reponse`), le client commun (`client.ts`), les erreurs (`errors.ts`) et le jeton de session (`session.ts`) |
 | `styles/` | `tokens.css` (jetons), `global.css` (base), `breakpoints.ts` (points de rupture) |
 | `types/` | Types partagés ; `types/api/` est **généré** depuis les contrats OpenAPI : ne pas le modifier à la main |
@@ -315,13 +316,13 @@ Rapport complet, chiffres et limites : [`rapport-tests.md`](rapport-tests.md).
 |---|---|---|---|
 | Composants, hooks, services, pages | Vitest + Testing Library (jsdom) | `tests/` (403 tests) | `npm test` |
 | Accessibilité (structure) | axe-core sous jsdom | `tests/accessibility/` | `npm test` |
-| Parcours de bout en bout : connexion → tableau de bord | Playwright (`@playwright/test` 1.64.1) | `e2e/` | `npm run build`, puis `npm run e2e` |
+| Parcours de bout en bout : connexion → tableau de bord | Playwright (`@playwright/test` 1.64.1) | `e2e/` | `npm run build`, puis `npm run e2e:simule` |
 
 - **Couverture** : mesurée sur `src/` seulement ; `npm test` **échoue sous 70 %** (instructions, branches, fonctions, lignes : `vite.config.ts`). Mesure du 12/11/2026 : 98,96 % / 94,28 % / 99,19 % / 99,56 %.
 - **Parcours Playwright** : un vrai navigateur ouvre l'application construite (`vite preview`, port 4173) ; **seule l'API est simulée** (`e2e/support.ts`), avec les réponses réelles enregistrées de `tests/fixtures/dashboard-api.json`. Le parcours vérifie la redirection sans session, un mot de passe refusé, la connexion, le jeton (`sessionStorage` seulement, `Authorization: Bearer` sur chaque appel), les valeurs affichées contre celles de l'API, le changement de zone et de période, la navigation, le rechargement et la déconnexion ; deux autres tests couvrent une session refusée par le serveur et une panne de l'API suivie de « Réessayer ». Ce n'est pas un essai contre le service, la passerelle et les bases.
 - **Navigateur** : en CI, Chromium de Playwright (`npx playwright install --with-deps chromium`). Sur un poste qui a déjà Edge ou Chrome, `E2E_CHANNEL=msedge` (ou `chrome`) évite le téléchargement. Playwright 1.52 se bloquait sous Node 24 : ne pas redescendre sous 1.64.
 - **Sorties** : `e2e-report/` (rapport HTML et `resultats.json`) et `test-results/` (captures et traces d'un échec), ignorés par Git.
-- **CI** : le job `frontend` exécute `npm test` (donc le seuil de 70 %). L'étape du parcours de bout en bout est **proposée dans un commit séparé** de `ci.yml`, à valider par les deux membres (CLAUDE.md, §6) ; tant qu'elle n'est pas fusionnée et exécutée, le parcours ne tourne qu'en local.
+- **CI** : le job `frontend` exécute `npm test` (donc le seuil de 70 %), puis installe Chromium et lance `npx playwright test -c playwright.simule.config.ts` (étape ajoutée avec la PR #250). Le parcours MS-14 sur la pile réelle (`npm run e2e`, `playwright.config.ts`, fichiers `*.e2e.ts`) n'est pas lancé par la CI : il demande Docker et des comptes.
 - **Poste à faible mémoire** : si des délais sont dépassés, `npx vitest run --maxWorkers=2 --testTimeout=30000`.
 
 ## Vérifier avant une pull request

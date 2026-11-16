@@ -254,7 +254,7 @@ services:
 
   # --- Service d'alerte (MS-11), API : lit et agit sur les alertes (schéma alertes, compte svc_alerte) et diffuse
   # `alerts.events` aux clients du tableau de bord en SSE. Il vérifie lui-même les jetons de l'API métier : il reçoit donc
-  # la clé de signature (JWT_SECRET), exception documentée dans docs/03-donnees/alertes.md (section 9) jusqu'à MS-13.
+  # la clé de signature (JWT_SECRET), exception documentée dans docs/03-donnees/alertes.md (section 9) ; depuis MS-13 la passerelle contrôle aussi le jeton.
   alerte:
     build:
       context: ./services/alerte
@@ -303,7 +303,7 @@ services:
   # --- Service de réponse extérieure (MS-12) : contrôleur de feux simulé, garde-fous, mode dégradé à plan fixe. Lit
   # traffic.recommendations, publie signal.status, journalise les commandes manuelles dans audit_logs (compte svc_reponse).
   # Une seule instance : l'état des feux est en mémoire, et sa perte ramène les feux au plan fixe (c'est voulu). Il vérifie
-  # lui-même les jetons de l'API métier (JWT_SECRET), exception documentée dans docs/03-donnees/feux.md jusqu'à MS-13.
+  # lui-même les jetons de l'API métier (JWT_SECRET), exception documentée dans docs/03-donnees/feux.md ; depuis MS-13 la passerelle contrôle aussi le jeton.
   reponse:
     build:
       context: ./services/reponse
@@ -333,11 +333,18 @@ services:
     depends_on:
       collecte: { condition: service_healthy }
 
-  # --- Passerelle d'API (routage, MS-06 ; authentification et limitation de débit : MS-13) ----------------
+  # --- Passerelle d'API (routage MS-06 ; MS-13 : jeton et rôles vérifiés ici, limitation de débit, CORS, en-têtes de
+  # sécurité). Image avec njs (la variante « slim » n'en a pas). Les routes sont générées depuis les contrats OpenAPI
+  # (python scripts/dev/gateway_routes.py). La clé des jetons (JWT_SECRET) vient de .env : rien dans gateway/.
   passerelle:
-    image: nginxinc/nginx-unprivileged:1.30-alpine-slim
+    image: nginxinc/nginx-unprivileged:1.30-alpine
+    environment:
+      ENVIRONMENT: local
+      JWT_SECRET: ${JWT_SECRET:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
     volumes:
-      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./gateway:/etc/nginx/gateway:ro
     ports: ["127.0.0.1:${GATEWAY_PORT:-8000}:8000"]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/health > /dev/null || exit 1"]

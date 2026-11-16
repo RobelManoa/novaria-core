@@ -265,7 +265,7 @@ Vue en lecture seule (migration `0007`) que l'API des indicateurs interroge ([AP
 
 ### 7.1 État de congestion d'un tronçon (valeurs de départ)
 
-L'état se calcule sur les fenêtres de **1 minute** et change par **hystérésis** : un seuil franchi une seule fois ne suffit pas, pour éviter un état qui clignote. Les valeurs sont des hypothèses de départ, à fixer définitivement dans `docs/06-ia-mlops/cadrage-ml.md` avant tout entraînement ([ADR-028](../01-architecture/adr/ADR-028-etats-de-congestion-et-alertes.md)).
+L'état se calcule sur les fenêtres de **1 minute** et change par **hystérésis** : un seuil franchi une seule fois ne suffit pas, pour éviter un état qui clignote. Les valeurs sont fixées définitivement, sans changement, dans [`docs/06-ia-mlops/cadrage-ml.md`](../06-ia-mlops/cadrage-ml.md) (12/11/2026, section 5.2) : mesurées sur le jeu simulé, à réexaminer avec un jeu réel ou une autre consigne du professeur ([ADR-028](../01-architecture/adr/ADR-028-etats-de-congestion-et-alertes.md)).
 
 ```mermaid
 stateDiagram-v2
@@ -644,6 +644,14 @@ Suivi des entraînements (MLOps, ADR-017) : un document par exécution. Écrit p
 | `metrics` | objet | oui | | Métriques d'évaluation |
 | `model_sha256` | texte | non | 64 caractères hexadécimaux minuscules | Empreinte du modèle enregistré |
 | `status` | texte | oui | trained, rejected, registered | État du modèle |
+| `git_dirty` | booléen | non | | Vrai si le code de l'entraînement n'était pas commité : la révision `git_sha` ne suffit alors pas à le refaire |
+| `dataset_id` | texte | non | | Identifiant du jeu d'entraînement (`novaria-congestion-v1`), avec `dataset_sha256` |
+| `model_uri` | texte | non | `local:<run_id>/modele.json` | Emplacement du modèle dans le magasin d'objets (`var/models/`) ; seul un modèle `registered` en a un |
+| `model_format` | texte | non | `novaria-modele-lineaire` | Format du fichier : le seul qui se charge (aucun `pickle`, [cadrage ML](../06-ia-mlops/cadrage-ml.md), S3) |
+| `registered_at` | date | non | | Entrée au registre, ou dernière remise en service : le modèle `registered` le plus récent est celui qui sert |
+| `reason` | texte | non | | Raison d'un rejet (`rejected`) : conditions du cadrage manquées |
+
+Cycle de vie : `trained` (entraînement écrit) → `registered` (modèle stocké, empreinte vérifiée, il entre au registre) ou `rejected` (la trace reste, **aucun fichier de modèle**). Un document `registered` ne change plus, sauf `registered_at` (retour à une version précédente). Écriture : compte `svc_ml` seul ; les changements d'état sont des mises à jour conditionnelles (`status` attendu). Code et lignée : [registre des modèles](../../ml/registry/README.md).
 
 | Index | Clés | Rôle |
 |---|---|---|

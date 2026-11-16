@@ -121,6 +121,7 @@ flowchart TB
 | [026](ADR-026-postes-de-travail-windows-et-linux.md) | Postes Windows et Linux : Docker et un lanceur Python commun | Acceptée | Non requise |
 | [027](ADR-027-jeux-de-donnees-et-provenance.md) | Jeux de données et provenance : simulateur Python d'abord | Proposée | À demander (jeu de données) |
 | [028](ADR-028-etats-de-congestion-et-alertes.md) | États de congestion, hystérésis et alertes par épisode | Proposée (seuils de départ) | À demander (indicateurs) |
+| [029](ADR-029-passerelle-et-authentification.md) | Passerelle d'API : le jeton et le rôle sont contrôlés avant tout service | Proposée | Non demandée |
 
 Vocabulaire des statuts : **Acceptée** (décidée) · **Acceptée sous condition** (décidée, avec une porte de sortie datée) · **Proposée** (analysée, confirmation attendue) · **À décider** (décision ouverte) · **Remplacée par ADR-XXX**.
 
@@ -149,7 +150,6 @@ Vocabulaire des statuts : **Acceptée** (décidée) · **Acceptée sous conditio
 | Sujet | Issue | Jalon |
 |---|---|---|
 | Observabilité et résilience entre services | MS-16 | M4 |
-| Authentification et passerelle d'API (JWT, rôles) | MS-13, BE-03 | M2 |
 | Relecture de la table d'équivalences locales/AWS | DOC-11 | M4 |
 | Signature des images (proposition d'issue CLD-25) | écart E-02 | M4 |
 
