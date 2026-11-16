@@ -314,11 +314,11 @@ Rapport complet, chiffres et limites : [`rapport-tests.md`](rapport-tests.md).
 
 | Niveau | Outil | Où | Commande |
 |---|---|---|---|
-| Composants, hooks, services, pages | Vitest + Testing Library (jsdom) | `tests/` (403 tests) | `npm test` |
+| Composants, hooks, services, pages | Vitest + Testing Library (jsdom) | `tests/` (436 tests) | `npm test` |
 | Accessibilité (structure) | axe-core sous jsdom | `tests/accessibility/` | `npm test` |
 | Parcours de bout en bout : connexion → tableau de bord | Playwright (`@playwright/test` 1.64.1) | `e2e/` | `npm run build`, puis `npm run e2e:simule` |
 
-- **Couverture** : mesurée sur `src/` seulement ; `npm test` **échoue sous 70 %** (instructions, branches, fonctions, lignes : `vite.config.ts`). Mesure du 12/11/2026 : 98,96 % / 94,28 % / 99,19 % / 99,56 %.
+- **Couverture** : mesurée sur `src/` seulement ; `npm test` **échoue sous 70 %** (instructions, branches, fonctions, lignes : `vite.config.ts`). Mesure du 16/11/2026 après la synchronisation avec `main` et `dev-ia` : 98,06 % / 91,63 % / 98,17 % / 98,93 % (instructions, branches, fonctions, lignes).
 - **Parcours Playwright** : un vrai navigateur ouvre l'application construite (`vite preview`, port 4173) ; **seule l'API est simulée** (`e2e/support.ts`), avec les réponses réelles enregistrées de `tests/fixtures/dashboard-api.json`. Le parcours vérifie la redirection sans session, un mot de passe refusé, la connexion, le jeton (`sessionStorage` seulement, `Authorization: Bearer` sur chaque appel), les valeurs affichées contre celles de l'API, le changement de zone et de période, la navigation, le rechargement et la déconnexion ; deux autres tests couvrent une session refusée par le serveur et une panne de l'API suivie de « Réessayer ». Ce n'est pas un essai contre le service, la passerelle et les bases.
 - **Navigateur** : en CI, Chromium de Playwright (`npx playwright install --with-deps chromium`). Sur un poste qui a déjà Edge ou Chrome, `E2E_CHANNEL=msedge` (ou `chrome`) évite le téléchargement. Playwright 1.52 se bloquait sous Node 24 : ne pas redescendre sous 1.64.
 - **Sorties** : `e2e-report/` (rapport HTML et `resultats.json`) et `test-results/` (captures et traces d'un échec), ignorés par Git.

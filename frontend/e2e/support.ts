@@ -134,6 +134,9 @@ export async function installFakeApi(page: Page, options: Options = {}): Promise
       api.unrecordedIndicators.push(query);
       return route.fulfill(problem(503, "UPSTREAM_UNAVAILABLE"));
     }
+    // « En direct » (MS-14) : un chiffre par service, relu à intervalle fixe. Listes vides, valides au contrat.
+    if (key === "GET /api/v1/indicators/latest") return route.fulfill(ok({ items: [] }));
+    if (key === "GET /api/v1/signals") return route.fulfill(ok({ items: [] }));
     if (key === "GET /api/v1/alerts") return route.fulfill(ok({ items: [], next_cursor: null }));
     if (key === "GET /api/v1/events/stream") {
       return route.fulfill({ status: 200, contentType: "text/event-stream", body: ": e2e\n\n" });

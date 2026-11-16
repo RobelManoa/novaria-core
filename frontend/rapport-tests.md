@@ -2,6 +2,10 @@
 
 Mesures du 12/11/2026, sur Windows 11, Node 24.14, Edge 157. Rédigé à la main à partir des sorties de `npm test` et de `npm run e2e:simule` ; à refaire quand les chiffres changent.
 
+## Mise à jour du 16/11/2026 (après la synchronisation avec `main` et `dev-ia`)
+
+`main` apporte le tableau de bord en direct (MS-14) et son propre parcours de bout en bout sur la pile Docker réelle (`playwright.config.ts`, `e2e/*.e2e.ts`, `npm run e2e`). Les deux parcours coexistent : celui-ci, sur l'API simulée, a désormais sa configuration (`playwright.simule.config.ts`, `e2e/*.spec.ts`, `npm run e2e:simule`) et c'est celui que lance la CI. Les chiffres ci-dessous datent du 12/11/2026 ; sur l'arbre fusionné : **436 tests dans 46 fichiers, tous réussis**, couverture de `src/` à **98,06 % des instructions, 91,63 % des branches, 98,17 % des fonctions, 98,93 % des lignes**, et les **3 tests Playwright simulés réussis** dans Edge (17 s). La vue « En direct » interroge `/indicators/latest` et `/signals` : l'API simulée y répond par des listes vides, et le parcours MS-14 (pile réelle) n'a pas été rejoué ici.
+
 ## Résultat
 
 | Critère de l'issue | Résultat |
