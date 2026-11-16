@@ -1,7 +1,7 @@
 # Machine Learning et MLOps
 
 `src/` code d'entraînement · `evaluation/` comparaisons et métriques · `registry/` suivi des modèles
-(table `model_runs` dans MongoDB, modèles versionnés dans le dossier local `var/models/` ; S3 (Simple Storage Service) documenté, non exécuté) · `notebooks/` exploration uniquement.
+(table `model_runs` dans MongoDB, modèles versionnés dans le dossier local `var/models/` derrière le port `ObjectStore` de `src/stockage/` ; S3 (Simple Storage Service) documenté, non exécuté ; [stockage d'objets](../docs/03-donnees/stockage-objets.md)) · `notebooks/` exploration uniquement.
 
 Ordre de travail : congestion d'abord, prévision ensuite ([ADR-015](../docs/01-architecture/adr/ADR-015-modeles-ia.md)). Les états et leurs seuils sont définis dans l'[ADR-028](../docs/01-architecture/adr/ADR-028-etats-de-congestion-et-alertes.md) et le [dictionnaire de données](../docs/03-donnees/dictionnaire-de-donnees.md) ; le découpage entraînement/test se fait par run et par scénario.
 
@@ -24,6 +24,15 @@ Ordre de travail : congestion d'abord, prévision ensuite ([ADR-015](../docs/01-
 | `lignes.py` | variables, historique, réponses, label de la vérité terrain |
 | `parquet.py` | écrivain et lecteur Parquet (sous-ensemble étroit, octets identiques à chaque écriture) |
 | `construire.py`, `provenance.py` | fichiers, manifeste, empreintes, fiche |
+
+## Pipeline MLSecOps (IA-05)
+
+`src/pipeline/` entraîne la configuration figée par IA-03, l'évalue, applique le seuil et des contrôles de sécurité (jeu intact, artefact relu, format sans `pickle`, dépendances auditées, fiche relue, code commité, métriques reproduites), puis ferme une **porte** : un modèle sous le seuil n'est pas enregistré (code de sortie 1). Le flux de travail `.github/workflows/mlsecops.yml` le lance à la main, sans aucun paramètre. Documentation, équivalent SageMaker (non exécuté) et limites : [pipeline MLSecOps](../docs/06-ia-mlops/pipeline-mlsecops.md).
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Pipeline complet (code 1 si la porte est fermée) | `make ml-pipeline` | `py -3 scripts/dev/dev.py ml-pipeline` |
+| Avec le registre MongoDB | `make ml-pipeline MONGO=1` | `py -3 scripts/dev/dev.py ml-pipeline --mongo` |
 
 ## Registre des modèles (IA-04)
 

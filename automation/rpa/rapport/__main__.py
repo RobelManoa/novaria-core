@@ -12,7 +12,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from rapport import api, chaine, depot, periode
+from rapport import api, chaine, notification, periode
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -23,12 +23,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fin", help="fin exclue, AAAA-MM-JJ (début + 7 jours par défaut)")
     arguments = parser.parse_args(argv)
     try:
-        resultat = chaine.produire(arguments.api, arguments.dossier, debut=arguments.debut, fin=arguments.fin)
+        resultat = chaine.produire(arguments.api, arguments.dossier, debut=arguments.debut, fin=arguments.fin,
+                                   signaler=lambda ligne: print(ligne, file=sys.stderr))
     except (periode.PeriodeInvalide, chaine.IdentifiantsAbsents) as erreur:
         print(f"Saisie invalide : {erreur}", file=sys.stderr)
         return 2
     except api.ErreurApi as erreur:
-        depot.notifier(arguments.dossier, "ERREUR", f"rapport non produit : {erreur}", datetime.now(UTC))
+        notification.notifier(arguments.dossier, "ERREUR", f"rapport non produit : {erreur}", datetime.now(UTC))
         print(f"Échec : {erreur}", file=sys.stderr)
         return 1
     print(json.dumps({**resultat.metadonnees, "remplace": resultat.remplace}, ensure_ascii=False, indent=2))

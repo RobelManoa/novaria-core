@@ -9,6 +9,7 @@ from pathlib import Path
 
 from jeu_entrainement import catalogue, parquet
 from jeu_entrainement.simulation import RACINE
+from stockage import ouvrir_magasin_de_jeu
 
 DOSSIER_JEU = RACINE / "data" / "datasets" / catalogue.JEU_ID
 ENSEMBLES_LISIBLES = (catalogue.TRAIN, catalogue.VALIDATION)
@@ -26,7 +27,7 @@ def charger(ensemble: str, dossier: Path = DOSSIER_JEU, *, evaluation_finale: bo
         raise EnsembleReserve(
             f"« {ensemble} » est réservé à l'évaluation finale (IA-03) : lisibles ici, {', '.join(ENSEMBLES_LISIBLES)}"
         )
-    colonnes, lignes = parquet.lire(dossier / f"{ensemble}.parquet")
+    colonnes, lignes = parquet.decoder(ouvrir_magasin_de_jeu(dossier).get(f"{ensemble}.parquet"))
     noms = [c.nom for c in colonnes]
     resultat = [dict(zip(noms, ligne, strict=True)) for ligne in lignes]
     resultat.sort(key=lambda ligne: (ligne["run_id"], ligne["road_segment_id"], ligne["window_start"]))

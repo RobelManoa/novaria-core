@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from registre import documents
 from registre.format_lineaire import NOM as FORMAT, FormatInvalide, ModeleLineaire
 from registre.runs import RunStore
-from registre.stockage import ObjectStore, ObjetDejaEcrit, sha256
+from stockage import ObjectStore, ObjetDejaEcrit, sha256
 
 journal = logging.getLogger("registre")
 POINTEUR = "en-service.json"

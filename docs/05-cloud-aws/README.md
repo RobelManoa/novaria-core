@@ -27,6 +27,7 @@ flowchart LR
 | Docker, images, déploiement | [ADR-021](../01-architecture/adr/ADR-021-docker-deploiement.md) | Images locales ; publication documentée |
 | Hébergement MongoDB | [ADR-022](../01-architecture/adr/ADR-022-hebergement-mongodb.md) | Local en conteneur ; AWS documenté |
 | Équivalents locaux de chaque service | [ADR-025](../01-architecture/adr/ADR-025-equivalents-locaux-des-services-aws.md) | Table de référence |
+| Remplacer AWS : état, issues ouvertes, questions du jury | [remplacer-aws-en-local.md](remplacer-aws-en-local.md) | Synthèse du 13/11/2026 |
 | Procédure de remise en route d'AWS | Section ci-dessous | À suivre sur autorisation écrite |
 
 ## Remettre AWS en route (uniquement sur autorisation écrite)

@@ -11,32 +11,39 @@ passe l'empreinte du jeu citée ailleurs (fiche de provenance, document `model_r
 import json
 from pathlib import Path
 
-from jeu_entrainement.construire import SORTIE_PAR_DEFAUT, empreinte_du_jeu, sha256
+from jeu_entrainement.construire import SORTIE_PAR_DEFAUT, empreinte_du_jeu
+from stockage import StockageErreur, ouvrir_magasin_de_jeu, sha256
 
 
 def verifier(dossier: Path = SORTIE_PAR_DEFAUT, empreinte_attendue: str | None = None) -> list[str]:
-    """Les écarts entre le dossier et son manifeste ; une liste vide veut dire « jeu intact »."""
-    chemin = dossier / "manifest.json"
-    if not chemin.is_file():
+    """Les écarts entre le dossier et son manifeste ; une liste vide veut dire « jeu intact ». Les fichiers sont lus par
+    le port `ObjectStore`, comme à l'entraînement : ce qui est vérifié est ce qui sera lu."""
+    magasin = ouvrir_magasin_de_jeu(dossier)
+    if not magasin.exists("manifest.json"):
         return [f"manifest.json absent de {dossier}"]
     try:
-        manifeste = json.loads(chemin.read_text(encoding="utf-8"))
+        manifeste = json.loads(magasin.get("manifest.json").decode("utf-8"))
         fichiers = manifeste["fichiers"]
         attendue = manifeste["empreinte_du_jeu"]
-    except (ValueError, KeyError, TypeError) as erreur:
+    except (ValueError, KeyError, TypeError, StockageErreur) as erreur:
         return [f"manifest.json illisible : {erreur!r}"]
     ecarts = []
     for nom in sorted(fichiers):
-        fichier = dossier / nom
-        if not fichier.is_file():
-            ecarts.append(f"{nom} : fichier manquant")
-        elif fichier.stat().st_size != fichiers[nom]["octets"]:
-            ecarts.append(f"{nom} : {fichier.stat().st_size} octets, le manifeste en annonce {fichiers[nom]['octets']}")
-        elif sha256(fichier) != fichiers[nom]["sha256"]:
+        try:
+            if not magasin.exists(nom):
+                ecarts.append(f"{nom} : fichier manquant")
+                continue
+            octets = magasin.get(nom)
+        except StockageErreur as erreur:
+            ecarts.append(f"{nom} : illisible ({erreur})")
+            continue
+        if len(octets) != fichiers[nom]["octets"]:
+            ecarts.append(f"{nom} : {len(octets)} octets, le manifeste en annonce {fichiers[nom]['octets']}")
+        elif sha256(octets) != fichiers[nom]["sha256"]:
             ecarts.append(f"{nom} : SHA-256 différent de celui du manifeste")
-    for fichier in sorted(dossier.glob("*.parquet")):
-        if fichier.name not in fichiers:
-            ecarts.append(f"{fichier.name} : fichier Parquet absent du manifeste")
+    for cle in magasin.list():
+        if cle.endswith(".parquet") and cle not in fichiers:
+            ecarts.append(f"{cle} : fichier Parquet absent du manifeste")
     if empreinte_du_jeu(fichiers) != attendue:
         ecarts.append("manifest.json : l'empreinte du jeu ne correspond pas à la liste de ses fichiers")
     if empreinte_attendue is not None and attendue != empreinte_attendue:

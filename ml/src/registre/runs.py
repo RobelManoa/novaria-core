@@ -5,9 +5,14 @@ l'état attendu. Deux promotions simultanées ne s'écrasent pas ; un document e
 """
 
 import copy
+import json
+import os
+import tempfile
+from datetime import datetime
+from pathlib import Path
 from typing import Protocol
 
-from registre.documents import REGISTERED, valider
+from registre.documents import REGISTERED, valider, valider_run_id
 
 
 class RunDejaEnregistre(RuntimeError):
@@ -101,3 +106,76 @@ class MongoRunStore:
     def dernier_en_service(self) -> dict | None:
         trouves = list(self.collection.find({"status": REGISTERED}, {"_id": 0}).sort([("registered_at", -1), ("created_at", -1)]).limit(1))
         return trouves[0] if trouves else None
+
+
+class FichierRunStore:
+    """`model_runs` dans un dossier : un fichier JSON par run (`<run_id>.json`). Pour une exécution sans MongoDB (la CI).
+
+    Chaque écriture est atomique (fichier temporaire puis échange) et le comportement est celui des autres magasins :
+    unicité du `run_id`, mise à jour conditionnelle. Il sert des étapes successives d'un même flux de travail, pas
+    des écritures simultanées de plusieurs processus.
+    """
+
+    DATES = ("created_at", "registered_at")
+
+    def __init__(self, racine: Path) -> None:
+        self.racine = Path(racine)
+
+    def _chemin(self, run_id: str) -> Path:
+        racine = self.racine.resolve()
+        chemin = (racine / f"{valider_run_id(run_id)}.json").resolve()
+        if not chemin.is_relative_to(racine):
+            raise RunDejaEnregistre(f"chemin hors du dossier des runs : {run_id!r}")
+        return chemin
+
+    def _ecrire(self, chemin: Path, document: dict, *, exclusif: bool) -> None:
+        sortie = {nom: (valeur.isoformat() if isinstance(valeur, datetime) else valeur) for nom, valeur in document.items()}
+        octets = (json.dumps(sortie, ensure_ascii=False, sort_keys=True, indent=1) + "\n").encode("utf-8")
+        chemin.parent.mkdir(parents=True, exist_ok=True)
+        descripteur, temporaire = tempfile.mkstemp(dir=chemin.parent, prefix=".ecriture-")
+        try:
+            with os.fdopen(descripteur, "wb") as fichier:
+                fichier.write(octets)
+            if exclusif:
+                os.link(temporaire, chemin)  # échoue si le run existe déjà
+            else:
+                os.replace(temporaire, chemin)
+        except FileExistsError as erreur:
+            raise RunDejaEnregistre(chemin.stem) from erreur
+        finally:
+            if os.path.exists(temporaire):
+                os.unlink(temporaire)
+
+    def _lire(self, chemin: Path) -> dict | None:
+        if not chemin.is_file():
+            return None
+        document = json.loads(chemin.read_text(encoding="utf-8"))
+        for nom in self.DATES:
+            if nom in document:
+                document[nom] = datetime.fromisoformat(document[nom])
+        return document
+
+    def inserer(self, document: dict) -> None:
+        valider(document)
+        self._ecrire(self._chemin(document["run_id"]), document, exclusif=True)
+
+    def obtenir(self, run_id: str) -> dict | None:
+        return self._lire(self._chemin(run_id))
+
+    def lister(self, status: str | None = None) -> list[dict]:
+        documents = [self._lire(chemin) for chemin in sorted(self.racine.glob("*.json"))] if self.racine.is_dir() else []
+        return sorted((d for d in documents if d is not None and status in (None, d["status"])), key=lambda d: d["created_at"])
+
+    def mettre_a_jour(self, run_id: str, champs: dict, *, statut_attendu: str) -> bool:
+        chemin = self._chemin(run_id)
+        courant = self._lire(chemin)
+        if courant is None or courant["status"] != statut_attendu:
+            return False
+        suite = {**courant, **champs}
+        valider(suite)
+        self._ecrire(chemin, suite, exclusif=False)
+        return True
+
+    def dernier_en_service(self) -> dict | None:
+        enregistres = self.lister(REGISTERED)
+        return max(enregistres, key=lambda d: (d["registered_at"], d["created_at"])) if enregistres else None

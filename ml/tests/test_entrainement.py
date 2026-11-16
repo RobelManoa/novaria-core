@@ -344,7 +344,7 @@ class TestChaineComplete(unittest.TestCase):
 
     def test_un_jeu_modifie_arrete_la_validation_avant_tout_entrainement(self):
         copie = Path(self._tmp.name) / "jeu-abime"
-        shutil.copytree(self.dossier, copie)
+        shutil.copytree(self.dossier, copie, copy_function=shutil.copyfile)  # la copie est modifiable : le jeu construit est en lecture seule
         octets = bytearray((copie / "train.parquet").read_bytes())
         octets[200] ^= 0xFF
         (copie / "train.parquet").write_bytes(bytes(octets))
@@ -390,7 +390,7 @@ class TestChaineComplete(unittest.TestCase):
 
     def test_le_test_modifie_apres_la_selection_est_refuse(self):
         copie = Path(self._tmp.name) / "jeu-abime-apres"
-        shutil.copytree(self.dossier, copie)
+        shutil.copytree(self.dossier, copie, copy_function=shutil.copyfile)  # la copie est modifiable : le jeu construit est en lecture seule
         octets = bytearray((copie / "test.parquet").read_bytes())
         octets[200] ^= 0xFF
         (copie / "test.parquet").write_bytes(bytes(octets))

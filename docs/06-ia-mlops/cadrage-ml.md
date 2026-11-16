@@ -283,7 +283,18 @@ Les chiffres des sections 5 et 6 sortent de cette commande. Un test (`ml/tests/t
 
 **Précision de mise en œuvre (IA-04, 12/11/2026).** Les lignes M3 et M4 de la section 9 sont mises à jour (format sans exécution de code, service qui lit le magasin plutôt que MongoDB). Aucune valeur des sections 5 et 6 n'a changé. Voir [`ml/registry/README.md`](../../ml/registry/README.md).
 
-Aucun avenant de valeur au 12/11/2026. Un avenant donne : la date, la valeur changée, la raison, et le commit qui précède l'évaluation concernée.
+**Avenant 1 (IA-05, 12/11/2026) : le pipeline relit le test pour reproduire une configuration figée, et deux conditions d'enregistrement s'ajoutent.** Aucune valeur de la section 5 (seuils de l'ADR-028) ni de la section 6 (A1 à A5) ne change.
+
+| Point | Avenant |
+|---|---|
+| Lecture du test | le pipeline MLSecOps ([pipeline](pipeline-mlsecops.md)) relit le test du jeu v1 **uniquement pour reproduire** la configuration figée par IA-03 : l'empreinte de `selection.json` doit être celle que `resultat-test.json` a enregistrée, sinon il refuse. Il ne choisit rien et ne règle rien. Un autre candidat ou un autre réglage demande une nouvelle sélection et un **test neuf** (jeu v2) |
+| Condition T1 | un modèle ne s'enregistre que si le code est **commité** (`git_dirty` faux) : il doit se refaire depuis sa révision Git. Bloquante pour l'enregistrement |
+| Condition R1 | un modèle ne s'enregistre que si les métriques **recalculées** sont identiques à celles du test enregistré (reproductibilité, ADR-017). Bloquante pour l'enregistrement |
+| Condition S5 | précisée : la fiche du modèle porte une ligne « Relue par : nom, date » de **l'autre membre** ; « à faire » ne vaut pas relecture |
+| Condition S4 | inchangée : rapportée, non bloquante ; **non vérifiée** si l'outil ou le réseau manque |
+| Antériorité | **les essais locaux du 12/11/2026 ont relu le test avant que cet avenant soit écrit** ; leurs résultats sont identiques à ceux d'IA-03 (R1). L'avenant doit être commité avant toute exécution du pipeline sur GitHub |
+
+Aucun autre avenant de valeur au 12/11/2026. Un avenant donne : la date, la valeur changée, la raison, et le commit qui précède l'évaluation concernée.
 
 ## 13. À faire relire
 

@@ -10,6 +10,8 @@
 | Compétences BC05 | RPA et automatisation des tâches |
 | S'appuie sur | [ADR-018](ADR-018-devsecops.md) |
 
+> **Mise à jour du 12/11/2026 (IA-07).** Réalisé : la partie API du robot, le dépôt, la **planification hebdomadaire** (`cron`, Planificateur de tâches Windows, planificateur intégré `dev.py rpa-planifier` avec rattrapage), la **nouvelle tentative limitée** (3 tentatives sur les erreurs passagères) et la **notification** (journal, puis courriel SMTP facultatif). La notification n'est plus « simulée » : elle est réelle mais éprouvée seulement contre un serveur d'essai local. **L'étape d'interface n'est pas faite** (plan de repli, section 6). Voir [rapports automatiques](../../03-donnees/rapports-automatiques.md).
+
 ## 1. Problème
 
 La RPA (Robotic Process Automation, automatisation robotisée des processus) reproduit les gestes d'une personne devant une interface. Le référentiel BC05 la demande « uniquement si une tâche répétitive le justifie ». Novaria Core expose des API (Application Programming Interface, interface de programmation) complètes : l'automatisation par API est presque toujours supérieure à la RPA. Quelle tâche justifie un robot, avec quel outil, et dans quelles limites ?

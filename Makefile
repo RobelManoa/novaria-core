@@ -6,7 +6,7 @@ DEV = $(PY) scripts/dev/dev.py
 PY_API ?= $(if $(wildcard venv/bin/python),venv/bin/python,$(PY))
 DEV_API = $(PY_API) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint a11y-audit format new-service quality-up quality-down hooks terraform-check drift-check dataset-build test-ml test-gateway test-gateway-unit gateway-routes reference-mesure preparation-check ml-env ml-train ml-registre ml-registre-essai
+.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint a11y-audit format new-service quality-up quality-down hooks terraform-check drift-check dataset-build test-ml test-gateway test-gateway-unit gateway-routes reference-mesure preparation-check ml-env ml-train ml-registre ml-registre-essai bigdata-build bigdata-test bigdata
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -88,7 +88,7 @@ kafka-roundtrip: ## Publie mesure-valide.json sur iot.raw, le relit et le valide
 	$(DEV) kafka-roundtrip
 
 test:          ## Tests des services + frontend + scripts du poste
-	@for d in services/*/; do (cd $$d && python -m pytest) || exit 1; done
+	@for d in services/*/; do (cd $$d && $(abspath $(PY_API)) -m pytest) || exit 1; done
 	cd frontend && npm test
 	$(PY) -m unittest discover -s scripts/dev
 	$(PY) -m unittest discover -s data/etl/tests
@@ -157,3 +157,9 @@ quality-up:    ## SonarQube Community Build local
 	docker compose -f compose.quality.yml up -d
 quality-down:
 	docker compose -f compose.quality.yml down
+bigdata-build: ## Construit l'image du prototype Big Data (PySpark local, Docker ; DAT-08)
+	$(DEV) bigdata-build
+bigdata-test: ## Tests du prototype Big Data dans son image (Docker)
+	$(DEV) bigdata-test
+bigdata: ## Lance le prototype Big Data : make bigdata C="generer --jours 30" (ou mesurer, nettoyer, verifier ; DAT-08)
+	$(DEV) bigdata -- $(C)
