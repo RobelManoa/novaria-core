@@ -6,7 +6,7 @@ DEV = $(PY) scripts/dev/dev.py
 PY_API ?= $(if $(wildcard venv/bin/python),venv/bin/python,$(PY))
 DEV_API = $(PY_API) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint format new-service quality-up quality-down hooks terraform-check bigdata-build bigdata-test bigdata
+.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint format new-service quality-up quality-down hooks terraform-check bigdata-build flux-proto test-flux-proto bigdata-test bigdata
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -135,3 +135,7 @@ bigdata-test: ## Tests du prototype Big Data dans son image (Docker)
 	$(DEV) bigdata-test
 bigdata: ## Lance le prototype Big Data : make bigdata C="generer --jours 30" (ou mesurer, nettoyer, verifier ; DAT-08)
 	$(DEV) bigdata -- $(C)
+flux-proto: ## Prototype de flux temps réel (Kafka, Flink SQL, MongoDB ; DAT-09) : make flux-proto C="demo --duree 12m" (ou build, up, job, produire, verifier, down)
+	$(DEV) flux-proto -- $(or $(C),demo)
+test-flux-proto: ## Tests du prototype de flux, sans Docker (recalcul, rendu SQL, comparaison)
+	cd data/streaming && $(PY) -m unittest discover -s tests -t .

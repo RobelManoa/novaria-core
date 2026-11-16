@@ -49,7 +49,7 @@ flowchart LR
 | RDS PostgreSQL | Base métier et entrepôt | Conteneur `postgres:16-alpine` | `db/postgres/` | En service |
 | MongoDB hébergé | Journaux, événements, audit | Conteneur `mongo:7` | `db/mongo/` | En service |
 | MSK | Bus d'événements | Kafka en mode KRaft (`apache/kafka:4.3.1`) | [kafka-local.md](../08-exploitation/kafka-local.md) | En service |
-| Flink géré | Fenêtres temps réel | Consommateur Python (repli prévu par l'ADR-011) ; Flink si le temps le permet | `services/traitement/` | Fenêtres en service ; Flink : DAT-09 (#84) ouverte |
+| Flink géré | Fenêtres temps réel | Consommateur Python (repli prévu par l'ADR-011) ; Flink si le temps le permet | `services/traitement/` | Fenêtres en service ; Flink : prototype DAT-09 (#84) réalisé, [rapport](../03-donnees/prototype-flux.md) |
 | EMR | Prototype Big Data | PySpark en mode local `local[*]` | DAT-08 (#83) | À faire |
 | Glue | Catalogue, ETL (Extract, Transform, Load) | Scripts Python et [dictionnaire de données](../03-donnees/dictionnaire-de-donnees.md) | `data/etl/` | En service ; Glue non exécuté |
 | S3 | Jeux de données, modèles, sauvegardes | Port `ObjectStore` sur `var/`, dossier `backups/` | `ml/src/stockage/objets.py` | Port `ObjectStore` (écrire, lire, lister) pour les modèles et les jeux ; test d'absence de SDK : LOC-05 (#152), fait le 13/11/2026 ([stockage d'objets](../03-donnees/stockage-objets.md)). Sauvegardes et rapports restent hors du port |
@@ -81,7 +81,7 @@ Légende : **Local** = faisable tel quel ; **À reformuler** = l'énoncé cite A
 | **#93 GES-09** | Chiffrage AWS | Coût **projeté**, tarifs publics, mention « projeté, non déployé » | Documenté |
 | **#105 CLD-21** | `terraform destroy`, facture | Contrôle que **rien** n'a été créé : aucune variable `AWS_ROLE_ARN` ni `AWS_REGION`, aucun secret AWS dans GitHub | À reformuler |
 | **#83 DAT-08** | EMR documenté | PySpark local ; paragraphe « équivalent EMR, non exécuté » | Local |
-| **#84 DAT-09** | MSK documenté | Kafka local, fenêtres, MongoDB ; paragraphe « équivalent MSK, non exécuté » | Local |
+| **#84 DAT-09** | MSK documenté | Kafka local, fenêtres, MongoDB ; paragraphe « équivalent MSK, non exécuté » ([rapport](../03-donnees/prototype-flux.md), section 7) | Local, **fait le 16/11/2026** |
 
 Issues ouvertes **sans lien avec AWS** (rien à remplacer) : #92 CLD-19 (revue Snyk et SonarQube), #98 CLD-20, #95 DOC-06, #96 DOC-07, #99 DOC-08, #100 GES-12, #101 DOC-09, #102 GES-13, #103 GES-14, #104 GES-15.
 

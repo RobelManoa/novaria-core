@@ -1211,6 +1211,24 @@ def cmd_bigdata_test(args: argparse.Namespace) -> int:
     return subprocess.run(bigdata_docker.commande_de_test(ROOT, args.cpus, args.memoire), check=False).returncode
 
 
+# --------------------------------------------------------------------------- prototype de flux temps réel (DAT-09)
+FLUX_PROTO_DIR = ROOT / "data" / "streaming"
+
+
+def cmd_flux_proto(args: argparse.Namespace) -> int:
+    """Prototype Kafka + Flink SQL + MongoDB (voir data/streaming/README.md) : build, up, job, produire, verifier, demo, down."""
+    arguments = [mot for mot in args.arguments if mot != "--"]
+    if not arguments:
+        raise DevError("Indiquer la commande du prototype, par exemple :  dev.py flux-proto demo")
+    require_docker()
+    sys.path.insert(0, str(FLUX_PROTO_DIR))
+    try:
+        from streaming import cli
+    finally:
+        sys.path.remove(str(FLUX_PROTO_DIR))
+    return cli.main(arguments)
+
+
 # --------------------------------------------------------------------------- tableau de bord en local (FE-04)
 FRONTEND_DIR = ROOT / "frontend"
 API_PORT = 8000  # cible du proxy de Vite (frontend/vite.config.ts)
@@ -1632,6 +1650,8 @@ def build_parser() -> argparse.ArgumentParser:
     bd.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
     bd.add_argument("--memoire", default="6g", help="mémoire allouée au conteneur (6g par défaut)")
     bd.add_argument("arguments", nargs=argparse.REMAINDER, help="arguments de « python -m bigdata », après -- (par exemple -- mesurer --jours 7)")
+    flux = add("flux-proto", cmd_flux_proto, "prototype de flux temps réel : Kafka, Flink SQL, MongoDB (DAT-09, Docker) : build, up, job, produire, verifier, demo, down")
+    flux.add_argument("arguments", nargs=argparse.REMAINDER, help="commande du prototype et ses options (par exemple : demo --duree 12m)")
     bdt = add("bigdata-test", cmd_bigdata_test, "tests du prototype Big Data dans son image (Docker)")
     bdt.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
     bdt.add_argument("--memoire", default="6g", help="mémoire allouée au conteneur (6g par défaut)")
