@@ -1211,6 +1211,40 @@ def cmd_bigdata_test(args: argparse.Namespace) -> int:
     return subprocess.run(bigdata_docker.commande_de_test(ROOT, args.cpus, args.memoire), check=False).returncode
 
 
+# --------------------------------------------------------------------------- matrice d'accès et essais de refus (CLD-18)
+def cmd_acces(args: argparse.Namespace) -> int:
+    """Compare ops/matrice-acces.json à ce que la pile applique : essais autorisés et refusés sur l'API, PostgreSQL et MongoDB."""
+    import acces
+
+    require_env()
+    require_docker()
+    pile = acces.Pile(parse_env(ENV_FILE.read_text(encoding="utf-8")))
+    print("Matrice d'accès de la pile locale : essais d'autorisation et de refus (la pile doit tourner : dev.py up).")
+    essais, ecarts, incoherences = acces.executer(pile, afficher=print)
+    print()
+    for famille, accordes, attendus_accordes, refuses, attendus_refuses in acces.resume_par_famille(essais):
+        print(f"  {famille:<24} accès accordés {accordes}/{attendus_accordes} · accès refusés {refuses}/{attendus_refuses}")
+    print("\nUn essai autorisé et un essai refusé par sujet :")
+    for sujet, (autorise, refuse) in acces.exemples_par_sujet(essais, ("api", "postgres (essai", "mongo (essai"), acces.charger()["api"]["exemples"]).items():
+        for essai in (autorise, refuse):
+            if essai:
+                print(f"  [{'OK' if essai.ok else 'ÉCHEC'}] {sujet:<16} {'autorisé' if essai.attendu else 'refusé  '} {essai.operation} → {essai.detail}")
+    if ecarts:
+        print("\nÉcarts connus (contrôle prévu et absent, non compté comme un succès) :")
+        for ecart in ecarts:
+            print(f"  [ÉCART] {ecart.libelle}\n          {ecart.preuve}")
+    echecs = [essai for essai in essais if not essai.ok]
+    for ligne in incoherences:
+        print(f"[ÉCHEC] matrice et contrats : {ligne}")
+    for essai in echecs[: args.max_echecs]:
+        print(f"[ÉCHEC] {essai.famille} · {essai.sujet} · {essai.ressource} · {essai.operation} : attendu {'accès' if essai.attendu else 'refus'}, {essai.detail}")
+    total = len(essais)
+    interdits = acces.accord_interdit(essais)
+    print(f"\n{total - len(echecs)}/{total} essais conformes à la matrice, {len(ecarts)} écart(s) connu(s).")
+    print(f"Accès interdits accordés : {len(interdits)} (critère de CLD-18 : 0).  Accès prévus refusés ou non concluants : {len(acces.refus_inattendu(essais))}.")
+    return 1 if echecs or incoherences else 0
+
+
 # --------------------------------------------------------------------------- sauvegarde planifiée et restauration vérifiée (CLD-15)
 def _sauvegarde_module():
     import sauvegarde
@@ -1762,6 +1796,8 @@ def build_parser() -> argparse.ArgumentParser:
     bdt = add("bigdata-test", cmd_bigdata_test, "tests du prototype Big Data dans son image (Docker)")
     bdt.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
     bdt.add_argument("--memoire", default="6g", help="mémoire allouée au conteneur (6g par défaut)")
+    ac = add("acces", cmd_acces, "essais d'autorisation et de refus : compare la matrice d'accès à l'API, PostgreSQL et MongoDB (CLD-18)")
+    ac.add_argument("--max-echecs", type=int, default=20, help="nombre d'échecs détaillés (20 par défaut)")
     sv = add("sauvegarde", cmd_sauvegarde, "sauvegarde PostgreSQL et MongoDB avec manifeste, puis conservation par paliers (CLD-15)")
     add("sauvegarde-liste", cmd_sauvegarde_liste, "liste les sauvegardes et ce que la politique de conservation supprimerait (CLD-15)")
     rs = add("restauration", cmd_restauration, "restaure les dernières sauvegardes dans un environnement Docker isolé et compare les totaux (CLD-15)")
