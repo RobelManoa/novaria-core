@@ -30,6 +30,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import bootstrap  # noqa: E402  (configure aussi la sortie en UTF-8)
+import issues_citoyen  # noqa: E402,F401  (étend issues_data.ISSUES)
 import issues_data  # noqa: E402
 import issues_microservices  # noqa: E402,F401  (étend issues_data.ISSUES)
 import issues_suite  # noqa: E402,F401  (étend issues_data.ISSUES)
