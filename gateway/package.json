@@ -1,0 +1,6 @@
+{
+  "name": "novaria-gateway",
+  "private": true,
+  "type": "module",
+  "description": "Passerelle d'API (MS-13) : auth.js tourne sous njs (nginx) et sous Node (node --test gateway/tests/)"
+}

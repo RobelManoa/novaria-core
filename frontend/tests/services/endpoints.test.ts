@@ -34,6 +34,21 @@ const appels: Appel[] = [
     chemin: "/api/v1/users?limit=5",
   },
   {
+    nom: "createUser",
+    appel: () =>
+      apiMetier.createUser({ username: "ada", password: "un-mot-de-passe-long", role: "viewer" }),
+    methode: "POST",
+    chemin: "/api/v1/users",
+    corps: { username: "ada", password: "un-mot-de-passe-long", role: "viewer" },
+  },
+  {
+    nom: "updateUser",
+    appel: () => apiMetier.updateUser("u-1", { is_active: false }),
+    methode: "PATCH",
+    chemin: "/api/v1/users/u-1",
+    corps: { is_active: false },
+  },
+  {
     nom: "getUser",
     appel: () => apiMetier.getUser("u-1"),
     methode: "GET",
@@ -98,6 +113,14 @@ const appels: Appel[] = [
     appel: () => alerte.listAlertRules(),
     methode: "GET",
     chemin: "/api/v1/alert-rules",
+  },
+  {
+    nom: "sendSignalCommand",
+    appel: () =>
+      reponse.sendSignalCommand("INT_01", { action: "RESUME_AUTOMATIC", reason: "essai" }),
+    methode: "POST",
+    chemin: "/api/v1/signals/INT_01/commands",
+    corps: { action: "RESUME_AUTOMATIC", reason: "essai" },
   },
   {
     nom: "listSignals",

@@ -119,6 +119,8 @@ Le délai sans recommandation (point ouvert S3) est **le plus court de** la vali
 
 **Le journal passe avant l'effet.** La commande est décidée par le contrôleur, **écrite dans `audit_logs`**, et seulement alors rendue effective ; si MongoDB ne répond pas, l'état est rétabli et la réponse est `503`. Un opérateur ne peut pas agir sans laisser de trace. C'est le contraire de l'API métier ([journalisation d'audit](../02-specifications/journalisation-audit.md), section 4 : écriture « au mieux »), et c'est voulu pour les feux. Un **refus**, lui, reste un refus : si le journal est en panne, il est renvoyé quand même (et compté `audit_lost`).
 
+**Interface** : la page « Feux de circulation » (état, commande, historique) est décrite dans [tableau de bord](tableau-de-bord.md).
+
 **Qui peut commander** : `operator` et `admin` ; le `viewer` lit l'état et l'historique. L'acteur du journal est le `sub` du jeton (un identifiant de compte, jamais un nom).
 
 ## 7. Journal d'audit (MongoDB)
@@ -157,7 +159,7 @@ La file d'envoi est en mémoire, bornée à 10 000 événements (les plus ancien
 
 | # | Point | Ce qui est fait | À trancher | Qui |
 |---|---|---|---|---|
-| 1 | **Clé de signature des jetons partagée** | Le contrat exige `bearerAuth` ; le service vérifie lui-même les jetons (HS256) et reçoit `JWT_SECRET`, comme `alerte`. Il pourrait aussi en émettre. `test_compose.py` nomme l'exception (`VERIFIE_LES_JETONS`) | Lever avec MS-13 (vérification à la passerelle) ou une signature asymétrique | Daddy et Manoa |
+| 1 | **Clé de signature des jetons partagée** | Le contrat exige `bearerAuth` ; le service vérifie lui-même les jetons (HS256) et reçoit `JWT_SECRET`, comme `alerte`. Il pourrait aussi en émettre. `test_compose.py` nomme l'exception (`VERIFIE_LES_JETONS`) | MS-13 : la passerelle vérifie maintenant le jeton avant le service, qui garde le sien ; lever l'exception demande une signature asymétrique | Daddy et Manoa |
 | 2 | **Valeurs des règles de sécurité** (S2) | 10 à 90 s par phase, dégagement de 4 s, cycle de 30 à 120 s, 10 commandes par minute | Valider avec un référentiel de signalisation ; borner chaque carrefour séparément si nécessaire | Daddy |
 | 3 | **Délai de retour au plan fixe** (S3) | 180 s au plus après la réception, ou la validité de la recommandation si elle est plus courte | Valider ; ou le faire dépendre de la cadence réelle du traitement (MS-15) | Daddy |
 | 4 | **Le nom du mode dégradé** | `DEGRADED_FIXED_PLAN` couvre « rien à recommander » et « chaîne coupée » (section 5) | Un champ distinct dans le contrat 1.1, ou un autre nom, ou un signal de vie du traitement | Daddy et Manoa |
