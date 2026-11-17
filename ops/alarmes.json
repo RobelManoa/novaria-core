@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "commentaire": "Alarmes locales de l'observatoire (CLD-14). Équivalent d'une alarme CloudWatch : un signal, une condition, un nombre d'évaluations consécutives, un état OK ou ALARM. Ce fichier est versionné AVANT la panne : l'alarme qui détecte une panne est donc configurée à l'avance, pas écrite pour la circonstance.",
+  "periode_s": 5,
+  "delai_sonde_s": 4,
+  "fenetre_journal_s": 30,
+  "alarmes": [
+    {
+      "id": "service-arrete",
+      "nom": "Service arrêté ou malsain",
+      "signal": "etat_conteneur",
+      "condition": "le conteneur n'est pas « running », ou sa sonde de santé Docker est « unhealthy »",
+      "evaluations": 2,
+      "gravite": "critique",
+      "guide": "diagnostic.md#4-premier-geste-lalarme-service-arrete"
+    },
+    {
+      "id": "sonde-http",
+      "nom": "Sonde HTTP en échec",
+      "signal": "sonde_http",
+      "condition": "la requête de contrôle échoue (refus, délai dépassé ou code HTTP différent de 200)",
+      "evaluations": 2,
+      "gravite": "haute",
+      "guide": "diagnostic.md#5-deuxième-geste-les-sondes-http"
+    },
+    {
+      "id": "erreurs-journal",
+      "nom": "Erreurs dans le journal",
+      "signal": "erreurs_journal",
+      "condition": "au moins 3 lignes d'erreur dans les 30 dernières secondes (niveau ERROR ou CRITICAL, erreur nginx, réponse 5xx)",
+      "seuil": 3,
+      "evaluations": 1,
+      "gravite": "moyenne",
+      "guide": "diagnostic.md#6-troisième-geste-le-journal"
+    }
+  ],
+  "services": {
+    "postgres": {
+      "libelle": "PostgreSQL", "groupe": "socle", "depend_de": [],
+      "role": "Entrepôt de données (schémas app, dwh, alertes, ops).",
+      "effet": "L'API ne peut plus lire les indicateurs (503) ; le pipeline ne peut plus écrire l'entrepôt ; le service d'alerte perd ses alertes. Les mesures continuent d'être reçues et restent dans Kafka : elles sont écrites à la reprise."
+    },
+    "mongo": {
+      "libelle": "MongoDB", "groupe": "socle", "depend_de": [],
+      "role": "Copie brute des mesures, rejets, journal d'audit.",
+      "effet": "La collecte ne peut plus enregistrer la copie brute (503) ; le flux ne peut plus tracer ses rejets ; l'audit de l'API s'arrête."
+    },
+    "kafka": {
+      "libelle": "Kafka (bus)", "groupe": "socle", "depend_de": [],
+      "role": "Bus d'événements : iot.raw, traffic.indicators, alerts.events…",
+      "effet": "La collecte ne peut plus publier (503), le flux et le pipeline ne lisent plus rien : plus aucun nouvel indicateur n'arrive dans l'entrepôt. L'API et le tableau de bord montrent les dernières données connues."
+    },
+    "collecte": {
+      "libelle": "Collecte", "groupe": "service", "depend_de": ["kafka", "mongo"],
+      "port_var": "COLLECTE_PORT", "port": 8001, "chemin": "/api/v1/health",
+      "role": "Reçoit, valide et publie les mesures des capteurs.",
+      "effet": "Les mesures ne sont plus reçues : le simulateur n'a plus de destinataire et plus aucun nouvel indicateur n'entre dans l'entrepôt. L'API et le tableau de bord continuent de répondre avec les dernières données."
+    },
+    "traitement": {
+      "libelle": "Traitement (API)", "groupe": "service", "depend_de": ["postgres", "mongo"],
+      "port_var": "TRAITEMENT_PORT", "port": 8002, "chemin": "/api/v1/health",
+      "role": "API métier : connexion, indicateurs, prévisions, rapports.",
+      "effet": "La passerelle répond 503 sur toutes les routes de l'API métier ; le tableau de bord affiche une erreur de chargement. La collecte, le flux et le pipeline ne sont pas touchés : les données continuent d'arriver."
+    },
+    "traitement-flux": {
+      "libelle": "Traitement en flux", "groupe": "travail", "depend_de": ["kafka", "postgres", "mongo"],
+      "role": "Lit iot.raw, calcule les fenêtres et publie traffic.indicators.",
+      "effet": "Panne silencieuse : aucune erreur visible pour l'utilisateur, mais plus aucune nouvelle fenêtre. Les mesures s'accumulent dans Kafka et sont traitées à la reprise (rien n'est perdu)."
+    },
+    "traitement-pipeline": {
+      "libelle": "Pipeline d'écriture", "groupe": "travail", "depend_de": ["kafka", "postgres", "mongo"],
+      "role": "Lit traffic.indicators et écrit l'entrepôt.",
+      "effet": "Panne silencieuse : les indicateurs calculés par le flux attendent dans Kafka, l'entrepôt ne reçoit rien de nouveau. Rattrapage complet à la reprise (offsets non validés)."
+    },
+    "alerte": {
+      "libelle": "Alerte usager (API)", "groupe": "service", "depend_de": ["postgres", "kafka"],
+      "port_var": "ALERTE_PORT", "port": 8003, "chemin": "/api/v1/health",
+      "role": "Consulte et agit sur les alertes, diffuse le flux SSE.",
+      "effet": "La page Alertes du tableau de bord ne se charge plus ; les alertes déjà créées sont conservées en base."
+    },
+    "alerte-worker": {
+      "libelle": "Alerte (travailleur)", "groupe": "travail", "depend_de": ["postgres", "kafka"],
+      "role": "Transforme les indicateurs en alertes.",
+      "effet": "Plus de nouvelle alerte : une congestion qui commence n'est pas signalée. Panne silencieuse côté utilisateur."
+    },
+    "reponse": {
+      "libelle": "Réponse extérieure", "groupe": "service", "depend_de": ["mongo", "kafka"],
+      "port_var": "REPONSE_PORT", "port": 8004, "chemin": "/api/v1/health",
+      "role": "Recommandations et commandes de feux (simulées).",
+      "effet": "La page Feux du tableau de bord ne répond plus ; aucune commande manuelle n'est appliquée."
+    },
+    "simulateur": {
+      "libelle": "Simulateur de capteurs", "groupe": "service", "depend_de": ["collecte"],
+      "port_var": "SIMULATOR_PORT", "port": 8005, "chemin": "/api/v1/health",
+      "role": "Émet des mesures simulées vers la collecte (jamais présentées comme réelles).",
+      "effet": "Plus de mesures simulées envoyées. Le reste de la pile fonctionne et montre les dernières données."
+    },
+    "passerelle": {
+      "libelle": "Passerelle (nginx)", "groupe": "passerelle", "depend_de": ["traitement", "alerte", "reponse"],
+      "port_var": "GATEWAY_PORT", "port": 8000, "chemin": "/health",
+      "role": "Point d'entrée unique : jeton, rôles, limitation de débit, routage.",
+      "effet": "Le tableau de bord ne joint plus aucune API : toutes les pages affichent une erreur. Les services eux-mêmes continuent de tourner."
+    },
+    "frontend": {
+      "libelle": "Tableau de bord (front-end)", "groupe": "passerelle", "depend_de": ["passerelle"],
+      "port_var": "FRONTEND_PORT", "port": 8080, "chemin": "/",
+      "role": "Application React servie par nginx.",
+      "effet": "Le navigateur n'obtient plus la page : plus de tableau de bord. Les API répondent toujours directement."
+    }
+  },
+  "sondes_de_chaine": [
+    {
+      "id": "passerelle-vers-traitement", "libelle": "Passerelle vers l'API de traitement",
+      "port_var": "GATEWAY_PORT", "port": 8000, "chemin": "/api/v1/health", "service": "passerelle", "traverse": ["passerelle", "traitement"]
+    },
+    {
+      "id": "frontend-vers-traitement", "libelle": "Tableau de bord vers l'API (proxy nginx)",
+      "port_var": "FRONTEND_PORT", "port": 8080, "chemin": "/api/v1/health", "service": "frontend", "traverse": ["frontend", "passerelle", "traitement"]
+    }
+  ]
+}

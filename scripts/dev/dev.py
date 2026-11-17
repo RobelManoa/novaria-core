@@ -1211,6 +1211,40 @@ def cmd_bigdata_test(args: argparse.Namespace) -> int:
     return subprocess.run(bigdata_docker.commande_de_test(ROOT, args.cpus, args.memoire), check=False).returncode
 
 
+# --------------------------------------------------------------------------- panne contrôlée et observatoire (CLD-14)
+def _observatoire():
+    import observatoire
+
+    require_env()
+    require_docker()
+    env = parse_env(ENV_FILE.read_text(encoding="utf-8"))
+    return observatoire, observatoire.Observatoire(observatoire.charger_config(), observatoire.Docker(ROOT), env)
+
+
+def cmd_observatoire(args: argparse.Namespace) -> int:
+    """Sert l'interface graphique de l'observatoire des pannes sur 127.0.0.1 (la pile doit tourner : dev.py up)."""
+    module, obs = _observatoire()
+    module.servir(obs, args.port)
+    return 0
+
+
+def cmd_panne(args: argparse.Namespace) -> int:
+    """Arrête un service, attend l'alarme, retrace alarme, journal et cause, rétablit, puis affiche le rapport (la pile doit tourner)."""
+    module, obs = _observatoire()
+    if args.service not in obs.config["services"]:
+        raise DevError(f"Service inconnu : {args.service}. Services : {', '.join(obs.config['services'])}.")
+    obs.demarrer()
+    try:
+        obs.arret.wait(float(obs.config["periode_s"]) * 2)  # deux tours de mesure : la pile saine est connue avant la panne
+        rapport = module.rejouer_panne(obs, args.service, duree_s=args.duree)
+    finally:
+        obs.arreter_mesure()
+    print()
+    print(module.rapport_texte(rapport))
+    print(f"\nRetour à la normale (toutes les alarmes à OK) : {'oui' if rapport['tout_est_ok'] else 'NON'}")
+    return 0 if rapport["alarmes"] and rapport["tout_est_ok"] else 1
+
+
 # --------------------------------------------------------------------------- parcours de bout en bout (CLD-13)
 def cmd_parcours(args: argparse.Namespace) -> int:
     """Rejoue le parcours nominal (donnée brute, entrepôt, API, tableau de bord) et les cas d'échec sur la pile locale."""
@@ -1654,6 +1688,11 @@ def build_parser() -> argparse.ArgumentParser:
     bdt = add("bigdata-test", cmd_bigdata_test, "tests du prototype Big Data dans son image (Docker)")
     bdt.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
     bdt.add_argument("--memoire", default="6g", help="mémoire allouée au conteneur (6g par défaut)")
+    ob = add("observatoire", cmd_observatoire, "interface graphique des pannes : arrêter un service, voir l'alarme, le journal et la cause (CLD-14)")
+    ob.add_argument("--port", type=int, default=8090, help="port local de l'interface (8090 par défaut)")
+    pa = add("panne", cmd_panne, "arrête un service, détecte la panne par l'alarme, retrace le journal et la cause, rétablit (CLD-14)")
+    pa.add_argument("service", help="service à arrêter (voir ops/alarmes.json), par exemple traitement ou collecte")
+    pa.add_argument("--duree", type=int, default=70, help="secondes de panne avant le rétablissement (70 par défaut : laisse le journal de la passerelle montrer ses erreurs)")
     pc = add("parcours", cmd_parcours, "rejoue le parcours de bout en bout et les cas d'échec sur la pile locale (CLD-13, la pile doit tourner)")
     pc.add_argument("cas", nargs="*", help="cas à jouer (N1 à N6, E1 à E3) ; tous par défaut")
     add("ps", cmd_ps, "état des conteneurs")

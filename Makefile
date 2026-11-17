@@ -6,7 +6,7 @@ DEV = $(PY) scripts/dev/dev.py
 PY_API ?= $(if $(wildcard venv/bin/python),venv/bin/python,$(PY))
 DEV_API = $(PY_API) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint a11y-audit format new-service quality-up quality-down hooks terraform-check drift-check dataset-build test-ml test-gateway test-gateway-unit gateway-routes reference-mesure preparation-check ml-env ml-train ml-registre ml-registre-essai bigdata-build bigdata-test bigdata parcours
+.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint a11y-audit format new-service quality-up quality-down hooks terraform-check drift-check dataset-build test-ml test-gateway test-gateway-unit gateway-routes reference-mesure preparation-check ml-env ml-train ml-registre ml-registre-essai bigdata-build bigdata-test bigdata parcours observatoire panne
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -165,3 +165,8 @@ bigdata: ## Lance le prototype Big Data : make bigdata C="generer --jours 30" (o
 	$(DEV) bigdata -- $(C)
 parcours:      ## Rejoue le parcours de bout en bout et les cas d'échec sur la pile locale (CLD-13) ; make parcours C="N1 N2" pour une partie
 	$(DEV) parcours $(C)
+observatoire:  ## Interface graphique des pannes sur http://127.0.0.1:8090 (CLD-14, la pile doit tourner)
+	$(DEV) observatoire
+panne:         ## Panne contrôlée en ligne de commande : make panne S=traitement (CLD-14)
+	$(if $(S),,$(error Donner un service : make panne S=traitement))
+	$(DEV) panne $(S)
