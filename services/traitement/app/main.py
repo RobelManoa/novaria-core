@@ -10,6 +10,7 @@ from app.core.cors import cors_options
 from app.core.errors import register_handlers
 from app.core.headers import SecurityHeadersMiddleware
 from app.core.logs import CorrelationMiddleware, configure_logging
+from app.core.metrics import MetricsMiddleware
 from app.core.redaction import install_redaction
 from app.core.unhandled import UnhandledErrorMiddleware
 from app.core.versioning import API_PREFIX
@@ -35,6 +36,8 @@ def create_app(settings: Settings) -> FastAPI:
     if settings.cors_origins:
         application.add_middleware(CORSMiddleware, **cors_options(settings.cors_origins))
     application.add_middleware(SecurityHeadersMiddleware)
+    # Le plus extérieur (MS-16) : compte chaque requête, 429 et 500 compris.
+    application.add_middleware(MetricsMiddleware, service=settings.service_name)
     register_handlers(application)
     use_problem_media_type(application)
 

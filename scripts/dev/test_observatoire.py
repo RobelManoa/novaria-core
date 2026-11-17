@@ -54,6 +54,20 @@ class FauxDocker:
                 sortie += [f"{nom}-1  | {ligne}" for ligne in lignes]
         return "\n".join(sortie)
 
+    def kafka_groupes(self):
+        return None  # pas de broker dans ces essais : le tableau n'a pas de retard à montrer
+
+    def journaux_horodates(self, depuis):
+        return ""
+
+    def geler(self, service):
+        self.appels.append(("pause", service))
+        self.conteneurs_[service].update(etat="paused", sante="", statut="Up 5 minutes (Paused)")
+
+    def degeler(self, service):
+        self.appels.append(("unpause", service))
+        self.conteneurs_[service].update(etat="running", sante="healthy", statut="Up 5 minutes")
+
     def arreter(self, service):
         self.appels.append(("stop", service))
         self.conteneurs_[service].update(etat="exited", sante="", code=0, statut="Exited (0) 3 seconds ago")
@@ -65,7 +79,7 @@ class FauxDocker:
 
     def inspecter(self, service):
         c = self.conteneurs_[service]
-        return {"etat": c["etat"], "code": c["code"], "oom": False, "erreur": "", "sante": c["sante"]}
+        return {"etat": c["etat"], "code": c["code"], "oom": False, "erreur": "", "sante": c["sante"], "pause": c["etat"] == "paused"}
 
 
 def fabriquer(config=None):
@@ -82,24 +96,25 @@ def fabriquer(config=None):
         return False, "inconnue"
 
     obs = o.Observatoire(config, docker, {}, horloge=horloge, sonder=sonder)
+    obs.tableau.lire = lambda url: None  # aucun accès réseau : ces essais ne lisent jamais la vraie pile
     return obs, docker, horloge, sante
 
 
 class Configuration(unittest.TestCase):
     def test_le_fichier_du_depot_est_valide_et_complet(self):
         config = o.charger_config()
-        self.assertEqual({a["id"] for a in config["alarmes"]}, {"service-arrete", "sonde-http", "erreurs-journal"})
+        self.assertEqual({a["id"] for a in config["alarmes"]}, {"service-arrete", "sonde-http", "erreurs-journal", "disjoncteur-ouvert", "taux-erreurs-http", "retard-consommation"})
         compose = (RACINE / "docker-compose.yml").read_text(encoding="utf-8")
         for nom in config["services"]:
             self.assertRegex(compose, rf"(?m)^  {nom}:$", f"{nom} n'est pas un service de docker-compose.yml")
 
-    def test_chaque_alarme_renvoie_a_un_titre_du_guide_de_diagnostic(self):
-        guide = (RACINE / "docs" / "08-exploitation" / "diagnostic.md").read_text(encoding="utf-8")
-        ancres = {re.sub(r"[^\w\- ]", "", titre.lower()).replace(" ", "-") for titre in re.findall(r"(?m)^#{2,3} (.+)$", guide)}
+    def test_chaque_alarme_renvoie_a_un_titre_d_un_guide_qui_existe(self):
         for alarme in o.charger_config()["alarmes"]:
             fichier, _, ancre = alarme["guide"].partition("#")
-            self.assertEqual(fichier, "diagnostic.md")
-            self.assertIn(ancre, ancres, f"{alarme['id']} : pas de titre « {ancre} » dans diagnostic.md")
+            guide = (RACINE / "docs" / "08-exploitation" / fichier).read_text(encoding="utf-8")
+            ancres = {re.sub(r"[^\w\- ]", "", titre.lower()).replace(" ", "-") for titre in re.findall(r"(?m)^#{2,3} (.+)$", guide)}
+            self.assertIn(fichier, ("diagnostic.md", "observabilite.md"), alarme["id"])
+            self.assertIn(ancre, ancres, f"{alarme['id']} : pas de titre « {ancre} » dans {fichier}")
 
     def test_chaque_service_a_un_effet_documente_et_un_role(self):
         for nom, service in o.charger_config()["services"].items():
@@ -278,13 +293,13 @@ class Panne(unittest.TestCase):
         self.assertEqual(impact["prevu"], ["frontend", "passerelle"])
         self.assertEqual(impact["observe_en_alarme"], ["frontend", "passerelle"])
 
-    def test_le_rapport_en_texte_a_ses_cinq_parties(self):
+    def test_le_rapport_en_texte_a_ses_six_parties(self):
         self.obs.injecter("collecte")
         for _ in range(2):
             self.horloge.avancer(5)
             self.obs.tour()
         texte = o.rapport_texte(self.obs.rapport())
-        for titre in ("1. Alarmes", "2. Journaux", "3. Cause", "4. Impact", "5. Chronologie"):
+        for titre in ("1. Alarmes", "2. Journaux", "3. Tableau", "4. Cause", "5. Impact", "6. Chronologie"):
             self.assertIn(titre, texte)
 
     def test_rejouer_retablit_toujours_meme_si_l_alarme_ne_vient_pas(self):

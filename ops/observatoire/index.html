@@ -84,6 +84,15 @@ pre, .journal { font-family: var(--mono); font-size: 12.5px; background: var(--f
 .tl .t { font-family: var(--mono); color: var(--discret); }
 .tl .injection { color: var(--alarme); font-weight: 600; } .tl .retablissement { color: var(--ok); font-weight: 600; }
 .vide { color: var(--discret); font-style: italic; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
+.pill.ok { background: var(--ok-fond); color: var(--ok); } .pill.ouvert { background: var(--alarme-fond); color: var(--alarme); }
+.pill.semi { background: var(--touche-fond); color: var(--touche); } .pill.vide { background: var(--fond); color: var(--discret); }
+svg.spark { width: 110px; height: 26px; vertical-align: middle; } svg.spark polyline { fill: none; stroke: var(--accent); stroke-width: 1.8; }
+.barre { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 4px 0 12px; }
+.barre input { font: inherit; padding: 6px 10px; border: 1px solid var(--bord); border-radius: 6px; background: var(--carte); color: var(--texte); min-width: 260px; }
+.bloc { margin: 14px 0 6px; font-size: 14px; font-weight: 700; }
+.mauvais { color: var(--alarme); font-weight: 700; }
 dialog { border: 1px solid var(--bord); border-radius: 10px; background: var(--carte); color: var(--texte); max-width: 440px; }
 dialog::backdrop { background: rgba(0,0,0,.5); }
 .bandeau { grid-column: 1 / -1; padding: 8px 14px; border-radius: 8px; background: var(--alarme-fond); color: var(--alarme); font-weight: 600; display: none; }
@@ -129,6 +138,7 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
     <nav role="tablist" aria-label="Vues">
       <button role="tab" id="t-alarmes" aria-selected="true" data-vue="alarmes" type="button">Alarmes</button>
       <button role="tab" id="t-chrono" aria-selected="false" data-vue="chrono" type="button">Chronologie</button>
+      <button role="tab" id="t-tableau" aria-selected="false" data-vue="tableau" type="button">Tableau : débit, erreurs, retard</button>
       <button role="tab" id="t-rapport" aria-selected="false" data-vue="rapport" type="button">Diagnostic : alarme, journal, cause</button>
     </nav>
     <div id="vue"></div>
@@ -146,7 +156,7 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 "use strict";
 const JETON = document.querySelector('meta[name="jeton"]').content;
 const NS = "http://www.w3.org/2000/svg";
-let etat = null, chrono = [], rapport = null, choisi = null, vue = "alarmes";
+let etat = null, chrono = [], rapport = null, choisi = null, vue = "alarmes", tableau = null, trace = null, erreurTrace = "";
 
 function h(nom, attrs, ...enfants) {
   const el = document.createElement(nom);
@@ -225,6 +235,8 @@ function dessinerDetail() {
   const actions = h("div", { class: "actions" });
   const arreter = h("button", { class: "danger", type: "button", disabled: enCours || sv.etat !== "running" }, "Arrêter ce service");
   arreter.addEventListener("click", () => demanderArret(sv));
+  const geler = h("button", { class: "danger", type: "button", disabled: enCours || sv.etat !== "running", title: "docker compose pause : le processus vit mais ne répond plus" }, "Geler (bloquer)");
+  geler.addEventListener("click", () => demanderArret(sv, "pause"));
   const retablir = h("button", { class: "principal", type: "button", disabled: !enCours }, "Rétablir");
   retablir.addEventListener("click", async () => { try { await api("/api/retablir", {}); } catch (e) { alert(e.message); } await rafraichir(); });
   const journal = h("button", { type: "button" }, "Journal récent");
@@ -233,17 +245,17 @@ function dessinerDetail() {
     zone.querySelector(".journal")?.remove();
     zone.append(h("div", { class: "journal", tabindex: "0", "aria-label": "Journal récent" }, lignes.slice(-25).join("\n") || "(vide)"));
   });
-  actions.append(arreter, retablir, journal);
+  actions.append(arreter, geler, retablir, journal);
   zone.append(actions);
 }
-function demanderArret(sv) {
+function demanderArret(sv, mode = "stop") {
   const boite = document.getElementById("confirmation"), socle = sv.groupe === "socle";
-  document.getElementById("confirmation-texte").textContent = `Arrêter « ${sv.libelle} » ?` + (socle ? " Ce service fait partie du socle : plusieurs autres en dépendent." : "") + " La pile reste utilisable ; vous pourrez le rétablir ici.";
+  document.getElementById("confirmation-texte").textContent = `${mode === "pause" ? "Geler" : "Arrêter"} « ${sv.libelle} » ?` + (socle ? " Ce service fait partie du socle : plusieurs autres en dépendent." : "") + " La pile reste utilisable ; vous pourrez le rétablir ici.";
   boite.returnValue = "";
   boite.addEventListener("close", async function une() {
     boite.removeEventListener("close", une);
     if (boite.returnValue !== "oui") return;
-    try { await api("/api/panne", { service: sv.id, confirmer: true }); } catch (e) { alert(e.message); }
+    try { await api("/api/panne", { service: sv.id, confirmer: true, mode }); } catch (e) { alert(e.message); }
     await rafraichir();
   });
   boite.showModal();
@@ -264,6 +276,8 @@ function dessinerVue() {
     for (const a of lignes.slice(0, en.length ? en.length + 6 : 8)) corps.append(h("tr", {}, h("td", { class: "etat " + a.etat }, a.etat), h("td", {}, a.nom), h("td", {}, a.cible), h("td", {}, a.gravite), h("td", {}, a.depuis ? new Date(a.depuis * 1000).toISOString().slice(11, 19) : "—"), h("td", {}, a.raison)));
     tab.append(corps); zone.append(h("div", { style: "overflow-x:auto" }, tab));
     if (lignes.length > en.length + 6) zone.append(h("p", { class: "discret" }, `… et ${lignes.length - en.length - 6} autres alarmes à l'état OK.`));
+  } else if (vue === "tableau") {
+    dessinerTableau(zone);
   } else if (vue === "chrono") {
     if (!chrono.length) zone.append(h("p", { class: "vide" }, "Aucun événement : arrêtez un service pour déclencher la chronologie."));
     const depart = chrono.find((e) => e.type === "injection");
@@ -282,6 +296,69 @@ function dessinerVue() {
     zone.append(h("h3", { style: "margin:12px 0 4px" }, "4 · Impact : prévu et constaté"));
     zone.append(h("p", {}, "Prévu (services qui dépendent de celui-ci) : ", h("b", {}, rapport.impact.prevu.join(", ") || "aucun"), ". Constaté (services avec une alarme) : ", h("b", {}, rapport.impact.observe_en_alarme.join(", ") || "aucun"), "."));
     zone.append(h("p", { class: "discret" }, rapport.effet_documente));
+  }
+}
+
+// ---- tableau local (MS-16) : débit, erreurs, durées, disjoncteurs, retard de consommation, recherche d'une corrélation
+const fmt = (v, d = 1, u = "") => (v === null || v === undefined ? "—" : `${v.toLocaleString("fr-FR", { maximumFractionDigits: d })}${u}`);
+function spark(valeurs) {
+  const v = (valeurs || []).filter((x) => x !== null && x !== undefined);
+  const svg = s("svg", { class: "spark", viewBox: "0 0 110 26", "aria-hidden": "true" });
+  if (v.length < 2) return svg;
+  const max = Math.max(...v, 1), pas = 110 / (v.length - 1);
+  svg.append(s("polyline", { points: v.map((x, i) => `${(i * pas).toFixed(1)},${(24 - (x / max) * 22).toFixed(1)}`).join(" ") }));
+  return svg;
+}
+function pastille(etatCircuit) {
+  const [classe, texte] = etatCircuit === 2 ? ["ouvert", "OUVERT"] : etatCircuit === 1 ? ["semi", "semi-ouvert"] : ["ok", "fermé"];
+  return h("span", { class: "pill " + classe }, texte);
+}
+function dessinerTableau(zone) {
+  const barre = h("div", { class: "barre" });
+  const trafic = tableau && tableau.trafic ? tableau.trafic : { disponible: false };
+  const lancer = h("button", { class: "principal", type: "button", disabled: trafic.etat === "running" }, "Lancer le trafic simulé");
+  lancer.addEventListener("click", async () => { try { await api("/api/trafic", { action: "start", debit: 15 }); } catch (e) { alert(e.message); } await rafraichir(); });
+  const arreter = h("button", { type: "button", disabled: trafic.etat !== "running" }, "Arrêter le trafic");
+  arreter.addEventListener("click", async () => { try { await api("/api/trafic", { action: "stop" }); } catch (e) { alert(e.message); } await rafraichir(); });
+  barre.append(lancer, arreter, h("span", { class: "discret" }, trafic.disponible ? `simulateur : ${trafic.etat || "inactif"}${trafic.run ? " · run " + trafic.run : ""}` : "simulateur injoignable"));
+  const champ = h("input", { type: "text", placeholder: "identifiant de corrélation (ex. corr-1794923710000)", "aria-label": "Identifiant de corrélation", value: trace ? trace.identifiant : "" });
+  const suivre = h("button", { type: "button" }, "Suivre dans les journaux");
+  const lancerTrace = async () => { erreurTrace = ""; try { trace = await api("/api/trace?id=" + encodeURIComponent(champ.value.trim())); } catch (e) { trace = null; erreurTrace = e.message; } dessinerVue(); };
+  suivre.addEventListener("click", lancerTrace);
+  champ.addEventListener("keydown", (e) => { if (e.key === "Enter") lancerTrace(); });
+  barre.append(champ, suivre);
+  zone.append(barre);
+  if (!tableau) { zone.append(h("p", { class: "vide" }, "Chargement du tableau…")); return; }
+  zone.append(h("p", { class: "discret" }, `Taux sur les ${tableau.fenetre_s} dernières secondes, relevés de GET /metrics de chaque service. Sans trafic, les débits restent à zéro : lancez le trafic simulé.`));
+  const lignes = h("tbody");
+  for (const sv of tableau.services) {
+    const circuits = Object.entries(sv.circuits || {});
+    lignes.append(h("tr", {},
+      h("td", {}, h("b", {}, sv.libelle), sv.mesure ? "" : h("span", { class: "mauvais" }, "  /metrics muet")),
+      h("td", { class: "num" }, fmt(sv.debit, 2), " ", spark(sv.serie)),
+      h("td", { class: "num" + (sv.erreurs_5xx > 0 ? " mauvais" : "") }, fmt(sv.erreurs_5xx, 2)),
+      h("td", { class: "num" + (sv.taux_erreurs >= 0.2 ? " mauvais" : "") }, sv.taux_erreurs === null || sv.taux_erreurs === undefined ? "—" : fmt(sv.taux_erreurs * 100, 0, " %")),
+      h("td", { class: "num" }, fmt(sv.duree_moyenne_ms, 1, " ms"), " / ", fmt(sv.p95_ms, 0, " ms")),
+      h("td", {}, ...(circuits.length ? circuits.flatMap(([d, e]) => [h("span", { class: "discret" }, d + " "), pastille(e), " "]) : [h("span", { class: "discret" }, "sans dépendance gardée")])),
+      h("td", { class: "num" + (sv.erreurs_journal >= 3 ? " mauvais" : "") }, String(sv.erreurs_journal))));
+  }
+  zone.append(h("div", { style: "overflow-x:auto" }, h("table", {}, h("thead", {}, h("tr", {}, ...["Service", "Requêtes / s", "5xx / s", "Taux 5xx", "Durée moy. / p95", "Disjoncteurs", "Erreurs journal (30 s)"].map((x, i) => h("th", { class: i && i < 5 ? "num" : "" }, x)))), lignes)));
+  if (tableau.autres.length) zone.append(h("p", { class: "discret" }, "Sans point /metrics (travailleurs, passerelle, front-end) : erreurs du journal sur 30 s : " + tableau.autres.map((a) => `${a.libelle} ${a.erreurs_journal}`).join(" · ")));
+  zone.append(h("div", { class: "bloc" }, "Kafka : retard de consommation et débit d'écriture"));
+  const k = tableau.kafka;
+  if (!k.mesure) { zone.append(h("p", { class: "vide" }, "Retard Kafka non lu (broker injoignable ?).")); }
+  else {
+    const g = h("tbody");
+    for (const x of k.groupes) g.append(h("tr", {}, h("td", {}, x.groupe), h("td", {}, x.sujet), h("td", { class: "num" }, String(x.retard)), h("td", { class: "num" + (x.retard_s >= 150 ? " mauvais" : "") }, fmt(x.retard_s, 0, " s")), h("td", {}, spark(x.serie))));
+    zone.append(h("div", { style: "overflow-x:auto" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Groupe de consommation"), h("th", {}, "Sujet"), h("th", { class: "num" }, "Retard (messages)"), h("th", { class: "num" }, "Retard en temps d'écriture"), h("th", {}, "Évolution"))), g)));
+    zone.append(h("p", { class: "discret" }, "Messages écrits : " + k.sujets.map((x) => `${x.sujet} ${x.ecrits} (${fmt(x.debit, 2)} / s)`).join(" · ")));
+  }
+  if (tableau.alarmes_actives.length) zone.append(h("p", { class: "mauvais" }, "Alarmes levées : " + tableau.alarmes_actives.map((a) => `${a.alarme} (${a.cible})`).join(", ")));
+  zone.append(h("div", { class: "bloc" }, "Suivre un identifiant de corrélation à travers les services"));
+  if (erreurTrace) zone.append(h("p", { class: "mauvais" }, erreurTrace));
+  if (trace) {
+    zone.append(h("p", {}, trace.lignes.length ? "Chemin : " : "Aucune ligne dans les 30 dernières minutes. ", h("b", {}, trace.chemin.join(" → "))));
+    if (trace.lignes.length) zone.append(h("div", { class: "journal", tabindex: "0", "aria-label": "Lignes de journal de l'identifiant" }, trace.lignes.map((l) => `${l.horodatage.slice(11, 23)}  ${l.service.padEnd(16)} ${String(l.niveau).padEnd(7)} ${l.texte}${Object.keys(l.champs).length ? "  " + JSON.stringify(l.champs) : ""}`).join("\n")));
   }
 }
 function dessinerEtapes() {
@@ -310,16 +387,17 @@ function rendre() {
   siChange("etapes", [etat && etat.panne, rapport && rapport.alarmes.length, rapport && rapport.cause], dessinerEtapes);
   siChange("carte", [visible, choisi, etat && etat.panne && etat.panne.service], dessinerCarte);
   siChange("detail", [visible, choisi, etat && etat.panne], dessinerDetail);
-  siChange("vue", [vue, etat && etat.alarmes.map((a) => [a.etat, a.raison]), chrono.length, rapport && [rapport.alarmes, rapport.journaux, rapport.cause, rapport.impact]], dessinerVue);
+  siChange("vue", [vue, etat && etat.alarmes.map((a) => [a.etat, a.raison]), chrono.length, rapport && [rapport.alarmes, rapport.journaux, rapport.cause, rapport.impact], vue === "tableau" && tableau, trace, erreurTrace], dessinerVue);
 }
 async function rafraichir() {
   try {
     [etat, chrono] = await Promise.all([api("/api/etat"), api("/api/chronologie")]);
     rapport = etat.panne ? await api("/api/rapport") : null;
+    if (vue === "tableau") tableau = await api("/api/tableau");
     rendre();
   } catch (e) { document.getElementById("pastille").textContent = "Observatoire injoignable"; }
 }
-document.querySelectorAll("[role=tab]").forEach((b) => b.addEventListener("click", () => { vue = b.dataset.vue; dessinerVue(); }));
+document.querySelectorAll("[role=tab]").forEach((b) => b.addEventListener("click", async () => { vue = b.dataset.vue; if (vue === "tableau") { try { tableau = await api("/api/tableau"); } catch (e) { tableau = null; } } dessinerVue(); }));
 document.getElementById("theme").addEventListener("click", () => {
   const racine = document.documentElement, sombre = racine.dataset.theme ? racine.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
   racine.dataset.theme = sombre ? "light" : "dark";

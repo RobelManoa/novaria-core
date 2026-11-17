@@ -3,21 +3,31 @@
 import hashlib
 import http.client
 import json
+import re
 import socket
 import sys
+import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import __version__
 from .events import to_line
 from .network import INTERVAL_S, SENSOR_IDS
+from .resilience import CircuitBreaker, CircuitOpen, retry
 from .run import Delivery, Run
 
 MEASUREMENTS_FILE = "mesures.jsonl"
 TRUTH_FILE = "verite-terrain.jsonl"
 MANIFEST_FILE = "manifest.json"
 INGEST_PATH = "/api/v1/measurements"
+CORRELATION_HEADER = "X-Correlation-ID"
+SOBER_ID = re.compile(r"[A-Za-z0-9._-]{1,64}")  # ce que la collecte reprend dans ses journaux
+
+
+class Unavailable(Exception):
+    """La collecte répond 503 : une dépendance (bus, base) est tombée ; rien n'a été perdu, on renvoie."""
 
 
 class JsonlFile:
@@ -77,11 +87,27 @@ class Receipts:
 
 @dataclass
 class CollecteSink:
-    """POST de chaque message sur `/api/v1/measurements` : 202 ACCEPTED, 202 DUPLICATE (même id), 422 hors contrat."""
+    """POST de chaque message sur `/api/v1/measurements` : 202 ACCEPTED, 202 DUPLICATE (même id), 422 hors contrat.
+
+    MS-16 : délai d'attente borné (`timeout_s`), reprises avec attente croissante (`attempts` essais, attente
+    `retry_base_s` puis doublée, plafonnée à `retry_max_s`) sur une connexion tombée ou un 503, et un disjoncteur : après
+    `circuit_failures` envois en échec de suite, les messages suivants échouent aussitôt (comptés dans `receipts.errors`)
+    pendant `circuit_reset_s`, puis un essai part. Chaque requête porte l'identifiant de corrélation du message
+    (`X-Correlation-ID`) : la collecte l'écrit dans son journal, le flux le reprend.
+    """
 
     base_url: str
     timeout_s: float = 5.0
     receipts: Receipts = field(default_factory=Receipts)
+    attempts: int = 3
+    retry_base_s: float = 0.1
+    retry_max_s: float = 1.0
+    circuit_failures: int = 5
+    circuit_reset_s: float = 10.0
+    sleep: Callable[[float], None] = time.sleep
+    clock: Callable[[], float] = time.monotonic
+    retries: int = 0
+    circuit_opened: int = 0
     _connection: http.client.HTTPConnection | None = None
 
     def __post_init__(self) -> None:
@@ -89,6 +115,17 @@ class CollecteSink:
         if parts.scheme not in ("http", "https") or not parts.hostname:
             raise ValueError("l'adresse de la collecte doit commencer par http:// ou https://")
         self._parts = parts
+        self._failures = (OSError, http.client.HTTPException, Unavailable)
+        self.breaker = CircuitBreaker(
+            "collecte", failure_threshold=self.circuit_failures, reset_timeout_s=self.circuit_reset_s,
+            trip_on=self._failures, clock=self.clock, observer=self._observe,
+        )
+
+    def _observe(self, event: str, **fields) -> None:
+        if event == "retry":
+            self.retries += 1
+        elif event == "state" and fields["after"] == "open":
+            self.circuit_opened += 1
 
     def _connect(self) -> http.client.HTTPConnection:
         if self._connection is None:
@@ -101,22 +138,42 @@ class CollecteSink:
             self._connection = connection
         return self._connection
 
+    def _post(self, body: bytes, headers: dict[str, str]) -> tuple[int, bytes]:
+        try:
+            connection = self._connect()
+            connection.request("POST", INGEST_PATH, body=body, headers=headers)
+            response = connection.getresponse()
+            payload = response.read()
+        except (OSError, http.client.HTTPException):
+            self.close()  # une connexion persistante tombée est refaite à l'essai suivant
+            raise
+        if response.status == 503:
+            raise Unavailable("HTTP 503")
+        return response.status, payload
+
     def send(self, delivery: Delivery) -> None:
         body = to_line(delivery.event).encode("utf-8")
-        for attempt in (1, 2):  # une reconnexion si la connexion persistante est tombée
-            try:
-                connection = self._connect()
-                connection.request("POST", INGEST_PATH, body=body, headers={"Content-Type": "application/json"})
-                response = connection.getresponse()
-                payload = response.read()
-            except (OSError, http.client.HTTPException) as error:
-                self.close()
-                if attempt == 2:
-                    self.receipts.errors += 1
-                    self.receipts.last_error = type(error).__name__
-                continue
-            self._count(response.status, payload)
+        headers = {"Content-Type": "application/json"}
+        correlation = str(delivery.event.get("correlation_id", ""))
+        if SOBER_ID.fullmatch(correlation):
+            headers[CORRELATION_HEADER] = correlation
+        try:
+            status, payload = self.breaker.call(
+                lambda: retry(
+                    lambda: self._post(body, headers), attempts=self.attempts, base_s=self.retry_base_s,
+                    max_s=self.retry_max_s, retry_on=self._failures, sleep=self.sleep, observer=self._observe,
+                    name="collecte",
+                )
+            )
+        except CircuitOpen:
+            self.receipts.errors += 1
+            self.receipts.last_error = "disjoncteur ouvert"
             return
+        except self._failures as error:
+            self.receipts.errors += 1
+            self.receipts.last_error = type(error).__name__
+            return
+        self._count(status, payload)
 
     def _count(self, status: int, payload: bytes) -> None:
         if status == 202:

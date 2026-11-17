@@ -29,11 +29,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import tableau as tb
+
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "ops" / "alarmes.json"
 PAGE = ROOT / "ops" / "observatoire" / "index.html"
 OK, ALARME, INSUFFISANT = "OK", "ALARM", "INSUFFICIENT_DATA"
-SIGNAUX = ("etat_conteneur", "sonde_http", "erreurs_journal")
+SIGNAUX = ("etat_conteneur", "sonde_http", "erreurs_journal", "circuit_ouvert", "taux_erreurs", "retard_kafka")
 LIGNE_MAX = 260
 LIGNES_PAR_SERVICE = 8
 PREFIXE_COMPOSE = re.compile(r"^(?P<service>[A-Za-z0-9_.-]+?)-\d+\s+\|\s?(?P<texte>.*)$")
@@ -43,6 +45,24 @@ REPONSE_5XX = re.compile(r'"\s5\d\d\s')
 
 class ErreurConfiguration(Exception):
     """`ops/alarmes.json` est incohérent : message à corriger dans le fichier."""
+
+
+ID_TRACE = re.compile(r"[A-Za-z0-9._:-]{3,100}")
+LIGNE_HORODATEE = re.compile(r"^(?P<service>[A-Za-z0-9_.-]+?)-\d+\s+\|\s(?P<ts>\d{4}-\d\d-\d\dT[\d:.]+Z)\s(?P<texte>.*)$")
+CHAMPS_JOURNAL = ("level", "message", "logger", "method", "path", "status", "duration_ms", "event_id", "request_id", "topic", "dependency", "error", "attempt")
+
+
+def _resumer_ligne(texte: str) -> dict:
+    """Une ligne de journal en quelques champs lisibles (JSON des services, ou ligne nginx de la passerelle)."""
+    if texte.startswith("{"):
+        try:
+            document = json.loads(texte)
+            return {"niveau": document.get("level", ""), "texte": str(document.get("message", ""))[:160],
+                    "champs": {k: document[k] for k in CHAMPS_JOURNAL[2:] if k in document and document[k] not in (None, "")}}
+        except ValueError:
+            pass
+    niveau = "ERROR" if ERREUR_NGINX.search(texte) or REPONSE_5XX.search(texte) else "INFO"
+    return {"niveau": niveau, "texte": texte[:LIGNE_MAX], "champs": {}}
 
 
 class ErreurPanne(Exception):
@@ -123,7 +143,7 @@ class Docker:
             return {}
         return {"etat": etat.get("Status"), "code": etat.get("ExitCode"), "oom": etat.get("OOMKilled"),
                 "erreur": etat.get("Error", ""), "fini": etat.get("FinishedAt"), "debut": etat.get("StartedAt"),
-                "sante": (etat.get("Health") or {}).get("Status", "")}
+                "sante": (etat.get("Health") or {}).get("Status", ""), "pause": bool(etat.get("Paused"))}
 
     def journaux(self, depuis: str | None = None, service: str | None = None, dernieres: int | None = None) -> str:
         args = ["compose", "logs", "--no-color"]
@@ -135,8 +155,25 @@ class Docker:
             args.append(service)
         return self._executer(*args).stdout
 
+    def journaux_horodates(self, depuis: str) -> str:
+        """Tous les journaux depuis `depuis`, chaque ligne précédée de son horodatage Docker (pour retracer un identifiant)."""
+        return self._executer("compose", "logs", "--no-color", "--timestamps", "--since", depuis, delai=120).stdout
+
+    def kafka_groupes(self) -> str | None:
+        """Le retard de consommation de chaque groupe, lu dans le conteneur du broker (aucun point /metrics en local)."""
+        sortie = self._executer("compose", "exec", "-T", "kafka", "sh", "-c",
+                                "/opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server kafka:9092 --describe --all-groups 2>/dev/null", delai=60)
+        return sortie.stdout if sortie.returncode == 0 else None
+
     def arreter(self, service: str) -> None:
         self._executer("compose", "stop", service, delai=120)
+
+    def geler(self, service: str) -> None:
+        """`docker compose pause` : le processus vit, mais ne répond plus (un service bloqué, pas arrêté)."""
+        self._executer("compose", "pause", service, delai=60)
+
+    def degeler(self, service: str) -> None:
+        self._executer("compose", "unpause", service, delai=60)
 
     def demarrer(self, service: str) -> None:
         self._executer("compose", "start", service, delai=120)
@@ -185,6 +222,43 @@ def est_une_erreur(ligne: str) -> bool:
     return bool(ERREUR_NGINX.search(ligne) or REPONSE_5XX.search(ligne))
 
 
+def est_un_signal(ligne: str) -> bool:
+    """Ligne utile à un diagnostic : une erreur, ou un avertissement (reprise, disjoncteur ouvert, publication échouée)."""
+    if ligne.startswith("{"):
+        try:
+            return str(json.loads(ligne).get("level", "")).upper() in ("WARNING", "ERROR", "CRITICAL")
+        except ValueError:
+            return False
+    return est_une_erreur(ligne)
+
+
+def resumer_signaux(lignes: list[str], limite: int = LIGNES_PAR_SERVICE) -> list[str]:
+    """Regroupe les lignes qui se répètent (même enregistreur, même message) : une ligne et un compte, pas cent lignes.
+
+    Les enregistreurs de l'application (`app.*`) passent avant ceux des bibliothèques : ce sont eux qui disent ce que le service
+    a décidé (« disjoncteur ouvert », « publication échouée »), pas seulement ce que son client Kafka a subi."""
+    groupes: dict[tuple[str, str], dict] = {}
+    for rang, ligne in enumerate(lignes):
+        cle = ("nginx", re.sub(r"\d+", "#", ligne)[:90])
+        horodatage = ""
+        if ligne.startswith("{"):
+            try:
+                document = json.loads(ligne)
+                cle = (str(document.get("logger", "")), str(document.get("message", "")))
+                horodatage = str(document.get("ts", ""))
+            except ValueError:
+                pass
+        groupe = groupes.setdefault(cle, {"rang": rang, "ligne": ligne, "nombre": 0, "dernier": ""})
+        groupe["nombre"] += 1
+        groupe["dernier"] = horodatage
+    ordre = sorted(groupes.items(), key=lambda element: (not element[0][0].startswith("app"), element[1]["rang"]))
+    resume = []
+    for _, groupe in ordre[:limite]:
+        suite = f"  (×{groupe['nombre']}, jusqu'à {groupe['dernier']})" if groupe["nombre"] > 1 else ""
+        resume.append(groupe["ligne"][:LIGNE_MAX] + suite)
+    return resume
+
+
 def compter_erreurs(par_service: dict[str, list[str]]) -> dict[str, int]:
     return {service: sum(1 for ligne in lignes if est_une_erreur(ligne)) for service, lignes in par_service.items()}
 
@@ -193,8 +267,10 @@ def compter_erreurs(par_service: dict[str, list[str]]) -> dict[str, int]:
 class Instantane:
     """Un tour de mesure : état des conteneurs, résultat des sondes, nombre d'erreurs par service."""
 
-    def __init__(self, instant: float, conteneurs: dict[str, dict], sondes: dict[str, tuple[bool, str]], erreurs: dict[str, int]) -> None:
+    def __init__(self, instant: float, conteneurs: dict[str, dict], sondes: dict[str, tuple[bool, str]], erreurs: dict[str, int],
+                 tableau: dict | None = None) -> None:
         self.instant, self.conteneurs, self.sondes, self.erreurs = instant, conteneurs, sondes, erreurs
+        self.tableau = tableau or {"services": {}, "retards": {}}  # disjoncteurs, taux d'erreurs et retards lus dans /metrics et Kafka
 
 
 class Evaluateur:
@@ -209,6 +285,10 @@ class Evaluateur:
     def _cibles(self, alarme: dict) -> list[str]:
         if alarme["signal"] == "sonde_http":
             return [s["id"] for s in self.sondes]
+        if alarme["signal"] in ("circuit_ouvert", "taux_erreurs"):
+            return [nom for nom, definition in self.config["services"].items() if definition.get("metrics")]
+        if alarme["signal"] == "retard_kafka":
+            return list(self.config.get("groupes_kafka", []))
         return list(self.config["services"])
 
     def _defaillant(self, alarme: dict, cible: str, mesure: Instantane) -> tuple[bool | None, str]:
@@ -225,8 +305,31 @@ class Evaluateur:
         if alarme["signal"] == "sonde_http":
             ok, detail = mesure.sondes.get(cible, (None, "pas de mesure"))
             return (None if ok is None else not ok), detail
+        if alarme["signal"] in ("circuit_ouvert", "taux_erreurs"):
+            return self._defaillant_metrique(alarme, mesure.tableau["services"].get(cible))
+        if alarme["signal"] == "retard_kafka":
+            retard = mesure.tableau["retards"].get(cible)
+            if retard is None:
+                return None, "groupe de consommation absent de Kafka"
+            secondes = retard["retard_s"]
+            if secondes is None:
+                return False, f"{retard['retard']} message(s) de retard, écriture trop faible pour le mesurer en temps"
+            return secondes >= float(alarme["seuil_s"]), f"{retard['retard']} message(s) de retard = {secondes:.0f} s d'écriture (seuil {alarme['seuil_s']} s)"
         nombre = mesure.erreurs.get(cible, 0)
         return nombre >= int(alarme["seuil"]), f"{nombre} ligne(s) d'erreur sur {self.config['fenetre_journal_s']} s"
+
+    @staticmethod
+    def _defaillant_metrique(alarme: dict, donnees: dict | None) -> tuple[bool | None, str]:
+        """Disjoncteur ouvert ou taux d'erreurs 5xx trop haut, lus dans `/metrics` (None : le service ne répond pas à la lecture)."""
+        if donnees is None:
+            return None, "/metrics ne répond pas"
+        if alarme["signal"] == "circuit_ouvert":
+            ouverts = donnees["circuits_ouverts"]
+            return bool(ouverts), f"disjoncteur ouvert : {', '.join(ouverts)}" if ouverts else "disjoncteurs fermés"
+        if donnees["requetes"] < int(alarme.get("requetes_min", 5)) or donnees["taux_erreurs"] is None:
+            return False, f"trafic insuffisant ({donnees['requetes']} requêtes sur la fenêtre)"
+        taux = donnees["taux_erreurs"]
+        return taux >= float(alarme["seuil"]), f"{taux * 100:.0f} % de réponses 5xx (seuil {float(alarme['seuil']) * 100:.0f} %)"
 
     def evaluer(self, mesure: Instantane) -> list[dict]:
         """Met les états à jour ; rend les transitions (une par changement d'état, hors premier état OK)."""
@@ -248,7 +351,9 @@ class Evaluateur:
                     nouveau = ancien or OK
                 if nouveau != ancien:
                     self.etats[cle] = {"etat": nouveau, "depuis": mesure.instant, "raison": raison}
-                    if ancien is not None or nouveau != OK:
+                    # Un événement : une alarme qui se lève ou qui retombe, ou une mesure qui disparaît après avoir existé.
+                    # Passer de « pas de donnée » à OK n'est pas un rétablissement : rien n'était en alarme.
+                    if nouveau == ALARME or ancien == ALARME or (nouveau == INSUFFISANT and ancien is not None):
                         transitions.append({"alarme": alarme["id"], "cible": cible, "de": ancien, "vers": nouveau, "raison": raison,
                                             "instant": mesure.instant})
                 else:
@@ -271,6 +376,9 @@ def diagnostiquer(inspection: dict, dernieres_lignes: list[str]) -> dict:
     """La cause d'un conteneur qui ne répond plus, déduite de ce que Docker et le journal ont enregistré (pas de l'injection)."""
     etat, code = inspection.get("etat"), inspection.get("code")
     indices = [f"état Docker « {etat} », code de sortie {code}"] if etat else []
+    if inspection.get("pause"):
+        return {"constat": "service gelé (docker pause) : le processus vit mais ne répond plus, ses requêtes expirent",
+                "gravite": "blocage", "indices": [*indices, "État Docker : en pause (Paused = vrai)"]}
     if inspection.get("oom"):
         return {"constat": "tué par manque de mémoire (OOMKilled)", "gravite": "plantage", "indices": [*indices, "OOMKilled = vrai"]}
     if etat == "running" and inspection.get("sante") == "unhealthy":
@@ -283,7 +391,7 @@ def diagnostiquer(inspection: dict, dernieres_lignes: list[str]) -> dict:
     if etat == "exited" and code == 137:
         return {"constat": "tué de force (SIGKILL, code 137) : `docker kill`, ou manque de mémoire non signalé", "gravite": "plantage", "indices": indices}
     if etat == "exited" and code == 143:
-        return {"constat": "arrêté par SIGTERM sans sortie propre (code 143)", "gravite": "arret volontaire", "indices": indices}
+        return {"constat": "arrêté par SIGTERM (code 143) : arrêt demandé ; normal pour un processus Java comme Kafka, sinon le service ne gère pas SIGTERM", "gravite": "arret volontaire", "indices": indices}
     if etat == "exited":
         derniere = next((ligne for ligne in reversed(dernieres_lignes) if est_une_erreur(ligne)), "")
         return {"constat": f"plantage : le processus a quitté avec le code {code}", "gravite": "plantage",
@@ -305,6 +413,10 @@ class Observatoire:
         self.evenements: list[dict] = []
         self.panne: dict | None = None
         self.derniere: Instantane | None = None
+        self.env = env
+        metriques = {nom: f"http://127.0.0.1:{env.get(d['port_var'], d['port'])}/metrics" for nom, d in config["services"].items() if d.get("metrics")}
+        self.tableau = tb.Tableau(metriques, horloge, kafka=docker.kafka_groupes)
+        self._tours = 0
         self.verrou = threading.RLock()
         self.arret = threading.Event()
         self.fil: threading.Thread | None = None
@@ -317,7 +429,9 @@ class Observatoire:
             conteneurs = self.docker.conteneurs()
             erreurs = compter_erreurs(decouper_journal(self.docker.journaux(depuis=f"{int(self.config['fenetre_journal_s'])}s")))
             sondes = {identifiant: _resultat(futur) for identifiant, futur in futures.items()}
-        return Instantane(self.horloge(), conteneurs, sondes, erreurs)
+        self.tableau.mesurer(avec_kafka=self._tours % 2 == 0)  # Kafka : un appel Docker, un tour sur deux
+        self._tours += 1
+        return Instantane(self.horloge(), conteneurs, sondes, erreurs, self.tableau.resume_pour_alarmes())
 
     def tour(self) -> None:
         mesure = self.mesurer()
@@ -355,7 +469,7 @@ class Observatoire:
             self.fil.join(timeout=15)
 
     # -- panne
-    def injecter(self, service: str, confirmer: bool = False) -> dict:
+    def injecter(self, service: str, confirmer: bool = False, mode: str = "stop") -> dict:
         definition = self.config["services"].get(service)
         if definition is None:
             raise ErreurPanne(f"service inconnu : {service}")
@@ -364,13 +478,16 @@ class Observatoire:
                 raise ErreurPanne(f"une panne est déjà en cours sur {self.panne['service']} : la rétablir d'abord")
         if definition["groupe"] == "socle" and not confirmer:
             raise ErreurPanne(f"{definition['libelle']} fait partie du socle : confirmation explicite requise")
+        if mode not in ("stop", "pause"):
+            raise ErreurPanne(f"mode inconnu : {mode} (stop ou pause)")
         instant = self.horloge()
-        self.docker.arreter(service)
+        (self.docker.geler if mode == "pause" else self.docker.arreter)(service)
         with self.verrou:
-            self.panne = {"service": service, "debut": instant, "retabli": None, "alarmes": {}, "reprise": None}
+            self.panne = {"service": service, "debut": instant, "retabli": None, "alarmes": {}, "reprise": None, "mode": mode}
+            verbe = "Gel volontaire" if mode == "pause" else "Arrêt volontaire"
             self.evenements.append({"instant": instant, "type": "injection", "service": service,
-                                    "texte": f"Arrêt volontaire de {definition['libelle']} (docker compose stop {service})"})
-        return {"service": service, "debut": iso(instant)}
+                                    "texte": f"{verbe} de {definition['libelle']} (docker compose {'pause' if mode == 'pause' else 'stop'} {service})"})
+        return {"service": service, "debut": iso(instant), "mode": mode}
 
     def retablir(self) -> dict:
         with self.verrou:
@@ -379,16 +496,18 @@ class Observatoire:
             raise ErreurPanne("aucune panne en cours")
         panne["preuves"] = self._collecter_preuves(panne)
         instant = self.horloge()
-        self.docker.demarrer(panne["service"])
+        (self.docker.degeler if panne.get("mode") == "pause" else self.docker.demarrer)(panne["service"])
         with self.verrou:
             panne["retabli"] = instant
+            commande = "unpause" if panne.get("mode") == "pause" else "start"
             self.evenements.append({"instant": instant, "type": "retablissement", "service": panne["service"],
-                                    "texte": f"Rétablissement de {self.config['services'][panne['service']]['libelle']} (docker compose start)"})
+                                    "texte": f"Rétablissement de {self.config['services'][panne['service']]['libelle']} (docker compose {commande})"})
         return {"service": panne["service"], "retabli": iso(instant)}
 
     def tout_est_ok(self) -> bool:
         with self.verrou:
-            return bool(self.evaluateur.etats) and all(e["etat"] == OK for e in self.evaluateur.etats.values())
+            etats = [e["etat"] for e in self.evaluateur.etats.values()]
+            return OK in etats and ALARME not in etats  # une mesure qui manque (INSUFFICIENT_DATA) n'est pas une alarme
 
     # -- lecture
     def etat(self) -> dict:
@@ -396,7 +515,7 @@ class Observatoire:
             mesure = self.derniere
             instances = self.evaluateur.instances()
             panne = None if not self.panne else {"service": self.panne["service"], "debut": iso(self.panne["debut"]),
-                                                 "retabli": iso(self.panne["retabli"]), "en_cours": self.panne["retabli"] is None}
+                                                 "retabli": iso(self.panne["retabli"]), "en_cours": self.panne["retabli"] is None, "mode": self.panne.get("mode", "stop")}
         en_alarme: dict[str, list[str]] = {}
         for instance in instances:
             if instance["etat"] == ALARME:
@@ -431,9 +550,79 @@ class Observatoire:
         journaux = {service: [ligne[:LIGNE_MAX] for ligne in avant_arret[-LIGNES_PAR_SERVICE:]]}
         # Les autres : seulement les erreurs écrites depuis l'arrêt, pas celles d'une panne précédente.
         for nom, lignes in decouper_journal(self.docker.journaux(depuis=iso(panne["debut"]))).items():
-            if nom != service and (erreurs := [ligne[:LIGNE_MAX] for ligne in lignes if est_une_erreur(ligne)]):
-                journaux[nom] = erreurs[-LIGNES_PAR_SERVICE:]
-        return {"cause": diagnostiquer(inspection, avant_arret[-10:]), "inspection": inspection, "journaux": journaux}
+            if nom != service and (signaux := [ligne for ligne in lignes if est_un_signal(ligne)]):
+                journaux[nom] = resumer_signaux(signaux)
+        tableau = self.donnees_tableau()
+        return {"cause": diagnostiquer(inspection, avant_arret[-10:]), "inspection": inspection, "journaux": journaux,
+                "tableau": {"services": tableau["services"], "kafka": tableau["kafka"]}}
+
+    # -- tableau local (MS-16)
+    def donnees_tableau(self) -> dict:
+        """Ce que montre l'onglet « Tableau » : débit, erreurs, durées, disjoncteurs, retard de consommation, trafic simulé."""
+        with self.verrou:
+            erreurs = dict(self.derniere.erreurs) if self.derniere else {}
+            actives = [{"alarme": a["alarme"], "cible": a["cible"], "raison": a["raison"], "gravite": a["gravite"]}
+                       for a in self.evaluateur.instances() if a["etat"] == ALARME]
+        services = []
+        for nom in self.tableau.metriques:
+            ligne = self.tableau.service(nom)
+            services.append({**ligne, "libelle": self.config["services"][nom]["libelle"], "serie": self.tableau.serie_debit(nom),
+                             "erreurs_journal": erreurs.get(nom, 0)})
+        autres = [{"id": nom, "libelle": d["libelle"], "erreurs_journal": erreurs.get(nom, 0)}
+                  for nom, d in self.config["services"].items() if nom not in self.tableau.metriques and d["groupe"] != "socle"]
+        return {"instant": iso(self.horloge()), "services": services, "autres": autres, "kafka": self.tableau.kafka_resume(),
+                "trafic": self.trafic_etat(), "alarmes_actives": actives, "fenetre_s": tb.FENETRE_S}
+
+    def trace(self, identifiant: str) -> dict:
+        """Toutes les lignes de journal, de tous les services, qui portent cet identifiant, dans l'ordre du temps."""
+        if not ID_TRACE.fullmatch(identifiant or ""):
+            raise ErreurPanne("identifiant de corrélation attendu : 3 à 100 caractères parmi lettres, chiffres, . _ : -")
+        lignes = []
+        for brut in self.docker.journaux_horodates("30m").splitlines():
+            if identifiant not in brut:
+                continue
+            trouve = LIGNE_HORODATEE.match(brut)
+            if trouve:
+                lignes.append({"service": trouve["service"], "horodatage": trouve["ts"], **_resumer_ligne(trouve["texte"])})
+        lignes.sort(key=lambda ligne: ligne["horodatage"])
+        chemin: list[str] = []
+        for ligne in lignes:
+            if ligne["service"] not in chemin:  # l'ordre d'apparition : par où l'identifiant est passé
+                chemin.append(ligne["service"])
+        return {"identifiant": identifiant, "lignes": lignes[:100], "chemin": chemin, "tronque": len(lignes) > 100}
+
+    def _simulateur(self, methode: str, corps: dict | None = None) -> tuple[int, dict]:
+        port = self.env.get("SIMULATOR_PORT", "8005")
+        requete = urllib.request.Request(f"http://127.0.0.1:{port}/api/v1/run", method=methode, headers={"Content-Type": "application/json"},
+                                         data=None if corps is None else json.dumps(corps).encode())  # noqa: S310 - adresse locale
+        try:
+            with urllib.request.urlopen(requete, timeout=10) as reponse:  # noqa: S310
+                return reponse.status, json.loads(reponse.read() or b"{}")
+        except urllib.error.HTTPError as erreur:
+            try:
+                return erreur.code, json.loads(erreur.read() or b"{}")
+            finally:
+                erreur.close()
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+            return 0, {}
+
+    def trafic_etat(self) -> dict:
+        statut, corps = self._simulateur("GET")
+        return {"disponible": statut == 200, "etat": corps.get("state"), "run": corps.get("run_id"), "envoyes": corps.get("delivered"), "erreurs": (corps.get("collecte") or {}).get("errors")}
+
+    def trafic(self, action: str, debit: float = 15.0) -> dict:
+        """Lance ou arrête un run du simulateur vers la collecte : sans trafic, le tableau n'a rien à montrer."""
+        if action == "stop":
+            statut, corps = self._simulateur("DELETE")
+        elif action == "start":
+            corps_demande = {"scenario": "heure-de-pointe", "seed": 7, "rate": max(1.0, min(float(debit), 100.0)), "sink": "collecte",
+                             "duration": "30m", "run_id": f"obs-{secrets.token_hex(3)}"}
+            statut, corps = self._simulateur("POST", corps_demande)
+        else:
+            raise ErreurPanne("action inconnue : start ou stop")
+        if statut not in (200, 201, 202):
+            raise ErreurPanne(f"le simulateur a répondu {statut} : {corps.get('detail') or corps.get('error') or 'injoignable'}")
+        return self.trafic_etat()
 
     # -- retracer alarme, journal et cause
     def rapport(self) -> dict | None:
@@ -446,6 +635,7 @@ class Observatoire:
         service = panne["service"]
         preuves = panne.get("preuves") or self._collecter_preuves(panne)
         cause, inspection, journaux = preuves["cause"], preuves["inspection"], preuves["journaux"]
+        tableau = preuves.get("tableau")
         alarmes = []
         for (identifiant, cible), vue in sorted(alarmes_vues.items(), key=lambda item: item[1]["declenchee"]):
             definition = next(a for a in self.config["alarmes"] if a["id"] == identifiant)
@@ -459,12 +649,30 @@ class Observatoire:
         return {"service": service, "libelle": self.config["services"][service]["libelle"], "effet_documente": self.config["services"][service]["effet"],
                 "injection": iso(panne["debut"]), "retablissement": iso(panne["retabli"]), "duree_panne_s": round(fin - panne["debut"], 1),
                 "premiere_alarme_s": alarmes[0]["delai_detection_s"] if alarmes else None, "alarmes": alarmes, "cause": cause,
-                "inspection": inspection, "journaux": journaux, "impact": {"prevu": prevu, "observe_en_alarme": observe},
+                "inspection": inspection, "journaux": journaux, "tableau": tableau, "impact": {"prevu": prevu, "observe_en_alarme": observe},
                 "chronologie": [{"horodatage": iso(e["instant"]), "type": e["type"], "service": e["service"], "texte": e["texte"],
                                  "depuis_injection_s": round(e["instant"] - panne["debut"], 1)} for e in evenements]}
 
     def _service_de(self, cible: str) -> str:
         return next((s["service"] for s in self.sondes if s["id"] == cible), cible)
+
+
+def _lignes_du_tableau(tableau: dict | None) -> list[str]:
+    """Le tableau d'un rapport : une ligne par service qui publie /metrics, une par groupe Kafka."""
+    if not tableau:
+        return ["  (non relevé)"]
+    lignes = []
+    for s in tableau["services"]:
+        if not s.get("mesure"):
+            lignes.append(f"  {s['id']:<10} /metrics muet")
+            continue
+        circuits = ", ".join(f"{d} {['fermé', 'semi-ouvert', 'OUVERT'][e]}" for d, e in s["circuits"].items()) or "-"
+        taux = "-" if s.get("taux_erreurs") is None else f"{s['taux_erreurs'] * 100:.0f} %"
+        lignes.append(f"  {s['id']:<10} {s.get('debit')} req/s · 5xx {s.get('erreurs_5xx')}/s ({taux}) · p95 {s.get('p95_ms')} ms · disjoncteurs : {circuits}")
+    kafka = tableau.get("kafka") or {}
+    for g in kafka.get("groupes", []):
+        lignes.append(f"  kafka {g['groupe']} / {g['sujet']} : retard {g['retard']} message(s)" + ("" if g.get("retard_s") is None else f" = {g['retard_s']:.0f} s d'écriture"))
+    return lignes or ["  (vide)"]
 
 
 def rapport_texte(r: dict) -> str:
@@ -478,27 +686,46 @@ def rapport_texte(r: dict) -> str:
     for service, extraits in r["journaux"].items():
         lignes.append(f"  {service} :")
         lignes += [f"    {extrait}" for extrait in extraits] or ["    (rien)"]
-    lignes += ["", "3. Cause", f"  {r['cause']['constat']}", *[f"  - {indice}" for indice in r["cause"]["indices"]], "",
-               "4. Impact", f"  Prévu (services qui dépendent de {r['service']}) : {', '.join(r['impact']['prevu']) or 'aucun'}",
-               f"  Observé (services avec une alarme) : {', '.join(r['impact']['observe_en_alarme']) or 'aucun'}", "", "5. Chronologie"]
+    lignes += ["", "3. Tableau (au moment du rétablissement)", *_lignes_du_tableau(r.get("tableau")), "", "4. Cause", f"  {r['cause']['constat']}",
+               *[f"  - {indice}" for indice in r["cause"]["indices"]], "", "5. Impact", f"  Prévu (services qui dépendent de {r['service']}) : {', '.join(r['impact']['prevu']) or 'aucun'}",
+               f"  Observé (services avec une alarme) : {', '.join(r['impact']['observe_en_alarme']) or 'aucun'}", "", "6. Chronologie"]
     lignes += [f"  +{e['depuis_injection_s']:>6} s  {e['texte']}" for e in r["chronologie"]]
     return "\n".join(lignes)
 
 
 # --------------------------------------------------------------------------- panne en ligne de commande
 def rejouer_panne(obs: Observatoire, service: str, duree_s: int = 70, attente_alarme_s: int = 60, attente_reprise_s: int = 180,
-                  afficher: Callable[[str], None] = print, attendre: Callable[[float], None] = time.sleep) -> dict:
+                  afficher: Callable[[str], None] = print, attendre: Callable[[float], None] = time.sleep, trafic: bool = False,
+                  mode: str = "stop", echauffement_s: int = 45) -> dict:
     """Arrête le service, attend l'alarme, laisse la panne durer, rétablit, attend le retour à OK. Rétablit toujours, même sur erreur."""
-    afficher(f"Arrêt volontaire de {service}…")
-    obs.injecter(service, confirmer=True)
     try:
-        attendu = time.monotonic() + attente_alarme_s
-        while time.monotonic() < attendu and not any(k == ("service-arrete", service) for k in obs.panne["alarmes"]):
-            attendre(1)
-        afficher("Alarme levée." if ("service-arrete", service) in obs.panne["alarmes"] else "Aucune alarme dans le délai.")
-        attendre(duree_s)
+        if trafic:
+            afficher("Trafic simulé vers la collecte…")
+            obs.trafic("start")
+            attendre(echauffement_s)
+        depart = time.monotonic() + 150
+        while time.monotonic() < depart and not obs.tout_est_ok():
+            attendre(3)  # un départ propre : sinon les délais mesurés seraient faux
+        if not obs.tout_est_ok():
+            en_alarme = sorted(f"{a['alarme']} ({a['cible']})" for a in obs.etat()["alarmes"] if a["etat"] == ALARME)
+            raise ErreurPanne("la pile n'est pas saine avant la panne, rien n'a été arrêté : " + ", ".join(en_alarme))
+        afficher("Départ propre : toutes les alarmes à OK.")
+        afficher(f"{'Gel' if mode == 'pause' else 'Arrêt'} volontaire de {service}…")
+        obs.injecter(service, confirmer=True, mode=mode)
+        try:
+            attendu = time.monotonic() + attente_alarme_s
+            while time.monotonic() < attendu and not any(k == ("service-arrete", service) for k in obs.panne["alarmes"]):
+                attendre(1)
+            afficher("Alarme levée." if ("service-arrete", service) in obs.panne["alarmes"] else "Aucune alarme dans le délai.")
+            attendre(duree_s)
+        finally:
+            obs.retablir()
     finally:
-        obs.retablir()
+        if trafic:
+            try:
+                obs.trafic("stop")
+            except ErreurPanne:
+                pass  # le run s'est peut-être déjà terminé : rien à arrêter
     attendu = time.monotonic() + attente_reprise_s
     while time.monotonic() < attendu and not obs.tout_est_ok():
         attendre(2)
@@ -556,6 +783,15 @@ def fabriquer_gestionnaire(obs: Observatoire, jeton: str, port: int) -> type[Bas
                 self._json(200, obs.chronologie())
             elif adresse.path == "/api/rapport":
                 self._json(200, obs.rapport())
+            elif adresse.path == "/api/tableau":
+                self._json(200, obs.donnees_tableau())
+            elif adresse.path == "/api/trafic":
+                self._json(200, obs.trafic_etat())
+            elif adresse.path == "/api/trace":
+                try:
+                    self._json(200, obs.trace(parse_qs(adresse.query).get("id", [""])[0]))
+                except ErreurPanne as erreur:
+                    self._json(400, {"erreur": str(erreur)})
             elif adresse.path == "/api/journal":
                 try:
                     self._json(200, obs.journal(parse_qs(adresse.query).get("service", [""])[0]))
@@ -571,7 +807,9 @@ def fabriquer_gestionnaire(obs: Observatoire, jeton: str, port: int) -> type[Bas
             try:
                 corps = json.loads(self.rfile.read(longueur) or b"{}")
                 if urlparse(self.path).path == "/api/panne":
-                    self._json(200, obs.injecter(str(corps.get("service", "")), corps.get("confirmer") is True))
+                    self._json(200, obs.injecter(str(corps.get("service", "")), corps.get("confirmer") is True, str(corps.get("mode", "stop"))))
+                elif urlparse(self.path).path == "/api/trafic":
+                    self._json(200, obs.trafic(str(corps.get("action", "")), float(corps.get("debit", 15))))
                 elif urlparse(self.path).path == "/api/retablir":
                     self._json(200, obs.retablir())
                 else:

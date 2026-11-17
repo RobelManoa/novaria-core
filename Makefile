@@ -167,9 +167,9 @@ parcours:      ## Rejoue le parcours de bout en bout et les cas d'échec sur la 
 	$(DEV) parcours $(C)
 observatoire:  ## Interface graphique des pannes sur http://127.0.0.1:8090 (CLD-14, la pile doit tourner)
 	$(DEV) observatoire
-panne:         ## Panne contrôlée en ligne de commande : make panne S=traitement (CLD-14)
+panne:         ## Panne contrôlée en ligne de commande : make panne S=kafka A="--trafic --duree 45" (CLD-14, MS-16)
 	$(if $(S),,$(error Donner un service : make panne S=traitement))
-	$(DEV) panne $(S)
+	$(DEV) panne $(S) $(A)
 sauvegarde:    ## Sauvegarde PostgreSQL et MongoDB avec manifeste, conservation par paliers (CLD-15)
 	$(DEV) sauvegarde
 sauvegarde-liste: ## Liste les sauvegardes et ce que la conservation supprimerait (CLD-15)

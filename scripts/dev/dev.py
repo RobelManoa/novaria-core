@@ -1344,7 +1344,10 @@ def cmd_panne(args: argparse.Namespace) -> int:
     obs.demarrer()
     try:
         obs.arret.wait(float(obs.config["periode_s"]) * 2)  # deux tours de mesure : la pile saine est connue avant la panne
-        rapport = module.rejouer_panne(obs, args.service, duree_s=args.duree)
+        try:
+            rapport = module.rejouer_panne(obs, args.service, duree_s=args.duree, trafic=args.trafic, mode=args.mode)
+        except module.ErreurPanne as erreur:
+            raise DevError(str(erreur)) from erreur
     finally:
         obs.arreter_mesure()
     print()
@@ -1814,6 +1817,8 @@ def build_parser() -> argparse.ArgumentParser:
     ob.add_argument("--port", type=int, default=8090, help="port local de l'interface (8090 par défaut)")
     pa = add("panne", cmd_panne, "arrête un service, détecte la panne par l'alarme, retrace le journal et la cause, rétablit (CLD-14)")
     pa.add_argument("service", help="service à arrêter (voir ops/alarmes.json), par exemple traitement ou collecte")
+    pa.add_argument("--trafic", action="store_true", help="lance le simulateur vers la collecte pendant l'essai (le tableau a alors du débit à montrer)")
+    pa.add_argument("--mode", choices=["stop", "pause"], default="stop", help="stop : arrêt du conteneur ; pause : service gelé, vivant mais muet")
     pa.add_argument("--duree", type=int, default=70, help="secondes de panne avant le rétablissement (70 par défaut : laisse le journal de la passerelle montrer ses erreurs)")
     pc = add("parcours", cmd_parcours, "rejoue le parcours de bout en bout et les cas d'échec sur la pile locale (CLD-13, la pile doit tourner)")
     pc.add_argument("cas", nargs="*", help="cas à jouer (N1 à N6, E1 à E3) ; tous par défaut")

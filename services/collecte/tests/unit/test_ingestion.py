@@ -448,3 +448,21 @@ def test_the_service_is_stateless_a_new_instance_sees_the_same_world():
     )
     assert other.receive(body(event)).outcome is Outcome.DUPLICATE
     assert len(rig.publisher.events(TOPIC_RAW)) == 1
+
+
+def test_the_acceptance_log_carries_the_message_correlation_id_and_keeps_the_request_id(caplog):
+    from app.core.logs import correlation_id_var
+
+    rig = Rig()
+    event = measurement(0)
+    token = correlation_id_var.set("requete-http-7")
+    try:
+        with caplog.at_level(logging.INFO, logger="app.ingestion"):
+            rig.service.receive(body(event), correlation_id="requete-http-7")
+        # Le bloc est refermé : l'identifiant de la requête est revenu (journal d'accès).
+        assert correlation_id_var.get() == "requete-http-7"
+    finally:
+        correlation_id_var.reset(token)
+    accepted = next(r for r in caplog.records if r.getMessage() == "mesure acceptée")
+    assert accepted.fields["request_id"] == "requete-http-7"
+    assert accepted.fields["event_id"] == event["id"]
