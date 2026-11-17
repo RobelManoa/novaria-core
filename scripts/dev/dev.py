@@ -1211,6 +1211,25 @@ def cmd_bigdata_test(args: argparse.Namespace) -> int:
     return subprocess.run(bigdata_docker.commande_de_test(ROOT, args.cpus, args.memoire), check=False).returncode
 
 
+# --------------------------------------------------------------------------- parcours de bout en bout (CLD-13)
+def cmd_parcours(args: argparse.Namespace) -> int:
+    """Rejoue le parcours nominal (donnée brute, entrepôt, API, tableau de bord) et les cas d'échec sur la pile locale."""
+    import parcours
+
+    require_env()
+    require_docker()
+    ids = tuple(item.upper() for item in args.cas) or None
+    inconnus = [item for item in ids or () if item not in {cas[0] for cas in parcours.CAS}]
+    if inconnus:
+        raise DevError(f"Cas inconnu : {', '.join(inconnus)}. Cas possibles : {', '.join(cas[0] for cas in parcours.CAS)}.")
+    pile = parcours.Pile(parse_env(ENV_FILE.read_text(encoding="utf-8")))
+    print("Parcours de bout en bout sur la pile locale (la pile doit tourner : dev.py up).")
+    resultats = parcours.executer(pile, ids, afficher=lambda resultat: print(parcours.ligne(resultat), flush=True))
+    echecs = [resultat.cas for resultat in resultats if not resultat.ok]
+    print(f"{len(resultats) - len(echecs)}/{len(resultats)} cas satisfaits." + (f" Échecs : {', '.join(echecs)}." if echecs else ""))
+    return 1 if echecs else 0
+
+
 # --------------------------------------------------------------------------- tableau de bord en local (FE-04)
 FRONTEND_DIR = ROOT / "frontend"
 API_PORT = 8000  # cible du proxy de Vite (frontend/vite.config.ts)
@@ -1635,6 +1654,8 @@ def build_parser() -> argparse.ArgumentParser:
     bdt = add("bigdata-test", cmd_bigdata_test, "tests du prototype Big Data dans son image (Docker)")
     bdt.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
     bdt.add_argument("--memoire", default="6g", help="mémoire allouée au conteneur (6g par défaut)")
+    pc = add("parcours", cmd_parcours, "rejoue le parcours de bout en bout et les cas d'échec sur la pile locale (CLD-13, la pile doit tourner)")
+    pc.add_argument("cas", nargs="*", help="cas à jouer (N1 à N6, E1 à E3) ; tous par défaut")
     add("ps", cmd_ps, "état des conteneurs")
     logs = add("logs", cmd_logs, "suit les journaux")
     logs.add_argument("services", nargs="*", help="services (tous par défaut)")
