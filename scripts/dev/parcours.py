@@ -154,8 +154,14 @@ def jeton(secret: str, sujet: str, role: str, expire: datetime, emis: datetime |
 
 
 def mal_signe(valeur: str) -> str:
-    """Le même jeton, dont la signature a perdu son dernier caractère remplacé : la charge reste valide, pas la signature."""
-    return valeur[:-1] + ("A" if valeur[-1] != "A" else "B")
+    """Le même jeton, dont le premier caractère de la signature est remplacé : la charge reste valide, pas la signature.
+
+    Le dernier caractère d'une signature de 32 octets en base64url ne porte que 4 bits utiles : le changer pourrait donner
+    les mêmes octets, donc une signature encore valable. Le premier caractère porte 6 bits : le changer change les octets.
+    """
+    corps, _, signature = valeur.rpartition(".")
+    remplacement = "A" if signature[0] != "A" else "B"
+    return f"{corps}.{remplacement}{signature[1:]}"
 
 
 # --------------------------------------------------------------------------- la pile : HTTP, Docker, bases

@@ -103,6 +103,12 @@ class Jetons(unittest.TestCase):
         self.assertEqual(alteree.rsplit(".", 1)[0], valeur.rsplit(".", 1)[0])
         self.assertNotEqual(p.mal_signe(valeur[:-1] + "A"), valeur[:-1] + "A")
 
+    def test_la_signature_alteree_decode_toujours_en_d_autres_octets(self):
+        octets = lambda signature: base64.urlsafe_b64decode(signature + "=" * (-len(signature) % 4))  # noqa: E731
+        for secret in (SECRET + str(i) for i in range(40)):  # 40 signatures : toutes les fins de caractère sont couvertes
+            valeur = p.jeton(secret, "u-1", "viewer", MAINTENANT)
+            self.assertNotEqual(octets(p.mal_signe(valeur).rsplit(".", 1)[1]), octets(valeur.rsplit(".", 1)[1]), secret)
+
     @unittest.skipIf(jwt is None, "PyJWT absent : pip install pyjwt")
     def test_la_bibliotheque_de_l_api_lit_le_jeton_valide_et_refuse_les_deux_autres(self):
         valide = p.jeton(SECRET, "u-1", "viewer", datetime.now(UTC) + timedelta(minutes=5))
