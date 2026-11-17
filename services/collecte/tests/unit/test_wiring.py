@@ -85,8 +85,10 @@ def test_without_kafka_configured_a_measurement_is_refused_after_the_duplicate_c
     monkeypatch.setenv("MONGO_URL", "mongodb://u:p@127.0.0.1:1/db")
     monkeypatch.setenv("MONGO_TIMEOUT_MS", "100")
     components = deps.build_components(Settings())
-    assert isinstance(components.service._raw_events, MongoRawEvents)
-    assert isinstance(components.service._rejects, MongoRejects)
+    # Les dépôts MongoDB sont derrière leurs reprises et leur disjoncteur (MS-16).
+    assert isinstance(components.service._raw_events._inner, MongoRawEvents)
+    assert isinstance(components.service._rejects._inner, MongoRejects)
+    assert components.service._raw_events._circuit is components.service._rejects._circuit
     with pytest.raises(PublishFailed):
         components.service._publisher.publish("iot.raw", "INT_01", b"{}")
 
@@ -126,3 +128,12 @@ def test_the_real_route_answers_503_when_nothing_is_configured():
         response = client.post("/api/v1/measurements", content=body(measurement(0)))
     assert response.status_code == 503
     assert response.json()["code"] == "UPSTREAM_UNAVAILABLE"
+
+
+def test_the_resilience_settings_have_sober_defaults_and_bounds():
+    settings = Settings()
+    assert (settings.circuit_failure_threshold, settings.circuit_reset_timeout_s) == (5, 15.0)
+    assert (settings.mongo_retry_attempts, settings.retry_base_s) == (3, 0.1)
+    for name, value in (("CIRCUIT_FAILURE_THRESHOLD", "0"), ("CIRCUIT_RESET_TIMEOUT_S", "0")):
+        with pytest.raises(ValidationError):
+            Settings(**{name.lower(): value})

@@ -1,6 +1,7 @@
 """Adaptateurs Kafka et MongoDB (MS-08) : clients simulés, aucune connexion réelle."""
 
 import threading
+import time
 
 import pytest
 from bson.errors import InvalidDocument
@@ -114,6 +115,36 @@ def test_a_broker_that_does_not_acknowledge_is_a_publish_failure_naming_only_the
     with pytest.raises(PublishFailed) as raised:
         kafka.publish("iot.raw", "INT_01", b"{}")
     assert str(raised.value) == type(error).__name__
+
+
+def test_a_failed_producer_is_discarded_so_the_next_publication_gets_a_fresh_connection():
+    """MS-16 : un producteur gardé après plusieurs pannes du broker ne se reconnectait plus."""
+    kafka = publisher()
+    kafka.publish("iot.raw", "INT_01", b"{}")
+    wedged = FakeProducer.created[0]
+    wedged.future = FakeFuture(KafkaTimeoutError("x"))
+    with pytest.raises(PublishFailed):
+        kafka.publish("iot.raw", "INT_01", b"{}")
+    assert kafka._producer is None, "le producteur fautif est oublié"
+    kafka.publish("iot.raw", "INT_01", b"{}")
+    assert len(FakeProducer.created) == 2, "le message suivant part par un producteur neuf"
+    assert FakeProducer.created[1].sent
+    for _ in range(100):  # la fermeture se fait en arrière-plan
+        if wedged.closed_with is not None:
+            break
+        time.sleep(0.01)
+    assert wedged.closed_with == 1
+
+
+def test_a_producer_already_replaced_is_not_discarded_twice():
+    kafka = publisher()
+    kafka.publish("iot.raw", "INT_01", b"{}")
+    old = FakeProducer.created[0]
+    kafka.close()
+    kafka.publish("iot.raw", "INT_01", b"{}")
+    fresh = kafka._producer
+    kafka._discard(old)  # un appel tardif qui parle de l'ancien producteur
+    assert kafka._producer is fresh
 
 
 def test_a_broker_down_at_start_fails_the_publication_and_the_next_one_tries_again():

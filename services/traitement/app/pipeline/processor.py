@@ -78,6 +78,7 @@ class Pipeline:
             self._reject(result)
         else:
             self._pending.append((result, raw))
+            logger.info("indicateur reçu", extra={"fields": {"event_id": result.event_id}})
         if partition is not None and offset is not None:
             self._next_offset[partition] = max(self._next_offset.get(partition, 0), offset + 1)
 

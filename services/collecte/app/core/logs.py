@@ -5,6 +5,7 @@ de la requête en cours. Il relie les journaux de plusieurs services (EXG-NFR-06
 l'en-tête `X-Correlation-ID`, généré s'il manque, puis renvoyé dans la réponse.
 """
 
+import contextlib
 import contextvars
 import json
 import logging
@@ -26,6 +27,29 @@ _RESERVED = {"ts", "level", "service", "logger", "message", "correlation_id", "e
 correlation_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
     "correlation_id", default="-"
 )
+
+
+def correlation_of(raw: bytes | str | None) -> str:
+    """Identifiant de corrélation écrit dans un message JSON (`correlation_id`), sinon « - »."""
+    try:
+        value = json.loads(raw or b"{}").get("correlation_id")
+    except (ValueError, AttributeError):
+        return "-"
+    return value if isinstance(value, str) and _VALID_ID.fullmatch(value) else "-"
+
+
+@contextlib.contextmanager
+def bound_correlation(value: str | None):
+    """Les lignes écrites dans ce bloc portent `value` : c'est ainsi que l'identifiant d'un message
+    Kafka suit le message d'un service à l'autre (EXG-NFR-06). `None` ou « - » : rien ne change."""
+    if not value or value == "-":
+        yield
+        return
+    token = correlation_id_var.set(value)
+    try:
+        yield
+    finally:
+        correlation_id_var.reset(token)
 
 
 class JsonFormatter(logging.Formatter):

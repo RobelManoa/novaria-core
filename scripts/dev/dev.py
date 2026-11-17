@@ -1211,6 +1211,170 @@ def cmd_bigdata_test(args: argparse.Namespace) -> int:
     return subprocess.run(bigdata_docker.commande_de_test(ROOT, args.cpus, args.memoire), check=False).returncode
 
 
+# --------------------------------------------------------------------------- matrice d'accès et essais de refus (CLD-18)
+def cmd_acces(args: argparse.Namespace) -> int:
+    """Compare ops/matrice-acces.json à ce que la pile applique : essais autorisés et refusés sur l'API, PostgreSQL et MongoDB."""
+    import acces
+
+    require_env()
+    require_docker()
+    pile = acces.Pile(parse_env(ENV_FILE.read_text(encoding="utf-8")))
+    print("Matrice d'accès de la pile locale : essais d'autorisation et de refus (la pile doit tourner : dev.py up).")
+    essais, ecarts, incoherences = acces.executer(pile, afficher=print)
+    print()
+    for famille, accordes, attendus_accordes, refuses, attendus_refuses in acces.resume_par_famille(essais):
+        print(f"  {famille:<24} accès accordés {accordes}/{attendus_accordes} · accès refusés {refuses}/{attendus_refuses}")
+    print("\nUn essai autorisé et un essai refusé par sujet :")
+    for sujet, (autorise, refuse) in acces.exemples_par_sujet(essais, ("api", "postgres (essai", "mongo (essai"), acces.charger()["api"]["exemples"]).items():
+        for essai in (autorise, refuse):
+            if essai:
+                print(f"  [{'OK' if essai.ok else 'ÉCHEC'}] {sujet:<16} {'autorisé' if essai.attendu else 'refusé  '} {essai.operation} → {essai.detail}")
+    if ecarts:
+        print("\nÉcarts connus (contrôle prévu et absent, non compté comme un succès) :")
+        for ecart in ecarts:
+            print(f"  [ÉCART] {ecart.libelle}\n          {ecart.preuve}")
+    echecs = [essai for essai in essais if not essai.ok]
+    for ligne in incoherences:
+        print(f"[ÉCHEC] matrice et contrats : {ligne}")
+    for essai in echecs[: args.max_echecs]:
+        print(f"[ÉCHEC] {essai.famille} · {essai.sujet} · {essai.ressource} · {essai.operation} : attendu {'accès' if essai.attendu else 'refus'}, {essai.detail}")
+    total = len(essais)
+    interdits = acces.accord_interdit(essais)
+    print(f"\n{total - len(echecs)}/{total} essais conformes à la matrice, {len(ecarts)} écart(s) connu(s).")
+    print(f"Accès interdits accordés : {len(interdits)} (critère de CLD-18 : 0).  Accès prévus refusés ou non concluants : {len(acces.refus_inattendu(essais))}.")
+    return 1 if echecs or incoherences else 0
+
+
+# --------------------------------------------------------------------------- sauvegarde planifiée et restauration vérifiée (CLD-15)
+def _sauvegarde_module():
+    import sauvegarde
+
+    require_env()
+    require_docker()
+    return sauvegarde
+
+
+def cmd_sauvegarde(_: argparse.Namespace) -> int:
+    """Sauvegarde PostgreSQL et MongoDB avec manifeste (totaux et sommes de contrôle), puis conservation par paliers."""
+    module = _sauvegarde_module()
+    try:
+        module.sauvegarder(module.Serveurs(ROOT))
+    except module.Echec as erreur:
+        raise DevError(str(erreur)) from erreur
+    return 0
+
+
+def cmd_sauvegarde_liste(args: argparse.Namespace) -> int:
+    """Liste les sauvegardes, leur manifeste, et ce que la politique de conservation supprimerait (rien n'est supprimé)."""
+    module = _sauvegarde_module()
+    maintenant = datetime.now(timezone.utc)
+    for base in ("postgres", "mongo"):
+        existantes = module.lister(base, ROOT / "backups")
+        garder = module.a_conserver(existantes, maintenant)
+        print(f"{base} : {len(existantes)} sauvegarde(s), {len(garder)} à conserver")
+        for nom, instant in sorted(existantes.items(), key=lambda element: element[1], reverse=True):
+            manifeste = "manifeste" if module.chemin_manifeste(ROOT / "backups" / base / nom).is_file() else "SANS manifeste"
+            print(f"  {instant:%Y-%m-%d %H:%M:%SZ}  {nom}  {manifeste}  {'conservée' if nom in garder else 'serait supprimée'}")
+    return 0
+
+
+def cmd_restauration(args: argparse.Namespace) -> int:
+    """Restaure les dernières sauvegardes dans un environnement Docker isolé et compare les totaux au manifeste."""
+    module = _sauvegarde_module()
+    env = parse_env(ENV_FILE.read_text(encoding="utf-8"))
+    fichiers = {base: ROOT / "backups" / base / nom for base, nom in (("postgres", args.postgres), ("mongo", args.mongo)) if nom}
+    print("Restauration dans un environnement isolé (réseau interne, mots de passe aléatoires, supprimé à la fin).")
+    afficher = lambda resultat: print(module.ligne(resultat), flush=True)  # noqa: E731
+    resultats = module.restaurer_et_verifier(fichiers=fichiers, nom_base_mongo=env.get("MONGO_DB", "novaria"), administrateur_pg=env.get("POSTGRES_USER", "novaria_admin"), afficher=afficher)
+    if args.controles_negatifs and all(resultat.ok for resultat in resultats):
+        print("Contrôles négatifs (une panne injectée doit être détectée) :")
+        resultats += module.controles_negatifs(nom_base_mongo=env.get("MONGO_DB", "novaria"), administrateur_pg=env.get("POSTGRES_USER", "novaria_admin"), afficher=afficher)
+    echecs = [resultat.cas for resultat in resultats if not resultat.ok]
+    print(f"{len(resultats) - len(echecs)}/{len(resultats)} cas satisfaits." + (f" Échecs : {', '.join(echecs)}." if echecs else ""))
+    return 1 if echecs else 0
+
+
+def cmd_sauvegarde_planifier(args: argparse.Namespace) -> int:
+    """Planifie la sauvegarde sans cron : attend le créneau, sauvegarde, rattrape une sauvegarde manquante au démarrage."""
+    module = _sauvegarde_module()
+    env = parse_env(ENV_FILE.read_text(encoding="utf-8"))
+
+    def cycle() -> None:
+        module.sauvegarder(module.Serveurs(ROOT))
+        if args.verifier:
+            resultats = module.restaurer_et_verifier(nom_base_mongo=env.get("MONGO_DB", "novaria"), administrateur_pg=env.get("POSTGRES_USER", "novaria_admin"), afficher=lambda r: print(module.ligne(r), flush=True))
+            if not all(resultat.ok for resultat in resultats):
+                raise module.Echec("la restauration de contrôle a échoué")
+
+    def derniere() -> dict:
+        resultat = {}
+        for base in ("postgres", "mongo"):
+            existantes = module.lister(base, ROOT / "backups")
+            resultat[base] = max(existantes.values()) if existantes else None
+        return resultat
+
+    reussis = module.planifier(cycle, heure=args.heure, toutes_les_s=args.toutes_les, executions=args.executions,
+                               sans_rattrapage=args.sans_rattrapage, derniere=derniere)
+    print(f"{reussis} sauvegarde(s) planifiée(s) réussie(s).")
+    return 0
+
+
+# --------------------------------------------------------------------------- panne contrôlée et observatoire (CLD-14)
+def _observatoire():
+    import observatoire
+
+    require_env()
+    require_docker()
+    env = parse_env(ENV_FILE.read_text(encoding="utf-8"))
+    return observatoire, observatoire.Observatoire(observatoire.charger_config(), observatoire.Docker(ROOT), env)
+
+
+def cmd_observatoire(args: argparse.Namespace) -> int:
+    """Sert l'interface graphique de l'observatoire des pannes sur 127.0.0.1 (la pile doit tourner : dev.py up)."""
+    module, obs = _observatoire()
+    module.servir(obs, args.port)
+    return 0
+
+
+def cmd_panne(args: argparse.Namespace) -> int:
+    """Arrête un service, attend l'alarme, retrace alarme, journal et cause, rétablit, puis affiche le rapport (la pile doit tourner)."""
+    module, obs = _observatoire()
+    if args.service not in obs.config["services"]:
+        raise DevError(f"Service inconnu : {args.service}. Services : {', '.join(obs.config['services'])}.")
+    obs.demarrer()
+    try:
+        obs.arret.wait(float(obs.config["periode_s"]) * 2)  # deux tours de mesure : la pile saine est connue avant la panne
+        try:
+            rapport = module.rejouer_panne(obs, args.service, duree_s=args.duree, trafic=args.trafic, mode=args.mode)
+        except module.ErreurPanne as erreur:
+            raise DevError(str(erreur)) from erreur
+    finally:
+        obs.arreter_mesure()
+    print()
+    print(module.rapport_texte(rapport))
+    print(f"\nRetour à la normale (toutes les alarmes à OK) : {'oui' if rapport['tout_est_ok'] else 'NON'}")
+    return 0 if rapport["alarmes"] and rapport["tout_est_ok"] else 1
+
+
+# --------------------------------------------------------------------------- parcours de bout en bout (CLD-13)
+def cmd_parcours(args: argparse.Namespace) -> int:
+    """Rejoue le parcours nominal (donnée brute, entrepôt, API, tableau de bord) et les cas d'échec sur la pile locale."""
+    import parcours
+
+    require_env()
+    require_docker()
+    ids = tuple(item.upper() for item in args.cas) or None
+    inconnus = [item for item in ids or () if item not in {cas[0] for cas in parcours.CAS}]
+    if inconnus:
+        raise DevError(f"Cas inconnu : {', '.join(inconnus)}. Cas possibles : {', '.join(cas[0] for cas in parcours.CAS)}.")
+    pile = parcours.Pile(parse_env(ENV_FILE.read_text(encoding="utf-8")))
+    print("Parcours de bout en bout sur la pile locale (la pile doit tourner : dev.py up).")
+    resultats = parcours.executer(pile, ids, afficher=lambda resultat: print(parcours.ligne(resultat), flush=True))
+    echecs = [resultat.cas for resultat in resultats if not resultat.ok]
+    print(f"{len(resultats) - len(echecs)}/{len(resultats)} cas satisfaits." + (f" Échecs : {', '.join(echecs)}." if echecs else ""))
+    return 1 if echecs else 0
+
+
 # --------------------------------------------------------------------------- tableau de bord en local (FE-04)
 FRONTEND_DIR = ROOT / "frontend"
 API_PORT = 8000  # cible du proxy de Vite (frontend/vite.config.ts)
@@ -1635,6 +1799,29 @@ def build_parser() -> argparse.ArgumentParser:
     bdt = add("bigdata-test", cmd_bigdata_test, "tests du prototype Big Data dans son image (Docker)")
     bdt.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
     bdt.add_argument("--memoire", default="6g", help="mémoire allouée au conteneur (6g par défaut)")
+    ac = add("acces", cmd_acces, "essais d'autorisation et de refus : compare la matrice d'accès à l'API, PostgreSQL et MongoDB (CLD-18)")
+    ac.add_argument("--max-echecs", type=int, default=20, help="nombre d'échecs détaillés (20 par défaut)")
+    sv = add("sauvegarde", cmd_sauvegarde, "sauvegarde PostgreSQL et MongoDB avec manifeste, puis conservation par paliers (CLD-15)")
+    add("sauvegarde-liste", cmd_sauvegarde_liste, "liste les sauvegardes et ce que la politique de conservation supprimerait (CLD-15)")
+    rs = add("restauration", cmd_restauration, "restaure les dernières sauvegardes dans un environnement Docker isolé et compare les totaux (CLD-15)")
+    rs.add_argument("--postgres", metavar="FICHIER", help="nom d'un fichier .dump de backups/postgres (le dernier par défaut)")
+    rs.add_argument("--mongo", metavar="FICHIER", help="nom d'un fichier .archive.gz de backups/mongo (le dernier par défaut)")
+    rs.add_argument("--controles-negatifs", action="store_true", help="prouve ensuite que la vérification échoue sur un fichier altéré et sur un total faux")
+    sp = add("sauvegarde-planifier", cmd_sauvegarde_planifier, "planifie la sauvegarde sans cron : attend le créneau, rattrape un oubli (CLD-15)")
+    sp.add_argument("--heure", default="02:00", metavar="HH:MM", help="heure du poste (02:00 par défaut)")
+    sp.add_argument("--toutes-les", type=int, metavar="SECONDES", help="essai : une sauvegarde toutes les N secondes au lieu d'une par jour")
+    sp.add_argument("--executions", type=int, help="s'arrête après ce nombre de sauvegardes (essai)")
+    sp.add_argument("--sans-rattrapage", action="store_true", help="n'attend que le créneau, même si la dernière sauvegarde a plus de 24 h")
+    sp.add_argument("--verifier", action="store_true", help="après chaque sauvegarde, la restaure dans l'environnement isolé et compare les totaux")
+    ob = add("observatoire", cmd_observatoire, "interface graphique des pannes : arrêter un service, voir l'alarme, le journal et la cause (CLD-14)")
+    ob.add_argument("--port", type=int, default=8090, help="port local de l'interface (8090 par défaut)")
+    pa = add("panne", cmd_panne, "arrête un service, détecte la panne par l'alarme, retrace le journal et la cause, rétablit (CLD-14)")
+    pa.add_argument("service", help="service à arrêter (voir ops/alarmes.json), par exemple traitement ou collecte")
+    pa.add_argument("--trafic", action="store_true", help="lance le simulateur vers la collecte pendant l'essai (le tableau a alors du débit à montrer)")
+    pa.add_argument("--mode", choices=["stop", "pause"], default="stop", help="stop : arrêt du conteneur ; pause : service gelé, vivant mais muet")
+    pa.add_argument("--duree", type=int, default=70, help="secondes de panne avant le rétablissement (70 par défaut : laisse le journal de la passerelle montrer ses erreurs)")
+    pc = add("parcours", cmd_parcours, "rejoue le parcours de bout en bout et les cas d'échec sur la pile locale (CLD-13, la pile doit tourner)")
+    pc.add_argument("cas", nargs="*", help="cas à jouer (N1 à N6, E1 à E3) ; tous par défaut")
     add("ps", cmd_ps, "état des conteneurs")
     logs = add("logs", cmd_logs, "suit les journaux")
     logs.add_argument("services", nargs="*", help="services (tous par défaut)")

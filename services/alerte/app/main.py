@@ -9,6 +9,7 @@ from app.api.v1 import alerts, health, rules, stream
 from app.core.config import get_settings
 from app.core.errors import UPSTREAM_UNAVAILABLE, ProblemError, register_handlers
 from app.core.logs import CorrelationMiddleware, configure_logging
+from app.core.metrics import MetricsMiddleware, metrics_response
 from app.core.problems import register_validation
 from app.core.redaction import install_redaction
 from app.core.unhandled import UnhandledErrorMiddleware
@@ -44,9 +45,13 @@ app = FastAPI(
 # imprévues sont transformées en 500 `Problem` qui le portent.
 app.add_middleware(UnhandledErrorMiddleware)
 app.add_middleware(CorrelationMiddleware)
+# Le plus extérieur : compte aussi les 500 transformés par l'intergiciel d'erreurs.
+app.add_middleware(MetricsMiddleware, service=settings.service_name)
 register_handlers(app)
 register_validation(app)
 app.add_exception_handler(StoreFailed, store_failed_handler)  # type: ignore[arg-type]
+# Point d'exploitation (MS-16) : hors contrat, non routé par la passerelle.
+app.add_api_route("/metrics", lambda: metrics_response(), methods=["GET"], include_in_schema=False)
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(alerts.router, prefix="/api/v1")
 app.include_router(rules.router, prefix="/api/v1")

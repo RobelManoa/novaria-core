@@ -93,3 +93,42 @@ def test_an_exception_is_logged_with_its_traceback():
 
         entry = json.loads(JsonFormatter("essai").format(record(exc_info=sys.exc_info())))
     assert "ValueError: boum" in entry["exception"]
+
+
+def test_correlation_of_reads_the_id_of_a_json_message():
+    from app.core.logs import correlation_of
+
+    assert correlation_of(b'{"correlation_id": "corr-1794923710000"}') == "corr-1794923710000"
+    assert correlation_of('{"correlation_id": "abc.def_1"}') == "abc.def_1"
+
+
+def test_correlation_of_refuses_what_is_not_a_sober_id():
+    from app.core.logs import correlation_of
+
+    for raw in (
+        b"{}",
+        b"pas du json",
+        b"[]",
+        None,
+        b'{"correlation_id": 12}',
+        b'{"correlation_id": "a b"}',
+        b'{"correlation_id": "' + b"x" * 65 + b'"}',
+    ):
+        assert correlation_of(raw) == "-", raw
+
+
+def test_bound_correlation_labels_the_lines_of_the_block_and_restores_the_previous_id(capsys):
+    from app.core.logs import JsonFormatter, bound_correlation
+
+    logger = logging.getLogger("essai.corr")
+    record = logger.makeRecord("essai.corr", logging.INFO, __file__, 1, "ligne", (), None)
+    token = correlation_id_var.set("requete-1")
+    try:
+        with bound_correlation("message-9"):
+            inside = json.loads(JsonFormatter("essai").format(record))["correlation_id"]
+        after = json.loads(JsonFormatter("essai").format(record))["correlation_id"]
+        with bound_correlation("-"), bound_correlation(None):
+            unchanged = json.loads(JsonFormatter("essai").format(record))["correlation_id"]
+    finally:
+        correlation_id_var.reset(token)
+    assert (inside, after, unchanged) == ("message-9", "requete-1", "requete-1")

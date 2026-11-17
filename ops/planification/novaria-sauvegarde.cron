@@ -1,0 +1,13 @@
+# Sauvegarde planifiée de Novaria Core sous Linux (CLD-15) : équivalent local d'AWS Backup / des instantanés RDS planifiés.
+# Installation (une fois) :
+#   1. remplacer /CHEMIN/VERS/novaria-core par le dossier du dépôt (chemin absolu) ;
+#   2. avoir lancé `python3 scripts/dev/dev.py db-up` : la sauvegarde a besoin de PostgreSQL et de MongoDB, et d'un fichier .env ;
+#   3. crontab -e, coller les deux lignes ci-dessous (ou : (crontab -l ; cat ops/planification/novaria-sauvegarde.cron) | crontab - ).
+# Retrait : crontab -e, supprimer les lignes.
+# Sans cron, `python3 scripts/dev/dev.py sauvegarde-planifier --heure 02:00` fait la même chose en attendant le créneau
+# (et rattrape une sauvegarde manquante au démarrage).
+# Chaque jour à 02:00, heure du poste : sauvegarde des deux bases, manifeste, conservation par paliers (24 h, 7 jours, 4 semaines, 3 mois).
+# Le dimanche à 03:00 : restauration de contrôle dans l'environnement isolé et comparaison des totaux. Code de sortie 1 = échec.
+# Les journaux sont ajoutés à var/log/ (dossier ignoré par git).
+0 2 * * * cd /CHEMIN/VERS/novaria-core && mkdir -p var/log && python3 scripts/dev/dev.py sauvegarde >> var/log/sauvegarde.log 2>&1
+0 3 * * 0 cd /CHEMIN/VERS/novaria-core && mkdir -p var/log && python3 scripts/dev/dev.py restauration >> var/log/restauration.log 2>&1

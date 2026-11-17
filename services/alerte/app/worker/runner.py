@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Protocol
 
 from app.adapters.kafka_io import Record
+from app.core.logs import bound_correlation, correlation_of
 from app.domain.model import Rule
 from app.services.ingestion import IndicatorHandler
 from app.services.notifier import Notifier
@@ -79,7 +80,8 @@ def run(
         records = source.poll(poll_timeout_ms)
         offsets: dict[int, int] = {}
         for record in records:
-            handler.handle(record.value, record.key)
+            with bound_correlation(correlation_of(record.value)):  # MS-16
+                handler.handle(record.value, record.key)
             offsets[record.partition] = max(offsets.get(record.partition, 0), record.offset + 1)
         handled += len(records)
         if offsets:

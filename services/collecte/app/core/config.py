@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     mongo_db: str = "novaria"
     mongo_timeout_ms: int = Field(default=3000, ge=100, le=60000)
 
+    # --- Résilience (MS-16) : après `circuit_failure_threshold` échecs de suite, le disjoncteur
+    # d'une dépendance s'ouvre (503 immédiat) pendant `circuit_reset_timeout_s`, puis un appel
+    # d'essai part. Les écritures MongoDB sont rejouées `mongo_retry_attempts` fois au plus.
+    circuit_failure_threshold: int = Field(default=5, ge=1, le=100)
+    circuit_reset_timeout_s: float = Field(default=15.0, gt=0, le=600)
+    mongo_retry_attempts: int = Field(default=3, ge=1, le=10)
+    retry_base_s: float = Field(default=0.1, gt=0, le=10)
+
     # --- Réception (MS-08)
     # Taille maximale d'un message en octets (une mesure en fait environ 600) : au-delà, rejet.
     max_body_bytes: int = Field(default=65536, ge=1024, le=1_048_576)

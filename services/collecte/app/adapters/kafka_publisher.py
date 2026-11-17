@@ -121,7 +121,25 @@ class KafkaEventPublisher:
                 "publication échouée",
                 extra={"fields": {"topic": topic, "error": type(error).__name__}},
             )
+            self._discard(producer)
             raise PublishFailed(type(error).__name__) from error
+
+    def _discard(self, failed: KafkaProducer) -> None:
+        """Oublie un producteur qui a échoué : le prochain essai en crée un neuf (MS-16).
+
+        Constaté le 17/11/2026 : après plusieurs redémarrages du broker, le producteur gardé
+        pendant des heures ne se reconnectait plus (`KafkaTimeoutError` à chaque essai) alors que
+        le broker répondait de nouveau : le disjoncteur restait ouvert pour toujours. Un
+        producteur neuf repart d'une connexion propre. La fermeture se fait en arrière-plan : elle
+        ne retarde pas la réponse.
+        """
+        with self._lock:
+            if self._producer is not failed:
+                return  # un autre appel l'a déjà remplacé
+            self._producer = None
+        threading.Thread(
+            target=lambda: failed.close(timeout=1), name="kafka-producer-discard", daemon=True
+        ).start()
 
     def close(self) -> None:
         with self._lock:
