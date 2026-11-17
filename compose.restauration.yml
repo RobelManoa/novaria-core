@@ -1,0 +1,62 @@
+# Environnement ISOLÉ de restauration (CLD-15) : deux serveurs neufs, sans rapport avec la pile de travail.
+#   - réseau « internal » : aucun accès à Internet ni au poste, aucun port publié ;
+#   - mots de passe tirés au hasard à chaque essai par `dev.py restauration` (jamais lus dans .env, jamais écrits) ;
+#   - les sauvegardes sont montées en LECTURE SEULE ; les données du serveur vivent dans le conteneur et disparaissent avec lui ;
+#   - mêmes scripts d'initialisation que la pile de travail (rôles, schémas, utilisateurs) : une restauration qui dépend d'un rôle
+#     absent échouerait ici comme elle échouerait en vrai.
+# Ne se lance pas à la main : `python3 scripts/dev/dev.py restauration` (Windows : `py -3 scripts/dev/dev.py restauration`)
+# crée un projet jetable `novaria-restauration-<hex>`, l'utilise, puis le supprime avec ses volumes.
+services:
+  postgres-restauration:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: "${R_POSTGRES_USER:?lancer dev.py restauration}"
+      POSTGRES_PASSWORD: "${R_POSTGRES_PASSWORD:?lancer dev.py restauration}"
+      POSTGRES_DB: "${R_POSTGRES_DB:?lancer dev.py restauration}"
+      PG_PASSWORD_APP: "${R_PG_PASSWORD:?lancer dev.py restauration}"
+      PG_PASSWORD_TRAITEMENT: "${R_PG_PASSWORD:?lancer dev.py restauration}"
+      PG_PASSWORD_ALERTE: "${R_PG_PASSWORD:?lancer dev.py restauration}"
+      PG_PASSWORD_LECTURE: "${R_PG_PASSWORD:?lancer dev.py restauration}"
+    volumes:
+      - ./db/postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./backups:/backups:ro
+    networks: [isolee]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 5s
+
+  mongo-restauration:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: "${R_MONGO_ROOT_USER:?lancer dev.py restauration}"
+      MONGO_INITDB_ROOT_PASSWORD: "${R_MONGO_ROOT_PASSWORD:?lancer dev.py restauration}"
+      MONGO_INITDB_DATABASE: "${R_MONGO_DB:?lancer dev.py restauration}"
+      MONGO_DB: "${R_MONGO_DB:?lancer dev.py restauration}"
+      MONGO_PASSWORD_COLLECTE: "${R_MONGO_PASSWORD:?lancer dev.py restauration}"
+      MONGO_PASSWORD_TRAITEMENT: "${R_MONGO_PASSWORD:?lancer dev.py restauration}"
+      MONGO_PASSWORD_REPONSE: "${R_MONGO_PASSWORD:?lancer dev.py restauration}"
+      MONGO_PASSWORD_BACKEND: "${R_MONGO_PASSWORD:?lancer dev.py restauration}"
+      MONGO_PASSWORD_ML: "${R_MONGO_PASSWORD:?lancer dev.py restauration}"
+      RAW_EVENTS_TTL_SECONDS: "${RAW_EVENTS_TTL_SECONDS:-1209600}"
+      REJECTS_TTL_SECONDS: "${REJECTS_TTL_SECONDS:-2592000}"
+    volumes:
+      - ./db/mongo/init:/docker-entrypoint-initdb.d:ro
+      - ./backups:/backups:ro
+    networks: [isolee]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet -u svc_backend -p "$$MONGO_PASSWORD_BACKEND" --authenticationDatabase "$$MONGO_DB"
+          "$$MONGO_DB" --eval "db.runCommand({ping: 1}).ok" | grep -q 1
+      interval: 3s
+      timeout: 5s
+      retries: 40
+      start_period: 8s
+
+networks:
+  isolee:
+    internal: true

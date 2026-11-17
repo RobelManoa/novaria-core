@@ -1211,6 +1211,80 @@ def cmd_bigdata_test(args: argparse.Namespace) -> int:
     return subprocess.run(bigdata_docker.commande_de_test(ROOT, args.cpus, args.memoire), check=False).returncode
 
 
+# --------------------------------------------------------------------------- sauvegarde planifiée et restauration vérifiée (CLD-15)
+def _sauvegarde_module():
+    import sauvegarde
+
+    require_env()
+    require_docker()
+    return sauvegarde
+
+
+def cmd_sauvegarde(_: argparse.Namespace) -> int:
+    """Sauvegarde PostgreSQL et MongoDB avec manifeste (totaux et sommes de contrôle), puis conservation par paliers."""
+    module = _sauvegarde_module()
+    try:
+        module.sauvegarder(module.Serveurs(ROOT))
+    except module.Echec as erreur:
+        raise DevError(str(erreur)) from erreur
+    return 0
+
+
+def cmd_sauvegarde_liste(args: argparse.Namespace) -> int:
+    """Liste les sauvegardes, leur manifeste, et ce que la politique de conservation supprimerait (rien n'est supprimé)."""
+    module = _sauvegarde_module()
+    maintenant = datetime.now(timezone.utc)
+    for base in ("postgres", "mongo"):
+        existantes = module.lister(base, ROOT / "backups")
+        garder = module.a_conserver(existantes, maintenant)
+        print(f"{base} : {len(existantes)} sauvegarde(s), {len(garder)} à conserver")
+        for nom, instant in sorted(existantes.items(), key=lambda element: element[1], reverse=True):
+            manifeste = "manifeste" if module.chemin_manifeste(ROOT / "backups" / base / nom).is_file() else "SANS manifeste"
+            print(f"  {instant:%Y-%m-%d %H:%M:%SZ}  {nom}  {manifeste}  {'conservée' if nom in garder else 'serait supprimée'}")
+    return 0
+
+
+def cmd_restauration(args: argparse.Namespace) -> int:
+    """Restaure les dernières sauvegardes dans un environnement Docker isolé et compare les totaux au manifeste."""
+    module = _sauvegarde_module()
+    env = parse_env(ENV_FILE.read_text(encoding="utf-8"))
+    fichiers = {base: ROOT / "backups" / base / nom for base, nom in (("postgres", args.postgres), ("mongo", args.mongo)) if nom}
+    print("Restauration dans un environnement isolé (réseau interne, mots de passe aléatoires, supprimé à la fin).")
+    afficher = lambda resultat: print(module.ligne(resultat), flush=True)  # noqa: E731
+    resultats = module.restaurer_et_verifier(fichiers=fichiers, nom_base_mongo=env.get("MONGO_DB", "novaria"), administrateur_pg=env.get("POSTGRES_USER", "novaria_admin"), afficher=afficher)
+    if args.controles_negatifs and all(resultat.ok for resultat in resultats):
+        print("Contrôles négatifs (une panne injectée doit être détectée) :")
+        resultats += module.controles_negatifs(nom_base_mongo=env.get("MONGO_DB", "novaria"), administrateur_pg=env.get("POSTGRES_USER", "novaria_admin"), afficher=afficher)
+    echecs = [resultat.cas for resultat in resultats if not resultat.ok]
+    print(f"{len(resultats) - len(echecs)}/{len(resultats)} cas satisfaits." + (f" Échecs : {', '.join(echecs)}." if echecs else ""))
+    return 1 if echecs else 0
+
+
+def cmd_sauvegarde_planifier(args: argparse.Namespace) -> int:
+    """Planifie la sauvegarde sans cron : attend le créneau, sauvegarde, rattrape une sauvegarde manquante au démarrage."""
+    module = _sauvegarde_module()
+    env = parse_env(ENV_FILE.read_text(encoding="utf-8"))
+
+    def cycle() -> None:
+        module.sauvegarder(module.Serveurs(ROOT))
+        if args.verifier:
+            resultats = module.restaurer_et_verifier(nom_base_mongo=env.get("MONGO_DB", "novaria"), administrateur_pg=env.get("POSTGRES_USER", "novaria_admin"), afficher=lambda r: print(module.ligne(r), flush=True))
+            if not all(resultat.ok for resultat in resultats):
+                raise module.Echec("la restauration de contrôle a échoué")
+
+    def derniere() -> dict:
+        resultat = {}
+        for base in ("postgres", "mongo"):
+            existantes = module.lister(base, ROOT / "backups")
+            resultat[base] = max(existantes.values()) if existantes else None
+        return resultat
+
+    reussis = module.planifier(cycle, heure=args.heure, toutes_les_s=args.toutes_les, executions=args.executions,
+                               sans_rattrapage=args.sans_rattrapage, derniere=derniere)
+    print(f"{reussis} sauvegarde(s) planifiée(s) réussie(s).")
+    return 0
+
+
 # --------------------------------------------------------------------------- panne contrôlée et observatoire (CLD-14)
 def _observatoire():
     import observatoire
@@ -1688,6 +1762,18 @@ def build_parser() -> argparse.ArgumentParser:
     bdt = add("bigdata-test", cmd_bigdata_test, "tests du prototype Big Data dans son image (Docker)")
     bdt.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
     bdt.add_argument("--memoire", default="6g", help="mémoire allouée au conteneur (6g par défaut)")
+    sv = add("sauvegarde", cmd_sauvegarde, "sauvegarde PostgreSQL et MongoDB avec manifeste, puis conservation par paliers (CLD-15)")
+    add("sauvegarde-liste", cmd_sauvegarde_liste, "liste les sauvegardes et ce que la politique de conservation supprimerait (CLD-15)")
+    rs = add("restauration", cmd_restauration, "restaure les dernières sauvegardes dans un environnement Docker isolé et compare les totaux (CLD-15)")
+    rs.add_argument("--postgres", metavar="FICHIER", help="nom d'un fichier .dump de backups/postgres (le dernier par défaut)")
+    rs.add_argument("--mongo", metavar="FICHIER", help="nom d'un fichier .archive.gz de backups/mongo (le dernier par défaut)")
+    rs.add_argument("--controles-negatifs", action="store_true", help="prouve ensuite que la vérification échoue sur un fichier altéré et sur un total faux")
+    sp = add("sauvegarde-planifier", cmd_sauvegarde_planifier, "planifie la sauvegarde sans cron : attend le créneau, rattrape un oubli (CLD-15)")
+    sp.add_argument("--heure", default="02:00", metavar="HH:MM", help="heure du poste (02:00 par défaut)")
+    sp.add_argument("--toutes-les", type=int, metavar="SECONDES", help="essai : une sauvegarde toutes les N secondes au lieu d'une par jour")
+    sp.add_argument("--executions", type=int, help="s'arrête après ce nombre de sauvegardes (essai)")
+    sp.add_argument("--sans-rattrapage", action="store_true", help="n'attend que le créneau, même si la dernière sauvegarde a plus de 24 h")
+    sp.add_argument("--verifier", action="store_true", help="après chaque sauvegarde, la restaure dans l'environnement isolé et compare les totaux")
     ob = add("observatoire", cmd_observatoire, "interface graphique des pannes : arrêter un service, voir l'alarme, le journal et la cause (CLD-14)")
     ob.add_argument("--port", type=int, default=8090, help="port local de l'interface (8090 par défaut)")
     pa = add("panne", cmd_panne, "arrête un service, détecte la panne par l'alarme, retrace le journal et la cause, rétablit (CLD-14)")
