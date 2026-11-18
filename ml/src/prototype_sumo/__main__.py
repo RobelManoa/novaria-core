@@ -31,11 +31,10 @@ RESULTATS_MD = RACINE / "ml" / "evaluation" / "sumo-resultats.md"
 
 def calibrer() -> float:
     """Essai de saturation : le débit que le carrefour écoule quand 3 000 véhicules par heure se présentent sur chaque approche."""
-    import tempfile
     from pathlib import Path
 
     mesures = []
-    with tempfile.TemporaryDirectory(prefix="sumo-calibration-", dir=RACINE / "var") as temporaire:
+    with execution.dossier_temporaire("sumo-calibration-") as temporaire:
         for graine in (1, 2, 3):
             dossier = Path(temporaire) / f"s{graine}"
             reseau.ecrire(dossier, debut_s=DEBUT_S + 2 * 3600, duree_s=3600, graine=graine, debit_constant_vph=3000)

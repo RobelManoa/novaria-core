@@ -8,6 +8,7 @@ gère les droits lui-même.
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from jeu_entrainement.simulation import RACINE
@@ -38,6 +39,14 @@ def construire_image() -> None:
     sortie = _docker("build", "-t", IMAGE, str(CONTEXTE))
     if sortie.returncode:
         raise DockerAbsent(f"la construction de l'image a échoué : {sortie.stderr.strip()[-300:]}")
+
+
+def dossier_temporaire(prefixe: str) -> tempfile.TemporaryDirectory:
+    """Dossier jetable sous `var/` (monté dans le conteneur). `var/` est ignoré par Git : il n'existe pas sur un poste neuf ni
+    dans la CI, on le crée au besoin."""
+    parent = RACINE / "var"
+    parent.mkdir(parents=True, exist_ok=True)
+    return tempfile.TemporaryDirectory(prefix=prefixe, dir=parent)
 
 
 def utilisateur() -> list[str]:

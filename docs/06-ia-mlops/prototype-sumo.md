@@ -120,6 +120,7 @@ Le résultat dépend donc de la position du capteur autant que du trafic. Une bo
 - **Demande identique sur les 4 approches** : le v0 sature seulement le Nord et l'Ouest (états imposés) ; ici les quatre approches se valent.
 - **Coût** : 1,2 Go pour l'image, environ 2 minutes pour la construire, environ 40 s pour simuler 5 h. L'image n'est pas construite par la CI et n'est pas dans `compose.yaml`.
 - **Licence** : SUMO est sous EPL-2.0 (*Eclipse Public License*) ou GPL-2.0 et plus, d'après la fiche PyPI du paquet ; il n'est ni copié ni redistribué dans le dépôt, qui ne contient que le `Dockerfile` et les dépendances verrouillées. Les runs (`var/sumo/`) ne sont pas versionnés.
+- **Empreintes** : `mesures.jsonl` donne la même empreinte à chaque rejeu de la même graine ; celle de `net.net.xml` change à chaque génération (`netconvert` y écrit la date). Le manifeste nomme la configuration `run.cfg` et non `run.sumocfg`, parce que gitleaks prenait « sumo… : empreinte de 64 caractères » pour un jeton (faux positif, [exceptions](../04-devsecops/exceptions.md), section 11).
 - **Non vérifié sous Windows** (Docker Desktop) : la commande `docker run` y est la transposition directe.
 - Les tests ne lancent pas Docker ; un essai réel facultatif existe (`NOVARIA_SUMO=1`).
 
