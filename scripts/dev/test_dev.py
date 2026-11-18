@@ -212,6 +212,22 @@ class PreparationCheckTests(unittest.TestCase):
         self.assertTrue(dev.PREPARATION_CHECK.is_file())
 
 
+class MlAnomaliesTests(unittest.TestCase):
+    def test_sans_environnement_la_commande_demande_ml_env(self):
+        with mock.patch.object(dev, "ML_VENV", Path("/n/existe/pas")), mock.patch("subprocess.run") as run:
+            self.assertEqual(dev.main(["ml-anomalies"]), 2)
+        run.assert_not_called()
+
+    def test_la_commande_lance_le_point_d_entree_et_transmet_le_code(self):
+        with mock.patch.object(dev, "ml_python", return_value=Path(sys.executable)), \
+                mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 1)) as run:
+            self.assertEqual(dev.main(["ml-anomalies"]), 1)
+        commande = run.call_args.args[0]
+        self.assertEqual(commande[0], sys.executable)
+        self.assertTrue(commande[1].endswith("detecter_anomalies.py"))
+        self.assertTrue(dev.ML_ANOMALIES.is_file())
+
+
 class MlTrainTests(unittest.TestCase):
     def test_sans_environnement_la_commande_demande_ml_env(self):
         with mock.patch.object(dev, "ML_VENV", Path("/n/existe/pas")), mock.patch("subprocess.run") as run:

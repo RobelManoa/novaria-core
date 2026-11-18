@@ -502,6 +502,17 @@ def cmd_ml_train(args: argparse.Namespace) -> int:
     return subprocess.run([str(ml_python()), str(ML_TRAIN), args.etape], cwd=ROOT, check=False).returncode
 
 
+ML_ANOMALIES = ROOT / "ml" / "src" / "detecter_anomalies.py"
+
+
+def cmd_ml_anomalies(_: argparse.Namespace) -> int:
+    """Détection d'anomalies (IA-09) : règles et Isolation Forest sur les runs du simulateur ; écrit ml/evaluation/anomalies*."""
+    if not ml_python().exists():
+        print("ml/.venv est absent : lancer d'abord « ml-env » (scikit-learn y est installé avec ses empreintes).", file=sys.stderr)
+        return 2
+    return subprocess.run([str(ml_python()), str(ML_ANOMALIES)], cwd=ROOT, env={**os.environ, "PYTHONUTF8": "1"}, check=False).returncode
+
+
 # --------------------------------------------------------------------------- registre des modèles (IA-04)
 ML_REGISTRE = ROOT / "ml" / "src" / "registre_cli.py"
 ML_REGISTRE_COMMANDES = ("importer-ia03", "lister", "en-service", "lignee", "charger")
@@ -1743,6 +1754,7 @@ def build_parser() -> argparse.ArgumentParser:
     add("ml-env", cmd_ml_env, "crée ml/.venv et y installe scikit-learn depuis ml/requirements.txt (empreintes exigées)")
     train = add("ml-train", cmd_ml_train, "entraînement et comparaison (IA-03) : validation, test (lu une seule fois) ou rapport ; nécessite ml-env")
     train.add_argument("etape", choices=ML_ETAPES, help="validation : réglage et choix ; test : lecture unique ; rapport : ml/evaluation/resultats.md")
+    add("ml-anomalies", cmd_ml_anomalies, "détection d'anomalies (IA-09) : règles robustes et Isolation Forest sur les anomalies injectées (environ 1 minute) ; écrit ml/evaluation/anomalies*.{json,md} ; nécessite ml-env")
     registre = add("ml-registre", cmd_ml_registre, "registre des modèles (IA-04) : importer-ia03, lister, en-service, lignee <run> [--jeu], charger ; nécessite la pile (db-up) et ml-env")
     registre.add_argument("commande", choices=ML_REGISTRE_COMMANDES)
     registre.add_argument("options", nargs=argparse.REMAINDER, help="arguments de la commande (lignee <run> --jeu)")

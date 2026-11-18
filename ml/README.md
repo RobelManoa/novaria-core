@@ -58,6 +58,22 @@ Ordre de travail : congestion d'abord, prévision ensuite ([ADR-015](../docs/01-
 
 Aucun fichier de modèle n'est écrit : pas de `pickle`, rien à charger (cadrage, M3). L'enregistrement est l'affaire d'IA-05.
 
+## Détection d'anomalies (IA-09)
+
+`src/anomalies/` compare des **règles robustes** (écart à la médiane glissante, plateau, capteur muet, chute de débit, plus retard et doublon) à **Isolation Forest** sur les mêmes onze variables, avec les anomalies injectées par le simulateur : rappel, précision par épisode d'alerte et délai de détection, à budget de fausses alertes égal (une par heure de réseau). Le jeu `novaria-congestion-v1` n'est pas lu. Seul `isolation.py` importe scikit-learn (`ml/.venv`) ; le reste est en bibliothèque standard. Choix argumenté, limites et historique des réglages : [`evaluation/anomalies-comparaison.md`](evaluation/anomalies-comparaison.md) ; tableaux générés : [`evaluation/anomalies-resultats.md`](evaluation/anomalies-resultats.md).
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Campagne complète (environ 1 minute) : réécrit `anomalies.json` et `anomalies-resultats.md` | `python3 scripts/dev/dev.py ml-anomalies` ou `make ml-anomalies` | `py -3 scripts/dev/dev.py ml-anomalies` |
+| Tests (`test_anomalies.py` ; sans scikit-learn, ceux d'Isolation Forest et du rapport sont ignorés) | `ml/.venv/bin/python -m unittest discover -s ml/tests -t ml -p test_anomalies.py` | `ml\.venv\Scripts\python.exe -m unittest discover -s ml\tests -t ml -p test_anomalies.py` |
+
+| Module | Rôle |
+|---|---|
+| `campagne.py` | runs d'apprentissage, de validation et d'évaluation ; messages livrés ; anomalies injectées (vérité) ; plateau et chute ajoutés après coup |
+| `variables.py` | onze variables par message (écart à la médiane, ratios, plateau, silence, retard, copies) |
+| `regles.py`, `isolation.py` | les règles ; Isolation Forest sur les mêmes variables |
+| `evaluation.py`, `rapport.py` | métriques ; exécution complète et écriture des résultats |
+
 ## Variables et découpage (IA-02)
 
 `src/preparation/` transforme le jeu v1 en matrices, sans rien du futur : `variables.py` (quelles colonnes entrent dans la détection ou la prévision, lesquelles sont interdites et pourquoi), `calendrier.py` (heure, jour, week-end, sinus et cosinus calculés depuis l'instant), `historique.py` (décalages et moyennes mobiles du passé, recalculés à part), `ajustement.py` (médianes et catégories apprises sur l'entraînement seul ; un ajustement qui reçoit un autre run est refusé), `decoupage.py` (par run et par scénario, empreinte SHA-256, délai de garde pour la prévision dans l'ordre du temps), `controles.py` (recalcul sur les fichiers). **Le fichier de test n'est pas lu.**
