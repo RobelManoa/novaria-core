@@ -1409,6 +1409,24 @@ def cmd_parcours(args: argparse.Namespace) -> int:
     return 1 if echecs else 0
 
 
+def cmd_flux_complet(args: argparse.Namespace) -> int:
+    """Rejoue le flux complet (capteur simulé jusqu'à la commande de feux) et les cas d'échec sur la pile locale (MS-15)."""
+    import flux_complet
+
+    require_env()
+    require_docker()
+    ids = tuple(item.upper() for item in args.cas) or None
+    inconnus = [item for item in ids or () if item not in {cas[0] for cas in flux_complet.CAS}]
+    if inconnus:
+        raise DevError(f"Cas inconnu : {', '.join(inconnus)}. Cas possibles : {', '.join(cas[0] for cas in flux_complet.CAS)}.")
+    pile = flux_complet.Pile(parse_env(ENV_FILE.read_text(encoding="utf-8")))
+    print("Flux complet sur la pile locale (la pile doit tourner : dev.py up). Les cas d'échec arrêtent puis redémarrent des conteneurs ; environ 10 minutes en tout.")
+    resultats = flux_complet.executer(pile, ids, afficher=lambda resultat: print(flux_complet.ligne(resultat), flush=True))
+    echecs = [resultat.cas for resultat in resultats if not resultat.ok]
+    print(f"{len(resultats) - len(echecs)}/{len(resultats)} cas satisfaits." + (f" Échecs : {', '.join(echecs)}." if echecs else ""))
+    return 1 if echecs else 0
+
+
 # --------------------------------------------------------------------------- tableau de bord en local (FE-04)
 FRONTEND_DIR = ROOT / "frontend"
 API_PORT = 8000  # cible du proxy de Vite (frontend/vite.config.ts)
@@ -1863,6 +1881,8 @@ def build_parser() -> argparse.ArgumentParser:
     pa.add_argument("--duree", type=int, default=70, help="secondes de panne avant le rétablissement (70 par défaut : laisse le journal de la passerelle montrer ses erreurs)")
     pc = add("parcours", cmd_parcours, "rejoue le parcours de bout en bout et les cas d'échec sur la pile locale (CLD-13, la pile doit tourner)")
     pc.add_argument("cas", nargs="*", help="cas à jouer (N1 à N6, E1 à E3) ; tous par défaut")
+    fc = add("flux-complet", cmd_flux_complet, "rejoue le flux complet (capteur simulé, collecte, traitement, alerte, recommandation, commande de feux) et les cas d'échec (MS-15, la pile doit tourner)")
+    fc.add_argument("cas", nargs="*", help="cas à jouer (N1 à N7, F1 à F6) ; tous par défaut (environ 10 minutes)")
     add("ps", cmd_ps, "état des conteneurs")
     logs = add("logs", cmd_logs, "suit les journaux")
     logs.add_argument("services", nargs="*", help="services (tous par défaut)")
