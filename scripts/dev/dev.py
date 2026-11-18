@@ -503,6 +503,8 @@ def cmd_ml_train(args: argparse.Namespace) -> int:
 
 
 ML_ANOMALIES = ROOT / "ml" / "src" / "detecter_anomalies.py"
+ML_SUMO = ROOT / "ml" / "src" / "lancer_sumo.py"
+ML_SUMO_ETAPES = ("image", "calibrer", "simuler", "rejouer", "comparer")
 ML_PREVISION = ROOT / "ml" / "src" / "prevoir.py"
 ML_PREVISION_ETAPES = ("telecharger", "verifier", "evaluer")
 
@@ -513,6 +515,13 @@ def cmd_ml_anomalies(_: argparse.Namespace) -> int:
         print("ml/.venv est absent : lancer d'abord « ml-env » (scikit-learn y est installé avec ses empreintes).", file=sys.stderr)
         return 2
     return subprocess.run([str(ml_python()), str(ML_ANOMALIES)], cwd=ROOT, env={**os.environ, "PYTHONUTF8": "1"}, check=False).returncode
+
+
+def cmd_ml_sumo(args: argparse.Namespace) -> int:
+    """Prototype SUMO (IA-11) : image Docker, simulation d'un carrefour, rejeu par le pipeline, comparaison avec le générateur v0."""
+    require_docker()
+    options = ["--graine", str(args.graine)] + (["--pile"] if args.pile else [])
+    return subprocess.run([sys.executable, str(ML_SUMO), args.etape, *options], cwd=ROOT, env={**os.environ, "PYTHONUTF8": "1"}, check=False).returncode
 
 
 def cmd_ml_prevision(args: argparse.Namespace) -> int:
@@ -1769,6 +1778,10 @@ def build_parser() -> argparse.ArgumentParser:
     train = add("ml-train", cmd_ml_train, "entraînement et comparaison (IA-03) : validation, test (lu une seule fois) ou rapport ; nécessite ml-env")
     train.add_argument("etape", choices=ML_ETAPES, help="validation : réglage et choix ; test : lecture unique ; rapport : ml/evaluation/resultats.md")
     add("ml-anomalies", cmd_ml_anomalies, "détection d'anomalies (IA-09) : règles robustes et Isolation Forest sur les anomalies injectées (environ 1 minute) ; écrit ml/evaluation/anomalies*.{json,md} ; nécessite ml-env")
+    sumo = add("ml-sumo", cmd_ml_sumo, "prototype SUMO (IA-11) : image, calibrer, simuler, rejouer [--pile], comparer ; SUMO tourne dans Docker, le reste en bibliothèque standard (sans ml-env)")
+    sumo.add_argument("etape", choices=ML_SUMO_ETAPES, help="image : construit novaria-sumo:1.28.0 ; simuler : 5 h du carrefour INT_01 ; rejouer : moteur de fenêtres (--pile : aussi la pile Docker) ; comparer : ml/evaluation/sumo*")
+    sumo.add_argument("--graine", type=int, default=42, help="graine de SUMO (défaut 42) ; une graine neuve donne un run que la collecte n'a jamais vu")
+    sumo.add_argument("--pile", action="store_true", help="rejouer : publier aussi sur la collecte (la pile doit tourner : dev.py up)")
     prevision = add("ml-prevision", cmd_ml_prevision, "prévision de vitesse (IA-10) : telecharger et verifier METR-LA (empreinte SHA-256, sans ml-env), evaluer (environ 5 minutes ; nécessite ml-env)")
     prevision.add_argument("etape", choices=ML_PREVISION_ETAPES, help="telecharger : metr-la.h5 (57 Mo) ; verifier : taille et SHA-256 ; evaluer : ml/evaluation/prevision*.{json,md}")
     registre = add("ml-registre", cmd_ml_registre, "registre des modèles (IA-04) : importer-ia03, lister, en-service, lignee <run> [--jeu], charger ; nécessite la pile (db-up) et ml-env")

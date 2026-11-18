@@ -212,6 +212,26 @@ class PreparationCheckTests(unittest.TestCase):
         self.assertTrue(dev.PREPARATION_CHECK.is_file())
 
 
+class MlSumoTests(unittest.TestCase):
+    def test_la_commande_transmet_l_etape_la_graine_et_l_option_pile(self):
+        with mock.patch.object(dev, "require_docker"), mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(dev.main(["ml-sumo", "rejouer", "--graine", "46", "--pile"]), 0)
+        commande = run.call_args.args[0]
+        self.assertEqual(commande[0], sys.executable)
+        self.assertTrue(commande[1].endswith("lancer_sumo.py"))
+        self.assertEqual(commande[2:], ["rejouer", "--graine", "46", "--pile"])
+        self.assertTrue(dev.ML_SUMO.is_file())
+
+    def test_par_defaut_graine_42_sans_pile_et_le_code_est_transmis(self):
+        with mock.patch.object(dev, "require_docker"), mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 1)) as run:
+            self.assertEqual(dev.main(["ml-sumo", "simuler"]), 1)
+        self.assertEqual(run.call_args.args[0][2:], ["simuler", "--graine", "42"])
+
+    def test_une_etape_inconnue_est_refusee(self):
+        with self.assertRaises(SystemExit):
+            dev.main(["ml-sumo", "tout"])
+
+
 class MlPrevisionTests(unittest.TestCase):
     def test_telecharger_et_verifier_n_ont_pas_besoin_de_l_environnement(self):
         for etape in ("telecharger", "verifier"):
