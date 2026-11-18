@@ -41,6 +41,10 @@ data/datasets/*
 data/datasets/novaria-congestion-v1/*
 !data/datasets/novaria-congestion-v1/PROVENANCE.md
 !data/datasets/novaria-congestion-v1/manifest.json
+# METR-LA (IA-10) : jamais versionné ni redistribué (licence non établie) ; seule la fiche de provenance l'est, le fichier se télécharge et se contrôle par empreinte
+!data/datasets/metr-la/
+data/datasets/metr-la/*
+!data/datasets/metr-la/PROVENANCE.md
 
 # Playwright (frontend)
 frontend/test-results/

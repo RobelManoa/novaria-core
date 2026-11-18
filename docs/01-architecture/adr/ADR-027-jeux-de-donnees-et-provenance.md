@@ -40,7 +40,7 @@ Un modèle vaut ce que valent ses données. Le projet n'a pas de capteurs réels
 
 | Jeu | Contenu | Usage retenu |
 |---|---|---|
-| METR-LA | Vitesses de capteurs routiers de Los Angeles, pas de 5 minutes, historique ouvert | **Prévision uniquement** (IA-10) : séries longues, vitesses seules ; licence et conditions à vérifier avant usage |
+| METR-LA | Vitesses de capteurs routiers de Los Angeles, pas de 5 minutes, historique ouvert | **Prévision uniquement** (IA-10) : séries longues, vitesses seules ; licence **non établie** (vérifiée le 18/11/2026) : usage de recherche en local, jamais redistribué ([fiche de provenance](../../../data/datasets/metr-la/PROVENANCE.md)) |
 | Jeu de l'UCI (University of California, Irvine) retenu dans DAT-01 | Jeu tabulaire de trafic | **Tutoriel de prise en main** (ETL, qualité, premiers modèles) ; ne remplace pas les runs |
 
 Les jeux réels ne contiennent pas de comptages de véhicules par fenêtre ni d'état de congestion. Ils **ne sont pas chargés dans l'entrepôt** `dwh.fact_traffic_window` (qui exige un comptage) : ils restent des fichiers sous `data/datasets/`, avec leur fiche de provenance.
