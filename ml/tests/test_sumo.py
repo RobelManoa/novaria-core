@@ -5,6 +5,7 @@ Aucun test ne lance Docker ni SUMO (l'essai réel se joue avec `dev.py ml-sumo s
 version 1.28.0 (relevé sur un vrai run), dont le résultat attendu se calcule de tête.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -30,6 +31,8 @@ except ImportError:
     CONTRATS = False
 
 DEBUT = datetime(2026, 10, 20, 6, 0, tzinfo=UTC)
+# Le motif de la règle `sumologic-access-token` de gitleaks, simplifié : « sumo », jusqu'à 20 caractères, un séparateur, 64 caractères.
+JETON_SUMO = re.compile(r"""(?i)sumo[0-9a-z\-_\t .]{0,20}["']?\s*[:=]\s*["']?[a-z0-9]{64}""")
 E1 = '<?xml version="1.0" encoding="UTF-8"?>\n<detector>\n{}</detector>\n'
 LIGNE_E1 = '    <interval begin="{b}" end="{e}" id="{i}" nVehContrib="{n}" flow="0.00" occupancy="{o}" speed="{v}" harmonicMeanSpeed="-1.00" length="-1.00" nVehEntered="{n}"/>\n'
 LIGNE_E2 = '    <interval begin="{b}" end="{e}" id="{i}" sampledSeconds="1.0" nVehEntered="0" maxJamLengthInMeters="{f}"/>\n'
@@ -182,6 +185,23 @@ class Export(unittest.TestCase):
         self.assertEqual(json.loads(lignes[0])["source"], "sumo/sumo-int01-pointe-s42")
         self.assertEqual(exporter.ecrire(self.dossier, debut_s=6 * 3600, graine=42)["fichiers"], manifeste["fichiers"])  # déterministe
 
+    def test_aucune_empreinte_n_est_ecrite_sous_une_cle_qui_ressemble_a_un_jeton(self):
+        """gitleaks (règle `sumologic-access-token`) lit « sumo… : <64 caractères> » comme un jeton : faux positif déjà vécu en CI."""
+        for nom in ("net.net.xml", "flows.rou.xml", "detectors.add.xml", "run.sumocfg"):
+            (self.dossier / nom).write_text("<x/>", encoding="utf-8")
+        manifeste = exporter.ecrire(self.dossier, debut_s=6 * 3600, graine=42)
+        self.assertEqual(manifeste["fichiers"]["run.cfg"], hashlib.sha256(b"<x/>").hexdigest())
+        self.assertNotIn("run.sumocfg", manifeste["fichiers"])
+        texte = json.dumps(manifeste, ensure_ascii=False, indent=2)
+        self.assertEqual(JETON_SUMO.findall(texte), [])
+        self.assertTrue(JETON_SUMO.search('"run.sumocfg": "' + "a" * 64 + '"'), "le motif de contrôle reconnaît bien le cas fautif")
+
+    def test_les_resultats_versionnes_n_ont_pas_de_cle_qui_ressemble_a_un_jeton(self):
+        for nom in ("sumo.json", "sumo-resultats.md"):
+            chemin = support.RACINE / "ml" / "evaluation" / nom
+            if chemin.is_file():
+                self.assertEqual(JETON_SUMO.findall(chemin.read_text(encoding="utf-8")), [], nom)
+
 
 def evenements_complets(minutes=3, run="sumo-int01-pointe-s9", comptage=3, vitesse=30.0):
     """Six mesures par minute et par approche, comme un vrai run."""
@@ -285,6 +305,14 @@ class Comparaison(unittest.TestCase):
 
 
 class Lanceur(unittest.TestCase):
+    def test_le_dossier_temporaire_cree_var_au_besoin(self):
+        with tempfile.TemporaryDirectory() as racine, mock.patch.object(execution, "RACINE", Path(racine)):
+            self.assertFalse((Path(racine) / "var").exists())
+            with execution.dossier_temporaire("essai-") as d:
+                self.assertEqual(Path(d).parent, Path(racine) / "var")
+                self.assertTrue(Path(d).is_dir())
+            self.assertFalse(Path(d).exists())
+
     def test_docker_absent_donne_un_message_clair(self):
         with mock.patch("subprocess.run", side_effect=FileNotFoundError):
             with self.assertRaisesRegex(execution.DockerAbsent, "introuvable"):
@@ -385,7 +413,10 @@ class PointDEntree(unittest.TestCase):
             (dossier / "e2.xml").write_text(E1.format(""), encoding="utf-8")
             return "Success."
 
-        with mock.patch.object(execution, "lancer", side_effect=faux_lancer), mock.patch("sys.stdout"):
+        # sans dossier var/ (ignoré par Git : absent sur un poste neuf et dans la CI), comme en intégration continue
+        with tempfile.TemporaryDirectory() as racine, mock.patch.object(execution, "RACINE", Path(racine)), \
+                mock.patch.object(execution, "lancer", side_effect=faux_lancer), mock.patch("sys.stdout"):
+            self.assertFalse((Path(racine) / "var").exists())
             capacite = principal.calibrer()
         # 2 véhicules toutes les 10 s pendant 3 000 s : 600 véhicules, divisés par 3000 / 3600 d'heure
         self.assertAlmostEqual(capacite, 600 / (3000 / 3600), places=6)
@@ -432,7 +463,7 @@ class EssaiReel(unittest.TestCase):
     def test_dix_minutes_de_sumo_donnent_des_evenements_conformes(self):
         if not execution.image_presente():
             self.skipTest("image absente")
-        with tempfile.TemporaryDirectory(dir=support.RACINE / "var") as d:
+        with execution.dossier_temporaire("essai-sumo-") as d:
             dossier = Path(d)
             reseau.ecrire(dossier, debut_s=6 * 3600, duree_s=600, graine=1, capacite_vph=reseau.CAPACITE_MESUREE_VEH_H)
             execution.lancer(dossier)

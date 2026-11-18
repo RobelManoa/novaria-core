@@ -27,6 +27,10 @@ from prototype_sumo import INTERSECTION, SCENARIO
 from prototype_sumo.reseau import APPROCHES
 
 SCENARIO_ID = "sumo-carrefour-int01-pointe"
+# Le manifeste écrit une empreinte SHA-256 (64 caractères hexadécimaux) sous le nom de chaque fichier. Sous la clé `run.sumocfg`,
+# la règle `sumologic-access-token` de gitleaks la prend pour un jeton Sumo Logic (nom contenant « sumo », puis 64 caractères) :
+# faux positif. La clé ne contient donc pas « sumo » ; le fichier garde son nom, celui que SUMO attend.
+CLES_DU_MANIFESTE = {"run.sumocfg": "run.cfg"}
 MS_EN_KMH = 3.6
 
 
@@ -97,8 +101,8 @@ def ecrire(dossier: Path, *, debut_s: int, graine: int) -> dict:
         "run_id": identifiant_du_run(graine), "source": "SUMO (Simulation of Urban MObility) 1.28.0, image novaria-sumo:1.28.0", "scenario_id": SCENARIO_ID,
         "scenario_v0_de_reference": SCENARIO, "seed": graine, "intersection": INTERSECTION, "messages": len(liste), "premier": liste[0]["time"] if liste else None,
         "dernier": liste[-1]["time"] if liste else None,
-        "fichiers": {nom: hashlib.sha256((dossier / nom).read_bytes()).hexdigest() for nom in ("mesures.jsonl", "net.net.xml", "flows.rou.xml", "detectors.add.xml", "run.sumocfg")
-                     if (dossier / nom).is_file()},
+        "fichiers": {CLES_DU_MANIFESTE.get(nom, nom): hashlib.sha256((dossier / nom).read_bytes()).hexdigest()
+                     for nom in ("mesures.jsonl", "net.net.xml", "flows.rou.xml", "detectors.add.xml", "run.sumocfg") if (dossier / nom).is_file()},
         "verite_terrain": "aucune : SUMO ne fournit pas d'état de congestion voulu (voir docs/06-ia-mlops/prototype-sumo.md)",
     }
     (dossier / "manifest.json").write_text(json.dumps(manifeste, indent=2, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8", newline="\n")

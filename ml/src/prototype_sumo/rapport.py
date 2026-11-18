@@ -5,10 +5,8 @@ modélisation : la **boucle à la ligne d'arrêt** (10 m au lieu de 100 m) et **
 """
 
 import json
-import tempfile
 from pathlib import Path
 
-from jeu_entrainement.simulation import RACINE
 from prototype_sumo import SEED, comparaison, execution, exporter, rejeu, reseau
 
 GRAINES_VOISINES = (43, 44)
@@ -16,7 +14,7 @@ DEBUT_S, DUREE_S = 6 * 3600, 5 * 3600
 
 
 def _variante(graine: int, position_e1_m: float, fen_v0: dict) -> dict:
-    with tempfile.TemporaryDirectory(prefix="sumo-variante-", dir=RACINE / "var") as temporaire:
+    with execution.dossier_temporaire("sumo-variante-") as temporaire:
         dossier = Path(temporaire)
         reseau.ecrire(dossier, debut_s=DEBUT_S, duree_s=DUREE_S, graine=graine, capacite_vph=reseau.CAPACITE_MESUREE_VEH_H, position_e1_m=position_e1_m)
         execution.lancer(dossier)
