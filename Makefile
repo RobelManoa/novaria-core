@@ -6,7 +6,7 @@ DEV = $(PY) scripts/dev/dev.py
 PY_API ?= $(if $(wildcard venv/bin/python),venv/bin/python,$(PY))
 DEV_API = $(PY_API) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint a11y-audit format new-service quality-up quality-down hooks terraform-check drift-check dataset-build test-ml test-gateway test-gateway-unit gateway-routes reference-mesure preparation-check ml-env ml-train ml-anomalies ml-registre ml-registre-essai bigdata-build bigdata-test bigdata parcours observatoire panne sauvegarde sauvegarde-liste restauration sauvegarde-planifier acces
+.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint a11y-audit format new-service quality-up quality-down hooks terraform-check drift-check dataset-build test-ml test-gateway test-gateway-unit gateway-routes reference-mesure preparation-check ml-env ml-train ml-anomalies ml-prevision ml-registre ml-registre-essai bigdata-build bigdata-test bigdata parcours observatoire panne sauvegarde sauvegarde-liste restauration sauvegarde-planifier acces
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -146,6 +146,9 @@ ml-train:      ## Entraînement et comparaison (IA-03) : make ml-train ETAPE=val
 	$(DEV) ml-train $(ETAPE)
 ml-anomalies:  ## Détection d'anomalies (IA-09) : règles robustes et Isolation Forest, résultats dans ml/evaluation/anomalies* (environ 1 minute)
 	$(DEV) ml-anomalies
+ml-prevision:  ## Prévision de vitesse sur METR-LA (IA-10) : make ml-prevision ETAPE=telecharger|verifier|evaluer
+	$(if $(ETAPE),,$(error Donner une étape : make ml-prevision ETAPE=verifier))
+	$(DEV) ml-prevision $(ETAPE)
 ml-registre:   ## Registre des modèles (IA-04) : make ml-registre C=importer-ia03|lister|en-service|charger ; make ml-registre C="lignee <run> --jeu"
 	$(if $(C),,$(error Donner une commande : make ml-registre C=lister))
 	$(DEV) ml-registre $(C)

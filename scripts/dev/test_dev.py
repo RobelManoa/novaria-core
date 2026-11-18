@@ -212,6 +212,34 @@ class PreparationCheckTests(unittest.TestCase):
         self.assertTrue(dev.PREPARATION_CHECK.is_file())
 
 
+class MlPrevisionTests(unittest.TestCase):
+    def test_telecharger_et_verifier_n_ont_pas_besoin_de_l_environnement(self):
+        for etape in ("telecharger", "verifier"):
+            with mock.patch.object(dev, "ML_VENV", Path("/n/existe/pas")), \
+                    mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+                self.assertEqual(dev.main(["ml-prevision", etape]), 0)
+            commande = run.call_args.args[0]
+            self.assertEqual(commande[0], sys.executable)
+            self.assertTrue(commande[1].endswith("prevoir.py"))
+            self.assertEqual(commande[2:], [etape])
+
+    def test_evaluer_demande_ml_env_sans_lui(self):
+        with mock.patch.object(dev, "ML_VENV", Path("/n/existe/pas")), mock.patch("subprocess.run") as run:
+            self.assertEqual(dev.main(["ml-prevision", "evaluer"]), 2)
+        run.assert_not_called()
+
+    def test_evaluer_utilise_l_interpreteur_de_l_environnement_et_transmet_le_code(self):
+        with mock.patch.object(dev, "ml_python", return_value=Path(sys.executable)), \
+                mock.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 1)) as run:
+            self.assertEqual(dev.main(["ml-prevision", "evaluer"]), 1)
+        self.assertEqual(run.call_args.args[0][2:], ["evaluer"])
+        self.assertTrue(dev.ML_PREVISION.is_file())
+
+    def test_une_etape_inconnue_est_refusee(self):
+        with self.assertRaises(SystemExit):
+            dev.main(["ml-prevision", "tout"])
+
+
 class MlAnomaliesTests(unittest.TestCase):
     def test_sans_environnement_la_commande_demande_ml_env(self):
         with mock.patch.object(dev, "ML_VENV", Path("/n/existe/pas")), mock.patch("subprocess.run") as run:

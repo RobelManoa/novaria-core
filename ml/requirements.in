@@ -2,3 +2,5 @@
 scikit-learn>=1.7,<2.0
 # Registre des modèles (IA-04) : le document model_runs s'écrit dans MongoDB avec le compte svc_ml.
 pymongo>=4.9,<5.0
+# Lecture du fichier HDF5 de METR-LA (IA-10) : seul `ml/src/prevision/donnees.py` importe h5py.
+h5py>=3.12,<4.0

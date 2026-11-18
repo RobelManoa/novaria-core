@@ -503,6 +503,8 @@ def cmd_ml_train(args: argparse.Namespace) -> int:
 
 
 ML_ANOMALIES = ROOT / "ml" / "src" / "detecter_anomalies.py"
+ML_PREVISION = ROOT / "ml" / "src" / "prevoir.py"
+ML_PREVISION_ETAPES = ("telecharger", "verifier", "evaluer")
 
 
 def cmd_ml_anomalies(_: argparse.Namespace) -> int:
@@ -511,6 +513,18 @@ def cmd_ml_anomalies(_: argparse.Namespace) -> int:
         print("ml/.venv est absent : lancer d'abord « ml-env » (scikit-learn y est installé avec ses empreintes).", file=sys.stderr)
         return 2
     return subprocess.run([str(ml_python()), str(ML_ANOMALIES)], cwd=ROOT, env={**os.environ, "PYTHONUTF8": "1"}, check=False).returncode
+
+
+def cmd_ml_prevision(args: argparse.Namespace) -> int:
+    """Prévision de vitesse (IA-10) : télécharger et contrôler METR-LA, le contrôler seulement, ou évaluer (écrit ml/evaluation/prevision*)."""
+    if args.etape == "evaluer":
+        if not ml_python().exists():
+            print("ml/.venv est absent : lancer d'abord « ml-env » (scikit-learn et h5py y sont installés avec leurs empreintes).", file=sys.stderr)
+            return 2
+        interpreteur = str(ml_python())
+    else:
+        interpreteur = sys.executable  # télécharger et vérifier n'utilisent que la bibliothèque standard
+    return subprocess.run([interpreteur, str(ML_PREVISION), args.etape], cwd=ROOT, env={**os.environ, "PYTHONUTF8": "1"}, check=False).returncode
 
 
 # --------------------------------------------------------------------------- registre des modèles (IA-04)
@@ -1755,6 +1769,8 @@ def build_parser() -> argparse.ArgumentParser:
     train = add("ml-train", cmd_ml_train, "entraînement et comparaison (IA-03) : validation, test (lu une seule fois) ou rapport ; nécessite ml-env")
     train.add_argument("etape", choices=ML_ETAPES, help="validation : réglage et choix ; test : lecture unique ; rapport : ml/evaluation/resultats.md")
     add("ml-anomalies", cmd_ml_anomalies, "détection d'anomalies (IA-09) : règles robustes et Isolation Forest sur les anomalies injectées (environ 1 minute) ; écrit ml/evaluation/anomalies*.{json,md} ; nécessite ml-env")
+    prevision = add("ml-prevision", cmd_ml_prevision, "prévision de vitesse (IA-10) : telecharger et verifier METR-LA (empreinte SHA-256, sans ml-env), evaluer (environ 5 minutes ; nécessite ml-env)")
+    prevision.add_argument("etape", choices=ML_PREVISION_ETAPES, help="telecharger : metr-la.h5 (57 Mo) ; verifier : taille et SHA-256 ; evaluer : ml/evaluation/prevision*.{json,md}")
     registre = add("ml-registre", cmd_ml_registre, "registre des modèles (IA-04) : importer-ia03, lister, en-service, lignee <run> [--jeu], charger ; nécessite la pile (db-up) et ml-env")
     registre.add_argument("commande", choices=ML_REGISTRE_COMMANDES)
     registre.add_argument("options", nargs=argparse.REMAINDER, help="arguments de la commande (lignee <run> --jeu)")

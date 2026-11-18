@@ -58,6 +58,24 @@ Ordre de travail : congestion d'abord, prévision ensuite ([ADR-015](../docs/01-
 
 Aucun fichier de modèle n'est écrit : pas de `pickle`, rien à charger (cadrage, M3). L'enregistrement est l'affaire d'IA-05.
 
+## Prévision de vitesse sur METR-LA (IA-10)
+
+`src/prevision/` compare trois références (persistance, moyenne glissante d'une heure, naïf saisonnier) à deux modèles (Ridge, HistGradientBoosting) sur les vitesses réelles de METR-LA, aux horizons 5, 15 et 30 minutes, avec MAE, RMSE et un intervalle de confiance par jour, dans l'ordre du temps (70 / 15 / 15, délai de garde de 30 minutes). La chaîne est ensuite essayée, sans réapprentissage, sur trois runs simulés. Le jeu **n'est pas versionné** (licence non établie, jamais redistribué) : il se télécharge et son empreinte SHA-256 est contrôlée ([fiche de provenance](../data/datasets/metr-la/PROVENANCE.md)). Résultats, choix et **limite de validité** : [`evaluation/prevision-comparaison.md`](evaluation/prevision-comparaison.md) ; tableaux générés : [`evaluation/prevision-resultats.md`](evaluation/prevision-resultats.md). `h5py` ne sert qu'à lire le fichier HDF5 (`requirements.txt`).
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Télécharger METR-LA (57 Mo) et contrôler taille et SHA-256 (sans `ml-env`) | `python3 scripts/dev/dev.py ml-prevision telecharger` | `py -3 scripts/dev/dev.py ml-prevision telecharger` |
+| Contrôler le fichier déjà là (sans réseau) | `python3 scripts/dev/dev.py ml-prevision verifier` | `py -3 scripts/dev/dev.py ml-prevision verifier` |
+| Campagne complète (environ 3 minutes) : réécrit `prevision.json` et `prevision-resultats.md` | `python3 scripts/dev/dev.py ml-prevision evaluer` ou `make ml-prevision ETAPE=evaluer` | `py -3 scripts/dev/dev.py ml-prevision evaluer` |
+| Tests (`test_prevision.py`, sans METR-LA ni réseau ; sans numpy et scikit-learn, les tests de la chaîne sont ignorés) | `ml/.venv/bin/python -m unittest discover -s ml/tests -t ml -p test_prevision.py` | `ml\.venv\Scripts\python.exe -m unittest discover -s ml\tests -t ml -p test_prevision.py` |
+
+| Module | Rôle |
+|---|---|
+| `source.py` | adresse, taille et empreinte attendues ; téléchargement et contrôle (bibliothèque standard) |
+| `donnees.py` | lecture du HDF5 ; conversion d'un run simulé en pas de 5 minutes (mph) |
+| `variables.py`, `references.py` | variables sans fuite du futur ni identité du capteur ; les trois références |
+| `modeles.py`, `evaluation.py`, `rapport.py` | Ridge et HistGradientBoosting ; MAE, RMSE, intervalle par jour ; exécution et écriture des résultats |
+
 ## Détection d'anomalies (IA-09)
 
 `src/anomalies/` compare des **règles robustes** (écart à la médiane glissante, plateau, capteur muet, chute de débit, plus retard et doublon) à **Isolation Forest** sur les mêmes onze variables, avec les anomalies injectées par le simulateur : rappel, précision par épisode d'alerte et délai de détection, à budget de fausses alertes égal (une par heure de réseau). Le jeu `novaria-congestion-v1` n'est pas lu. Seul `isolation.py` importe scikit-learn (`ml/.venv`) ; le reste est en bibliothèque standard. Choix argumenté, limites et historique des réglages : [`evaluation/anomalies-comparaison.md`](evaluation/anomalies-comparaison.md) ; tableaux générés : [`evaluation/anomalies-resultats.md`](evaluation/anomalies-resultats.md).
