@@ -33,7 +33,7 @@ Un modèle vaut ce que valent ses données. Le projet n'a pas de capteurs réels
 | Option | Avantages | Inconvénients | Verdict |
 |---|---|---|---|
 | A. Générateur Python (modèle simple de flux, scénarios, incidents) | Livrable en quelques jours ; contrôle total ; vérité terrain exacte ; reproductible par graine | Réalisme limité : le modèle apprend le générateur | **Retenue en premier (v0)** |
-| B. Simulateur de trafic SUMO (Simulation of Urban MObility) | Comportement microscopique réaliste, feux, files | Installation et apprentissage ; temps de calcul ; risque de calendrier | **Conditionnel** : seulement si le v0 est livré et testé (IA-11) |
+| B. Simulateur de trafic SUMO (Simulation of Urban MObility) | Comportement microscopique réaliste, feux, files | Installation et apprentissage ; temps de calcul ; risque de calendrier | **Conditionnel, lancé le 18/11/2026** : le v0 est livré et testé ; prototype et limites dans [prototype-sumo.md](../../06-ia-mlops/prototype-sumo.md) (pas de vérité terrain de congestion : il ne remplace pas le v0) |
 | C. Jeux réels ouverts uniquement | Réalisme | Pas de comptages ni de vérité terrain de congestion, pas de contrôle des scénarios | Écartée comme source unique |
 
 ### 3.2 Rôle des jeux réels

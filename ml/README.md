@@ -58,6 +58,26 @@ Ordre de travail : congestion d'abord, prévision ensuite ([ADR-015](../docs/01-
 
 Aucun fichier de modèle n'est écrit : pas de `pickle`, rien à charger (cadrage, M3). L'enregistrement est l'affaire d'IA-05.
 
+## Prototype SUMO (IA-11)
+
+`src/prototype_sumo/` simule **un carrefour à feux** (INT_01 du réseau v0, 4 approches de 2 voies) avec SUMO (Simulation of Urban MObility), exporte le run au format des événements `novaria.iot.measurement.v1` et le rejoue dans le moteur de fenêtres du traitement, puis dans la pile Docker du projet. SUMO tourne **dans une image Docker** (`ml/sumo/`, SUMO 1.28.0 installé depuis PyPI avec empreintes, environ 1,2 Go) ; le code d'ici est en bibliothèque standard (pas besoin de `ml-env`). Prototype conditionnel : ce qu'il démontre et ne démontre pas, et la comparaison avec le générateur v0, sont dans [`docs/06-ia-mlops/prototype-sumo.md`](../docs/06-ia-mlops/prototype-sumo.md) ; tableaux générés : [`evaluation/sumo-resultats.md`](evaluation/sumo-resultats.md).
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Construire l'image de SUMO (environ 2 minutes la première fois) | `python3 scripts/dev/dev.py ml-sumo image` | `py -3 scripts/dev/dev.py ml-sumo image` |
+| Simuler 5 h du carrefour (environ 40 s) et exporter `var/sumo/<run>/mesures.jsonl` | `python3 scripts/dev/dev.py ml-sumo simuler` | `py -3 scripts/dev/dev.py ml-sumo simuler` |
+| Rejouer dans le moteur de fenêtres ; avec `--pile`, aussi dans la pile Docker (`dev.py up` d'abord ; `--graine 46` pour un run que la collecte n'a jamais vu) | `python3 scripts/dev/dev.py ml-sumo rejouer --pile --graine 46` | `py -3 scripts/dev/dev.py ml-sumo rejouer --pile --graine 46` |
+| Comparer au générateur v0 : réécrit `sumo.json` et `sumo-resultats.md` (environ 40 s) | `python3 scripts/dev/dev.py ml-sumo comparer` ou `make ml-sumo ETAPE=comparer` | `py -3 scripts/dev/dev.py ml-sumo comparer` |
+| Mesurer la capacité d'une approche (essai de saturation) | `python3 scripts/dev/dev.py ml-sumo calibrer` | `py -3 scripts/dev/dev.py ml-sumo calibrer` |
+| Tests (`test_sumo.py`, sans Docker ; un essai réel avec `NOVARIA_SUMO=1` et l'image) | `python3 -m unittest discover -s ml/tests -t ml -p test_sumo.py` | `py -3 -m unittest discover -s ml\tests -t ml -p test_sumo.py` |
+
+| Module | Rôle |
+|---|---|
+| `reseau.py` | fichiers d'entrée de SUMO : réseau, feux, demande du scénario v0, détecteurs |
+| `execution.py` | image Docker, `netconvert` puis `sumo` dans un conteneur jetable |
+| `exporter.py` | sorties des détecteurs en événements v0, manifeste avec empreintes |
+| `rejeu.py`, `comparaison.py`, `rapport.py` | rejeu (moteur, pile), comparaison au v0, écriture des résultats |
+
 ## Prévision de vitesse sur METR-LA (IA-10)
 
 `src/prevision/` compare trois références (persistance, moyenne glissante d'une heure, naïf saisonnier) à deux modèles (Ridge, HistGradientBoosting) sur les vitesses réelles de METR-LA, aux horizons 5, 15 et 30 minutes, avec MAE, RMSE et un intervalle de confiance par jour, dans l'ordre du temps (70 / 15 / 15, délai de garde de 30 minutes). La chaîne est ensuite essayée, sans réapprentissage, sur trois runs simulés. Le jeu **n'est pas versionné** (licence non établie, jamais redistribué) : il se télécharge et son empreinte SHA-256 est contrôlée ([fiche de provenance](../data/datasets/metr-la/PROVENANCE.md)). Résultats, choix et **limite de validité** : [`evaluation/prevision-comparaison.md`](evaluation/prevision-comparaison.md) ; tableaux générés : [`evaluation/prevision-resultats.md`](evaluation/prevision-resultats.md). `h5py` ne sert qu'à lire le fichier HDF5 (`requirements.txt`).
