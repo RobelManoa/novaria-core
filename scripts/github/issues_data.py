@@ -11,7 +11,8 @@ MILESTONES = [
     ("M3 · Front-end", "2026-11-22", "Semaines 4-6 : dashboard React."),
     ("M4 · IA, prototypes et intégration", "2026-11-29", "Semaines 5-7 : modèle, MLOps, prototypes, tests d'intégration."),
     ("M5 · Stabilisation et documentation", "2026-12-06", "Semaine 8 : marge, coûts finaux, documentation, gel du code."),
-    ("M6 · Soutenance", "2026-12-10", "Semaine 9 : démonstration et soutenance."),
+    ("M6 · Intégration de la partie citoyen", "2026-12-08", "Application citoyenne (front mobile en lecture seule), accès public minimal, sécurité et tests."),
+    ("M7 · Soutenance", "2026-12-10", "Semaine 9 : site de présentation, démonstration et soutenance."),
 ]
 
 TEAMS = {
@@ -289,14 +290,14 @@ ISSUES = [
       ["Fusionner les dernières pull requests", "Créer le tag `v1.0.0` et les notes de version", "Vérifier le déploiement de ce tag"],
       "La version déployée correspond au tag.", "Release GitHub", deps=["CLD-19"]),
 
-    # ------------------------------------------------------------------ M6
-    I("GES-14", "Scénario de démonstration : succès, livraison bloquée, restauration", 6, "gestion", "DM", "tache", "P0",
+    # ------------------------------------------------------------------ M7
+    I("GES-14", "Scénario de démonstration : succès, livraison bloquée, restauration", 7, "gestion", "DM", "tache", "P0",
       ["Déroulé minuté", "Jeu de données de démonstration", "Plan B si AWS est indisponible (démo locale avec `make up`)"],
       "Le scénario passe de bout en bout deux fois de suite.", "docs/09-soutenance/scenario.md", deps=["GES-13"]),
-    I("GES-15", "Support de soutenance et répétitions chronométrées", 6, "gestion", "DM", "tache", "P0",
+    I("GES-15", "Support de soutenance et répétitions chronométrées", 7, "gestion", "DM", "tache", "P0",
       ["Mettre à jour la présentation avec les résultats réels", "Deux répétitions", "Liste de questions probables"],
       "La présentation tient dans le temps imparti.", "docs/09-soutenance/", deps=["GES-14"]),
-    I("CLD-21", "Nettoyage des ressources AWS après la soutenance", 6, "cloud", "D", "tache", "P0",
+    I("CLD-21", "Nettoyage des ressources AWS après la soutenance", 7, "cloud", "D", "tache", "P0",
       ["`terraform destroy` de l'environnement demo", "Vérifier la facture", "Supprimer clés et accès temporaires"],
       "Aucune ressource facturée ne reste active.", "Capture de la console de facturation", deps=["GES-15"]),
 ]
