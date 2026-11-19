@@ -22,7 +22,7 @@ import dev  # noqa: E402
 
 RACINE = Path(__file__).resolve().parents[2]
 SERVICES = sorted(p for p in (RACINE / "services").iterdir() if p.is_dir())
-PAQUET = re.compile(r"(?m)^([A-Za-z0-9_.-]+)==(\S+)")
+PAQUET = re.compile(r"(?m)^([A-Za-z0-9_.-]+)(?:\[[^\]]*\])?==(\S+)")
 
 
 def nom_normalise(nom: str) -> str:
@@ -35,7 +35,7 @@ def paquets_du_verrou(texte: str) -> dict[str, str]:
 
 def blocs(texte: str) -> list[str]:
     """Un bloc par paquet du verrou : la ligne `nom==version` et les lignes qui la suivent."""
-    return [b for b in re.split(r"(?m)^(?=[A-Za-z0-9_.-]+==)", texte) if PAQUET.match(b)]
+    return [b for b in re.split(r"(?m)^(?=[A-Za-z0-9_.-]+(?:\[[^\]]*\])?==)", texte) if PAQUET.match(b)]
 
 
 def noms_du_fichier_in(texte: str) -> set[str]:

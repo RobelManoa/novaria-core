@@ -106,7 +106,6 @@ def evaluer_metr_la(serie: Serie, progres=print, pas_apprentissage: int = PAS_AP
             choisis[h][nom] = modele
             prevision = _prevoir(modele, xt)
             previsions_test[nom] = prevision
-            bloc["validation"][nom] = next(e for e in essais if e["params"] == params) | {"mae": meilleur[0]}
             bloc["validation"][nom] = {"mae": meilleur[0], "rmse": next(e["rmse_validation"] for e in essais if e["params"] == params), "n": int((~np.isnan(yv)).sum())}
             bloc["test"][nom] = evaluation.metriques(prevision, yt)
             bloc["reglages"][nom] = {"choisi": params, "essais": essais}

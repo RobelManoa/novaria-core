@@ -7,7 +7,7 @@ RUN apt-get update && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends libx11-6 libxext6 libxrender1 libgl1 libatomic1 libexpat1 \
     && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt /tmp/requirements.txt
-RUN pip install --require-hashes -r /tmp/requirements.txt && rm /tmp/requirements.txt \
+RUN pip install --require-hashes --only-binary :all: -r /tmp/requirements.txt && rm /tmp/requirements.txt \
     && useradd --system --uid 10001 --create-home sumo
 USER sumo
 WORKDIR /work

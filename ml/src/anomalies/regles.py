@@ -79,7 +79,7 @@ class DetecteurRegles:
             return [*alertes, Alerte("doublon", m.capteur, m.livre, f"identifiant livré {valeur['copies']:g} fois")]
         if valeur["retard_s"] > p.retard_s:
             alertes.append(Alerte("livraison_en_retard", m.capteur, m.livre, f"{valeur['retard_s']:g} s de retard"))
-        if m.vehicules >= 1 and m.vitesse == 0.0:  # des véhicules sont passés à vitesse nulle : impossible (jamais vu en trafic normal)
+        if m.vehicules >= 1 and abs(m.vitesse) < 1e-9:  # des véhicules sont passés à vitesse nulle : impossible (jamais vu en trafic normal)
             alertes.append(Alerte("ecart_mediane", m.capteur, m.livre, "vitesse nulle malgré des véhicules comptés"))
         elif valeur["ecart_vitesse"] >= p.ecart_vitesse or valeur["ecart_debit"] >= p.ecart_debit:
             alertes.append(Alerte("ecart_mediane", m.capteur, m.livre, f"vitesse {valeur['ecart_vitesse']:.1f}, comptage {valeur['ecart_debit']:.1f}"))

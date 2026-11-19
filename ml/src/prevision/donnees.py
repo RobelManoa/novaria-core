@@ -38,7 +38,7 @@ def charger_metr_la(chemin) -> Serie:
     ecarts = np.unique(np.diff(instants_ns))
     if len(ecarts) != 1 or ecarts[0] != MS_PAR_PAS * 1_000_000:
         raise ValueError(f"les instants ne sont pas réguliers de {PAS_MIN} minutes : {ecarts[:5]}")
-    valeurs[valeurs == 0.0] = np.nan
+    valeurs[np.abs(valeurs) < 1e-9] = np.nan
     return Serie("METR-LA", instants_ns // 1_000_000, capteurs, valeurs)
 
 
