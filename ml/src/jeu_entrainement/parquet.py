@@ -9,6 +9,7 @@ Types : `int32`, `int64`, `double`, `bool`, `string` (UTF-8) et `timestamp` (mic
 être facultative (valeurs `None`). Un groupe de lignes = une page de données par colonne.
 """
 
+import math
 import struct
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -243,7 +244,7 @@ def check(kind: str, value: object) -> None:
     ok = {
         "int32": lambda v: isinstance(v, int) and not isinstance(v, bool) and -(2**31) <= v < 2**31,
         "int64": lambda v: isinstance(v, int) and not isinstance(v, bool),
-        "double": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and v == v,
+        "double": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and not (isinstance(v, float) and math.isnan(v)),
         "bool": lambda v: isinstance(v, bool),
         "string": lambda v: isinstance(v, str),
         "timestamp": lambda v: isinstance(v, datetime),

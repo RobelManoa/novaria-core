@@ -8,9 +8,10 @@ dossier `REPORTS_DIR` ; cette API ne les écrit pas. Paramètres et bornes : `tr
 import uuid
 from pathlib import Path
 from typing import NoReturn
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 
 from app.api.deps import require_role
 from app.api.responses import errors
@@ -84,7 +85,7 @@ def list_reports(
 
 @router.get(
     "/{report_id}/content",
-    response_class=FileResponse,
+    response_class=Response,
     openapi_extra=VIEWER,
     responses={
         200: {"description": "Le PDF.", "content": {"application/pdf": {}}},
@@ -95,7 +96,7 @@ def download_report(
     report_id: uuid.UUID,
     _: User = Depends(require_role(Role.VIEWER)),
     service: ReportService = Depends(get_report_service),
-) -> FileResponse:
+) -> Response:
     try:
         report = service.open(report_id)
     except ReportCorrupted as error:
@@ -104,9 +105,15 @@ def download_report(
         ) from error
     if report is None:
         raise ProblemError(NOT_FOUND, "Rapport inconnu.")
-    return FileResponse(
-        report.path,
+    # Les octets servis sont ceux dont la taille et l'empreinte viennent d'être vérifiées : aucun chemin n'est rouvert.
+    name = report.metadata.file_name
+    disposition = (
+        f'attachment; filename="{name}"'
+        if name.isascii()
+        else f"attachment; filename*=utf-8''{quote(name)}"
+    )
+    return Response(
+        report.content,
         media_type=report.metadata.content_type,
-        filename=report.metadata.file_name,
-        content_disposition_type="attachment",
+        headers={"Content-Disposition": disposition},
     )

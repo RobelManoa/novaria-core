@@ -40,8 +40,10 @@ class ReportCorrupted(Exception):
 
 @dataclass(frozen=True)
 class ReportFile:
+    """Le rapport et les octets du PDF **déjà vérifiés** (taille et empreinte) : on sert ces octets-là, on ne rouvre pas un chemin."""
+
     metadata: ReportMetadata
-    path: Path
+    content: bytes
 
 
 @dataclass(frozen=True)
@@ -108,7 +110,7 @@ class FileReportStore:
         ):
             logger.error("rapport corrompu", extra={"fields": {"report_id": str(report_id)}})
             raise ReportCorrupted(str(report_id))
-        return ReportFile(metadata, pdf_path)
+        return ReportFile(metadata, content)
 
 
 def encode_cursor(item: ReportMetadata) -> str:

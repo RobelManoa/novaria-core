@@ -13,6 +13,7 @@
 // des scénarios clavier, ce qu'un outil automatique ne voit pas : lien d'évitement, ordre de tabulation,
 // indicateur de focus visible, tiroir mobile (focus piégé, Échap), reflux à 320 px de large (WCAG 1.4.10).
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -20,6 +21,9 @@ import net from "node:net";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { findEnglish } from "./audit-francais.mjs";
+
+// Jeton jetable de l'API simulée de l'audit : tiré au hasard à chaque exécution, jamais écrit dans le dépôt.
+const JETON_AUDIT = `audit-${randomUUID()}`;
 
 const require = createRequire(import.meta.url);
 const axeSource = await readFile(require.resolve("axe-core/axe.min.js"), "utf8");
@@ -144,7 +148,7 @@ function api(mode) {
       return route.fulfill(
         mode === "login-refuse"
           ? problem(401, "INVALID_CREDENTIALS")
-          : ok({ access_token: "jeton-audit", token_type: "bearer", expires_in: 1800 }),
+          : ok({ access_token: JETON_AUDIT, token_type: "bearer", expires_in: 1800 }),
       );
     }
     if (path === "/api/v1/indicators") {
@@ -366,7 +370,7 @@ async function openPage(browser, base, scenario) {
         if (signedIn)
           sessionStorage.setItem(
             "novaria-session",
-            JSON.stringify({ token: "jeton-audit", expiresAt: Date.now() + 3_600_000 }),
+            JSON.stringify({ token: JETON_AUDIT, expiresAt: Date.now() + 3_600_000 }),
           );
       } catch {
         /* stockage indisponible */
