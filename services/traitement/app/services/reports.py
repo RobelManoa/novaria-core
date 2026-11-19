@@ -40,7 +40,10 @@ class ReportCorrupted(Exception):
 
 @dataclass(frozen=True)
 class ReportFile:
-    """Le rapport et les octets du PDF **déjà vérifiés** (taille et empreinte) : on sert ces octets-là, on ne rouvre pas un chemin."""
+    """Le rapport et les octets de son PDF, **déjà vérifiés** (taille et empreinte).
+
+    On sert ces octets-là : on ne rouvre pas un chemin.
+    """
 
     metadata: ReportMetadata
     content: bytes

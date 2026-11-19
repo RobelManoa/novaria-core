@@ -105,7 +105,8 @@ def download_report(
         ) from error
     if report is None:
         raise ProblemError(NOT_FOUND, "Rapport inconnu.")
-    # Les octets servis sont ceux dont la taille et l'empreinte viennent d'être vérifiées : aucun chemin n'est rouvert.
+    # Les octets servis sont ceux dont la taille et l'empreinte viennent d'être vérifiées :
+    # aucun chemin n'est rouvert.
     name = report.metadata.file_name
     disposition = (
         f'attachment; filename="{name}"'
