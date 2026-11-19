@@ -20,6 +20,7 @@ Le jeu d'entraînement de la détection de congestion vient du simulateur, pas d
 |---|---|
 | Fiche de provenance (origine, licence, couverture, variables, qualité, limites, empreintes SHA-256) | [`novaria-congestion-v1/PROVENANCE.md`](novaria-congestion-v1/PROVENANCE.md) |
 | Manifeste (empreintes, runs, colonnes, mesures de qualité) | [`novaria-congestion-v1/manifest.json`](novaria-congestion-v1/manifest.json) |
+| Stockage | écrit et relu par le port `ObjectStore` ([stockage d'objets](../../docs/03-donnees/stockage-objets.md)) : reconstruire à l'identique est sans effet, un autre contenu est refusé |
 | Construire | `python3 ml/src/construire_jeu.py` (Linux) · `py -3 ml/src/construire_jeu.py` (Windows) · `make dataset-build` |
 | Tester | `python3 -m unittest discover -s ml/tests -t ml` (Linux) · `py -3 -m unittest discover -s ml\tests -t ml` (Windows) |
 
@@ -31,7 +32,7 @@ Les sections suivantes concernent les jeux **réels** ouverts (ETL, tutoriel, pr
 |---|---|---|---|
 | **Jeu urbain ouvert choisi** (ETL, indicateurs) | Comptage routier de la Ville de Paris, capteurs permanents | ODbL | **Retenu** |
 | Tutoriel de prise en main (ETL, qualité) | Metro Interstate Traffic Volume (UCI) | CC BY 4.0 | Retenu comme prévu dans l'ADR-027 |
-| Prévision (IA-10) | METR-LA | **Aucune licence de données trouvée** | **Non retenu pour l'instant** |
+| Prévision (IA-10) | METR-LA | **Aucune licence de données trouvée** | **Usage restreint** : évaluation locale, jamais redistribué (décision du 18/11/2026, section 5) |
 
 Le jeu simulé v1 (IA-08) reste la source des runs de congestion ([ADR-027](../../docs/01-architecture/adr/ADR-027-jeux-de-donnees-et-provenance.md)) : un jeu réel ne la remplace pas.
 
@@ -234,17 +235,17 @@ Ces défauts en font un bon support de tutoriel pour les règles de nettoyage de
 | Extraire l'archive | `unzip metro+interstate+traffic+volume.zip` | `Expand-Archive metro+interstate+traffic+volume.zip .` |
 | Calculer l'empreinte | `sha256sum Metro_Interstate_Traffic_Volume.csv.gz` | `Get-FileHash Metro_Interstate_Traffic_Volume.csv.gz -Algorithm SHA256` |
 
-## 5. Jeu non retenu : METR-LA
+## 5. METR-LA : usage restreint à l'évaluation de la prévision
 
 | Rubrique | Contenu |
 |---|---|
-| Contenu | Vitesse moyenne (en miles par heure) de 207 capteurs d'autoroute du comté de Los Angeles, toutes les 5 minutes, du 1er mars au 30 juin 2012 (d'après les articles de recherche qui l'utilisent) |
+| Contenu | Vitesse moyenne (en miles par heure, d'après les articles) de 207 capteurs d'autoroute du comté de Los Angeles, toutes les 5 minutes. **Lu dans le fichier le 18/11/2026 : 34 272 instants, du 1er mars au 27 juin 2012** (les articles écrivent « 30 juin ») |
 | Diffusion | Fichier `metr-la.h5` sur Google Drive et Baidu Yun, via le dépôt https://github.com/liyaguang/DCRNN |
 | Licence | **Aucune licence de données trouvée.** La page du dépôt ne mentionne que la licence MIT du code ; elle ne cite ni la source d'origine des données ni condition de redistribution |
-| Décision | Non retenu pour l'instant, et jamais redistribué ici |
-| Réexamen | Avant IA-10 : établir le producteur d'origine et ses conditions d'usage, ou remplacer par un jeu de vitesses de licence connue |
+| Décision | **Utilisé en local, à titre de recherche, pour évaluer la prévision de vitesse (IA-10), et jamais redistribué ici** : décision de Manoa Robel le 18/11/2026, relecture par Daddy Luciano à faire. Le fichier n'est pas versionné ; son empreinte SHA-256 est contrôlée. Le risque (droit d'usage non démontré) est écrit dans la [fiche de provenance](metr-la/PROVENANCE.md) |
+| Réexamen | Fait le 18/11/2026 : recherche sans résultat (aucune licence de données, producteur d'origine non confirmé). **Toujours à faire** : établir le producteur et ses conditions, ou remplacer par un jeu de vitesses de licence connue (plan de sortie dans la fiche) |
 
-Cette décision touche l'[ADR-027](../../docs/01-architecture/adr/ADR-027-jeux-de-donnees-et-provenance.md), qui prévoit METR-LA pour la prévision « sous réserve de licence » : la réserve n'est pas levée.
+Cette décision touche l'[ADR-027](../../docs/01-architecture/adr/ADR-027-jeux-de-donnees-et-provenance.md), qui prévoit METR-LA pour la prévision « sous réserve de licence » : la réserve n'est **pas levée** : METR-LA est utilisé sous sa propre responsabilité, pour l'évaluation seulement, et la décision est tracée.
 
 ## 6. Décision et suite
 

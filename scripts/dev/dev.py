@@ -502,6 +502,40 @@ def cmd_ml_train(args: argparse.Namespace) -> int:
     return subprocess.run([str(ml_python()), str(ML_TRAIN), args.etape], cwd=ROOT, check=False).returncode
 
 
+ML_ANOMALIES = ROOT / "ml" / "src" / "detecter_anomalies.py"
+ML_SUMO = ROOT / "ml" / "src" / "lancer_sumo.py"
+ML_SUMO_ETAPES = ("image", "calibrer", "simuler", "rejouer", "comparer")
+ML_PREVISION = ROOT / "ml" / "src" / "prevoir.py"
+ML_PREVISION_ETAPES = ("telecharger", "verifier", "evaluer")
+
+
+def cmd_ml_anomalies(_: argparse.Namespace) -> int:
+    """Détection d'anomalies (IA-09) : règles et Isolation Forest sur les runs du simulateur ; écrit ml/evaluation/anomalies*."""
+    if not ml_python().exists():
+        print("ml/.venv est absent : lancer d'abord « ml-env » (scikit-learn y est installé avec ses empreintes).", file=sys.stderr)
+        return 2
+    return subprocess.run([str(ml_python()), str(ML_ANOMALIES)], cwd=ROOT, env={**os.environ, "PYTHONUTF8": "1"}, check=False).returncode
+
+
+def cmd_ml_sumo(args: argparse.Namespace) -> int:
+    """Prototype SUMO (IA-11) : image Docker, simulation d'un carrefour, rejeu par le pipeline, comparaison avec le générateur v0."""
+    require_docker()
+    options = ["--graine", str(args.graine)] + (["--pile"] if args.pile else [])
+    return subprocess.run([sys.executable, str(ML_SUMO), args.etape, *options], cwd=ROOT, env={**os.environ, "PYTHONUTF8": "1"}, check=False).returncode
+
+
+def cmd_ml_prevision(args: argparse.Namespace) -> int:
+    """Prévision de vitesse (IA-10) : télécharger et contrôler METR-LA, le contrôler seulement, ou évaluer (écrit ml/evaluation/prevision*)."""
+    if args.etape == "evaluer":
+        if not ml_python().exists():
+            print("ml/.venv est absent : lancer d'abord « ml-env » (scikit-learn et h5py y sont installés avec leurs empreintes).", file=sys.stderr)
+            return 2
+        interpreteur = str(ml_python())
+    else:
+        interpreteur = sys.executable  # télécharger et vérifier n'utilisent que la bibliothèque standard
+    return subprocess.run([interpreteur, str(ML_PREVISION), args.etape], cwd=ROOT, env={**os.environ, "PYTHONUTF8": "1"}, check=False).returncode
+
+
 # --------------------------------------------------------------------------- registre des modèles (IA-04)
 ML_REGISTRE = ROOT / "ml" / "src" / "registre_cli.py"
 ML_REGISTRE_COMMANDES = ("importer-ia03", "lister", "en-service", "lignee", "charger")
@@ -546,6 +580,26 @@ def cmd_ml_registre_essai(_: argparse.Namespace) -> int:
                 os.environ[name] = value
 
 
+# --------------------------------------------------------------------------- pipeline MLSecOps (IA-05)
+ML_PIPELINE = ROOT / "ml" / "src" / "executer_pipeline.py"
+ML_PIPELINE_ETAPES = ("evaluer", "porte", "enregistrer", "tout")
+
+
+def cmd_ml_pipeline(args: argparse.Namespace) -> int:
+    """Pipeline MLSecOps en local : évaluer, porte (bloque sous le seuil), enregistrer ; registre en fichiers, ou MongoDB avec --mongo."""
+    if not ml_python().exists():
+        print("ml/.venv est absent : lancer d'abord « ml-env ».", file=sys.stderr)
+        return 2
+    environment = {**os.environ, "PYTHONUTF8": "1"}
+    if args.mongo:
+        require_env()
+        environment["MONGO_URL"] = mongo_url(etl_environment(), "svc_ml", "MONGO_PASSWORD_ML")
+    command = [str(ml_python()), str(ML_PIPELINE), args.etape]
+    if args.sans_audit:
+        command.append("--sans-audit")
+    return subprocess.run(command, cwd=ROOT, env=environment, check=False).returncode
+
+
 # --------------------------------------------------------------------------- rapport hebdomadaire du robot (IA-07, FE-06)
 RPA_DIR = ROOT / "automation" / "rpa"
 
@@ -568,13 +622,20 @@ def rpa_command(args: argparse.Namespace, env_values: dict[str, str], robot_inst
     return command
 
 
-def cmd_rpa_report(args: argparse.Namespace) -> int:
-    """Produit le rapport hebdomadaire et le dépose dans var/reports (la page « Rapports » l'affiche). Compte de service lu dans l'environnement ou .env."""
+RPA_OBLIGATOIRES = ("NOVARIA_RPA_USER", "NOVARIA_RPA_PASSWORD")
+# Reprises et notification par courriel : lues dans .env si elles n'y sont pas déjà dans l'environnement (jamais en argument).
+RPA_FACULTATIVES = ("NOVARIA_RPA_TENTATIVES", "NOVARIA_RPA_ATTENTE_S", "NOVARIA_RPA_SMTP", "NOVARIA_RPA_DESTINATAIRE",
+                    "NOVARIA_RPA_EXPEDITEUR", "NOVARIA_RPA_SMTP_UTILISATEUR", "NOVARIA_RPA_SMTP_MOT_DE_PASSE")
+
+
+def rpa_environment(args: argparse.Namespace) -> tuple[dict[str, str], dict[str, str], bool]:
+    """(environnement du robot, variables de .env, Robot Framework installé) : le compte de service vient de l'environnement ou de .env."""
     env_values = parse_env(ENV_FILE.read_text(encoding="utf-8")) if ENV_FILE.exists() else {}
     environment = dict(os.environ)
-    for name in ("NOVARIA_RPA_USER", "NOVARIA_RPA_PASSWORD"):
+    for name in (*RPA_OBLIGATOIRES, *RPA_FACULTATIVES):
         if not environment.get(name) and env_values.get(name):
             environment[name] = env_values[name]
+    for name in RPA_OBLIGATOIRES:
         if not environment.get(name):
             raise DevError(f"{name} est absent (variable d'environnement ou .env). Créer un compte en lecture seule : "
                            "python3 scripts/dev/dev.py user-create rpa-rapport --role viewer, puis renseigner les deux variables.")
@@ -583,7 +644,29 @@ def cmd_rpa_report(args: argparse.Namespace) -> int:
         print("Robot Framework n'est pas installé : seul le paquet `rapport` est lancé "
               "(installer : pip install -r automation/rpa/requirements.txt).", file=sys.stderr)
     environment["PYTHONPATH"] = os.pathsep.join(filter(None, [str(RPA_DIR), environment.get("PYTHONPATH")]))
+    return environment, env_values, robot_installed
+
+
+def cmd_rpa_report(args: argparse.Namespace) -> int:
+    """Produit le rapport hebdomadaire et le dépose dans var/reports (la page « Rapports » l'affiche). Compte de service lu dans l'environnement ou .env."""
+    environment, env_values, robot_installed = rpa_environment(args)
     return subprocess.run(rpa_command(args, env_values, robot_installed), cwd=ROOT, env=environment, check=False).returncode
+
+
+def rpa_planner_command(args: argparse.Namespace, env_values: dict[str, str], robot_installed: bool) -> list[str]:
+    """Le planificateur (`python -m rapport.planificateur`) autour de la commande de `rpa-report`."""
+    command = [sys.executable, "-m", "rapport.planificateur", "--jour", args.jour, "--heure", args.heure, "--dossier", str(REPORTS_DIR)]
+    if args.sans_rattrapage:
+        command.append("--sans-rattrapage")
+    if args.executions:
+        command += ["--executions", str(args.executions)]
+    return [*command, "--", *rpa_command(args, env_values, robot_installed)]
+
+
+def cmd_rpa_planifier(args: argparse.Namespace) -> int:
+    """Planifie le rapport chaque semaine sans cron ni Planificateur de tâches (processus au premier plan ; Ctrl+C l'arrête)."""
+    environment, env_values, robot_installed = rpa_environment(args)
+    return subprocess.run(rpa_planner_command(args, env_values, robot_installed), cwd=ROOT, env=environment, check=False).returncode
 
 
 # --------------------------------------------------------------------------- dérive des entrées du modèle (IA-06)
@@ -1134,6 +1217,216 @@ def cmd_terraform_check(args: argparse.Namespace) -> int:
     return code
 
 
+# --------------------------------------------------------------------------- prototype Big Data (DAT-08)
+def cmd_bigdata_build(_: argparse.Namespace) -> int:
+    """Construit l'image du prototype Big Data (PySpark en mode local, Java 21) ; la première fois, plusieurs minutes."""
+    import bigdata_docker
+
+    require_docker()
+    return subprocess.run(bigdata_docker.commande_de_construction(ROOT), check=False).returncode
+
+
+def cmd_bigdata(args: argparse.Namespace) -> int:
+    """Lance le prototype dans son image : generer, nettoyer, verifier ou mesurer (voir data/bigdata/README.md)."""
+    import bigdata_docker
+
+    require_docker()
+    arguments = [mot for mot in args.arguments if mot != "--"]
+    if not arguments:
+        raise DevError("Indiquer la commande du prototype, par exemple :  dev.py bigdata generer --jours 30")
+    return subprocess.run(bigdata_docker.commande_de_lancement(ROOT, arguments, args.cpus, args.memoire), check=False).returncode
+
+
+def cmd_bigdata_test(args: argparse.Namespace) -> int:
+    """Lance les tests du prototype dans son image (PySpark et Java y sont : aucun test n'est ignoré)."""
+    import bigdata_docker
+
+    require_docker()
+    return subprocess.run(bigdata_docker.commande_de_test(ROOT, args.cpus, args.memoire), check=False).returncode
+
+
+# --------------------------------------------------------------------------- matrice d'accès et essais de refus (CLD-18)
+def cmd_acces(args: argparse.Namespace) -> int:
+    """Compare ops/matrice-acces.json à ce que la pile applique : essais autorisés et refusés sur l'API, PostgreSQL et MongoDB."""
+    import acces
+
+    require_env()
+    require_docker()
+    pile = acces.Pile(parse_env(ENV_FILE.read_text(encoding="utf-8")))
+    print("Matrice d'accès de la pile locale : essais d'autorisation et de refus (la pile doit tourner : dev.py up).")
+    essais, ecarts, incoherences = acces.executer(pile, afficher=print)
+    print()
+    for famille, accordes, attendus_accordes, refuses, attendus_refuses in acces.resume_par_famille(essais):
+        print(f"  {famille:<24} accès accordés {accordes}/{attendus_accordes} · accès refusés {refuses}/{attendus_refuses}")
+    print("\nUn essai autorisé et un essai refusé par sujet :")
+    for sujet, (autorise, refuse) in acces.exemples_par_sujet(essais, ("api", "postgres (essai", "mongo (essai"), acces.charger()["api"]["exemples"]).items():
+        for essai in (autorise, refuse):
+            if essai:
+                print(f"  [{'OK' if essai.ok else 'ÉCHEC'}] {sujet:<16} {'autorisé' if essai.attendu else 'refusé  '} {essai.operation} → {essai.detail}")
+    if ecarts:
+        print("\nÉcarts connus (contrôle prévu et absent, non compté comme un succès) :")
+        for ecart in ecarts:
+            print(f"  [ÉCART] {ecart.libelle}\n          {ecart.preuve}")
+    echecs = [essai for essai in essais if not essai.ok]
+    for ligne in incoherences:
+        print(f"[ÉCHEC] matrice et contrats : {ligne}")
+    for essai in echecs[: args.max_echecs]:
+        print(f"[ÉCHEC] {essai.famille} · {essai.sujet} · {essai.ressource} · {essai.operation} : attendu {'accès' if essai.attendu else 'refus'}, {essai.detail}")
+    total = len(essais)
+    interdits = acces.accord_interdit(essais)
+    print(f"\n{total - len(echecs)}/{total} essais conformes à la matrice, {len(ecarts)} écart(s) connu(s).")
+    print(f"Accès interdits accordés : {len(interdits)} (critère de CLD-18 : 0).  Accès prévus refusés ou non concluants : {len(acces.refus_inattendu(essais))}.")
+    return 1 if echecs or incoherences else 0
+
+
+# --------------------------------------------------------------------------- sauvegarde planifiée et restauration vérifiée (CLD-15)
+def _sauvegarde_module():
+    import sauvegarde
+
+    require_env()
+    require_docker()
+    return sauvegarde
+
+
+def cmd_sauvegarde(_: argparse.Namespace) -> int:
+    """Sauvegarde PostgreSQL et MongoDB avec manifeste (totaux et sommes de contrôle), puis conservation par paliers."""
+    module = _sauvegarde_module()
+    try:
+        module.sauvegarder(module.Serveurs(ROOT))
+    except module.Echec as erreur:
+        raise DevError(str(erreur)) from erreur
+    return 0
+
+
+def cmd_sauvegarde_liste(args: argparse.Namespace) -> int:
+    """Liste les sauvegardes, leur manifeste, et ce que la politique de conservation supprimerait (rien n'est supprimé)."""
+    module = _sauvegarde_module()
+    maintenant = datetime.now(timezone.utc)
+    for base in ("postgres", "mongo"):
+        existantes = module.lister(base, ROOT / "backups")
+        garder = module.a_conserver(existantes, maintenant)
+        print(f"{base} : {len(existantes)} sauvegarde(s), {len(garder)} à conserver")
+        for nom, instant in sorted(existantes.items(), key=lambda element: element[1], reverse=True):
+            manifeste = "manifeste" if module.chemin_manifeste(ROOT / "backups" / base / nom).is_file() else "SANS manifeste"
+            print(f"  {instant:%Y-%m-%d %H:%M:%SZ}  {nom}  {manifeste}  {'conservée' if nom in garder else 'serait supprimée'}")
+    return 0
+
+
+def cmd_restauration(args: argparse.Namespace) -> int:
+    """Restaure les dernières sauvegardes dans un environnement Docker isolé et compare les totaux au manifeste."""
+    module = _sauvegarde_module()
+    env = parse_env(ENV_FILE.read_text(encoding="utf-8"))
+    fichiers = {base: ROOT / "backups" / base / nom for base, nom in (("postgres", args.postgres), ("mongo", args.mongo)) if nom}
+    print("Restauration dans un environnement isolé (réseau interne, mots de passe aléatoires, supprimé à la fin).")
+    afficher = lambda resultat: print(module.ligne(resultat), flush=True)  # noqa: E731
+    resultats = module.restaurer_et_verifier(fichiers=fichiers, nom_base_mongo=env.get("MONGO_DB", "novaria"), administrateur_pg=env.get("POSTGRES_USER", "novaria_admin"), afficher=afficher)
+    if args.controles_negatifs and all(resultat.ok for resultat in resultats):
+        print("Contrôles négatifs (une panne injectée doit être détectée) :")
+        resultats += module.controles_negatifs(nom_base_mongo=env.get("MONGO_DB", "novaria"), administrateur_pg=env.get("POSTGRES_USER", "novaria_admin"), afficher=afficher)
+    echecs = [resultat.cas for resultat in resultats if not resultat.ok]
+    print(f"{len(resultats) - len(echecs)}/{len(resultats)} cas satisfaits." + (f" Échecs : {', '.join(echecs)}." if echecs else ""))
+    return 1 if echecs else 0
+
+
+def cmd_sauvegarde_planifier(args: argparse.Namespace) -> int:
+    """Planifie la sauvegarde sans cron : attend le créneau, sauvegarde, rattrape une sauvegarde manquante au démarrage."""
+    module = _sauvegarde_module()
+    env = parse_env(ENV_FILE.read_text(encoding="utf-8"))
+
+    def cycle() -> None:
+        module.sauvegarder(module.Serveurs(ROOT))
+        if args.verifier:
+            resultats = module.restaurer_et_verifier(nom_base_mongo=env.get("MONGO_DB", "novaria"), administrateur_pg=env.get("POSTGRES_USER", "novaria_admin"), afficher=lambda r: print(module.ligne(r), flush=True))
+            if not all(resultat.ok for resultat in resultats):
+                raise module.Echec("la restauration de contrôle a échoué")
+
+    def derniere() -> dict:
+        resultat = {}
+        for base in ("postgres", "mongo"):
+            existantes = module.lister(base, ROOT / "backups")
+            resultat[base] = max(existantes.values()) if existantes else None
+        return resultat
+
+    reussis = module.planifier(cycle, heure=args.heure, toutes_les_s=args.toutes_les, executions=args.executions,
+                               sans_rattrapage=args.sans_rattrapage, derniere=derniere)
+    print(f"{reussis} sauvegarde(s) planifiée(s) réussie(s).")
+    return 0
+
+
+# --------------------------------------------------------------------------- panne contrôlée et observatoire (CLD-14)
+def _observatoire():
+    import observatoire
+
+    require_env()
+    require_docker()
+    env = parse_env(ENV_FILE.read_text(encoding="utf-8"))
+    return observatoire, observatoire.Observatoire(observatoire.charger_config(), observatoire.Docker(ROOT), env)
+
+
+def cmd_observatoire(args: argparse.Namespace) -> int:
+    """Sert l'interface graphique de l'observatoire des pannes sur 127.0.0.1 (la pile doit tourner : dev.py up)."""
+    module, obs = _observatoire()
+    module.servir(obs, args.port)
+    return 0
+
+
+def cmd_panne(args: argparse.Namespace) -> int:
+    """Arrête un service, attend l'alarme, retrace alarme, journal et cause, rétablit, puis affiche le rapport (la pile doit tourner)."""
+    module, obs = _observatoire()
+    if args.service not in obs.config["services"]:
+        raise DevError(f"Service inconnu : {args.service}. Services : {', '.join(obs.config['services'])}.")
+    obs.demarrer()
+    try:
+        obs.arret.wait(float(obs.config["periode_s"]) * 2)  # deux tours de mesure : la pile saine est connue avant la panne
+        try:
+            rapport = module.rejouer_panne(obs, args.service, duree_s=args.duree, trafic=args.trafic, mode=args.mode)
+        except module.ErreurPanne as erreur:
+            raise DevError(str(erreur)) from erreur
+    finally:
+        obs.arreter_mesure()
+    print()
+    print(module.rapport_texte(rapport))
+    print(f"\nRetour à la normale (toutes les alarmes à OK) : {'oui' if rapport['tout_est_ok'] else 'NON'}")
+    return 0 if rapport["alarmes"] and rapport["tout_est_ok"] else 1
+
+
+# --------------------------------------------------------------------------- parcours de bout en bout (CLD-13)
+def cmd_parcours(args: argparse.Namespace) -> int:
+    """Rejoue le parcours nominal (donnée brute, entrepôt, API, tableau de bord) et les cas d'échec sur la pile locale."""
+    import parcours
+
+    require_env()
+    require_docker()
+    ids = tuple(item.upper() for item in args.cas) or None
+    inconnus = [item for item in ids or () if item not in {cas[0] for cas in parcours.CAS}]
+    if inconnus:
+        raise DevError(f"Cas inconnu : {', '.join(inconnus)}. Cas possibles : {', '.join(cas[0] for cas in parcours.CAS)}.")
+    pile = parcours.Pile(parse_env(ENV_FILE.read_text(encoding="utf-8")))
+    print("Parcours de bout en bout sur la pile locale (la pile doit tourner : dev.py up).")
+    resultats = parcours.executer(pile, ids, afficher=lambda resultat: print(parcours.ligne(resultat), flush=True))
+    echecs = [resultat.cas for resultat in resultats if not resultat.ok]
+    print(f"{len(resultats) - len(echecs)}/{len(resultats)} cas satisfaits." + (f" Échecs : {', '.join(echecs)}." if echecs else ""))
+    return 1 if echecs else 0
+
+
+def cmd_flux_complet(args: argparse.Namespace) -> int:
+    """Rejoue le flux complet (capteur simulé jusqu'à la commande de feux) et les cas d'échec sur la pile locale (MS-15)."""
+    import flux_complet
+
+    require_env()
+    require_docker()
+    ids = tuple(item.upper() for item in args.cas) or None
+    inconnus = [item for item in ids or () if item not in {cas[0] for cas in flux_complet.CAS}]
+    if inconnus:
+        raise DevError(f"Cas inconnu : {', '.join(inconnus)}. Cas possibles : {', '.join(cas[0] for cas in flux_complet.CAS)}.")
+    pile = flux_complet.Pile(parse_env(ENV_FILE.read_text(encoding="utf-8")))
+    print("Flux complet sur la pile locale (la pile doit tourner : dev.py up). Les cas d'échec arrêtent puis redémarrent des conteneurs ; environ 10 minutes en tout.")
+    resultats = flux_complet.executer(pile, ids, afficher=lambda resultat: print(flux_complet.ligne(resultat), flush=True))
+    echecs = [resultat.cas for resultat in resultats if not resultat.ok]
+    print(f"{len(resultats) - len(echecs)}/{len(resultats)} cas satisfaits." + (f" Échecs : {', '.join(echecs)}." if echecs else ""))
+    return 1 if echecs else 0
+
+
 # --------------------------------------------------------------------------- tableau de bord en local (FE-04)
 FRONTEND_DIR = ROOT / "frontend"
 API_PORT = 8000  # cible du proxy de Vite (frontend/vite.config.ts)
@@ -1502,10 +1795,30 @@ def build_parser() -> argparse.ArgumentParser:
     add("ml-env", cmd_ml_env, "crée ml/.venv et y installe scikit-learn depuis ml/requirements.txt (empreintes exigées)")
     train = add("ml-train", cmd_ml_train, "entraînement et comparaison (IA-03) : validation, test (lu une seule fois) ou rapport ; nécessite ml-env")
     train.add_argument("etape", choices=ML_ETAPES, help="validation : réglage et choix ; test : lecture unique ; rapport : ml/evaluation/resultats.md")
+    add("ml-anomalies", cmd_ml_anomalies, "détection d'anomalies (IA-09) : règles robustes et Isolation Forest sur les anomalies injectées (environ 1 minute) ; écrit ml/evaluation/anomalies*.{json,md} ; nécessite ml-env")
+    sumo = add("ml-sumo", cmd_ml_sumo, "prototype SUMO (IA-11) : image, calibrer, simuler, rejouer [--pile], comparer ; SUMO tourne dans Docker, le reste en bibliothèque standard (sans ml-env)")
+    sumo.add_argument("etape", choices=ML_SUMO_ETAPES, help="image : construit novaria-sumo:1.28.0 ; simuler : 5 h du carrefour INT_01 ; rejouer : moteur de fenêtres (--pile : aussi la pile Docker) ; comparer : ml/evaluation/sumo*")
+    sumo.add_argument("--graine", type=int, default=42, help="graine de SUMO (défaut 42) ; une graine neuve donne un run que la collecte n'a jamais vu")
+    sumo.add_argument("--pile", action="store_true", help="rejouer : publier aussi sur la collecte (la pile doit tourner : dev.py up)")
+    prevision = add("ml-prevision", cmd_ml_prevision, "prévision de vitesse (IA-10) : telecharger et verifier METR-LA (empreinte SHA-256, sans ml-env), evaluer (environ 5 minutes ; nécessite ml-env)")
+    prevision.add_argument("etape", choices=ML_PREVISION_ETAPES, help="telecharger : metr-la.h5 (57 Mo) ; verifier : taille et SHA-256 ; evaluer : ml/evaluation/prevision*.{json,md}")
     registre = add("ml-registre", cmd_ml_registre, "registre des modèles (IA-04) : importer-ia03, lister, en-service, lignee <run> [--jeu], charger ; nécessite la pile (db-up) et ml-env")
     registre.add_argument("commande", choices=ML_REGISTRE_COMMANDES)
     registre.add_argument("options", nargs=argparse.REMAINDER, help="arguments de la commande (lignee <run> --jeu)")
     add("ml-registre-essai", cmd_ml_registre_essai, "tests du registre contre un MongoDB jetable (projet Compose à part, supprimé ensuite) ; nécessite Docker et ml-env")
+    pipeline = add("ml-pipeline", cmd_ml_pipeline, "pipeline MLSecOps (IA-05) : evaluer, porte (bloque un modèle sous le seuil), enregistrer, ou tout ; code 1 si la porte est fermée")
+    pipeline.add_argument("etape", nargs="?", default="tout", choices=ML_PIPELINE_ETAPES)
+    pipeline.add_argument("--mongo", action="store_true", help="écrit les runs dans model_runs (MongoDB, compte svc_ml) au lieu de var/pipeline/model_runs/")
+    pipeline.add_argument("--sans-audit", action="store_true", help="n'appelle pas pip-audit (S4 reste « non vérifié »)")
+    planifier = add("rpa-planifier", cmd_rpa_planifier, "planifie le rapport hebdomadaire (IA-07) sans cron : attend le créneau, rattrape un rapport manquant au démarrage")
+    planifier.add_argument("--jour", default="lundi", help="jour de la semaine (lundi par défaut)")
+    planifier.add_argument("--heure", default="07:00", metavar="HH:MM", help="heure du poste (07:00 par défaut)")
+    planifier.add_argument("--sans-rattrapage", action="store_true", help="n'attend que le créneau, même si le rapport de la semaine manque")
+    planifier.add_argument("--executions", type=int, help="s'arrête après ce nombre de lancements (essai)")
+    planifier.add_argument("--debut", metavar="AAAA-MM-JJ", help="période fixe au lieu de la semaine précédente (essai)")
+    planifier.add_argument("--fin", metavar="AAAA-MM-JJ", help="fin exclue de la période fixe (essai)")
+    planifier.add_argument("--api", help="adresse de la passerelle (http://127.0.0.1:<GATEWAY_PORT> par défaut)")
+    planifier.add_argument("--sans-robot", action="store_true", help="lance le paquet Python seul, sans Robot Framework")
     rpa = add("rpa-report", cmd_rpa_report, "produit le rapport hebdomadaire (robot, IA-07) et le dépose dans var/reports ; la page Rapports l'affiche")
     rpa.add_argument("--debut", metavar="AAAA-MM-JJ", help="début de la période (la semaine précédente par défaut)")
     rpa.add_argument("--fin", metavar="AAAA-MM-JJ", help="fin exclue (début + 7 jours par défaut)")
@@ -1537,6 +1850,39 @@ def build_parser() -> argparse.ArgumentParser:
     tf.add_argument("--sans-snyk", action="store_true", help="écarte l'analyse Snyk IaC (le résultat reste « incomplet » dans le compte rendu de l'issue)")
     tf.add_argument("--lock", action="store_true", help="régénère .terraform.lock.hcl (réseau nécessaire) au lieu de contrôler")
     tf.add_argument("--verbose", action="store_true", help="montre la sortie de chaque outil, pas seulement celle des échecs")
+    bd = add("bigdata-build", cmd_bigdata_build, "construit l'image du prototype Big Data, PySpark local (DAT-08, Docker)")
+    bd = add("bigdata", cmd_bigdata, "lance le prototype Big Data dans son image : generer, nettoyer, verifier, mesurer (Docker)")
+    bd.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
+    bd.add_argument("--memoire", default="6g", help="mémoire allouée au conteneur (6g par défaut)")
+    bd.add_argument("arguments", nargs=argparse.REMAINDER, help="arguments de « python -m bigdata », après -- (par exemple -- mesurer --jours 7)")
+    bdt = add("bigdata-test", cmd_bigdata_test, "tests du prototype Big Data dans son image (Docker)")
+    bdt.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
+    bdt.add_argument("--memoire", default="6g", help="mémoire allouée au conteneur (6g par défaut)")
+    ac = add("acces", cmd_acces, "essais d'autorisation et de refus : compare la matrice d'accès à l'API, PostgreSQL et MongoDB (CLD-18)")
+    ac.add_argument("--max-echecs", type=int, default=20, help="nombre d'échecs détaillés (20 par défaut)")
+    sv = add("sauvegarde", cmd_sauvegarde, "sauvegarde PostgreSQL et MongoDB avec manifeste, puis conservation par paliers (CLD-15)")
+    add("sauvegarde-liste", cmd_sauvegarde_liste, "liste les sauvegardes et ce que la politique de conservation supprimerait (CLD-15)")
+    rs = add("restauration", cmd_restauration, "restaure les dernières sauvegardes dans un environnement Docker isolé et compare les totaux (CLD-15)")
+    rs.add_argument("--postgres", metavar="FICHIER", help="nom d'un fichier .dump de backups/postgres (le dernier par défaut)")
+    rs.add_argument("--mongo", metavar="FICHIER", help="nom d'un fichier .archive.gz de backups/mongo (le dernier par défaut)")
+    rs.add_argument("--controles-negatifs", action="store_true", help="prouve ensuite que la vérification échoue sur un fichier altéré et sur un total faux")
+    sp = add("sauvegarde-planifier", cmd_sauvegarde_planifier, "planifie la sauvegarde sans cron : attend le créneau, rattrape un oubli (CLD-15)")
+    sp.add_argument("--heure", default="02:00", metavar="HH:MM", help="heure du poste (02:00 par défaut)")
+    sp.add_argument("--toutes-les", type=int, metavar="SECONDES", help="essai : une sauvegarde toutes les N secondes au lieu d'une par jour")
+    sp.add_argument("--executions", type=int, help="s'arrête après ce nombre de sauvegardes (essai)")
+    sp.add_argument("--sans-rattrapage", action="store_true", help="n'attend que le créneau, même si la dernière sauvegarde a plus de 24 h")
+    sp.add_argument("--verifier", action="store_true", help="après chaque sauvegarde, la restaure dans l'environnement isolé et compare les totaux")
+    ob = add("observatoire", cmd_observatoire, "interface graphique des pannes : arrêter un service, voir l'alarme, le journal et la cause (CLD-14)")
+    ob.add_argument("--port", type=int, default=8090, help="port local de l'interface (8090 par défaut)")
+    pa = add("panne", cmd_panne, "arrête un service, détecte la panne par l'alarme, retrace le journal et la cause, rétablit (CLD-14)")
+    pa.add_argument("service", help="service à arrêter (voir ops/alarmes.json), par exemple traitement ou collecte")
+    pa.add_argument("--trafic", action="store_true", help="lance le simulateur vers la collecte pendant l'essai (le tableau a alors du débit à montrer)")
+    pa.add_argument("--mode", choices=["stop", "pause"], default="stop", help="stop : arrêt du conteneur ; pause : service gelé, vivant mais muet")
+    pa.add_argument("--duree", type=int, default=70, help="secondes de panne avant le rétablissement (70 par défaut : laisse le journal de la passerelle montrer ses erreurs)")
+    pc = add("parcours", cmd_parcours, "rejoue le parcours de bout en bout et les cas d'échec sur la pile locale (CLD-13, la pile doit tourner)")
+    pc.add_argument("cas", nargs="*", help="cas à jouer (N1 à N6, E1 à E3) ; tous par défaut")
+    fc = add("flux-complet", cmd_flux_complet, "rejoue le flux complet (capteur simulé, collecte, traitement, alerte, recommandation, commande de feux) et les cas d'échec (MS-15, la pile doit tourner)")
+    fc.add_argument("cas", nargs="*", help="cas à jouer (N1 à N7, F1 à F6) ; tous par défaut (environ 10 minutes)")
     add("ps", cmd_ps, "état des conteneurs")
     logs = add("logs", cmd_logs, "suit les journaux")
     logs.add_argument("services", nargs="*", help="services (tous par défaut)")

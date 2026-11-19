@@ -11,6 +11,7 @@ import argparse
 import sys
 
 from entrainement import candidats, execution, rapport, tracabilite
+from stockage import ObjetAbsent
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -25,7 +26,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             rapport.ecrire()
             print(f"Écrit : {tracabilite.RAPPORT}")
-    except (tracabilite.ControleDeSecurite, candidats.SklearnAbsent, FileNotFoundError) as erreur:
+    except (tracabilite.ControleDeSecurite, candidats.SklearnAbsent, FileNotFoundError, ObjetAbsent) as erreur:
         print(f"Refusé : {erreur}", file=sys.stderr)
         return 1
     return 0

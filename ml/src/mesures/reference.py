@@ -15,6 +15,7 @@ from pathlib import Path
 from jeu_entrainement import catalogue, parquet
 from jeu_entrainement.fenetres import importer_le_moteur
 from jeu_entrainement.simulation import RACINE
+from stockage import ouvrir_magasin_de_jeu
 from mesures.metriques import Mesures, mesurer
 from preparation.donnees import EnsembleReserve  # noqa: F401 : la même exception pour tous les lecteurs du jeu
 
@@ -48,7 +49,7 @@ def charger(ensemble: str, dossier: Path = DOSSIER_JEU) -> dict[tuple[str, str],
         raise EnsembleReserve(
             f"« {ensemble} » est réservé à l'évaluation finale (IA-03) : lisibles ici, {', '.join(ENSEMBLES_LISIBLES)}"
         )
-    colonnes, lignes = parquet.lire(dossier / f"{ensemble}.parquet")
+    colonnes, lignes = parquet.decoder(ouvrir_magasin_de_jeu(dossier).get(f"{ensemble}.parquet"))
     noms = [c.nom for c in colonnes]
     positions = [noms.index(nom) for nom in COLONNES]
     series: dict[tuple[str, str], list[tuple]] = defaultdict(list)

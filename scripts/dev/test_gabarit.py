@@ -42,11 +42,12 @@ CODE_COMMUN = [
 # MS-12 : le format d'erreur (errors.py) de la collecte, de l'alerte et de la réponse, et la vérification des jetons
 # (auth.py) et les dépendances d'authentification des routes (api/security.py) de l'alerte et de la réponse. Le traitement a son propre errors.py (API métier, plus riche) : il n'est pas
 # une copie et n'est pas comparé, mais l'exclusion le couvre aussi (motif services/*/).
+# MS-16 : les métriques Prometheus (registre, intergiciel HTTP, /metrics) sont les mêmes dans les cinq services.
 CODE_PARTAGE = ["app/core/redaction.py", "app/core/unhandled.py", "app/core/errors.py", "app/core/auth.py",
-                "app/api/security.py"]
+                "app/api/security.py", "app/core/metrics.py", "tests/unit/test_metrics.py"]
 PAS_UNE_COPIE = {"app/core/errors.py": {"traitement"}}
 JOBS_OBLIGATOIRES = {"backend", "frontend", "gitleaks", "snyk", "docker", "sonarqube"}
-JOBS_D_APPUI = {"services", "service", "etl", "ml"}  # découverte des services, matrice (MS-05) et tests de data/etl, voir test_ci.py
+JOBS_D_APPUI = {"services", "service", "etl", "ml", "bigdata"}  # découverte des services, matrice (MS-05) et tests de data/etl, voir test_ci.py
 
 
 def lire(chemin: str) -> str:

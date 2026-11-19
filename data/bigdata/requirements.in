@@ -1,0 +1,2 @@
+# Dépendances du prototype Big Data (DAT-08). PySpark 4.1 : Java 17 ou 21. Versions de plus de deux semaines (PySpark 4.1.4 : 27/10/2026).
+pyspark==4.1.4

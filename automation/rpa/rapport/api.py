@@ -16,8 +16,20 @@ PAGE = 500
 MAX_PAGES = 200  # 100 000 fenêtres : au-delà, le rapport le dit au lieu de s'allonger sans fin
 
 
+STATUTS_TRANSITOIRES = frozenset({429, 502, 503, 504})  # l'API ou la passerelle est occupée ou redémarre : cela peut passer
+
+
 class ErreurApi(Exception):
-    """Un appel a échoué ; le message ne contient ni mot de passe ni jeton."""
+    """Un appel a échoué ; le message ne contient ni mot de passe ni jeton.
+
+    `transitoire` : une nouvelle tentative a une chance de réussir (API injoignable, délai dépassé, 429, 502, 503, 504).
+    Un mot de passe refusé (401), une route absente (404) ou une requête invalide (422) ne le sont **jamais** : les
+    rejouer ne changerait rien et masquerait une panne de configuration.
+    """
+
+    def __init__(self, message: str, *, transitoire: bool = False) -> None:
+        super().__init__(message)
+        self.transitoire = transitoire
 
 
 @dataclass(frozen=True)
@@ -36,7 +48,7 @@ def _envoyer(requete: urllib.request.Request) -> tuple[int, bytes]:
     except urllib.error.HTTPError as erreur:
         return erreur.code, erreur.read()
     except (urllib.error.URLError, TimeoutError, OSError) as erreur:
-        raise ErreurApi(f"API injoignable : {type(erreur).__name__}") from erreur
+        raise ErreurApi(f"API injoignable : {type(erreur).__name__}", transitoire=True) from erreur
 
 
 def _verifier_base(base: str) -> str:
@@ -53,7 +65,7 @@ def _json(statut: int, corps: bytes, action: str) -> dict:
         contenu = {}
     if statut != 200:
         code = contenu.get("code", "?") if isinstance(contenu, dict) else "?"
-        raise ErreurApi(f"{action} : réponse {statut} ({code})")
+        raise ErreurApi(f"{action} : réponse {statut} ({code})", transitoire=statut in STATUTS_TRANSITOIRES)
     if not isinstance(contenu, dict):
         raise ErreurApi(f"{action} : réponse inattendue")
     return contenu

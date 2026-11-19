@@ -36,6 +36,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Protocol
 
+from app.core.logs import bound_correlation
 from app.schemas.events import RejectedEvent
 from app.services.validation import SOURCE_TOPIC, Rejection, Valid, parse_utc, validate_measurement
 
@@ -127,10 +128,13 @@ class IngestionService:
         result = validate_measurement(body, max_bytes=self._max_bytes)
         if isinstance(result, Rejection):
             return self._reject(result, correlation_id)
-        return self._accept(result)
+        # Les lignes écrites pour cette mesure portent SON identifiant de corrélation (celui du
+        # message, repris par le flux), et `request_id` garde celui de la requête HTTP (MS-16).
+        with bound_correlation(result.event.get("correlation_id")):
+            return self._accept(result, correlation_id)
 
     # ------------------------------------------------------------------------------- mesure valide
-    def _accept(self, valid: Valid) -> Receipt:
+    def _accept(self, valid: Valid, request_id: str | None = None) -> Receipt:
         event_id = valid.event_id
         with self._locks(event_id):
             if self._raw_events.exists(event_id):
@@ -150,7 +154,10 @@ class IngestionService:
                 )
                 self._duplicate(event_id)
                 return Receipt(Outcome.DUPLICATE, event_id)
-        logger.info("mesure acceptée", extra={"fields": {"event_id": event_id, "topic": TOPIC_RAW}})
+        logger.info(
+            "mesure acceptée",
+            extra={"fields": {"event_id": event_id, "topic": TOPIC_RAW, "request_id": request_id}},
+        )
         return Receipt(Outcome.ACCEPTED, event_id)
 
     @staticmethod

@@ -8,10 +8,17 @@ chaque mesure en 503 plutôt que de la perdre.
 import threading
 from dataclasses import dataclass, field
 
+from app.adapters.guards import (
+    GuardedPublisher,
+    GuardedRawEvents,
+    GuardedRejects,
+    breaker,
+    observer_for,
+)
 from app.adapters.kafka_publisher import KafkaEventPublisher
 from app.adapters.mongo_store import MongoCollections, MongoRawEvents, MongoRejects
 from app.core.config import Settings, get_settings
-from app.services.ingestion import IngestionService, StoreFailed
+from app.services.ingestion import IngestionService, PublishFailed, StoreFailed
 
 
 class NotConfiguredStore:
@@ -35,10 +42,16 @@ class Components:
 
 
 def build_components(settings: Settings) -> Components:
-    publisher = KafkaEventPublisher(
+    kafka = KafkaEventPublisher(
         settings.kafka_bootstrap_servers, timeout_s=settings.kafka_publish_timeout_s
     )
-    closers = [publisher.close]
+    closers = [kafka.close]
+    limits = {
+        "failures": settings.circuit_failure_threshold,
+        "reset_s": settings.circuit_reset_timeout_s,
+    }
+    publisher = GuardedPublisher(kafka, breaker("kafka", trip_on=(PublishFailed,), **limits))
+    mongo_circuit = breaker("mongo", trip_on=(StoreFailed,), **limits)
     if settings.mongo_url is None:
         raw_events, rejects = NotConfiguredStore(), NotConfiguredStore()
     else:
@@ -47,7 +60,14 @@ def build_components(settings: Settings) -> Components:
             settings.mongo_db,
             timeout_ms=settings.mongo_timeout_ms,
         )
-        raw_events, rejects = MongoRawEvents(collections), MongoRejects(collections)
+        guard = (
+            mongo_circuit,
+            settings.mongo_retry_attempts,
+            settings.retry_base_s,
+            observer_for(),
+        )
+        raw_events = GuardedRawEvents(MongoRawEvents(collections), *guard)
+        rejects = GuardedRejects(MongoRejects(collections), *guard)
         closers.append(collections.close)
     service = IngestionService(publisher, raw_events, rejects, max_bytes=settings.max_body_bytes)
     return Components(service, closers)

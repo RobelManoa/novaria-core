@@ -23,6 +23,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+from app.core.logs import bound_correlation
+
 from .classifier import Hysteresis, advance
 from .cleaning import clean
 from .episodes import EpisodeTracker
@@ -192,6 +194,19 @@ class Processor:
         self._publisher.publish(TOPIC_INDICATORS, event["subject"], dumps(event))
         self.totals.counters["indicators_published"] += 1
         window = indicator.window
+        # L'identifiant de l'indicateur suit le message : le pipeline, l'alerte et la réponse
+        # le reprennent (MS-16).
+        with bound_correlation(event.get("correlation_id")):
+            logger.info(
+                "indicateur publié",
+                extra={
+                    "fields": {
+                        "event_id": event["id"],
+                        "topic": TOPIC_INDICATORS,
+                        "window_size_s": window.size_s,
+                    }
+                },
+            )
         if window.size_s == STATE_WINDOW_S:
             self._count("quality", window.start_ms, window.road_segment_id, "indicators_published")
 

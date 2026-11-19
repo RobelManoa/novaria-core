@@ -11,6 +11,8 @@
 | S'appuie sur | [ADR-002](ADR-002-postgresql-mongodb.md), [ADR-013](ADR-013-integration-donnees.md) |
 
 > **Mise à jour du 20/10/2026 ([ADR-023](ADR-023-execution-locale-d-abord.md)).** Le prototype Spark s'exécute en mode local (PySpark) ; le traitement sur EMR (Elastic MapReduce) est documenté, non exécuté ([ADR-025](ADR-025-equivalents-locaux-des-services-aws.md)).
+>
+> **Mise à jour du 15/11/2026 (DAT-08).** Le prototype est écrit et mesuré : [rapport](../../03-donnees/prototype-bigdata.md). Il suit le choix 4 : données simulées, PySpark local en conteneur, comparaison avec l'ETL Python, rapport « démontre / ne démontre pas ». La variante EMR Serverless reste décrite, non exécutée.
 
 ## 1. Problème
 

@@ -61,7 +61,7 @@ class JeuConstruit(unittest.TestCase):
     # --- Critère : aucun run_id commun entre entraînement et test ------------------------------------------
 
     def lire(self, jeu, ensemble):
-        return parquet.lire(jeu.dossier / f"{ensemble}.parquet")[1]
+        return parquet.decoder((jeu.dossier / f"{ensemble}.parquet").read_bytes())[1]
 
     def test_aucun_run_id_n_est_commun_entre_les_fichiers_ecrits(self):
         runs = {e: {ligne[0] for ligne in self.lire(self.a, e)} for e in cat.ENSEMBLES}
@@ -95,7 +95,7 @@ class JeuConstruit(unittest.TestCase):
 
     def test_les_fichiers_ont_les_colonnes_du_dictionnaire_et_le_nombre_de_lignes_du_manifeste(self):
         for ensemble in cat.ENSEMBLES:
-            colonnes, rows = parquet.lire(self.a.dossier / f"{ensemble}.parquet")
+            colonnes, rows = parquet.decoder((self.a.dossier / f"{ensemble}.parquet").read_bytes())
             self.assertEqual(colonnes, list(lignes.COLONNES))
             self.assertEqual(len(rows), self.a.manifeste["fichiers"][f"{ensemble}.parquet"]["lignes"])
             self.assertGreater(len(rows), 1000)
