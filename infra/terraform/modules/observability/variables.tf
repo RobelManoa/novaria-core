@@ -19,3 +19,9 @@ variable "retention_days" {
   type        = number
   default     = 14
 }
+
+variable "protected" {
+  description = "Vrai (défaut) : à la destruction, les groupes de journaux et leurs journaux sont conservés (`skip_destroy`). Faux : ils sont supprimés (environnement demo)."
+  type        = bool
+  default     = true
+}

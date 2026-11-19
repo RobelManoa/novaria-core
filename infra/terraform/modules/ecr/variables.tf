@@ -19,3 +19,14 @@ variable "force_delete" {
   type        = bool
   default     = false
 }
+
+variable "protected" {
+  description = "Vrai (défaut) : les dépôts sont protégés, `terraform destroy` échoue (`prevent_destroy`) et les images ne sont jamais purgées. Faux : dépôts jetables (environnement demo)."
+  type        = bool
+  default     = true
+
+  validation {
+    condition     = !(var.protected && var.force_delete)
+    error_message = "Un dépôt protégé ne peut pas avoir force_delete à vrai : la protection et la purge des images sont contradictoires."
+  }
+}

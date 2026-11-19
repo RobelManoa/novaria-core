@@ -1,0 +1,1198 @@
+# Terraform appliqué à l'émulateur d'API AWS Moto (local, Apache-2.0), environnement dev, puis plan rejoué. AWS n'est pas contacté.
+# Commande : python3 scripts/dev/dev.py terraform-emulateur --env dev --sortie <fichier>
+# Date : 2026-11-19 · Terraform 1.17.0 · image de l'émulateur motoserver/moto@sha256:59a1965d8452…
+# Réseau Docker interne, identifiants factices. C'est un ÉMULATEUR : ces sorties ne prouvent rien sur le comportement du vrai AWS.
+# Sortie de chaque commande, sans modification :
+
+## Étape 1 : init (réseau normal : fournisseur depuis le cache ou le registre)
+## Code de sortie : 0 · conforme
+
+Initializing modules...
+
+Initializing provider plugins...
+- Reusing version 6.72.0 of hashicorp/aws from the dependency lock file
+- Using previously-installed hashicorp/aws v6.72.0
+
+Terraform has been successfully initialized!
+
+
+## Étape 2 : apply : création dans l'émulateur
+## Code de sortie : 0 · conforme
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # module.ecr.aws_ecr_lifecycle_policy.service["alerte"] will be created
+  + resource "aws_ecr_lifecycle_policy" "service" {
+      + id          = (known after apply)
+      + policy      = jsonencode(
+            {
+              + rules = [
+                  + {
+                      + action       = {
+                          + type = "expire"
+                        }
+                      + description  = "Conserver les 20 dernières images"
+                      + rulePriority = 1
+                      + selection    = {
+                          + countNumber = 20
+                          + countType   = "imageCountMoreThan"
+                          + tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        )
+      + region      = "eu-west-1"
+      + registry_id = (known after apply)
+      + repository  = "novaria-dev-alerte"
+    }
+
+  # module.ecr.aws_ecr_lifecycle_policy.service["collecte"] will be created
+  + resource "aws_ecr_lifecycle_policy" "service" {
+      + id          = (known after apply)
+      + policy      = jsonencode(
+            {
+              + rules = [
+                  + {
+                      + action       = {
+                          + type = "expire"
+                        }
+                      + description  = "Conserver les 20 dernières images"
+                      + rulePriority = 1
+                      + selection    = {
+                          + countNumber = 20
+                          + countType   = "imageCountMoreThan"
+                          + tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        )
+      + region      = "eu-west-1"
+      + registry_id = (known after apply)
+      + repository  = "novaria-dev-collecte"
+    }
+
+  # module.ecr.aws_ecr_lifecycle_policy.service["frontend"] will be created
+  + resource "aws_ecr_lifecycle_policy" "service" {
+      + id          = (known after apply)
+      + policy      = jsonencode(
+            {
+              + rules = [
+                  + {
+                      + action       = {
+                          + type = "expire"
+                        }
+                      + description  = "Conserver les 20 dernières images"
+                      + rulePriority = 1
+                      + selection    = {
+                          + countNumber = 20
+                          + countType   = "imageCountMoreThan"
+                          + tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        )
+      + region      = "eu-west-1"
+      + registry_id = (known after apply)
+      + repository  = "novaria-dev-frontend"
+    }
+
+  # module.ecr.aws_ecr_lifecycle_policy.service["reponse"] will be created
+  + resource "aws_ecr_lifecycle_policy" "service" {
+      + id          = (known after apply)
+      + policy      = jsonencode(
+            {
+              + rules = [
+                  + {
+                      + action       = {
+                          + type = "expire"
+                        }
+                      + description  = "Conserver les 20 dernières images"
+                      + rulePriority = 1
+                      + selection    = {
+                          + countNumber = 20
+                          + countType   = "imageCountMoreThan"
+                          + tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        )
+      + region      = "eu-west-1"
+      + registry_id = (known after apply)
+      + repository  = "novaria-dev-reponse"
+    }
+
+  # module.ecr.aws_ecr_lifecycle_policy.service["traitement"] will be created
+  + resource "aws_ecr_lifecycle_policy" "service" {
+      + id          = (known after apply)
+      + policy      = jsonencode(
+            {
+              + rules = [
+                  + {
+                      + action       = {
+                          + type = "expire"
+                        }
+                      + description  = "Conserver les 20 dernières images"
+                      + rulePriority = 1
+                      + selection    = {
+                          + countNumber = 20
+                          + countType   = "imageCountMoreThan"
+                          + tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        )
+      + region      = "eu-west-1"
+      + registry_id = (known after apply)
+      + repository  = "novaria-dev-traitement"
+    }
+
+  # module.ecr.aws_ecr_repository.protected["alerte"] will be created
+  + resource "aws_ecr_repository" "protected" {
+      + arn                  = (known after apply)
+      + force_delete         = false
+      + id                   = (known after apply)
+      + image_tag_mutability = "IMMUTABLE"
+      + name                 = "novaria-dev-alerte"
+      + region               = "eu-west-1"
+      + registry_id          = (known after apply)
+      + repository_url       = (known after apply)
+      + tags_all             = {
+          + "env"          = "dev"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+
+      + encryption_configuration {
+          + encryption_type = "AES256"
+          + kms_key         = (known after apply)
+        }
+
+      + image_scanning_configuration {
+          + scan_on_push = true
+        }
+    }
+
+  # module.ecr.aws_ecr_repository.protected["collecte"] will be created
+  + resource "aws_ecr_repository" "protected" {
+      + arn                  = (known after apply)
+      + force_delete         = false
+      + id                   = (known after apply)
+      + image_tag_mutability = "IMMUTABLE"
+      + name                 = "novaria-dev-collecte"
+      + region               = "eu-west-1"
+      + registry_id          = (known after apply)
+      + repository_url       = (known after apply)
+      + tags_all             = {
+          + "env"          = "dev"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+
+      + encryption_configuration {
+          + encryption_type = "AES256"
+          + kms_key         = (known after apply)
+        }
+
+      + image_scanning_configuration {
+          + scan_on_push = true
+        }
+    }
+
+  # module.ecr.aws_ecr_repository.protected["frontend"] will be created
+  + resource "aws_ecr_repository" "protected" {
+      + arn                  = (known after apply)
+      + force_delete         = false
+      + id                   = (known after apply)
+      + image_tag_mutability = "IMMUTABLE"
+      + name                 = "novaria-dev-frontend"
+      + region               = "eu-west-1"
+      + registry_id          = (known after apply)
+      + repository_url       = (known after apply)
+      + tags_all             = {
+          + "env"          = "dev"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+
+      + encryption_configuration {
+          + encryption_type = "AES256"
+          + kms_key         = (known after apply)
+        }
+
+      + image_scanning_configuration {
+          + scan_on_push = true
+        }
+    }
+
+  # module.ecr.aws_ecr_repository.protected["reponse"] will be created
+  + resource "aws_ecr_repository" "protected" {
+      + arn                  = (known after apply)
+      + force_delete         = false
+      + id                   = (known after apply)
+      + image_tag_mutability = "IMMUTABLE"
+      + name                 = "novaria-dev-reponse"
+      + region               = "eu-west-1"
+      + registry_id          = (known after apply)
+      + repository_url       = (known after apply)
+      + tags_all             = {
+          + "env"          = "dev"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+
+      + encryption_configuration {
+          + encryption_type = "AES256"
+          + kms_key         = (known after apply)
+        }
+
+      + image_scanning_configuration {
+          + scan_on_push = true
+        }
+    }
+
+  # module.ecr.aws_ecr_repository.protected["traitement"] will be created
+  + resource "aws_ecr_repository" "protected" {
+      + arn                  = (known after apply)
+      + force_delete         = false
+      + id                   = (known after apply)
+      + image_tag_mutability = "IMMUTABLE"
+      + name                 = "novaria-dev-traitement"
+      + region               = "eu-west-1"
+      + registry_id          = (known after apply)
+      + repository_url       = (known after apply)
+      + tags_all             = {
+          + "env"          = "dev"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+
+      + encryption_configuration {
+          + encryption_type = "AES256"
+          + kms_key         = (known after apply)
+        }
+
+      + image_scanning_configuration {
+          + scan_on_push = true
+        }
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["alerte"] will be created
+  + resource "aws_cloudwatch_log_group" "service" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/novaria/dev/alerte"
+      + name_prefix                 = (known after apply)
+      + region                      = "eu-west-1"
+      + retention_in_days           = 14
+      + skip_destroy                = true
+      + tags_all                    = {
+          + "env"          = "dev"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["collecte"] will be created
+  + resource "aws_cloudwatch_log_group" "service" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/novaria/dev/collecte"
+      + name_prefix                 = (known after apply)
+      + region                      = "eu-west-1"
+      + retention_in_days           = 14
+      + skip_destroy                = true
+      + tags_all                    = {
+          + "env"          = "dev"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["frontend"] will be created
+  + resource "aws_cloudwatch_log_group" "service" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/novaria/dev/frontend"
+      + name_prefix                 = (known after apply)
+      + region                      = "eu-west-1"
+      + retention_in_days           = 14
+      + skip_destroy                = true
+      + tags_all                    = {
+          + "env"          = "dev"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["reponse"] will be created
+  + resource "aws_cloudwatch_log_group" "service" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/novaria/dev/reponse"
+      + name_prefix                 = (known after apply)
+      + region                      = "eu-west-1"
+      + retention_in_days           = 14
+      + skip_destroy                = true
+      + tags_all                    = {
+          + "env"          = "dev"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["traitement"] will be created
+  + resource "aws_cloudwatch_log_group" "service" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/novaria/dev/traitement"
+      + name_prefix                 = (known after apply)
+      + region                      = "eu-west-1"
+      + retention_in_days           = 14
+      + skip_destroy                = true
+      + tags_all                    = {
+          + "env"          = "dev"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+    }
+
+Plan: 15 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + ecr_repository_urls = {
+      + alerte     = (known after apply)
+      + collecte   = (known after apply)
+      + frontend   = (known after apply)
+      + reponse    = (known after apply)
+      + traitement = (known after apply)
+    }
+  + log_group_names     = {
+      + alerte     = "/novaria/dev/alerte"
+      + collecte   = "/novaria/dev/collecte"
+      + frontend   = "/novaria/dev/frontend"
+      + reponse    = "/novaria/dev/reponse"
+      + traitement = "/novaria/dev/traitement"
+    }
+module.observability.aws_cloudwatch_log_group.service["alerte"]: Creating...
+module.observability.aws_cloudwatch_log_group.service["collecte"]: Creating...
+module.observability.aws_cloudwatch_log_group.service["frontend"]: Creating...
+module.observability.aws_cloudwatch_log_group.service["traitement"]: Creating...
+module.ecr.aws_ecr_repository.protected["alerte"]: Creating...
+module.observability.aws_cloudwatch_log_group.service["reponse"]: Creating...
+module.ecr.aws_ecr_repository.protected["frontend"]: Creating...
+module.ecr.aws_ecr_repository.protected["traitement"]: Creating...
+module.ecr.aws_ecr_repository.protected["reponse"]: Creating...
+module.ecr.aws_ecr_repository.protected["collecte"]: Creating...
+module.observability.aws_cloudwatch_log_group.service["frontend"]: Creation complete after 1s [id=/novaria/dev/frontend]
+module.observability.aws_cloudwatch_log_group.service["collecte"]: Creation complete after 1s [id=/novaria/dev/collecte]
+module.observability.aws_cloudwatch_log_group.service["alerte"]: Creation complete after 1s [id=/novaria/dev/alerte]
+module.observability.aws_cloudwatch_log_group.service["traitement"]: Creation complete after 1s [id=/novaria/dev/traitement]
+module.observability.aws_cloudwatch_log_group.service["reponse"]: Creation complete after 1s [id=/novaria/dev/reponse]
+module.ecr.aws_ecr_repository.protected["reponse"]: Creation complete after 1s [id=novaria-dev-reponse]
+module.ecr.aws_ecr_repository.protected["collecte"]: Creation complete after 1s [id=novaria-dev-collecte]
+module.ecr.aws_ecr_repository.protected["alerte"]: Creation complete after 1s [id=novaria-dev-alerte]
+module.ecr.aws_ecr_repository.protected["frontend"]: Creation complete after 1s [id=novaria-dev-frontend]
+module.ecr.aws_ecr_repository.protected["traitement"]: Creation complete after 1s [id=novaria-dev-traitement]
+module.ecr.aws_ecr_lifecycle_policy.service["reponse"]: Creating...
+module.ecr.aws_ecr_lifecycle_policy.service["frontend"]: Creating...
+module.ecr.aws_ecr_lifecycle_policy.service["traitement"]: Creating...
+module.ecr.aws_ecr_lifecycle_policy.service["collecte"]: Creating...
+module.ecr.aws_ecr_lifecycle_policy.service["alerte"]: Creating...
+module.ecr.aws_ecr_lifecycle_policy.service["collecte"]: Creation complete after 0s [id=novaria-dev-collecte]
+module.ecr.aws_ecr_lifecycle_policy.service["alerte"]: Creation complete after 0s [id=novaria-dev-alerte]
+module.ecr.aws_ecr_lifecycle_policy.service["frontend"]: Creation complete after 0s [id=novaria-dev-frontend]
+module.ecr.aws_ecr_lifecycle_policy.service["traitement"]: Creation complete after 0s [id=novaria-dev-traitement]
+module.ecr.aws_ecr_lifecycle_policy.service["reponse"]: Creation complete after 0s [id=novaria-dev-reponse]
+
+Apply complete! Resources: 15 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+ecr_repository_urls = {
+  "alerte" = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-alerte"
+  "collecte" = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-collecte"
+  "frontend" = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-frontend"
+  "reponse" = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-reponse"
+  "traitement" = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-traitement"
+}
+log_group_names = {
+  "alerte" = "/novaria/dev/alerte"
+  "collecte" = "/novaria/dev/collecte"
+  "frontend" = "/novaria/dev/frontend"
+  "reponse" = "/novaria/dev/reponse"
+  "traitement" = "/novaria/dev/traitement"
+}
+
+
+## Étape 3 : SECOND PLAN : doit indiquer 0 changement
+## Code de sortie : 0 · conforme
+
+module.ecr.aws_ecr_repository.protected["reponse"]: Refreshing state... [id=novaria-dev-reponse]
+module.observability.aws_cloudwatch_log_group.service["alerte"]: Refreshing state... [id=/novaria/dev/alerte]
+module.observability.aws_cloudwatch_log_group.service["collecte"]: Refreshing state... [id=/novaria/dev/collecte]
+module.ecr.aws_ecr_repository.protected["traitement"]: Refreshing state... [id=novaria-dev-traitement]
+module.observability.aws_cloudwatch_log_group.service["reponse"]: Refreshing state... [id=/novaria/dev/reponse]
+module.ecr.aws_ecr_repository.protected["collecte"]: Refreshing state... [id=novaria-dev-collecte]
+module.ecr.aws_ecr_repository.protected["alerte"]: Refreshing state... [id=novaria-dev-alerte]
+module.observability.aws_cloudwatch_log_group.service["traitement"]: Refreshing state... [id=/novaria/dev/traitement]
+module.ecr.aws_ecr_repository.protected["frontend"]: Refreshing state... [id=novaria-dev-frontend]
+module.observability.aws_cloudwatch_log_group.service["frontend"]: Refreshing state... [id=/novaria/dev/frontend]
+module.ecr.aws_ecr_lifecycle_policy.service["frontend"]: Refreshing state... [id=novaria-dev-frontend]
+module.ecr.aws_ecr_lifecycle_policy.service["reponse"]: Refreshing state... [id=novaria-dev-reponse]
+module.ecr.aws_ecr_lifecycle_policy.service["collecte"]: Refreshing state... [id=novaria-dev-collecte]
+module.ecr.aws_ecr_lifecycle_policy.service["traitement"]: Refreshing state... [id=novaria-dev-traitement]
+module.ecr.aws_ecr_lifecycle_policy.service["alerte"]: Refreshing state... [id=novaria-dev-alerte]
+
+No changes. Your infrastructure matches the configuration.
+
+Terraform has compared your real infrastructure against your configuration
+and found no differences, so no changes are needed.
+
+
+## Étape 4 : dérive : un groupe de journaux est modifié hors Terraform (30 jours au lieu de la valeur du code)
+## Code de sortie : 0 · conforme
+
+
+
+
+## Étape 5 : plan après la dérive : doit voir 1 changement (le contrôle sait échouer)
+## Code de sortie : 2 · conforme
+
+module.ecr.aws_ecr_repository.protected["traitement"]: Refreshing state... [id=novaria-dev-traitement]
+module.ecr.aws_ecr_repository.protected["frontend"]: Refreshing state... [id=novaria-dev-frontend]
+module.observability.aws_cloudwatch_log_group.service["frontend"]: Refreshing state... [id=/novaria/dev/frontend]
+module.ecr.aws_ecr_repository.protected["collecte"]: Refreshing state... [id=novaria-dev-collecte]
+module.ecr.aws_ecr_repository.protected["alerte"]: Refreshing state... [id=novaria-dev-alerte]
+module.observability.aws_cloudwatch_log_group.service["reponse"]: Refreshing state... [id=/novaria/dev/reponse]
+module.ecr.aws_ecr_repository.protected["reponse"]: Refreshing state... [id=novaria-dev-reponse]
+module.observability.aws_cloudwatch_log_group.service["collecte"]: Refreshing state... [id=/novaria/dev/collecte]
+module.observability.aws_cloudwatch_log_group.service["traitement"]: Refreshing state... [id=/novaria/dev/traitement]
+module.observability.aws_cloudwatch_log_group.service["alerte"]: Refreshing state... [id=/novaria/dev/alerte]
+module.ecr.aws_ecr_lifecycle_policy.service["traitement"]: Refreshing state... [id=novaria-dev-traitement]
+module.ecr.aws_ecr_lifecycle_policy.service["reponse"]: Refreshing state... [id=novaria-dev-reponse]
+module.ecr.aws_ecr_lifecycle_policy.service["alerte"]: Refreshing state... [id=novaria-dev-alerte]
+module.ecr.aws_ecr_lifecycle_policy.service["collecte"]: Refreshing state... [id=novaria-dev-collecte]
+module.ecr.aws_ecr_lifecycle_policy.service["frontend"]: Refreshing state... [id=novaria-dev-frontend]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  ~ update in-place
+
+Terraform will perform the following actions:
+
+  # module.observability.aws_cloudwatch_log_group.service["alerte"] will be updated in-place
+  ~ resource "aws_cloudwatch_log_group" "service" {
+        id                          = "/novaria/dev/alerte"
+        name                        = "/novaria/dev/alerte"
+      ~ retention_in_days           = 30 -> 14
+        tags                        = {}
+        # (8 unchanged attributes hidden)
+    }
+
+Plan: 0 to add, 1 to change, 0 to destroy.
+
+
+## Étape 6 : apply de correction
+## Code de sortie : 0 · conforme
+
+module.ecr.aws_ecr_repository.protected["reponse"]: Refreshing state... [id=novaria-dev-reponse]
+module.observability.aws_cloudwatch_log_group.service["alerte"]: Refreshing state... [id=/novaria/dev/alerte]
+module.observability.aws_cloudwatch_log_group.service["traitement"]: Refreshing state... [id=/novaria/dev/traitement]
+module.ecr.aws_ecr_repository.protected["collecte"]: Refreshing state... [id=novaria-dev-collecte]
+module.observability.aws_cloudwatch_log_group.service["frontend"]: Refreshing state... [id=/novaria/dev/frontend]
+module.observability.aws_cloudwatch_log_group.service["reponse"]: Refreshing state... [id=/novaria/dev/reponse]
+module.observability.aws_cloudwatch_log_group.service["collecte"]: Refreshing state... [id=/novaria/dev/collecte]
+module.ecr.aws_ecr_repository.protected["alerte"]: Refreshing state... [id=novaria-dev-alerte]
+module.ecr.aws_ecr_repository.protected["frontend"]: Refreshing state... [id=novaria-dev-frontend]
+module.ecr.aws_ecr_repository.protected["traitement"]: Refreshing state... [id=novaria-dev-traitement]
+module.ecr.aws_ecr_lifecycle_policy.service["alerte"]: Refreshing state... [id=novaria-dev-alerte]
+module.ecr.aws_ecr_lifecycle_policy.service["frontend"]: Refreshing state... [id=novaria-dev-frontend]
+module.ecr.aws_ecr_lifecycle_policy.service["traitement"]: Refreshing state... [id=novaria-dev-traitement]
+module.ecr.aws_ecr_lifecycle_policy.service["collecte"]: Refreshing state... [id=novaria-dev-collecte]
+module.ecr.aws_ecr_lifecycle_policy.service["reponse"]: Refreshing state... [id=novaria-dev-reponse]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  ~ update in-place
+
+Terraform will perform the following actions:
+
+  # module.observability.aws_cloudwatch_log_group.service["alerte"] will be updated in-place
+  ~ resource "aws_cloudwatch_log_group" "service" {
+        id                          = "/novaria/dev/alerte"
+        name                        = "/novaria/dev/alerte"
+      ~ retention_in_days           = 30 -> 14
+        tags                        = {}
+        # (8 unchanged attributes hidden)
+    }
+
+Plan: 0 to add, 1 to change, 0 to destroy.
+module.observability.aws_cloudwatch_log_group.service["alerte"]: Modifying... [id=/novaria/dev/alerte]
+module.observability.aws_cloudwatch_log_group.service["alerte"]: Modifications complete after 0s [id=/novaria/dev/alerte]
+
+Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
+
+Outputs:
+
+ecr_repository_urls = {
+  "alerte" = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-alerte"
+  "collecte" = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-collecte"
+  "frontend" = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-frontend"
+  "reponse" = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-reponse"
+  "traitement" = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-traitement"
+}
+log_group_names = {
+  "alerte" = "/novaria/dev/alerte"
+  "collecte" = "/novaria/dev/collecte"
+  "frontend" = "/novaria/dev/frontend"
+  "reponse" = "/novaria/dev/reponse"
+  "traitement" = "/novaria/dev/traitement"
+}
+
+
+## Étape 7 : SECOND PLAN après correction : de nouveau 0 changement
+## Code de sortie : 0 · conforme
+
+module.ecr.aws_ecr_repository.protected["alerte"]: Refreshing state... [id=novaria-dev-alerte]
+module.observability.aws_cloudwatch_log_group.service["traitement"]: Refreshing state... [id=/novaria/dev/traitement]
+module.observability.aws_cloudwatch_log_group.service["collecte"]: Refreshing state... [id=/novaria/dev/collecte]
+module.ecr.aws_ecr_repository.protected["traitement"]: Refreshing state... [id=novaria-dev-traitement]
+module.observability.aws_cloudwatch_log_group.service["reponse"]: Refreshing state... [id=/novaria/dev/reponse]
+module.observability.aws_cloudwatch_log_group.service["alerte"]: Refreshing state... [id=/novaria/dev/alerte]
+module.ecr.aws_ecr_repository.protected["frontend"]: Refreshing state... [id=novaria-dev-frontend]
+module.ecr.aws_ecr_repository.protected["reponse"]: Refreshing state... [id=novaria-dev-reponse]
+module.observability.aws_cloudwatch_log_group.service["frontend"]: Refreshing state... [id=/novaria/dev/frontend]
+module.ecr.aws_ecr_repository.protected["collecte"]: Refreshing state... [id=novaria-dev-collecte]
+module.ecr.aws_ecr_lifecycle_policy.service["reponse"]: Refreshing state... [id=novaria-dev-reponse]
+module.ecr.aws_ecr_lifecycle_policy.service["traitement"]: Refreshing state... [id=novaria-dev-traitement]
+module.ecr.aws_ecr_lifecycle_policy.service["frontend"]: Refreshing state... [id=novaria-dev-frontend]
+module.ecr.aws_ecr_lifecycle_policy.service["collecte"]: Refreshing state... [id=novaria-dev-collecte]
+module.ecr.aws_ecr_lifecycle_policy.service["alerte"]: Refreshing state... [id=novaria-dev-alerte]
+
+No changes. Your infrastructure matches the configuration.
+
+Terraform has compared your real infrastructure against your configuration
+and found no differences, so no changes are needed.
+
+
+## Étape 8 : destroy complet : refusé (dépôts protégés, sur un vrai état)
+## Code de sortie : 1 · conforme
+
+module.observability.aws_cloudwatch_log_group.service["collecte"]: Refreshing state... [id=/novaria/dev/collecte]
+module.observability.aws_cloudwatch_log_group.service["reponse"]: Refreshing state... [id=/novaria/dev/reponse]
+module.ecr.aws_ecr_repository.protected["alerte"]: Refreshing state... [id=novaria-dev-alerte]
+module.observability.aws_cloudwatch_log_group.service["frontend"]: Refreshing state... [id=/novaria/dev/frontend]
+module.observability.aws_cloudwatch_log_group.service["traitement"]: Refreshing state... [id=/novaria/dev/traitement]
+module.ecr.aws_ecr_repository.protected["frontend"]: Refreshing state... [id=novaria-dev-frontend]
+module.ecr.aws_ecr_repository.protected["traitement"]: Refreshing state... [id=novaria-dev-traitement]
+module.ecr.aws_ecr_repository.protected["collecte"]: Refreshing state... [id=novaria-dev-collecte]
+module.ecr.aws_ecr_repository.protected["reponse"]: Refreshing state... [id=novaria-dev-reponse]
+module.observability.aws_cloudwatch_log_group.service["alerte"]: Refreshing state... [id=/novaria/dev/alerte]
+module.ecr.aws_ecr_lifecycle_policy.service["traitement"]: Refreshing state... [id=novaria-dev-traitement]
+module.ecr.aws_ecr_lifecycle_policy.service["frontend"]: Refreshing state... [id=novaria-dev-frontend]
+module.ecr.aws_ecr_lifecycle_policy.service["alerte"]: Refreshing state... [id=novaria-dev-alerte]
+module.ecr.aws_ecr_lifecycle_policy.service["collecte"]: Refreshing state... [id=novaria-dev-collecte]
+module.ecr.aws_ecr_lifecycle_policy.service["reponse"]: Refreshing state... [id=novaria-dev-reponse]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  - destroy
+
+Terraform planned the following actions, but then encountered a problem:
+
+  # module.ecr.aws_ecr_lifecycle_policy.service["alerte"] will be destroyed
+  - resource "aws_ecr_lifecycle_policy" "service" {
+      - id          = "novaria-dev-alerte" -> null
+      - policy      = jsonencode(
+            {
+              - rules = [
+                  - {
+                      - action       = {
+                          - type = "expire"
+                        }
+                      - description  = "Conserver les 20 dernières images"
+                      - rulePriority = 1
+                      - selection    = {
+                          - countNumber = 20
+                          - countType   = "imageCountMoreThan"
+                          - tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        ) -> null
+      - region      = "eu-west-1" -> null
+      - registry_id = "123456789012" -> null
+      - repository  = "novaria-dev-alerte" -> null
+    }
+
+  # module.ecr.aws_ecr_lifecycle_policy.service["collecte"] will be destroyed
+  - resource "aws_ecr_lifecycle_policy" "service" {
+      - id          = "novaria-dev-collecte" -> null
+      - policy      = jsonencode(
+            {
+              - rules = [
+                  - {
+                      - action       = {
+                          - type = "expire"
+                        }
+                      - description  = "Conserver les 20 dernières images"
+                      - rulePriority = 1
+                      - selection    = {
+                          - countNumber = 20
+                          - countType   = "imageCountMoreThan"
+                          - tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        ) -> null
+      - region      = "eu-west-1" -> null
+      - registry_id = "123456789012" -> null
+      - repository  = "novaria-dev-collecte" -> null
+    }
+
+  # module.ecr.aws_ecr_lifecycle_policy.service["frontend"] will be destroyed
+  - resource "aws_ecr_lifecycle_policy" "service" {
+      - id          = "novaria-dev-frontend" -> null
+      - policy      = jsonencode(
+            {
+              - rules = [
+                  - {
+                      - action       = {
+                          - type = "expire"
+                        }
+                      - description  = "Conserver les 20 dernières images"
+                      - rulePriority = 1
+                      - selection    = {
+                          - countNumber = 20
+                          - countType   = "imageCountMoreThan"
+                          - tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        ) -> null
+      - region      = "eu-west-1" -> null
+      - registry_id = "123456789012" -> null
+      - repository  = "novaria-dev-frontend" -> null
+    }
+
+  # module.ecr.aws_ecr_lifecycle_policy.service["reponse"] will be destroyed
+  - resource "aws_ecr_lifecycle_policy" "service" {
+      - id          = "novaria-dev-reponse" -> null
+      - policy      = jsonencode(
+            {
+              - rules = [
+                  - {
+                      - action       = {
+                          - type = "expire"
+                        }
+                      - description  = "Conserver les 20 dernières images"
+                      - rulePriority = 1
+                      - selection    = {
+                          - countNumber = 20
+                          - countType   = "imageCountMoreThan"
+                          - tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        ) -> null
+      - region      = "eu-west-1" -> null
+      - registry_id = "123456789012" -> null
+      - repository  = "novaria-dev-reponse" -> null
+    }
+
+  # module.ecr.aws_ecr_lifecycle_policy.service["traitement"] will be destroyed
+  - resource "aws_ecr_lifecycle_policy" "service" {
+      - id          = "novaria-dev-traitement" -> null
+      - policy      = jsonencode(
+            {
+              - rules = [
+                  - {
+                      - action       = {
+                          - type = "expire"
+                        }
+                      - description  = "Conserver les 20 dernières images"
+                      - rulePriority = 1
+                      - selection    = {
+                          - countNumber = 20
+                          - countType   = "imageCountMoreThan"
+                          - tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        ) -> null
+      - region      = "eu-west-1" -> null
+      - registry_id = "123456789012" -> null
+      - repository  = "novaria-dev-traitement" -> null
+    }
+
+  # module.ecr.aws_ecr_repository.protected["alerte"] will be destroyed
+  - resource "aws_ecr_repository" "protected" {
+      - arn                  = "arn:aws:ecr:eu-west-1:123456789012:repository/novaria-dev-alerte" -> null
+      - force_delete         = false -> null
+      - id                   = "novaria-dev-alerte" -> null
+      - image_tag_mutability = "IMMUTABLE" -> null
+      - name                 = "novaria-dev-alerte" -> null
+      - region               = "eu-west-1" -> null
+      - registry_id          = "123456789012" -> null
+      - repository_url       = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-alerte" -> null
+      - tags                 = {} -> null
+      - tags_all             = {
+          - "env"          = "dev"
+          - "projet"       = "novaria"
+          - "proprietaire" = "binome-novaria"
+        } -> null
+
+      - encryption_configuration {
+          - encryption_type = "AES256" -> null
+            # (1 unchanged attribute hidden)
+        }
+
+      - image_scanning_configuration {
+          - scan_on_push = true -> null
+        }
+    }
+
+  # module.ecr.aws_ecr_repository.protected["collecte"] will be destroyed
+  - resource "aws_ecr_repository" "protected" {
+      - arn                  = "arn:aws:ecr:eu-west-1:123456789012:repository/novaria-dev-collecte" -> null
+      - force_delete         = false -> null
+      - id                   = "novaria-dev-collecte" -> null
+      - image_tag_mutability = "IMMUTABLE" -> null
+      - name                 = "novaria-dev-collecte" -> null
+      - region               = "eu-west-1" -> null
+      - registry_id          = "123456789012" -> null
+      - repository_url       = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-collecte" -> null
+      - tags                 = {} -> null
+      - tags_all             = {
+          - "env"          = "dev"
+          - "projet"       = "novaria"
+          - "proprietaire" = "binome-novaria"
+        } -> null
+
+      - encryption_configuration {
+          - encryption_type = "AES256" -> null
+            # (1 unchanged attribute hidden)
+        }
+
+      - image_scanning_configuration {
+          - scan_on_push = true -> null
+        }
+    }
+
+  # module.ecr.aws_ecr_repository.protected["frontend"] will be destroyed
+  - resource "aws_ecr_repository" "protected" {
+      - arn                  = "arn:aws:ecr:eu-west-1:123456789012:repository/novaria-dev-frontend" -> null
+      - force_delete         = false -> null
+      - id                   = "novaria-dev-frontend" -> null
+      - image_tag_mutability = "IMMUTABLE" -> null
+      - name                 = "novaria-dev-frontend" -> null
+      - region               = "eu-west-1" -> null
+      - registry_id          = "123456789012" -> null
+      - repository_url       = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-frontend" -> null
+      - tags                 = {} -> null
+      - tags_all             = {
+          - "env"          = "dev"
+          - "projet"       = "novaria"
+          - "proprietaire" = "binome-novaria"
+        } -> null
+
+      - encryption_configuration {
+          - encryption_type = "AES256" -> null
+            # (1 unchanged attribute hidden)
+        }
+
+      - image_scanning_configuration {
+          - scan_on_push = true -> null
+        }
+    }
+
+  # module.ecr.aws_ecr_repository.protected["reponse"] will be destroyed
+  - resource "aws_ecr_repository" "protected" {
+      - arn                  = "arn:aws:ecr:eu-west-1:123456789012:repository/novaria-dev-reponse" -> null
+      - force_delete         = false -> null
+      - id                   = "novaria-dev-reponse" -> null
+      - image_tag_mutability = "IMMUTABLE" -> null
+      - name                 = "novaria-dev-reponse" -> null
+      - region               = "eu-west-1" -> null
+      - registry_id          = "123456789012" -> null
+      - repository_url       = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-reponse" -> null
+      - tags                 = {} -> null
+      - tags_all             = {
+          - "env"          = "dev"
+          - "projet"       = "novaria"
+          - "proprietaire" = "binome-novaria"
+        } -> null
+
+      - encryption_configuration {
+          - encryption_type = "AES256" -> null
+            # (1 unchanged attribute hidden)
+        }
+
+      - image_scanning_configuration {
+          - scan_on_push = true -> null
+        }
+    }
+
+  # module.ecr.aws_ecr_repository.protected["traitement"] will be destroyed
+  - resource "aws_ecr_repository" "protected" {
+      - arn                  = "arn:aws:ecr:eu-west-1:123456789012:repository/novaria-dev-traitement" -> null
+      - force_delete         = false -> null
+      - id                   = "novaria-dev-traitement" -> null
+      - image_tag_mutability = "IMMUTABLE" -> null
+      - name                 = "novaria-dev-traitement" -> null
+      - region               = "eu-west-1" -> null
+      - registry_id          = "123456789012" -> null
+      - repository_url       = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-traitement" -> null
+      - tags                 = {} -> null
+      - tags_all             = {
+          - "env"          = "dev"
+          - "projet"       = "novaria"
+          - "proprietaire" = "binome-novaria"
+        } -> null
+
+      - encryption_configuration {
+          - encryption_type = "AES256" -> null
+            # (1 unchanged attribute hidden)
+        }
+
+      - image_scanning_configuration {
+          - scan_on_push = true -> null
+        }
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["alerte"] will be destroyed
+  - resource "aws_cloudwatch_log_group" "service" {
+      - arn                         = "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/alerte" -> null
+      - deletion_protection_enabled = false -> null
+      - id                          = "/novaria/dev/alerte" -> null
+      - name                        = "/novaria/dev/alerte" -> null
+      - region                      = "eu-west-1" -> null
+      - retention_in_days           = 14 -> null
+      - skip_destroy                = true -> null
+      - tags                        = {} -> null
+      - tags_all                    = {
+          - "env"          = "dev"
+          - "projet"       = "novaria"
+          - "proprietaire" = "binome-novaria"
+        } -> null
+        # (3 unchanged attributes hidden)
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["collecte"] will be destroyed
+  - resource "aws_cloudwatch_log_group" "service" {
+      - arn                         = "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/collecte" -> null
+      - deletion_protection_enabled = false -> null
+      - id                          = "/novaria/dev/collecte" -> null
+      - name                        = "/novaria/dev/collecte" -> null
+      - region                      = "eu-west-1" -> null
+      - retention_in_days           = 14 -> null
+      - skip_destroy                = true -> null
+      - tags                        = {} -> null
+      - tags_all                    = {
+          - "env"          = "dev"
+          - "projet"       = "novaria"
+          - "proprietaire" = "binome-novaria"
+        } -> null
+        # (3 unchanged attributes hidden)
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["frontend"] will be destroyed
+  - resource "aws_cloudwatch_log_group" "service" {
+      - arn                         = "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/frontend" -> null
+      - deletion_protection_enabled = false -> null
+      - id                          = "/novaria/dev/frontend" -> null
+      - name                        = "/novaria/dev/frontend" -> null
+      - region                      = "eu-west-1" -> null
+      - retention_in_days           = 14 -> null
+      - skip_destroy                = true -> null
+      - tags                        = {} -> null
+      - tags_all                    = {
+          - "env"          = "dev"
+          - "projet"       = "novaria"
+          - "proprietaire" = "binome-novaria"
+        } -> null
+        # (3 unchanged attributes hidden)
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["reponse"] will be destroyed
+  - resource "aws_cloudwatch_log_group" "service" {
+      - arn                         = "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/reponse" -> null
+      - deletion_protection_enabled = false -> null
+      - id                          = "/novaria/dev/reponse" -> null
+      - name                        = "/novaria/dev/reponse" -> null
+      - region                      = "eu-west-1" -> null
+      - retention_in_days           = 14 -> null
+      - skip_destroy                = true -> null
+      - tags                        = {} -> null
+      - tags_all                    = {
+          - "env"          = "dev"
+          - "projet"       = "novaria"
+          - "proprietaire" = "binome-novaria"
+        } -> null
+        # (3 unchanged attributes hidden)
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["traitement"] will be destroyed
+  - resource "aws_cloudwatch_log_group" "service" {
+      - arn                         = "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/traitement" -> null
+      - deletion_protection_enabled = false -> null
+      - id                          = "/novaria/dev/traitement" -> null
+      - name                        = "/novaria/dev/traitement" -> null
+      - region                      = "eu-west-1" -> null
+      - retention_in_days           = 14 -> null
+      - skip_destroy                = true -> null
+      - tags                        = {} -> null
+      - tags_all                    = {
+          - "env"          = "dev"
+          - "projet"       = "novaria"
+          - "proprietaire" = "binome-novaria"
+        } -> null
+        # (3 unchanged attributes hidden)
+    }
+
+Plan: 0 to add, 0 to change, 15 to destroy.
+
+Changes to Outputs:
+  - ecr_repository_urls = {
+      - alerte     = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-alerte"
+      - collecte   = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-collecte"
+      - frontend   = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-frontend"
+      - reponse    = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-reponse"
+      - traitement = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-traitement"
+    } -> null
+  - log_group_names     = {
+      - alerte     = "/novaria/dev/alerte"
+      - collecte   = "/novaria/dev/collecte"
+      - frontend   = "/novaria/dev/frontend"
+      - reponse    = "/novaria/dev/reponse"
+      - traitement = "/novaria/dev/traitement"
+    } -> null
+
+Error: Instance cannot be destroyed
+
+  on ../../modules/ecr/main.tf line 9:
+   9: resource "aws_ecr_repository" "protected" {
+
+Resource module.ecr.aws_ecr_repository.protected["collecte"] has
+lifecycle.prevent_destroy set, but the plan calls for this resource to be
+destroyed. To avoid this error and continue with the plan, either disable
+lifecycle.prevent_destroy or reduce the scope of the plan using the -target
+option.
+
+Error: Instance cannot be destroyed
+
+  on ../../modules/ecr/main.tf line 9:
+   9: resource "aws_ecr_repository" "protected" {
+
+Resource module.ecr.aws_ecr_repository.protected["traitement"] has
+lifecycle.prevent_destroy set, but the plan calls for this resource to be
+destroyed. To avoid this error and continue with the plan, either disable
+lifecycle.prevent_destroy or reduce the scope of the plan using the -target
+option.
+
+Error: Instance cannot be destroyed
+
+  on ../../modules/ecr/main.tf line 9:
+   9: resource "aws_ecr_repository" "protected" {
+
+Resource module.ecr.aws_ecr_repository.protected["reponse"] has
+lifecycle.prevent_destroy set, but the plan calls for this resource to be
+destroyed. To avoid this error and continue with the plan, either disable
+lifecycle.prevent_destroy or reduce the scope of the plan using the -target
+option.
+
+Error: Instance cannot be destroyed
+
+  on ../../modules/ecr/main.tf line 9:
+   9: resource "aws_ecr_repository" "protected" {
+
+Resource module.ecr.aws_ecr_repository.protected["frontend"] has
+lifecycle.prevent_destroy set, but the plan calls for this resource to be
+destroyed. To avoid this error and continue with the plan, either disable
+lifecycle.prevent_destroy or reduce the scope of the plan using the -target
+option.
+
+Error: Instance cannot be destroyed
+
+  on ../../modules/ecr/main.tf line 9:
+   9: resource "aws_ecr_repository" "protected" {
+
+Resource module.ecr.aws_ecr_repository.protected["alerte"] has
+lifecycle.prevent_destroy set, but the plan calls for this resource to be
+destroyed. To avoid this error and continue with the plan, either disable
+lifecycle.prevent_destroy or reduce the scope of the plan using the -target
+option.
+
+
+## Étape 9 : destroy des journaux seuls (skip_destroy) : ils sortent de l'état
+## Code de sortie : 0 · conforme
+
+module.observability.aws_cloudwatch_log_group.service["collecte"]: Refreshing state... [id=/novaria/dev/collecte]
+module.observability.aws_cloudwatch_log_group.service["reponse"]: Refreshing state... [id=/novaria/dev/reponse]
+module.observability.aws_cloudwatch_log_group.service["frontend"]: Refreshing state... [id=/novaria/dev/frontend]
+module.observability.aws_cloudwatch_log_group.service["traitement"]: Refreshing state... [id=/novaria/dev/traitement]
+module.observability.aws_cloudwatch_log_group.service["alerte"]: Refreshing state... [id=/novaria/dev/alerte]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  - destroy
+
+Terraform will perform the following actions:
+
+  # module.observability.aws_cloudwatch_log_group.service["alerte"] will be destroyed
+  - resource "aws_cloudwatch_log_group" "service" {
+      - arn                         = "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/alerte" -> null
+      - deletion_protection_enabled = false -> null
+      - id                          = "/novaria/dev/alerte" -> null
+      - name                        = "/novaria/dev/alerte" -> null
+      - region                      = "eu-west-1" -> null
+      - retention_in_days           = 14 -> null
+      - skip_destroy                = true -> null
+      - tags                        = {} -> null
+      - tags_all                    = {
+          - "env"          = "dev"
+          - "projet"       = "novaria"
+          - "proprietaire" = "binome-novaria"
+        } -> null
+        # (3 unchanged attributes hidden)
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["collecte"] will be destroyed
+  - resource "aws_cloudwatch_log_group" "service" {
+      - arn                         = "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/collecte" -> null
+      - deletion_protection_enabled = false -> null
+      - id                          = "/novaria/dev/collecte" -> null
+      - name                        = "/novaria/dev/collecte" -> null
+      - region                      = "eu-west-1" -> null
+      - retention_in_days           = 14 -> null
+      - skip_destroy                = true -> null
+      - tags                        = {} -> null
+      - tags_all                    = {
+          - "env"          = "dev"
+          - "projet"       = "novaria"
+          - "proprietaire" = "binome-novaria"
+        } -> null
+        # (3 unchanged attributes hidden)
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["frontend"] will be destroyed
+  - resource "aws_cloudwatch_log_group" "service" {
+      - arn                         = "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/frontend" -> null
+      - deletion_protection_enabled = false -> null
+      - id                          = "/novaria/dev/frontend" -> null
+      - name                        = "/novaria/dev/frontend" -> null
+      - region                      = "eu-west-1" -> null
+      - retention_in_days           = 14 -> null
+      - skip_destroy                = true -> null
+      - tags                        = {} -> null
+      - tags_all                    = {
+          - "env"          = "dev"
+          - "projet"       = "novaria"
+          - "proprietaire" = "binome-novaria"
+        } -> null
+        # (3 unchanged attributes hidden)
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["reponse"] will be destroyed
+  - resource "aws_cloudwatch_log_group" "service" {
+      - arn                         = "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/reponse" -> null
+      - deletion_protection_enabled = false -> null
+      - id                          = "/novaria/dev/reponse" -> null
+      - name                        = "/novaria/dev/reponse" -> null
+      - region                      = "eu-west-1" -> null
+      - retention_in_days           = 14 -> null
+      - skip_destroy                = true -> null
+      - tags                        = {} -> null
+      - tags_all                    = {
+          - "env"          = "dev"
+          - "projet"       = "novaria"
+          - "proprietaire" = "binome-novaria"
+        } -> null
+        # (3 unchanged attributes hidden)
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["traitement"] will be destroyed
+  - resource "aws_cloudwatch_log_group" "service" {
+      - arn                         = "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/traitement" -> null
+      - deletion_protection_enabled = false -> null
+      - id                          = "/novaria/dev/traitement" -> null
+      - name                        = "/novaria/dev/traitement" -> null
+      - region                      = "eu-west-1" -> null
+      - retention_in_days           = 14 -> null
+      - skip_destroy                = true -> null
+      - tags                        = {} -> null
+      - tags_all                    = {
+          - "env"          = "dev"
+          - "projet"       = "novaria"
+          - "proprietaire" = "binome-novaria"
+        } -> null
+        # (3 unchanged attributes hidden)
+    }
+
+Plan: 0 to add, 0 to change, 5 to destroy.
+module.observability.aws_cloudwatch_log_group.service["traitement"]: Destroying... [id=/novaria/dev/traitement]
+module.observability.aws_cloudwatch_log_group.service["collecte"]: Destroying... [id=/novaria/dev/collecte]
+module.observability.aws_cloudwatch_log_group.service["alerte"]: Destroying... [id=/novaria/dev/alerte]
+module.observability.aws_cloudwatch_log_group.service["reponse"]: Destroying... [id=/novaria/dev/reponse]
+module.observability.aws_cloudwatch_log_group.service["frontend"]: Destroying... [id=/novaria/dev/frontend]
+module.observability.aws_cloudwatch_log_group.service["frontend"]: Destruction complete after 0s
+module.observability.aws_cloudwatch_log_group.service["traitement"]: Destruction complete after 0s
+module.observability.aws_cloudwatch_log_group.service["collecte"]: Destruction complete after 0s
+module.observability.aws_cloudwatch_log_group.service["alerte"]: Destruction complete after 0s
+module.observability.aws_cloudwatch_log_group.service["reponse"]: Destruction complete after 0s
+
+Warning: Resource targeting is in effect
+
+You are creating a plan with the -target option, which means that the result
+of this plan may not represent all of the changes requested by the current
+configuration.
+
+The -target option is not for routine use, and is provided only for
+exceptional situations such as recovering from errors or mistakes, or when
+Terraform specifically suggests to use it as part of an error message.
+
+Warning: Applied changes may be incomplete
+
+The plan was created with the -target option in effect, so some changes
+requested in the configuration may have been ignored and the output values
+may not be fully updated. Run the following command to verify that no other
+changes are pending:
+    terraform plan
+
+Note that the -target option is not suitable for routine use, and is provided
+only for exceptional situations such as recovering from errors or mistakes,
+or when Terraform specifically suggests to use it as part of an error
+message.
+
+Destroy complete! Resources: 5 destroyed.
+
+
+## Étape 10 : les journaux existent toujours dans l'émulateur
+## Code de sortie : 0 · conforme
+
+{"logGroups": [{"arn": "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/alerte:*", "logGroupArn": "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/alerte", "creationTime": 1795071196948, "logGroupName": "/novaria/dev/alerte", "metricFilterCount": 0, "storedBytes": 0, "retentionInDays": 14}, {"arn": "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/collecte:*", "logGroupArn": "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/collecte", "creationTime": 1795071196929, "logGroupName": "/novaria/dev/collecte", "metricFilterCount": 0, "storedBytes": 0, "retentionInDays": 14}, {"arn": "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/frontend:*", "logGroupArn": "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/frontend", "creationTime": 1795071196919, "logGroupName": "/novaria/dev/frontend", "metricFilterCount": 0, "storedBytes": 0, "retentionInDays": 14}, {"arn": "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/reponse:*", "logGroupArn": "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/reponse", "creationTime": 1795071196981, "logGroupName": "/novaria/dev/reponse", "metricFilterCount": 0, "storedBytes": 0, "retentionInDays": 14}, {"arn": "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/traitement:*", "logGroupArn": "arn:aws:logs:eu-west-1:123456789012:log-group:/novaria/dev/traitement", "creationTime": 1795071196968, "logGroupName": "/novaria/dev/traitement", "metricFilterCount": 0, "storedBytes": 0, "retentionInDays": 14}], "nextToken": null}
+

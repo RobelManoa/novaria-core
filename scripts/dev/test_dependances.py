@@ -22,6 +22,7 @@ import dev  # noqa: E402
 
 RACINE = Path(__file__).resolve().parents[2]
 SERVICES = sorted(p for p in (RACINE / "services").iterdir() if p.is_dir())
+# `nom==version` ou `nom[extra]==version` : selon la version de uv, le verrou écrit ou non les extras (`psycopg[binary]`, `coverage[toml]`)
 PAQUET = re.compile(r"(?m)^([A-Za-z0-9_.-]+)(?:\[[^\]]*\])?==(\S+)")
 
 

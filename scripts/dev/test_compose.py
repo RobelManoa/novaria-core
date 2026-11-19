@@ -94,6 +94,25 @@ class ServicesDeLaPile(unittest.TestCase):
         cls.doc = compose()
         cls.services = cls.doc["services"]
 
+    def test_les_services_applicatifs_n_ont_aucune_capacite_et_ne_peuvent_pas_en_gagner(self):
+        """Durcissement (ancre `x-durcissement`) : un service applicatif tourne sans droits, une faille n'y gagne pas de capacité Linux."""
+        for nom in sorted(APPLICATIFS | set(TRAVAILLEURS)):
+            with self.subTest(service=nom):
+                self.assertEqual(self.services[nom].get("cap_drop"), ["ALL"])
+                self.assertIn("no-new-privileges:true", self.services[nom].get("security_opt", []))
+
+    def test_les_bases_et_kafka_ne_sont_pas_durcis_a_tort(self):
+        """Leurs images démarrent avec des droits qu'elles abandonnent ensuite : retirer toutes les capacités les empêcherait de démarrer."""
+        for nom in ("postgres", "mongo", "kafka"):
+            self.assertNotIn("cap_drop", self.services[nom], nom)
+
+    def test_aucun_service_n_est_privilegie_ni_ne_monte_la_socket_docker(self):
+        for nom, service in self.services.items():
+            with self.subTest(service=nom):
+                self.assertNotIn(service.get("privileged"), (True, "true"))
+                self.assertNotIn(service.get("network_mode"), ("host",))
+                self.assertFalse([v for v in service.get("volumes", []) if "docker.sock" in str(v)])
+
     def test_tout_est_dans_compose(self):
         attendus = {"postgres", "mongo", "kafka"} | TACHES_UNIQUES | APPLICATIFS | set(TRAVAILLEURS)
         sans_profil = {nom for nom, s in self.services.items() if "profiles" not in s}

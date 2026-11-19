@@ -1217,6 +1217,47 @@ def cmd_terraform_check(args: argparse.Namespace) -> int:
     return code
 
 
+def cmd_terraform_plan_hors_ligne(args: argparse.Namespace) -> int:
+    """Plan Terraform hors ligne sur une copie jetable (CLD-17) : sans compte AWS, sans modifier le dépôt ; la logique est dans terraform_plan_hors_ligne.py."""
+    import tempfile
+
+    import terraform_plan_hors_ligne as plan
+
+    require_docker()
+    racine = ROOT / "infra" / "terraform"
+    with tempfile.TemporaryDirectory(prefix="novaria-tf-") as temporaire:
+        code, sortie = plan.executer(racine, args.mode, args.env, Path(temporaire))
+    print(sortie)
+    ecarts = plan.verdict(args.mode, code, sortie)
+    for ecart in ecarts:
+        print(f"ÉCART : {ecart}", file=sys.stderr)
+    return 1 if ecarts else 0
+
+
+def cmd_terraform_emulateur(args: argparse.Namespace) -> int:
+    """Terraform appliqué à un émulateur d'API AWS local (Moto) puis plan rejoué : 0 changement ? (CLD-17) ; la logique est dans terraform_emulateur.py."""
+    import tempfile
+
+    import terraform_emulateur as emulateur
+
+    require_docker()
+    racine = ROOT / "infra" / "terraform"
+    print(f"Terraform sur l'émulateur local Moto (réseau Docker interne, aucun appel vers AWS), environnement {args.env} :")
+    with tempfile.TemporaryDirectory(prefix="novaria-tf-") as temporaire:
+        resultats = emulateur.executer(racine, args.env, Path(temporaire))
+    for resultat in resultats:
+        print(f"  [{'OK' if resultat.ok else 'ÉCHEC'}] {resultat.etape.nom} (code {resultat.code})")
+    if args.sortie:
+        cible = Path(args.sortie)
+        cible.parent.mkdir(parents=True, exist_ok=True)
+        cible.write_text(emulateur.transcription(resultats, args.env, time.strftime('%Y-%m-%d')), encoding="utf-8", newline="\n")
+        print(f"Compte rendu écrit : {cible}")
+    ecarts = emulateur.verdict(resultats)
+    for ecart in ecarts:
+        print(f"ÉCART : {ecart}", file=sys.stderr)
+    return 1 if ecarts or not resultats else 0
+
+
 # --------------------------------------------------------------------------- prototype Big Data (DAT-08)
 def cmd_bigdata_build(_: argparse.Namespace) -> int:
     """Construit l'image du prototype Big Data (PySpark en mode local, Java 21) ; la première fois, plusieurs minutes."""
@@ -1850,6 +1891,12 @@ def build_parser() -> argparse.ArgumentParser:
     tf.add_argument("--sans-snyk", action="store_true", help="écarte l'analyse Snyk IaC (le résultat reste « incomplet » dans le compte rendu de l'issue)")
     tf.add_argument("--lock", action="store_true", help="régénère .terraform.lock.hcl (réseau nécessaire) au lieu de contrôler")
     tf.add_argument("--verbose", action="store_true", help="montre la sortie de chaque outil, pas seulement celle des échecs")
+    tp = add("terraform-plan-hors-ligne", cmd_terraform_plan_hors_ligne, "plan Terraform hors ligne sur une copie jetable, sans compte AWS : ce qui serait créé, et ce que les protections refusent de détruire (CLD-17, Docker)")
+    tp.add_argument("--mode", choices=("plan", "destruction-protegee", "bascule-variable"), default="plan", help="plan : premier plan, état vide ; destruction-protegee : état fictif, la destruction est refusée ; bascule-variable : protected = false, toujours refusé")
+    tp.add_argument("--env", choices=("dev", "demo"), default="dev", help="environnement Terraform (dev par défaut ; les modes d'état fictif ne visent que dev)")
+    te = add("terraform-emulateur", cmd_terraform_emulateur, "Terraform appliqué à l'émulateur d'API AWS Moto (local, ouvert), puis plan rejoué : 0 changement ? (CLD-17, Docker)")
+    te.add_argument("--env", choices=("dev", "demo"), default="dev", help="environnement Terraform (dev : protégé ; demo : jetable)")
+    te.add_argument("--sortie", help="écrit le compte rendu étape par étape dans ce fichier")
     bd = add("bigdata-build", cmd_bigdata_build, "construit l'image du prototype Big Data, PySpark local (DAT-08, Docker)")
     bd = add("bigdata", cmd_bigdata, "lance le prototype Big Data dans son image : generer, nettoyer, verifier, mesurer (Docker)")
     bd.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
