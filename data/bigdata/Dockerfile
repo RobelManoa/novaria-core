@@ -15,7 +15,7 @@ RUN apt-get update \
     && apt-get upgrade -y \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=roues /roues /roues
-RUN pip install --no-index --find-links /roues --only-binary :all: pyspark py4j \
+RUN pip install --no-index --find-links /roues --only-binary :all: py4j==0.10.9.9 pyspark==4.1.4 \
     && rm -rf /roues \
     && useradd --uid 1000 --create-home novaria && mkdir -p /data && chown novaria /data
 USER novaria
