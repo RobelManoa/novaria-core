@@ -29,6 +29,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import observatoire_demos as demos
 import tableau as tb
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -131,6 +132,14 @@ class Docker:
         documents = json.loads(texte) if texte.startswith("[") else [json.loads(ligne) for ligne in texte.splitlines() if ligne.strip()]
         return {d["Service"]: {"etat": d.get("State", ""), "sante": d.get("Health", ""), "code": d.get("ExitCode", 0),
                                "statut": d.get("Status", ""), "id": d.get("ID", "")} for d in documents}
+
+    def inspecter_tous(self) -> list[dict]:
+        """`docker inspect` complet des conteneurs du projet Compose (droits, ports, montages) : lecture seule."""
+        identifiants = [c["id"] for c in self.conteneurs().values() if c.get("id")]
+        if not identifiants:
+            return []
+        sortie = self._executer("inspect", *identifiants)
+        return json.loads(sortie.stdout) if sortie.returncode == 0 and sortie.stdout.strip() else []
 
     def inspecter(self, service: str) -> dict:
         identifiant = self.conteneurs().get(service, {}).get("id")
@@ -417,6 +426,7 @@ class Observatoire:
         metriques = {nom: f"http://127.0.0.1:{env.get(d['port_var'], d['port'])}/metrics" for nom, d in config["services"].items() if d.get("metrics")}
         self.tableau = tb.Tableau(metriques, horloge, kafka=docker.kafka_groupes)
         self._tours = 0
+        self.taches = demos.Taches()
         self.verrou = threading.RLock()
         self.arret = threading.Event()
         self.fil: threading.Thread | None = None
@@ -530,6 +540,25 @@ class Observatoire:
                              "etat": conteneur.get("etat", "inconnu"), "sante": conteneur.get("sante", ""), "statut": conteneur.get("statut", ""),
                              "alarmes": en_alarme.get(nom, []), "sondes": sondes})
         return {"instant": iso(mesure.instant if mesure else None), "services": services, "alarmes": instances, "panne": panne}
+
+    # -- démonstrations (flux complet, sécurité, cloud local, IA) : voir observatoire_demos.py
+    def demos(self) -> dict:
+        return demos.catalogue(self.taches) | {"presentation": demos.charger_presentation()}
+
+    def lancer_demo(self, identifiant: str, confirmer: bool, graine: str | None) -> dict:
+        try:
+            return self.taches.demarrer(identifiant, confirmer, graine, panne_en_cours=bool(self.panne and self.panne["retabli"] is None))
+        except (KeyError, PermissionError, RuntimeError, ValueError) as erreur:
+            raise ErreurPanne(str(erreur.args[0] if isinstance(erreur, KeyError) else erreur)) from None
+
+    def arreter_demo(self) -> dict:
+        try:
+            return self.taches.arreter()
+        except RuntimeError as erreur:
+            raise ErreurPanne(str(erreur)) from None
+
+    def securite(self) -> dict:
+        return demos.constat_securite(self.docker.inspecter_tous)
 
     def chronologie(self) -> list[dict]:
         with self.verrou:
@@ -787,6 +816,12 @@ def fabriquer_gestionnaire(obs: Observatoire, jeton: str, port: int) -> type[Bas
                 self._json(200, obs.donnees_tableau())
             elif adresse.path == "/api/trafic":
                 self._json(200, obs.trafic_etat())
+            elif adresse.path == "/api/demos":
+                self._json(200, obs.demos())
+            elif adresse.path == "/api/securite":
+                self._json(200, obs.securite())
+            elif adresse.path == "/api/ia":
+                self._json(200, demos.synthese_ia())
             elif adresse.path == "/api/trace":
                 try:
                     self._json(200, obs.trace(parse_qs(adresse.query).get("id", [""])[0]))
@@ -810,6 +845,11 @@ def fabriquer_gestionnaire(obs: Observatoire, jeton: str, port: int) -> type[Bas
                     self._json(200, obs.injecter(str(corps.get("service", "")), corps.get("confirmer") is True, str(corps.get("mode", "stop"))))
                 elif urlparse(self.path).path == "/api/trafic":
                     self._json(200, obs.trafic(str(corps.get("action", "")), float(corps.get("debit", 15))))
+                elif urlparse(self.path).path == "/api/demos/lancer":
+                    graine = corps.get("graine")
+                    self._json(200, obs.lancer_demo(str(corps.get("id", "")), corps.get("confirmer") is True, None if graine is None else str(graine)))
+                elif urlparse(self.path).path == "/api/demos/arreter":
+                    self._json(200, obs.arreter_demo())
                 elif urlparse(self.path).path == "/api/retablir":
                     self._json(200, obs.retablir())
                 else:
@@ -836,6 +876,10 @@ def servir(obs: Observatoire, port: int, afficher: Callable[[str], None] = print
     finally:
         serveur.server_close()
         obs.arreter_mesure()
+        try:
+            obs.taches.arreter()  # une démonstration en cours est interrompue avec l'observatoire
+        except RuntimeError:
+            pass
         if obs.panne and obs.panne["retabli"] is None:
             afficher(f"Rétablissement de {obs.panne['service']}…")
             obs.retablir()

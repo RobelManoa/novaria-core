@@ -106,7 +106,8 @@ describe("tiroir de navigation sur téléphone", () => {
   it("garde le focus dans le tiroir avec Tab et Maj+Tab", async () => {
     await openDrawer();
     const close = within(nav()).getByRole("button", { name: "Fermer le menu" });
-    const last = link("Rapports");
+    // Dernier élément focalisable du tiroir : le lien vers l'observatoire, après les cinq pages.
+    const last = within(nav()).getByRole("link", { name: /^Observatoire/ });
 
     last.focus();
     await userEvent.tab();
