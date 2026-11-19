@@ -23,6 +23,12 @@ x-environnement-service: &environnement-service
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   KAFKA_BOOTSTRAP_SERVERS: kafka:9092
 
+# Durcissement des services applicatifs (tous tournent sans droits, sur des ports supérieurs à 1024) : aucune capacité Linux, et
+# aucun processus ne peut en gagner. Les bases et Kafka n'en font pas partie : leurs images démarrent avec des droits qu'elles abandonnent ensuite.
+x-durcissement: &durcissement
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -143,6 +149,7 @@ services:
 
   # --- Les quatre services (ADR-008) : un compte de base par service, aux droits minimaux (ADR-024) ------
   collecte:
+    <<: *durcissement
     build:
       context: ./services/collecte
       args: { GIT_SHA: "${GIT_SHA:-local}" }
@@ -157,6 +164,7 @@ services:
       kafka-init: { condition: service_completed_successfully }
 
   traitement:
+    <<: *durcissement
     build:
       context: ./services/traitement
       args: { GIT_SHA: "${GIT_SHA:-local}" }
@@ -197,6 +205,7 @@ services:
   # errors.dlq, ouvre et ferme les épisodes de congestion. Une seule instance (les fenêtres sont en mémoire).
   # Une panne d'une dépendance l'arrête sans valider d'offset ; il redémarre et relit depuis le dernier offset sûr.
   traitement-flux:
+    <<: *durcissement
     build:
       context: ./services/traitement
       args: { GIT_SHA: "${GIT_SHA:-local}" }
@@ -227,6 +236,7 @@ services:
   # dwh.dim_run) et publie traffic.recommendations. Même image que l'API ; seul service avec traitement-flux à écrire.
   # Une seule instance. Une panne d'une dépendance l'arrête sans valider d'offset ; il relit au redémarrage.
   traitement-pipeline:
+    <<: *durcissement
     build:
       context: ./services/traitement
       args: { GIT_SHA: "${GIT_SHA:-local}" }
@@ -256,6 +266,7 @@ services:
   # `alerts.events` aux clients du tableau de bord en SSE. Il vérifie lui-même les jetons de l'API métier : il reçoit donc
   # la clé de signature (JWT_SECRET), exception documentée dans docs/03-donnees/alertes.md (section 9) ; depuis MS-13 la passerelle contrôle aussi le jeton.
   alerte:
+    <<: *durcissement
     build:
       context: ./services/alerte
       args: { GIT_SHA: "${GIT_SHA:-local}" }
@@ -276,6 +287,7 @@ services:
   # d'offset ; il redémarre et relit depuis le dernier offset sûr. Pendant son arrêt, la collecte et le traitement
   # continuent (ADR-008) ; à son retour il rattrape son retard.
   alerte-worker:
+    <<: *durcissement
     build:
       context: ./services/alerte
       args: { GIT_SHA: "${GIT_SHA:-local}" }
@@ -305,6 +317,7 @@ services:
   # Une seule instance : l'état des feux est en mémoire, et sa perte ramène les feux au plan fixe (c'est voulu). Il vérifie
   # lui-même les jetons de l'API métier (JWT_SECRET), exception documentée dans docs/03-donnees/feux.md ; depuis MS-13 la passerelle contrôle aussi le jeton.
   reponse:
+    <<: *durcissement
     build:
       context: ./services/reponse
       args: { GIT_SHA: "${GIT_SHA:-local}" }
@@ -322,6 +335,7 @@ services:
 
   # --- Simulateur de capteurs (squelette, MS-07) : parle à la collecte seulement -------------------------
   simulateur:
+    <<: *durcissement
     build:
       context: ./simulator
       args: { GIT_SHA: "${GIT_SHA:-local}" }
@@ -337,6 +351,7 @@ services:
   # sécurité). Image avec njs (la variante « slim » n'en a pas). Les routes sont générées depuis les contrats OpenAPI
   # (python scripts/dev/gateway_routes.py). La clé des jetons (JWT_SECRET) vient de .env : rien dans gateway/.
   passerelle:
+    <<: *durcissement
     image: nginxinc/nginx-unprivileged:1.30-alpine
     environment:
       ENVIRONMENT: local
@@ -358,6 +373,7 @@ services:
       reponse: { condition: service_healthy }
 
   frontend:
+    <<: *durcissement
     build: ./frontend
     ports: ["127.0.0.1:${FRONTEND_PORT:-8080}:8080"]
     depends_on:

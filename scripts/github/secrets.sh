@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
 # Enregistre les secrets et variables de GitHub Actions. Les valeurs ne sont jamais écrites dans l'historique du shell.
 #   bash scripts/github/secrets.sh       -> SONAR_TOKEN et SNYK_TOKEN (à faire maintenant)
-#   bash scripts/github/secrets.sh aws   -> variables AWS (à faire quand le compte AWS et Terraform existent)
+#   bash scripts/github/secrets.sh aws   -> variables AWS : REFUSÉ sans l'accord écrit des deux membres (voir plus bas)
 set -euo pipefail
 
 if [ "${1:-}" = "aws" ]; then
+  # Garde-fou : ces variables activent deploy.yml et terraform.yml, donc des ressources AWS payantes. Le projet s'exécute en local (ADR-023) et
+  # CLAUDE.md (point 6) l'interdit sans accord écrit des deux membres : il faut le dire explicitement, une réponse distraite ne suffit pas.
+  if [ "${NOVARIA_AWS_AUTORISE:-}" != "accord-ecrit-des-deux-membres" ]; then
+    echo "Refusé : enregistrer les variables AWS active deploy.yml et terraform.yml (ressources AWS payantes)." >&2
+    echo "Le projet s'exécute en local (ADR-023) ; il faut l'accord écrit des deux membres (CLAUDE.md, point 6)." >&2
+    echo "Avec cet accord seulement : NOVARIA_AWS_AUTORISE=accord-ecrit-des-deux-membres bash scripts/github/secrets.sh aws" >&2
+    exit 1
+  fi
   read -rp "AWS_REGION (ex. eu-west-1) : " region
   read -rp "AWS_ROLE_ARN (rôle OIDC GitHub) : " role
   read -rp "ECS_CLUSTER : " cluster
