@@ -1,0 +1,2 @@
+# Contrôles de sécurité du pipeline MLSecOps (IA-05) : audit des dépendances contre les avis de vulnérabilité publics.
+pip-audit>=2.7,<3.0

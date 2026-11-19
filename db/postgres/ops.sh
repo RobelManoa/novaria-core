@@ -67,11 +67,14 @@ case "$cmd" in
     chmod a+rw "$out" "$out.counts"
     chmod a+rwx "$BACKUP_DIR" "$(dirname "$BACKUP_DIR")"
     echo "Sauvegarde créée : $(basename "$out") ($(wc -c < "$out") octets, $(wc -l < "$out.counts") tables comptées)"
-    # Rotation : on conserve les KEEP sauvegardes les plus récentes.
-    ls -1t "$BACKUP_DIR"/*.dump | tail -n +"$((KEEP + 1))" | while read -r old; do
-      rm -f "$old" "$old.counts"
-      echo "Ancienne sauvegarde supprimée : $(basename "$old")"
-    done
+    # Rotation : on conserve les KEEP sauvegardes les plus récentes. BACKUP_KEEP=0 : pas de rotation par nombre
+    # (`dev.py sauvegarde` applique alors la conservation par paliers, CLD-15).
+    if [ "$KEEP" -gt 0 ]; then
+      ls -1t "$BACKUP_DIR"/*.dump | tail -n +"$((KEEP + 1))" | while read -r old; do
+        rm -f "$old" "$old.counts"
+        echo "Ancienne sauvegarde supprimée : $(basename "$old")"
+      done
+    fi
     ;;
   list)
     ls -lht "$BACKUP_DIR"/*.dump 2>/dev/null || echo "Aucune sauvegarde dans $BACKUP_DIR"

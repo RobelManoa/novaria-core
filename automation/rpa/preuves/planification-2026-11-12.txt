@@ -1,0 +1,65 @@
+# Preuve de l'issue IA-07 : planification hebdomadaire sans intervention manuelle, 12/11/2026
+# Poste Linux, pile Docker locale, Robot Framework 7.5.1, Python 3.14.4. Compte de service d'essai en lecture seule (mot de passe aléatoire, jamais écrit).
+# Courriels reçus par un serveur SMTP d'essai local (127.0.0.1) : aucun courriel réel n'a été envoyé. Aucun secret n'apparaît ci-dessous.
+
+## 1. Le planificateur seul : un rattrapage au démarrage, puis le créneau hebdomadaire
+$ python3 scripts/dev/dev.py rpa-planifier --jour jeudi --heure 17:50 --executions 2
+2026-11-12 17:48:35 : lancement (rattrapage : le rapport de la dernière semaine n'est pas déposé)
+Rapport Hebdomadaire :: Rapport hebdomadaire (IA-07, ADR-019). Le robot lit...
+Produire le rapport hebdomadaire :: Un rapport est produit sans in... | PASS |
+Rapport Hebdomadaire :: Rapport hebdomadaire (IA-07, ADR-019). Le ... | PASS |
+1 test, 1 passed, 0 failed
+2026-11-12 17:48:36 : terminé, code de sortie 0
+2026-11-12 17:48:36 : prochain lancement jeudi 12/11/2026 à 17:50
+2026-11-12 17:50:00 : lancement (créneau hebdomadaire)
+Rapport Hebdomadaire :: Rapport hebdomadaire (IA-07, ADR-019). Le robot lit...
+Produire le rapport hebdomadaire :: Un rapport est produit sans in... | PASS |
+Rapport Hebdomadaire :: Rapport hebdomadaire (IA-07, ADR-019). Le ... | PASS |
+1 test, 1 passed, 0 failed
+2026-11-12 17:50:00 : terminé, code de sortie 0
+
+## 2. Ce que l'API sert ensuite (compte de lecture seule)
+GET /api/v1/reports : 2 rapport(s)
+ - rapport-hebdomadaire-2026-S45.pdf | période 2026-11-02T00:00:00Z -> 2026-11-09T00:00:00Z | généré 2026-11-12T13:50:00Z | 2402 octets | téléchargé : 2402 octets, SHA-256 conforme : True
+ - rapport-hebdomadaire-2026-S43.pdf | période 2026-10-19T00:00:00Z -> 2026-10-26T00:00:00Z | généré 2026-11-10T14:54:25Z | 6755 octets | téléchargé : 6755 octets, SHA-256 conforme : True
+(la semaine S45 est vide : le simulateur n'a produit aucun indicateur du 02 au 08/11/2026 ; le rapport le dit. S43 vient de l'essai du 10/11/2026 (FE-06) et contient des données.)
+
+## 3. Journal de notifications (nouvelles lignes) : le rapport déposé, puis le courriel envoyé, à chacun des deux lancements
+{"ts": "2026-11-12T13:48:36Z", "niveau": "INFO", "message": "Rapport déposé : rapport-hebdomadaire-2026-S45.pdf"}
+{"ts": "2026-11-12T13:48:36Z", "niveau": "INFO", "message": "courriel envoyé à equipe@example.org"}
+{"ts": "2026-11-12T13:50:00Z", "niveau": "INFO", "message": "Rapport déposé : rapport-hebdomadaire-2026-S45.pdf"}
+{"ts": "2026-11-12T13:50:00Z", "niveau": "INFO", "message": "courriel envoyé à equipe@example.org"}
+{"ts": "2026-11-12T13:50:13Z", "niveau": "ERREUR", "message": "rapport non produit : API injoignable : URLError"}
+{"ts": "2026-11-12T13:50:13Z", "niveau": "INFO", "message": "courriel envoyé à equipe@example.org"}
+
+## 4. Courriels reçus par le serveur SMTP d'essai (en-têtes et corps, sans pièce jointe)
+--- courriel 1 : De novaria-rpa@localhost | À equipe@example.org | Sujet : [Novaria] rapport hebdomadaire déposé
+INFO : Rapport déposé : rapport-hebdomadaire-2026-S45.pdf
+
+Source : robot du rapport hebdomadaire (IA-07). Le rapport est dans la page « Rapports » ; ce courriel n'en contient aucune donnée.
+--- courriel 2 : De novaria-rpa@localhost | À equipe@example.org | Sujet : [Novaria] rapport hebdomadaire déposé
+INFO : Rapport déposé : rapport-hebdomadaire-2026-S45.pdf
+
+Source : robot du rapport hebdomadaire (IA-07). Le rapport est dans la page « Rapports » ; ce courriel n'en contient aucune donnée.
+--- courriel 3 : De novaria-rpa@localhost | À equipe@example.org | Sujet : [Novaria] rapport hebdomadaire NON produit
+ERREUR : rapport non produit : API injoignable : URLError
+
+Source : robot du rapport hebdomadaire (IA-07). Le rapport est dans la page « Rapports » ; ce courriel n'en contient aucune donnée.
+
+## 5. Échec volontaire : API injoignable
+$ NOVARIA_RPA_ATTENTE_S=1 python3 scripts/dev/dev.py rpa-report --api http://127.0.0.1:9 --sans-robot
+tentative 1/3 échouée (API injoignable : URLError) : nouvelle tentative dans 1 s
+tentative 2/3 échouée (API injoignable : URLError) : nouvelle tentative dans 2 s
+Échec : API injoignable : URLError
+code de sortie : 1
+ligne du journal :
+{"ts": "2026-11-12T13:50:13Z", "niveau": "ERREUR", "message": "rapport non produit : API injoignable : URLError"}
+{"ts": "2026-11-12T13:50:13Z", "niveau": "INFO", "message": "courriel envoyé à equipe@example.org"}
+
+## 6. Aucun secret dans les journaux ni les courriels (occurrences du mot de passe du compte d'essai)
+output.xml : 0
+log.html : 0
+notifications.log : 0
+smtp.log : 0
+planificateur.out : 0
+echec.out : 0

@@ -1,7 +1,7 @@
 # Machine Learning et MLOps
 
 `src/` code d'entraînement · `evaluation/` comparaisons et métriques · `registry/` suivi des modèles
-(table `model_runs` dans MongoDB, modèles versionnés dans le dossier local `var/models/` ; S3 (Simple Storage Service) documenté, non exécuté) · `notebooks/` exploration uniquement.
+(table `model_runs` dans MongoDB, modèles versionnés dans le dossier local `var/models/` derrière le port `ObjectStore` de `src/stockage/` ; S3 (Simple Storage Service) documenté, non exécuté ; [stockage d'objets](../docs/03-donnees/stockage-objets.md)) · `notebooks/` exploration uniquement.
 
 Ordre de travail : congestion d'abord, prévision ensuite ([ADR-015](../docs/01-architecture/adr/ADR-015-modeles-ia.md)). Les états et leurs seuils sont définis dans l'[ADR-028](../docs/01-architecture/adr/ADR-028-etats-de-congestion-et-alertes.md) et le [dictionnaire de données](../docs/03-donnees/dictionnaire-de-donnees.md) ; le découpage entraînement/test se fait par run et par scénario.
 
@@ -24,6 +24,15 @@ Ordre de travail : congestion d'abord, prévision ensuite ([ADR-015](../docs/01-
 | `lignes.py` | variables, historique, réponses, label de la vérité terrain |
 | `parquet.py` | écrivain et lecteur Parquet (sous-ensemble étroit, octets identiques à chaque écriture) |
 | `construire.py`, `provenance.py` | fichiers, manifeste, empreintes, fiche |
+
+## Pipeline MLSecOps (IA-05)
+
+`src/pipeline/` entraîne la configuration figée par IA-03, l'évalue, applique le seuil et des contrôles de sécurité (jeu intact, artefact relu, format sans `pickle`, dépendances auditées, fiche relue, code commité, métriques reproduites), puis ferme une **porte** : un modèle sous le seuil n'est pas enregistré (code de sortie 1). Le flux de travail `.github/workflows/mlsecops.yml` le lance à la main, sans aucun paramètre. Documentation, équivalent SageMaker (non exécuté) et limites : [pipeline MLSecOps](../docs/06-ia-mlops/pipeline-mlsecops.md).
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Pipeline complet (code 1 si la porte est fermée) | `make ml-pipeline` | `py -3 scripts/dev/dev.py ml-pipeline` |
+| Avec le registre MongoDB | `make ml-pipeline MONGO=1` | `py -3 scripts/dev/dev.py ml-pipeline --mongo` |
 
 ## Registre des modèles (IA-04)
 
@@ -48,6 +57,60 @@ Ordre de travail : congestion d'abord, prévision ensuite ([ADR-015](../docs/01-
 | Tests avec scikit-learn (sans lui, ceux qui entraînent sont ignorés) | `ml/.venv/bin/python -m unittest discover -s ml/tests -t ml` | `ml\.venv\Scripts\python.exe -m unittest discover -s ml\tests -t ml` |
 
 Aucun fichier de modèle n'est écrit : pas de `pickle`, rien à charger (cadrage, M3). L'enregistrement est l'affaire d'IA-05.
+
+## Prototype SUMO (IA-11)
+
+`src/prototype_sumo/` simule **un carrefour à feux** (INT_01 du réseau v0, 4 approches de 2 voies) avec SUMO (Simulation of Urban MObility), exporte le run au format des événements `novaria.iot.measurement.v1` et le rejoue dans le moteur de fenêtres du traitement, puis dans la pile Docker du projet. SUMO tourne **dans une image Docker** (`ml/sumo/`, SUMO 1.28.0 installé depuis PyPI avec empreintes, environ 1,2 Go) ; le code d'ici est en bibliothèque standard (pas besoin de `ml-env`). Prototype conditionnel : ce qu'il démontre et ne démontre pas, et la comparaison avec le générateur v0, sont dans [`docs/06-ia-mlops/prototype-sumo.md`](../docs/06-ia-mlops/prototype-sumo.md) ; tableaux générés : [`evaluation/sumo-resultats.md`](evaluation/sumo-resultats.md).
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Construire l'image de SUMO (environ 2 minutes la première fois) | `python3 scripts/dev/dev.py ml-sumo image` | `py -3 scripts/dev/dev.py ml-sumo image` |
+| Simuler 5 h du carrefour (environ 40 s) et exporter `var/sumo/<run>/mesures.jsonl` | `python3 scripts/dev/dev.py ml-sumo simuler` | `py -3 scripts/dev/dev.py ml-sumo simuler` |
+| Rejouer dans le moteur de fenêtres ; avec `--pile`, aussi dans la pile Docker (`dev.py up` d'abord ; `--graine 46` pour un run que la collecte n'a jamais vu) | `python3 scripts/dev/dev.py ml-sumo rejouer --pile --graine 46` | `py -3 scripts/dev/dev.py ml-sumo rejouer --pile --graine 46` |
+| Comparer au générateur v0 : réécrit `sumo.json` et `sumo-resultats.md` (environ 40 s) | `python3 scripts/dev/dev.py ml-sumo comparer` ou `make ml-sumo ETAPE=comparer` | `py -3 scripts/dev/dev.py ml-sumo comparer` |
+| Mesurer la capacité d'une approche (essai de saturation) | `python3 scripts/dev/dev.py ml-sumo calibrer` | `py -3 scripts/dev/dev.py ml-sumo calibrer` |
+| Tests (`test_sumo.py`, sans Docker ; un essai réel avec `NOVARIA_SUMO=1` et l'image) | `python3 -m unittest discover -s ml/tests -t ml -p test_sumo.py` | `py -3 -m unittest discover -s ml\tests -t ml -p test_sumo.py` |
+
+| Module | Rôle |
+|---|---|
+| `reseau.py` | fichiers d'entrée de SUMO : réseau, feux, demande du scénario v0, détecteurs |
+| `execution.py` | image Docker, `netconvert` puis `sumo` dans un conteneur jetable |
+| `exporter.py` | sorties des détecteurs en événements v0, manifeste avec empreintes |
+| `rejeu.py`, `comparaison.py`, `rapport.py` | rejeu (moteur, pile), comparaison au v0, écriture des résultats |
+
+## Prévision de vitesse sur METR-LA (IA-10)
+
+`src/prevision/` compare trois références (persistance, moyenne glissante d'une heure, naïf saisonnier) à deux modèles (Ridge, HistGradientBoosting) sur les vitesses réelles de METR-LA, aux horizons 5, 15 et 30 minutes, avec MAE, RMSE et un intervalle de confiance par jour, dans l'ordre du temps (70 / 15 / 15, délai de garde de 30 minutes). La chaîne est ensuite essayée, sans réapprentissage, sur trois runs simulés. Le jeu **n'est pas versionné** (licence non établie, jamais redistribué) : il se télécharge et son empreinte SHA-256 est contrôlée ([fiche de provenance](../data/datasets/metr-la/PROVENANCE.md)). Résultats, choix et **limite de validité** : [`evaluation/prevision-comparaison.md`](evaluation/prevision-comparaison.md) ; tableaux générés : [`evaluation/prevision-resultats.md`](evaluation/prevision-resultats.md). `h5py` ne sert qu'à lire le fichier HDF5 (`requirements.txt`).
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Télécharger METR-LA (57 Mo) et contrôler taille et SHA-256 (sans `ml-env`) | `python3 scripts/dev/dev.py ml-prevision telecharger` | `py -3 scripts/dev/dev.py ml-prevision telecharger` |
+| Contrôler le fichier déjà là (sans réseau) | `python3 scripts/dev/dev.py ml-prevision verifier` | `py -3 scripts/dev/dev.py ml-prevision verifier` |
+| Campagne complète (environ 3 minutes) : réécrit `prevision.json` et `prevision-resultats.md` | `python3 scripts/dev/dev.py ml-prevision evaluer` ou `make ml-prevision ETAPE=evaluer` | `py -3 scripts/dev/dev.py ml-prevision evaluer` |
+| Tests (`test_prevision.py`, sans METR-LA ni réseau ; sans numpy et scikit-learn, les tests de la chaîne sont ignorés) | `ml/.venv/bin/python -m unittest discover -s ml/tests -t ml -p test_prevision.py` | `ml\.venv\Scripts\python.exe -m unittest discover -s ml\tests -t ml -p test_prevision.py` |
+
+| Module | Rôle |
+|---|---|
+| `source.py` | adresse, taille et empreinte attendues ; téléchargement et contrôle (bibliothèque standard) |
+| `donnees.py` | lecture du HDF5 ; conversion d'un run simulé en pas de 5 minutes (mph) |
+| `variables.py`, `references.py` | variables sans fuite du futur ni identité du capteur ; les trois références |
+| `modeles.py`, `evaluation.py`, `rapport.py` | Ridge et HistGradientBoosting ; MAE, RMSE, intervalle par jour ; exécution et écriture des résultats |
+
+## Détection d'anomalies (IA-09)
+
+`src/anomalies/` compare des **règles robustes** (écart à la médiane glissante, plateau, capteur muet, chute de débit, plus retard et doublon) à **Isolation Forest** sur les mêmes onze variables, avec les anomalies injectées par le simulateur : rappel, précision par épisode d'alerte et délai de détection, à budget de fausses alertes égal (une par heure de réseau). Le jeu `novaria-congestion-v1` n'est pas lu. Seul `isolation.py` importe scikit-learn (`ml/.venv`) ; le reste est en bibliothèque standard. Choix argumenté, limites et historique des réglages : [`evaluation/anomalies-comparaison.md`](evaluation/anomalies-comparaison.md) ; tableaux générés : [`evaluation/anomalies-resultats.md`](evaluation/anomalies-resultats.md).
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Campagne complète (environ 1 minute) : réécrit `anomalies.json` et `anomalies-resultats.md` | `python3 scripts/dev/dev.py ml-anomalies` ou `make ml-anomalies` | `py -3 scripts/dev/dev.py ml-anomalies` |
+| Tests (`test_anomalies.py` ; sans scikit-learn, ceux d'Isolation Forest et du rapport sont ignorés) | `ml/.venv/bin/python -m unittest discover -s ml/tests -t ml -p test_anomalies.py` | `ml\.venv\Scripts\python.exe -m unittest discover -s ml\tests -t ml -p test_anomalies.py` |
+
+| Module | Rôle |
+|---|---|
+| `campagne.py` | runs d'apprentissage, de validation et d'évaluation ; messages livrés ; anomalies injectées (vérité) ; plateau et chute ajoutés après coup |
+| `variables.py` | onze variables par message (écart à la médiane, ratios, plateau, silence, retard, copies) |
+| `regles.py`, `isolation.py` | les règles ; Isolation Forest sur les mêmes variables |
+| `evaluation.py`, `rapport.py` | métriques ; exécution complète et écriture des résultats |
 
 ## Variables et découpage (IA-02)
 

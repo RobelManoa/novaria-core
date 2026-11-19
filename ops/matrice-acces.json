@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "commentaire": "Matrice d'accès de Novaria Core (CLD-18) : QUI peut faire QUOI sur QUELLE ressource. Déclarée à la main, comme une politique IAM, puis comparée par `dev.py acces` à ce que la pile applique réellement (passerelle, services, PostgreSQL, MongoDB). Un écart entre cette matrice et la pile est un échec. Les contrôles absents (Kafka, point d'entrée de la collecte) sont déclarés « appliqué: false » : ce sont des écarts connus, pas des succès.",
+  "api": {
+    "roles": ["viewer", "operator", "admin"],
+    "commentaire_roles": "Les rôles sont ordonnés : viewer < operator < admin. Un rôle supérieur peut tout ce que peut un rôle inférieur.",
+    "publiques": ["/api/v1/health", "/api/v1/auth/login"],
+    "exemples": {
+      "anonyme": {"autorise": "POST /api/v1/auth/login", "refuse": "GET /api/v1/indicators"},
+      "viewer": {"autorise": "GET /api/v1/indicators", "refuse": "POST /api/v1/signals/…"},
+      "operator": {"autorise": "POST /api/v1/alerts/…", "refuse": "PATCH /api/v1/alert-rules/…"},
+      "admin": {"autorise": "GET /api/v1/users", "refuse": "POST /api/v1/measurements"}
+    },
+    "ressources": [
+      {"id": "profil", "libelle": "Profil du compte connecté", "chemins": ["/api/v1/auth/me"], "lecture": "viewer", "action": null},
+      {"id": "indicateurs", "libelle": "Indicateurs du trafic, carrefours, tronçons, prévisions, rapports", "chemins": ["/api/v1/indicators", "/api/v1/intersections", "/api/v1/road-segments", "/api/v1/forecasts", "/api/v1/reports"], "lecture": "viewer", "action": null},
+      {"id": "alertes", "libelle": "Alertes (lire, acquitter, résoudre) et flux temps réel", "chemins": ["/api/v1/alerts", "/api/v1/events/stream"], "lecture": "viewer", "action": "operator"},
+      {"id": "regles-alerte", "libelle": "Règles d'alerte (seuils)", "chemins": ["/api/v1/alert-rules"], "lecture": "viewer", "action": "admin"},
+      {"id": "feux", "libelle": "Feux de signalisation et leurs commandes", "chemins": ["/api/v1/signals"], "lecture": "viewer", "action": "operator"},
+      {"id": "comptes", "libelle": "Comptes utilisateurs (lire, créer, modifier)", "chemins": ["/api/v1/users"], "lecture": "admin", "action": "admin"}
+    ]
+  },
+  "postgres": {
+    "commentaire": "Un compte de connexion par service, sans droit d'administration. SELECT, INSERT, UPDATE, DELETE sur les tables de chaque schéma ; rien n'est accordé hors de ces lignes. `novaria_admin` (migrations, sauvegardes) est hors matrice : il n'est utilisé par aucun service.",
+    "comptes": {
+      "svc_app": {"libelle": "API métier (comptes, schéma app)"},
+      "svc_traitement": {"libelle": "Traitement : écrit l'entrepôt"},
+      "svc_alerte": {"libelle": "Alerte usager : écrit les alertes"},
+      "svc_lecture": {"libelle": "Lecture seule : API de consultation, analyses"}
+    },
+    "schemas": {
+      "app": {"svc_app": ["SELECT", "INSERT", "UPDATE", "DELETE"]},
+      "dwh": {"svc_traitement": ["SELECT", "INSERT", "UPDATE", "DELETE"], "svc_lecture": ["SELECT"]},
+      "alertes": {"svc_alerte": ["SELECT", "INSERT", "UPDATE", "DELETE"], "svc_lecture": ["SELECT"]},
+      "ops": {}
+    },
+    "essais": {
+      "svc_app": {"autorise": "SELECT count(*) FROM app.users", "refuse": "SELECT count(*) FROM dwh.fact_traffic_window"},
+      "svc_traitement": {"autorise": "UPDATE dwh.fact_traffic_window SET vehicle_count = vehicle_count WHERE false", "refuse": "SELECT count(*) FROM app.users"},
+      "svc_alerte": {"autorise": "UPDATE alertes.alert SET state = state WHERE false", "refuse": "SELECT count(*) FROM dwh.fact_traffic_window"},
+      "svc_lecture": {"autorise": "SELECT count(*) FROM dwh.v_indicator", "refuse": "UPDATE dwh.fact_traffic_window SET vehicle_count = vehicle_count WHERE false"}
+    }
+  },
+  "mongo": {
+    "commentaire": "Un utilisateur par service, un rôle à droits minimaux, sur les seules collections nécessaires. Aucun service ne peut supprimer de document (le TTL de MongoDB s'en charge).",
+    "utilisateurs": {
+      "svc_collecte": {"variable": "MONGO_PASSWORD_COLLECTE", "droits": {"raw_events": ["find", "insert"], "rejects": ["find", "insert"]}},
+      "svc_traitement": {"variable": "MONGO_PASSWORD_TRAITEMENT", "droits": {"raw_events": ["find"], "rejects": ["find", "insert"], "processing_stats": ["find", "insert", "update"], "ingestion_runs": ["find", "insert", "update"]}},
+      "svc_reponse": {"variable": "MONGO_PASSWORD_REPONSE", "droits": {"audit_logs": ["find", "insert"]}},
+      "svc_backend": {"variable": "MONGO_PASSWORD_BACKEND", "droits": {"audit_logs": ["find", "insert"], "usage_stats": ["find", "insert", "update"]}},
+      "svc_ml": {"variable": "MONGO_PASSWORD_ML", "droits": {"model_runs": ["find", "insert", "update"], "raw_events": ["find"], "processing_stats": ["find"]}}
+    },
+    "collections": ["audit_logs", "ingestion_runs", "model_runs", "processing_stats", "raw_events", "rejects", "usage_stats"],
+    "essais": {
+      "svc_collecte": {"autorise": "db.raw_events.countDocuments({})", "refuse": "db.raw_events.deleteOne({ _id: ObjectId('000000000000000000000000') })"},
+      "svc_traitement": {"autorise": "db.processing_stats.countDocuments({})", "refuse": "db.raw_events.insertOne({ essai_refuse: true })"},
+      "svc_reponse": {"autorise": "db.audit_logs.countDocuments({})", "refuse": "db.raw_events.countDocuments({})"},
+      "svc_backend": {"autorise": "db.usage_stats.countDocuments({})", "refuse": "db.raw_events.countDocuments({})"},
+      "svc_ml": {"autorise": "db.model_runs.countDocuments({})", "refuse": "db.raw_events.insertOne({ essai_refuse: true })"}
+    }
+  },
+  "kafka": {
+    "appliqué": false,
+    "commentaire": "ADR-009 prévoit des droits par service sur chaque sujet (producteur ou consommateur seulement). Les producteurs et consommateurs sont déclarés dans contracts/topics.json ; le broker local n'a ni authentification ni autorisation (écouteurs PLAINTEXT, aucun autorisateur) : la matrice n'est donc PAS appliquée. Écart connu, voir docs/05-cloud-aws/matrice-acces.md.",
+    "source": "contracts/topics.json"
+  },
+  "points_d_entree_sans_controle": [
+    {"id": "collecte", "libelle": "Dépôt des mesures (POST /api/v1/measurements)", "port_var": "COLLECTE_PORT", "port": 8001, "chemin": "/api/v1/measurements", "methode": "POST", "appliqué": false,
+     "commentaire": "Point d'entrée interne : port publié sur 127.0.0.1, absent de la passerelle (404), sans authentification de service en v1."}
+  ]
+}

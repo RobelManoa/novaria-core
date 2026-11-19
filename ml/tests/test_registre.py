@@ -28,8 +28,8 @@ from preparation import variables
 from registre import documents, format_lineaire, importer_ia03, lignee, service
 from registre import __main__ as cli
 from registre.registre import POINTEUR, Registre, RegistreErreur, cle_du_manifeste, cle_du_modele
-from registre.runs import MemoireRunStore, MongoRunStore, RunDejaEnregistre
-from registre.stockage import ObjetAbsent, ObjetDejaEcrit, StockageErreur, StockageLocal, sha256
+from registre.runs import FichierRunStore, MemoireRunStore, MongoRunStore, RunDejaEnregistre
+from stockage import ObjetAbsent, ObjetDejaEcrit, StockageErreur, StockageLocal, sha256
 
 try:
     import sklearn  # noqa: F401
@@ -152,8 +152,10 @@ class TestStockage(TempTestCase):
     def test_objet_absent_et_trop_gros(self):
         with self.assertRaises(ObjetAbsent):
             self.magasin.get("run-9/modele.json")
-        with mock.patch("registre.stockage.TAILLE_MAX", 4), self.assertRaises(StockageErreur):
-            self.magasin.put("run-1/gros.json", b"12345")
+        petit = StockageLocal(self.dossier / "petit", taille_max=4)
+        with self.assertRaises(StockageErreur):
+            petit.put("run-1/gros.json", b"12345")
+        petit.put("run-1/ok.json", b"1234")
 
     def test_aucun_fichier_temporaire_ne_reste(self):
         self.magasin.put("run-1/modele.json", b"abc")
@@ -345,6 +347,35 @@ class TestMemoireRunStore(ContratRunStore, unittest.TestCase):
         s.inserer(self.doc())
         s.obtenir("r1")["seed"] = 999
         self.assertEqual(s.obtenir("r1")["seed"], 1)
+
+
+class TestFichierRunStore(ContratRunStore, TempTestCase):
+    def creer(self):
+        return FichierRunStore(self.dossier / "runs")
+
+    def test_les_dates_font_l_aller_retour_et_le_fichier_est_lisible(self):
+        s = self.creer()
+        s.inserer(self.doc())
+        self.assertEqual(s.obtenir("r1")["created_at"], T0)
+        contenu = json.loads((self.dossier / "runs" / "r1.json").read_text(encoding="utf-8"))
+        self.assertEqual(contenu["created_at"], T0.isoformat())
+
+    def test_un_run_id_dangereux_n_ecrit_rien_hors_du_dossier(self):
+        s = self.creer()
+        for faux in ("../x", "a/b", ".."):
+            with self.subTest(faux=faux), self.assertRaises(documents.DocumentInvalide):
+                s.obtenir(faux)
+        self.assertEqual(list(self.dossier.glob("*.json")), [])
+
+    def test_aucun_fichier_temporaire_ne_reste(self):
+        s = self.creer()
+        s.inserer(self.doc())
+        with self.assertRaises(RunDejaEnregistre):
+            s.inserer(self.doc())
+        self.assertEqual(sorted(p.name for p in (self.dossier / "runs").iterdir()), ["r1.json"])
+
+    def test_un_dossier_absent_donne_une_liste_vide(self):
+        self.assertEqual(self.creer().lister(), [])
 
 
 @unittest.skipIf(pymongo is None, "pymongo absent : python3 scripts/dev/dev.py ml-env")

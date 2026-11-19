@@ -89,8 +89,23 @@ jobs:
       - run: npm run format:check
       - run: npm test
       - run: npm run build
+      # Parcours de bout en bout (FE-08) : connexion -> tableau de bord, dans Chromium, sur l'application construite ci-dessus.
+      # L'API est simulée (frontend/e2e/support.ts) ; le job garde son nom « frontend ».
+      - name: Installer le navigateur du parcours de bout en bout
+        run: npx playwright install --with-deps chromium
+      - name: Parcours de bout en bout
+        run: npx playwright test -c playwright.simule.config.ts
       - uses: actions/upload-artifact@v7
         with: { name: coverage-frontend, path: frontend/coverage/lcov.info }
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-frontend
+          path: |
+            frontend/e2e-report
+            frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 14
 
   # Pipelines d'ingestion et de nettoyage (data/etl) : tests sans réseau ni base, couverture remise à SonarQube
   # (data/etl/coverage.xml). Job d'appui : seul « sonarqube » l'attend, aucun contrôle obligatoire ne change de nom.
@@ -128,6 +143,24 @@ jobs:
       - run: coverage xml -o coverage.xml
       - uses: actions/upload-artifact@v7
         with: { name: coverage-ml, path: ml/coverage.xml }
+
+  # Prototype Big Data (data/bigdata, DAT-08) : tests Python seul et PySpark (Java 21 est préinstallé sur ubuntu-latest),
+  # couverture remise à SonarQube (data/bigdata/coverage.xml). Job d'appui : seul « sonarqube » l'attend, aucun contrôle
+  # obligatoire ne change de nom. PySpark s'installe depuis ses sources avec ses empreintes (requirements.txt).
+  bigdata:
+    if: ${{ github.event_name != 'schedule' }}
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: data/bigdata } }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: "data/bigdata/requirements*.txt" }
+      - run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
+      - run: pip install --require-hashes -r requirements.txt -r requirements-dev.txt
+      - run: coverage run --source=bigdata -m unittest discover -s tests -t .
+      - run: coverage xml -o coverage.xml
+      - uses: actions/upload-artifact@v7
+        with: { name: coverage-bigdata, path: data/bigdata/coverage.xml }
 
   gitleaks:
     if: ${{ github.event_name != 'schedule' }}
@@ -197,7 +230,7 @@ jobs:
 
   sonarqube:
     if: ${{ github.event_name != 'schedule' }}
-    needs: [backend, frontend, etl, ml]
+    needs: [backend, frontend, etl, ml, bigdata]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -216,6 +249,8 @@ jobs:
         with: { name: coverage-etl, path: data/etl }
       - uses: actions/download-artifact@v8
         with: { name: coverage-ml, path: ml }
+      - uses: actions/download-artifact@v8
+        with: { name: coverage-bigdata, path: data/bigdata }
       - uses: SonarSource/sonarqube-scan-action@v8
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

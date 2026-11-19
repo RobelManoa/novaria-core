@@ -18,6 +18,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from app.core.logs import bound_correlation, correlation_of
 from app.services.ingestion import RecommendationHandler
 from app.services.outbox import Outbox
 from app.services.ports import AuditFailed, AuditLog, Publisher, PublishFailed
@@ -171,7 +172,8 @@ class Runtime:
         offsets: dict[int, int] = {}  # prochain offset à valider, par partition
         while not self._stop.is_set():
             for record in source.poll(self._poll_ms):
-                self._handler.handle(record.value, record.key)  # type: ignore[union-attr]
+                with bound_correlation(correlation_of(record.value)):  # MS-16
+                    self._handler.handle(record.value, record.key)  # type: ignore[union-attr]
                 offsets[record.partition] = max(offsets.get(record.partition, 0), record.offset + 1)
             if offsets and self._dispatcher.drain():
                 source.commit(offsets)  # tout ce qui a été décidé est parti et accusé

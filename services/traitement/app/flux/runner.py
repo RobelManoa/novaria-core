@@ -11,6 +11,8 @@ import threading
 from pathlib import Path
 from typing import Protocol
 
+from app.core.logs import bound_correlation, correlation_of
+
 from .ports import Record
 
 logger = logging.getLogger("app.flux")
@@ -56,7 +58,9 @@ def run(
     while not stop.is_set():
         records = source.poll(poll_timeout_ms)
         for record in records:
-            processor.handle(record.value, record.key, record.partition, record.offset)
+            # Les lignes écrites pendant ce message portent son identifiant de corrélation (MS-16).
+            with bound_correlation(correlation_of(record.value)):
+                processor.handle(record.value, record.key, record.partition, record.offset)
         handled += len(records)
         processor.tick()
         offsets = processor.checkpoint()

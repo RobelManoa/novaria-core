@@ -1,0 +1,2 @@
+# Outils de test du prototype Big Data (DAT-08) : mesure de la couverture (job « bigdata » de la CI).
+coverage==7.17.0

@@ -1,0 +1,9 @@
+# Généré à partir de requirements.in (pip-compile --generate-hashes), empreintes relevées sur PyPI le 15/11/2026.
+# Installation : pip install --require-hashes -r requirements.txt
+py4j==0.10.9.9 \
+    --hash=sha256:c7c26e4158defb37b0bb124933163641a2ff6e3a3913f7811b0ddbe07ed61533 \
+    --hash=sha256:f694cad19efa5bd1dee4f3e5270eb406613c974394035e5bfc4ec1aba870b879
+    # via pyspark
+pyspark==4.1.4 \
+    --hash=sha256:bcbd5e18690cf79d438e97210ad06fb8d451a251bb77becc2b0418868d2acd73
+    # via -r requirements.in

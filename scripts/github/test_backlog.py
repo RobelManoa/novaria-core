@@ -5,6 +5,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import issues_citoyen  # noqa: E402
 import issues_data  # noqa: E402
 import issues_microservices  # noqa: E402,F401
 import issues_suite  # noqa: E402,F401
@@ -52,6 +53,12 @@ class BacklogTest(unittest.TestCase):
             self.assertTrue(i["tasks"] and i["done"], i["id"])
             for k in i["bc05"]:
                 self.assertIn(k, issues_data.BC05, i["id"])
+
+    def test_issues_citoyen_et_site_presentes(self):
+        for k in issues_citoyen.NEW_IDS:
+            self.assertIn(k, self.ids)
+        self.assertEqual({i["ms"] for i in self.issues if i["id"].startswith("CIT-")}, {6})
+        self.assertEqual({i["ms"] for i in self.issues if i["id"].startswith("SIT-")}, {7})
 
     def test_nouvelles_issues_presentes(self):
         self.assertEqual(len(issues_v3.NEW_IDS), 13)
