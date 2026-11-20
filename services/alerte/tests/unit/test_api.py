@@ -397,7 +397,7 @@ def test_an_unexpected_error_is_a_500_problem_without_trace(client, rig, monkeyp
 # ------------------------------------------------------------------------------------ contrat
 # Opérations du contrat pas encore servies, avec l'issue qui les sert : déclarées d'abord au contrat
 # (CIT-02), servies ensuite. Le dernier test échoue quand l'une d'elles est servie : la retirer ici.
-NOT_YET_SERVED = {("GET", "/api/v1/public/alerts"): "CIT-03"}
+NOT_YET_SERVED: dict[tuple[str, str], str] = {}
 
 
 def test_every_operation_of_the_contract_exists_with_the_same_role_and_id(client):

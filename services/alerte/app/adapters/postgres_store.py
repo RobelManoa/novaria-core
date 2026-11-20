@@ -249,6 +249,16 @@ class PostgresAlertStore:
             ).fetchall()
         return [alert_of(r) for r in rows]
 
+    def list_open_congestion(self, limit: int) -> list[Alert]:
+        with self._connection() as c:
+            rows = c.execute(
+                f"SELECT {ALERT_COLUMNS} FROM alertes.alert "
+                "WHERE kind = 'CONGESTION' AND state <> 'RESOLVED' "
+                "ORDER BY opened_at DESC, alertes.alert.alert_id DESC LIMIT %s",
+                (limit,),
+            ).fetchall()
+        return [alert_of(r) for r in rows]
+
     def get_alert(self, alert_id: str) -> tuple[Alert, list[HistoryEntry]] | None:
         with self._connection() as c:
             row = c.execute(

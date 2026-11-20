@@ -1,0 +1,140 @@
+# Capture de curl via la passerelle : routes publiques de l'application citoyenne (CIT-03). Données simulées, pile locale.
+# Date : 2026-11-20 · Linux · Docker Compose · passerelle http://127.0.0.1:8000 · après `dev.py flux-complet N1 N2 N3 N4`
+# (run ms15-… : 4 capteurs de INT_01, 8 minutes). En-têtes Date, Server et Connection retirés ; la liste des alertes est raccourcie.
+# Les valeurs des en-têtes Authorization et Cookie de l'essai « jeton ignoré » sont remplacées par des repères (<jeton d essai>) :
+# c'étaient des chaînes inventées, mais gitleaks lit « curl … Authorization: … » comme un secret (docs/04-devsecops/exceptions.md, section 11).
+# L'état de congestion est celui du run le plus récent de l'entrepôt ; les alertes en cours sont toutes les alertes de congestion non
+# résolues de la pile de travail (des runs plus anciens, du 18/11/2026, y sont encore ouvertes).
+
+$ curl -s -i http://127.0.0.1:8000/api/v1/public/congestion
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 595
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+X-Correlation-ID: d9089b17cc24cdbf566119c8ce4cd84a
+Cache-Control: public, max-age=5
+
+{"items":[{"road_segment_id":"ROAD_001","intersection_id":"INT_01","approach":"N","state":"FREE_FLOW","updated_at":"2026-11-20T09:10:00Z","simulated":true},{"road_segment_id":"ROAD_002","intersection_id":"INT_01","approach":"E","state":"FREE_FLOW","updated_at":"2026-11-20T09:10:00Z","simulated":true},{"road_segment_id":"ROAD_003","intersection_id":"INT_01","approach":"S","state":"FREE_FLOW","updated_at":"2026-11-20T09:10:00Z","simulated":true},{"road_segment_id":"ROAD_004","intersection_id":"INT_01","approach":"W","state":"FREE_FLOW","updated_at":"2026-11-20T09:10:00Z","simulated":true}]}
+
+$ curl -s -i http://127.0.0.1:8000/api/v1/public/alerts
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 7251
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+X-Correlation-ID: db0ef58549ece3ea5d0df5506953bcda
+Cache-Control: public, max-age=5
+
+{"items": [{"alert_id": "d0c7ced4-72b2-49e2-b240-e0e47b37e6f3", "road_segment_id": "ROAD_019", "intersection_id": "INT_05", "severity": "WARNING", "opened_at": "2026-11-18T14:18:00Z", "simulated": true}, {"alert_id": "cbe98f5c-7164-42e2-b7a9-e6bc4476d3c0", "road_segment_id": "ROAD_018", "intersection_id": "INT_05", "severity": "WARNING", "opened_at": "2026-11-18T14:18:00Z", "simulated": true}]}
+... 40 alertes au total, 2 montrées
+
+$ curl -s -i -H 'Authorization: <jeton d essai>' -H 'Cookie: <cookie d essai>' http://127.0.0.1:8000/api/v1/public/congestion
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 595
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+X-Correlation-ID: bc2e90dcc873af8a2fc231af42e13590
+Cache-Control: public, max-age=5
+
+{"items":[{"road_segment_id":"ROAD_001","intersection_id":"INT_01","approach":"N","state":"FREE_FLOW","updated_at":"2026-11-20T09:10:00Z","simulated":true},{"road_segment_id":"ROAD_002","intersection_id":"INT_01","approach":"E","state":"FREE_FLOW","updated_at":"2026-11-20T09:10:00Z","simulated":true},{"road_segment_id":"ROAD_003","intersection_id":"INT_01","approach":"S","state":"FREE_FLOW","updated_at":"2026-11-20T09:10:00Z","simulated":true},{"road_segment_id":"ROAD_004","intersection_id":"INT_01","approach":"W","state":"FREE_FLOW","updated_at":"2026-11-20T09:10:00Z","simulated":true}]}
+
+$ curl -s -i 'http://127.0.0.1:8000/api/v1/public/alerts?jeton=valeur-secrete&nom=Dupont'
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 7251
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+X-Correlation-ID: 7962106231a2c0299026cd54e19053d8
+Cache-Control: public, max-age=5
+
+{"items": [{"alert_id": "d0c7ced4-72b2-49e2-b240-e0e47b37e6f3", "road_segment_id": "ROAD_019", "intersection_id": "INT_05", "severity": "WARNING", "opened_at": "2026-11-18T14:18:00Z", "simulated": true}, {"alert_id": "cbe98f5c-7164-42e2-b7a9-e6bc4476d3c0", "road_segment_id": "ROAD_018", "intersection_id": "INT_05", "severity": "WARNING", "opened_at": "2026-11-18T14:18:00Z", "simulated": true}]}
+... 40 alertes au total, 2 montrées
+
+$ curl -s -i -X POST -d {} http://127.0.0.1:8000/api/v1/public/alerts
+HTTP/1.1 405 Not Allowed
+Content-Type: application/octet-stream
+Content-Length: 245
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+X-Correlation-ID: c30c6a09de1673f0d6d5d183819157c5
+Cache-Control: no-store
+Allow: GET, OPTIONS
+
+{"type":"https://novaria.local/problems/method-not-allowed","title":"Méthode non permise","status":405,"code":"METHOD_NOT_ALLOWED","detail":"Cette méthode n est pas permise sur cette route.","correlation_id":"c30c6a09de1673f0d6d5d183819157c5"}
+
+$ curl -s -i -X DELETE -d {} http://127.0.0.1:8000/api/v1/public/alerts
+HTTP/1.1 405 Not Allowed
+Content-Type: application/octet-stream
+Content-Length: 245
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+X-Correlation-ID: 67790f81e7b4bcdb3799d58179ccefac
+Cache-Control: no-store
+Allow: GET, OPTIONS
+
+{"type":"https://novaria.local/problems/method-not-allowed","title":"Méthode non permise","status":405,"code":"METHOD_NOT_ALLOWED","detail":"Cette méthode n est pas permise sur cette route.","correlation_id":"67790f81e7b4bcdb3799d58179ccefac"}
+
+$ curl -s -i http://127.0.0.1:8000/api/v1/public/signals
+HTTP/1.1 404 Not Found
+Content-Type: application/problem+json
+Content-Length: 196
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+X-Correlation-ID: 5275b641d3eb4395d9f4508393a7d071
+Cache-Control: no-store
+
+{"type":"https://novaria.local/problems/not-found","title":"Introuvable","status":404,"code":"NOT_FOUND","detail":"Aucune route ne correspond.","correlation_id":"5275b641d3eb4395d9f4508393a7d071"}
+
+$ curl -s -i http://127.0.0.1:8000/api/v1/public/indicators
+HTTP/1.1 404 Not Found
+Content-Type: application/problem+json
+Content-Length: 196
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+X-Correlation-ID: a765e881c4eedef5907e160c24376114
+Cache-Control: no-store
+
+{"type":"https://novaria.local/problems/not-found","title":"Introuvable","status":404,"code":"NOT_FOUND","detail":"Aucune route ne correspond.","correlation_id":"a765e881c4eedef5907e160c24376114"}
+
+$ curl -s -i http://127.0.0.1:8000/api/v1/measurements
+HTTP/1.1 404 Not Found
+Content-Type: application/problem+json
+Content-Length: 218
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+X-Correlation-ID: 3df7dda212d99af029b1a17cc3ba34da
+
+{"type":"https://novaria.local/problems/not-found","title":"Introuvable","status":404,"code":"NOT_FOUND","detail":"Cette route n est pas exposée par la passerelle.","correlation_id":"3df7dda212d99af029b1a17cc3ba34da"}
+
+$ curl -s -i http://127.0.0.1:8000/api/v1/indicators/latest
+HTTP/1.1 401 Unauthorized
+Content-Type: application/problem+json
+Content-Length: 228
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+X-Correlation-ID: 1a8128c0985adae4ef0be48ebe7c88d3
+WWW-Authenticate: Bearer
+
+{"type":"https://novaria.local/problems/unauthenticated","title":"Authentification requise","status":401,"code":"UNAUTHENTICATED","detail":"Jeton absent, invalide ou expiré.","correlation_id":"1a8128c0985adae4ef0be48ebe7c88d3"}

@@ -105,6 +105,8 @@ def required_role(method: str, path: str) -> Role | None:
 
 def exemption(method: str, path: str, status: str) -> str | None:
     """Raison pour laquelle une erreur documentée ne peut pas être provoquée."""
+    if status == "429" and path.startswith("/api/v1/public/"):
+        return "la limite de débit des routes publiques est celle de la passerelle (zone `citoyen`)"
     if status == "403" and required_role(method, path) == LOWEST_ROLE:
         return f"le rôle `{LOWEST_ROLE.value}` est le plus bas : personne n'a moins de droits"
     return None
@@ -250,6 +252,7 @@ def test_the_only_errors_without_a_test_are_the_written_exemptions():
         ("get", FORECASTS, "403"),
         ("get", REPORTS, "403"),
         ("get", REPORT_CONTENT, "403"),
+        ("get", "/api/v1/public/congestion", "429"),
     }
     assert LOWEST_ROLE == Role.VIEWER, "un rôle plus bas rend ces 403 testables"
 
@@ -338,6 +341,10 @@ def serve_with_failing_database(scene, method: str, path: str, error: Exception)
     """Un appel authentifié, valide, dont la base de données échoue."""
     headers = scene.token(Role.ADMIN)
     app.dependency_overrides[get_user_repository] = broken(error)
+    if path.startswith(
+        "/api/v1/public/"
+    ):  # aucune identité : seule la lecture de l'entrepôt peut échouer
+        app.dependency_overrides[get_indicator_repository] = broken(error)
     url = path.replace("{user_id}", UNKNOWN_ID).replace("{indicator_id}", "inconnu")
     url = url.replace("{report_id}", UNKNOWN_REPORT)
     body = {"username": "u", "password": PASSWORD} if path == LOGIN else None

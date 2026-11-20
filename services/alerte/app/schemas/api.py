@@ -32,6 +32,29 @@ class AlertOut(BaseModel):
     provenance: dict[str, Any]
 
 
+class PublicAlertOut(BaseModel):
+    """`PublicAlert` du contrat : ce que le public voit d'une alerte de congestion en cours.
+
+    Liste blanche (ADR-030, section 4.4) : ces six champs et aucun autre. `extra="forbid"` et un
+    mappeur écrit champ par champ : un champ ajouté au modèle interne ne sort pas ici.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    alert_id: str
+    road_segment_id: str
+    intersection_id: str
+    severity: Literal["INFO", "WARNING", "CRITICAL"]
+    opened_at: str
+    simulated: bool
+
+
+class PublicAlertListOut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[PublicAlertOut]
+
+
 class AlertHistoryEntryOut(BaseModel):
     from_state: AlertStateName | None
     to_state: AlertStateName

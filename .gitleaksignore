@@ -4,3 +4,4 @@
 
 2dc8754e130c9c84f5e92e5fe5558d5978cb9975:services/traitement/tests/fakes.py:generic-api-key:16
 75a1af5ac4cf6e30060607fa358e78fa781057e5:ml/evaluation/sumo.json:sumologic-access-token:250
+9c75b5a94953ca105c9894e5cf827724bd43cd0f:docs/03-donnees/sorties-api-citoyen/curl-2026-11-20.txt:curl-auth-header:34

@@ -280,6 +280,15 @@ class FakeStore:
             ordered = [a for a in ordered if (a.opened_at, a.alert_id) < after]
         return ordered[:limit]
 
+    def list_open_congestion(self, limit: int) -> list[Alert]:
+        if self.down:
+            raise StoreFailed("base indisponible")
+        opened = [
+            a for a in self.data.alerts.values()
+            if a.kind == Kind.CONGESTION and a.state != State.RESOLVED
+        ]  # fmt: skip
+        return sorted(opened, key=lambda a: (a.opened_at, a.alert_id), reverse=True)[:limit]
+
     def get_alert(self, alert_id: str):
         alert = self.data.alerts.get(alert_id)
         if alert is None:

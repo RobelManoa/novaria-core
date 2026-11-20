@@ -10,7 +10,12 @@ from functools import lru_cache
 
 from app.core.security import create_access_token, hash_password
 from app.models import Role, User
-from app.repositories.indicators import IndicatorFilters, IndicatorRow, Position
+from app.repositories.indicators import (
+    IndicatorFilters,
+    IndicatorRow,
+    Position,
+    PublicSegmentRow,
+)
 from app.repositories.users import DuplicateUsername
 from app.services.audit import RecordingObserver
 from app.services.indicators import make_indicator_id
@@ -116,8 +121,11 @@ def sort_key(row: IndicatorRow) -> tuple:
 class FakeIndicatorRepository:
     """Entrepôt en mémoire : mêmes filtres, ordre et curseur que `SqlIndicatorRepository`."""
 
-    def __init__(self, rows: list[IndicatorRow] | None = None) -> None:
+    def __init__(
+        self, rows: list[IndicatorRow] | None = None, approaches: dict[str, str] | None = None
+    ) -> None:
         self.rows = list(rows or [])
+        self.approaches = dict(approaches or {})  # côté de chaque tronçon (référentiel)
 
     def list_page(self, filters: IndicatorFilters, *, limit: int, after: Position | None):
         kept = [
@@ -147,6 +155,28 @@ class FakeIndicatorRepository:
             ),
             None,
         )
+
+    def latest_public(self):
+        """Comme `SqlIndicatorRepository.latest_public` : six colonnes, run le plus récent."""
+        minutes = [r for r in self.rows if r.window_size_s == 60]
+        if not minutes:
+            return []
+        run_id = sorted(minutes, key=sort_key)[0].run_id
+        par_troncon: dict[str, IndicatorRow] = {}
+        for row in sorted(minutes, key=sort_key, reverse=True):
+            if row.run_id == run_id:
+                par_troncon[row.road_segment_id] = row
+        return [
+            PublicSegmentRow(
+                road_segment_id=r.road_segment_id,
+                intersection_id=r.intersection_id,
+                approach=self.approaches.get(r.road_segment_id, "N"),
+                congestion_state=r.congestion_state,
+                window_start=r.window_start,
+                source_type=r.source_type,
+            )
+            for r in (par_troncon[k] for k in sorted(par_troncon, key=str.encode))
+        ]
 
     def latest(self, *, intersection_id, run_id):
         minutes = [r for r in self.rows if r.window_size_s == 60]
