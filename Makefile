@@ -6,7 +6,7 @@ DEV = $(PY) scripts/dev/dev.py
 PY_API ?= $(if $(wildcard venv/bin/python),venv/bin/python,$(PY))
 DEV_API = $(PY_API) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint a11y-audit format new-service quality-up quality-down hooks terraform-check drift-check dataset-build test-ml test-gateway test-gateway-unit gateway-routes reference-mesure preparation-check ml-env ml-train ml-anomalies ml-prevision ml-sumo ml-registre ml-registre-essai bigdata-build bigdata-test bigdata parcours flux-complet observatoire panne sauvegarde sauvegarde-liste restauration sauvegarde-planifier acces tableau-de-bord
+.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint a11y-audit format new-service quality-up quality-down hooks terraform-check drift-check dataset-build test-ml test-gateway test-gateway-unit gateway-routes reference-mesure preparation-check ml-env ml-train ml-anomalies ml-prevision ml-sumo ml-registre ml-registre-essai bigdata-build bigdata-test bigdata parcours flux-complet observatoire panne sauvegarde sauvegarde-liste restauration sauvegarde-planifier acces tableau-de-bord rollback
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -188,6 +188,8 @@ restauration:  ## Restaure dans un environnement isolé et compare les totaux (C
 	$(DEV) restauration $(if $(NEG),--controles-negatifs,)
 sauvegarde-planifier: ## Planifie la sauvegarde sans cron (CLD-15)
 	$(DEV) sauvegarde-planifier
+rollback:      ## Retour de version en local : make rollback A=essai (etat, construire, deployer, retour, essai ; CLD-16)
+	$(DEV) rollback $(A)
 tableau-de-bord: ## Tableau de bord de pilotage : exigences, risques, livrables par jalon, depuis GitHub (GES-11)
 	$(DEV) tableau-de-bord
 acces:         ## Essais d'autorisation et de refus : compare la matrice d'accès à l'API, PostgreSQL et MongoDB (CLD-18)
