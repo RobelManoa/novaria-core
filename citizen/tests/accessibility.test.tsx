@@ -30,18 +30,20 @@ async function audit() {
 
 describe("accessibilité de chaque état (WCAG 2.1 AA)", () => {
   it("chargement", async () => {
-    render(<App fetcher={() => new Promise<SegmentState[]>(() => {})} />);
+    render(
+      <App alertsFetcher={async () => []} fetcher={() => new Promise<SegmentState[]>(() => {})} />,
+    );
     expect(await audit()).toEqual([]);
   });
 
   it("vue principale", async () => {
-    render(<App fetcher={async () => network()} />);
+    render(<App alertsFetcher={async () => []} fetcher={async () => network()} />);
     await screen.findByRole("region", { name: "En un coup d'œil" });
     expect(await audit()).toEqual([]);
   });
 
   it("liste vide", async () => {
-    render(<App fetcher={async () => []} />);
+    render(<App alertsFetcher={async () => []} fetcher={async () => []} />);
     await screen.findByText("Aucune information pour le moment");
     expect(await audit()).toEqual([]);
   });
@@ -49,6 +51,7 @@ describe("accessibilité de chaque état (WCAG 2.1 AA)", () => {
   it("erreur sans donnée", async () => {
     render(
       <App
+        alertsFetcher={async () => []}
         fetcher={async () => {
           throw new ApiError("reseau", "x");
         }}
@@ -62,6 +65,7 @@ describe("accessibilité de chaque état (WCAG 2.1 AA)", () => {
     let appels = 0;
     render(
       <App
+        alertsFetcher={async () => []}
         intervalMs={5}
         fetcher={async () => {
           appels += 1;
@@ -83,5 +87,40 @@ describe("page d'accueil", () => {
     expect(index).toMatch(/name="viewport" content="width=device-width, initial-scale=1\.0"/);
     expect(index).not.toMatch(/user-scalable|maximum-scale/);
     expect(index).toMatch(/<title>[^<]+<\/title>/);
+  });
+});
+
+describe("accessibilité des alertes et du suivi (CIT-05)", () => {
+  it("liste d'alertes, suivi consenti et notification simulée", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const { alert } = await import("./fixtures");
+    let courantes = [alert({ alert_id: "a" })];
+    render(
+      <App
+        fetcher={async () => network()}
+        alertsFetcher={async () => courantes}
+        alertsIntervalMs={20}
+      />,
+    );
+    await screen.findByText(/1 alerte en cours/);
+    expect(await audit()).toEqual([]);
+    await userEvent.click(screen.getByRole("checkbox"));
+    await userEvent.click(screen.getAllByRole("button", { name: "Suivre le tronçon ROAD_002" })[0]);
+    courantes = [alert({ alert_id: "a" }), alert({ alert_id: "b", severity: "CRITICAL" })];
+    await screen.findByRole("group", { name: "Notification simulée" });
+    expect(await audit()).toEqual([]);
+  });
+
+  it("alertes en erreur", async () => {
+    render(
+      <App
+        fetcher={async () => network()}
+        alertsFetcher={async () => {
+          throw new ApiError("indisponible", "x");
+        }}
+      />,
+    );
+    await screen.findByText(/momentanément indisponible/);
+    expect(await audit()).toEqual([]);
   });
 });

@@ -1,4 +1,4 @@
-import type { SegmentState } from "../src/types";
+import type { PublicAlert, SegmentState } from "../src/types";
 
 /** Un tronçon au format du contrat (traitement.openapi.yaml, PublicSegmentState), modifiable champ par champ. */
 export function segment(changes: Partial<SegmentState> = {}): SegmentState {
@@ -33,4 +33,17 @@ export function network(): SegmentState[] {
       state: "FREE_FLOW",
     }),
   ];
+}
+
+/** Une alerte au format du contrat (alerte.openapi.yaml, PublicAlert), modifiable champ par champ. */
+export function alert(changes: Partial<PublicAlert> = {}): PublicAlert {
+  return {
+    alert_id: "3f0c1f0e-8a52-4d3c-9d58-1b9a3e5c7a10",
+    road_segment_id: "ROAD_002",
+    intersection_id: "INT_01",
+    severity: "WARNING",
+    opened_at: "2026-11-20T09:08:30Z",
+    simulated: true,
+    ...changes,
+  };
 }

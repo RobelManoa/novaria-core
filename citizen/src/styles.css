@@ -411,3 +411,83 @@ main:focus {
     flex-wrap: wrap;
   }
 }
+
+/* CIT-05 : alertes en cours, suivi d'un tronçon, notification simulée */
+.badge--gravite-info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.badge--gravite-warning {
+  background: var(--slow-bg);
+  color: var(--slow);
+}
+
+.badge--gravite-critical {
+  background: var(--congested-bg);
+  color: var(--congested);
+}
+
+.carte--gravite-critical {
+  border-left: 6px solid var(--congested);
+}
+
+.carte--gravite-warning {
+  border-left: 6px solid var(--slow);
+}
+
+.carte--gravite-info {
+  border-left: 6px solid var(--info);
+}
+
+.bouton--petit {
+  min-height: var(--tap);
+  padding: 0.25rem 0.75rem;
+  margin-top: 0.375rem;
+  font-size: 0.9375rem;
+}
+
+.panneau--gauche {
+  text-align: left;
+  justify-items: start;
+}
+
+.suivi__garanties {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.375rem;
+}
+
+.consentement {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-height: var(--tap);
+  font-weight: 600;
+}
+
+.consentement input {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  margin-top: 0.125rem;
+}
+
+.notifications {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.notification {
+  background: var(--info-bg);
+  color: var(--text);
+  border: 2px solid var(--info);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+}
+
+.notification__titre {
+  margin: 0 0 0.25rem;
+}

@@ -18,6 +18,8 @@ APP = RACINE / "citizen"
 SRC = APP / "src"
 CONTRAT = yaml.safe_load((RACINE / "contracts" / "openapi" / "traitement.openapi.yaml").read_text(encoding="utf-8"))
 SCHEMAS = CONTRAT["components"]["schemas"]
+CONTRAT_ALERTES = yaml.safe_load((RACINE / "contracts" / "openapi" / "alerte.openapi.yaml").read_text(encoding="utf-8"))
+SCHEMAS_ALERTES = CONTRAT_ALERTES["components"]["schemas"]
 CAPTURES = RACINE / "docs" / "Capture d'ecran"
 
 
@@ -68,6 +70,41 @@ class AccordAvecLeContrat(unittest.TestCase):
         self.assertEqual(set(CONTRAT["paths"][chemin]), {"get"})
 
 
+class AccordAvecLeContratDesAlertes(unittest.TestCase):
+    """CIT-05 : l'application lit `GET /api/v1/public/alerts` et rien d'autre de ce contrat."""
+
+    def test_la_route_appelee_est_la_route_publique_d_alertes_du_contrat(self):
+        chemin = re.search(r'ALERTS_PATH = "([^"]+)"', lire("api.ts")).group(1)
+        operation = CONTRAT_ALERTES["paths"][chemin]["get"]
+        self.assertEqual(operation["security"], [], "publique : sans jeton")
+        self.assertEqual(set(CONTRAT_ALERTES["paths"][chemin]) - {"parameters", "summary", "description"}, {"get"})
+
+    def test_les_champs_lus_sont_exactement_les_six_du_contrat(self):
+        champs = re.search(r"const ALERT_FIELDS = \[(.*?)\];", lire("api.ts"), re.S).group(1)
+        attendus = set(SCHEMAS_ALERTES["PublicAlert"]["properties"])
+        self.assertEqual(set(re.findall(r'"(\w+)"', champs)), attendus)
+        interface = re.search(r"export interface PublicAlert \{(.*?)\n\}", lire("types.ts"), re.S).group(1)
+        self.assertEqual(set(re.findall(r"^\s*(\w+):", interface, re.M)), attendus)
+
+    def test_les_gravites_sont_celles_du_contrat_et_ont_un_libelle_et_une_aide(self):
+        gravites = set(SCHEMAS_ALERTES["Severity"]["enum"])
+        self.assertEqual(set(valeurs_ts(lire("types.ts"), "SEVERITIES")), gravites)
+        for table in ("SEVERITY_LABEL", "SEVERITY_HELP"):
+            with self.subTest(table=table):
+                self.assertEqual(cles_ts(lire("labels.ts"), table), gravites)
+
+    def test_aucun_champ_interne_d_alerte_n_est_lu_ni_affiche(self):
+        for fichier in SRC.rglob("*.ts*"):
+            texte = fichier.read_text(encoding="utf-8")
+            for interdit in ("acknowledged_by", "episode_id", "rule_id", "classifier_version", "scenario_id"):
+                self.assertNotIn(interdit, texte, f"{fichier.name} : champ interne `{interdit}` (ADR-030, section 4.4)")
+
+    def test_le_suivi_est_en_memoire_seulement(self):
+        texte = lire("useFollow.ts")
+        self.assertNotRegex(texte, r"localStorage|sessionStorage|indexedDB|document\.cookie")
+        self.assertIn("en mémoire seulement", texte)
+
+
 class Garde_fous(unittest.TestCase):
     SOURCES = [p for p in SRC.rglob("*") if p.suffix in (".ts", ".tsx")]
 
@@ -75,7 +112,7 @@ class Garde_fous(unittest.TestCase):
         trouvees = set()
         for fichier in self.SOURCES:
             trouvees |= set(re.findall(r"/api/[\w/.-]*", fichier.read_text(encoding="utf-8")))
-        self.assertEqual(trouvees, {"/api/v1/public/congestion"})
+        self.assertEqual(trouvees, {"/api/v1/public/congestion", "/api/v1/public/alerts"}, "les deux routes publiques de l'ADR-030, et aucune autre")
 
     def test_seul_api_ts_appelle_le_reseau(self):
         for fichier in self.SOURCES:

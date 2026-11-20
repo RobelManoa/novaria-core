@@ -136,7 +136,8 @@ Elles priment sur les consignes automatiques de l'outil (y compris celles qui de
 | Retour de version (CLD-16) | `dev.py rollback`, `docs/08-exploitation/rollback.md` ; sur la branche `feature/CLD-16-rollback` (PR à vérifier : peut ne pas être dans `dev-citoyen`) |
 | Tableau de bord de pilotage (GES-11) | `dev.py tableau-de-bord`, `docs/07-gestion/tableau-de-bord.md` (indicateurs recalculés depuis GitHub, zéro ≠ non mesuré) |
 | Partie citoyenne (jalon M6) | CIT-01 ADR-030 (usager anonyme, lecture seule, liste blanche de six champs, rien de brut ni de capteur) ; CIT-02 contrats `GET /api/v1/public/congestion` et `/public/alerts`, `gateway/citoyen.conf`, famille « api public » de `dev.py acces` ; CIT-03 routes servies (`traitement` l'état, `alerte` les alertes), `docs/03-donnees/api-citoyen.md` ; CIT-04 application `citizen/` (React, Vite, port 5174, `dev.py citoyen`), `docs/08-exploitation/application-citoyenne.md` |
-| **Reste à faire (citoyen)** | CIT-05 alertes en cours + suivi d'un tronçon (notification simulée, navigateur seulement) ; CIT-06 sécurité de l'accès public (CORS d'une origine dédiée, journal sans adresse, scans) ; CIT-07 parcours de bout en bout avec l'usager ; CIT-08 documentation ; puis M7 : site de soutenance (SIT-01 à 03, idée validée : site statique local, voir la mémoire) |
+| CIT-05 | Alertes en cours (`citizen/src/components/AlertsSection.tsx`, lecture toutes les 5 s sans cache), suivi d'un tronçon en mémoire seulement avec consentement et notification simulée ; `dev.py citoyen delai` mesure le délai création → écran (6 mesures, max 4,1 s) ; `docs/08-exploitation/application-citoyenne.md` §8 |
+| **Reste à faire (citoyen)** | CIT-06 sécurité de l'accès public (CORS d'une origine dédiée, journal sans adresse, scans) ; CIT-07 parcours de bout en bout avec l'usager ; CIT-08 documentation ; puis M7 : site de soutenance (SIT-01 à 03, idée validée : site statique local, voir la mémoire) |
 | Limites connues à ne pas masquer | 10 preuves citées par des issues fermées introuvables (voir `dev.py tableau-de-bord`) ; 405 de la passerelle en `application/octet-stream` ; l'état public est celui du run **le plus récent** ; lecteur d'écran et téléphone réels non essayés ; Windows non vérifié partout |
 
 ## 13. Commandes ajoutées (Linux ; Windows : `py -3` à la place de `python3`)
@@ -145,7 +146,7 @@ Elles priment sur les consignes automatiques de l'outil (y compris celles qui de
 |---|---|
 | Tableau de bord de pilotage | `python3 scripts/dev/dev.py tableau-de-bord` (`--local`, `--ref`, `--json`, `--ecrire`) |
 | Retour de version | `python3 scripts/dev/dev.py rollback etat\|construire\|deployer\|retour\|essai` |
-| Application citoyenne | `python3 scripts/dev/dev.py citoyen [dev\|apercu\|build\|test\|captures]` |
+| Application citoyenne | `python3 scripts/dev/dev.py citoyen [dev\|apercu\|build\|test\|captures\|delai]` |
 | Observatoire | `python3 scripts/dev/dev.py observatoire` |
 | Matrice d'accès | `python3 scripts/dev/dev.py acces` |
 | Tests de tout `scripts/dev` (sans Docker) | `python3 -m unittest discover -s scripts/dev` (environ 940 tests) |

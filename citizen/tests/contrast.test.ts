@@ -46,6 +46,8 @@ const TEXTE: [string, string][] = [
   ["primary-contrast", "primary"],
   ["primary", "bg"],
   ["congested", "surface"],
+  ["text", "info-bg"],
+  ["info", "surface"],
 ];
 const FORMES: [string, string][] = [
   ["focus", "bg"],

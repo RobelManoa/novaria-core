@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format:check": "prettier --check src tests scripts",
     "test": "vitest run --coverage",
-    "captures": "node scripts/captures.mjs"
+    "captures": "node scripts/captures.mjs",
+    "captures:alertes": "node scripts/captures-alertes.mjs"
   },
   "dependencies": {
     "react": "^19.0.0",

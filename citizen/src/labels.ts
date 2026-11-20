@@ -1,4 +1,4 @@
-import type { Approach, CongestionState } from "./types";
+import type { Approach, CongestionState, Severity } from "./types";
 
 /** Vocabulaire public de l'ADR-030 (section 4.2) : les mots de l'écran, jamais les codes techniques. */
 export const STATE_LABEL: Record<CongestionState, string> = {
@@ -30,3 +30,16 @@ export const STATE_ORDER: readonly CongestionState[] = [
   "FREE_FLOW",
   "UNKNOWN",
 ];
+
+/** Gravité d'une alerte, en mots du public (ADR-030, section 4.2). */
+export const SEVERITY_LABEL: Record<Severity, string> = {
+  INFO: "Information",
+  WARNING: "Attention",
+  CRITICAL: "Critique",
+};
+
+export const SEVERITY_HELP: Record<Severity, string> = {
+  INFO: "À titre d'information.",
+  WARNING: "La circulation est fortement perturbée : prévoyez du retard.",
+  CRITICAL: "Situation très perturbée : évitez ce tronçon si vous le pouvez.",
+};

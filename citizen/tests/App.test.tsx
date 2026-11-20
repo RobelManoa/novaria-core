@@ -17,7 +17,9 @@ const case_ = (texte: string) => (_: string, element: Element | null) =>
   element.textContent === texte;
 
 function show(fetcher: Fetcher, now = () => NOW) {
-  return render(<App fetcher={fetcher} intervalMs={15_000} now={now} />);
+  return render(
+    <App fetcher={fetcher} intervalMs={15_000} now={now} alertsFetcher={async () => []} />,
+  );
 }
 
 function pending() {
@@ -41,7 +43,7 @@ describe("état de la circulation", () => {
       show(() => new Promise<SegmentState[]>(() => {}));
       expect(screen.getByRole("status")).toHaveTextContent("Chargement de la circulation…");
       expect(screen.getByRole("note")).toHaveTextContent("Données simulées");
-      expect(screen.queryByRole("list")).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Par carrefour" })).not.toBeInTheDocument();
     });
   });
 
