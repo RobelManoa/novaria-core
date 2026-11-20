@@ -1287,6 +1287,13 @@ def cmd_bigdata_test(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------- matrice d'accès et essais de refus (CLD-18)
+def cmd_tableau_de_bord(args: argparse.Namespace) -> int:
+    """Tableau de bord de pilotage (GES-11) : exigences, risques et livrables par jalon, recalculés depuis GitHub."""
+    options = (["--ref", args.ref] if args.ref else []) + (["--local"] if args.local else []) + (["--json"] if args.json else []) + (["--ecrire"] if args.ecrire else [])
+    script = ROOT / "scripts" / "github" / "tableau_de_bord.py"
+    return subprocess.run([sys.executable, str(script), *options], cwd=ROOT, env={**os.environ, "PYTHONUTF8": "1"}, check=False).returncode
+
+
 def cmd_acces(args: argparse.Namespace) -> int:
     """Compare ops/matrice-acces.json à ce que la pile applique : essais autorisés et refusés sur l'API, PostgreSQL et MongoDB."""
     import acces
@@ -1905,6 +1912,11 @@ def build_parser() -> argparse.ArgumentParser:
     bdt = add("bigdata-test", cmd_bigdata_test, "tests du prototype Big Data dans son image (Docker)")
     bdt.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
     bdt.add_argument("--memoire", default="6g", help="mémoire allouée au conteneur (6g par défaut)")
+    tdb = add("tableau-de-bord", cmd_tableau_de_bord, "tableau de bord de pilotage (GES-11) : exigences vérifiées, risques traités, livrables par jalon, recalculés depuis GitHub")
+    tdb.add_argument("--ref", help="branche, étiquette ou empreinte lue sur GitHub (main par défaut)")
+    tdb.add_argument("--local", action="store_true", help="lit exigences.md et registre-risques.md dans la copie de travail")
+    tdb.add_argument("--json", action="store_true", help="sortie JSON")
+    tdb.add_argument("--ecrire", action="store_true", help="met à jour le bloc mesuré de docs/07-gestion/tableau-de-bord.md")
     ac = add("acces", cmd_acces, "essais d'autorisation et de refus : compare la matrice d'accès à l'API, PostgreSQL et MongoDB (CLD-18)")
     ac.add_argument("--max-echecs", type=int, default=20, help="nombre d'échecs détaillés (20 par défaut)")
     sv = add("sauvegarde", cmd_sauvegarde, "sauvegarde PostgreSQL et MongoDB avec manifeste, puis conservation par paliers (CLD-15)")
