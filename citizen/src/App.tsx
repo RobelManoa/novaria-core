@@ -1,4 +1,4 @@
-import type { SegmentState } from "./types";
+import type { PublicAlert, SegmentState } from "./types";
 import {
   EmptyPanel,
   ErrorPanel,
@@ -7,21 +7,36 @@ import {
   SimulatedBanner,
   StaleNotice,
 } from "./components/Notices";
+import { AlertsSection } from "./components/AlertsSection";
+import { FollowPanel, NotificationsZone } from "./components/FollowPanel";
 import { SegmentCard } from "./components/SegmentCard";
 import { Summary } from "./components/Summary";
 import { STALE_AFTER_MS, ago, formatTime } from "./format";
 import { countByState, groupByIntersection, latestUpdate } from "./summary";
+import { useAlerts } from "./useAlerts";
 import { useCongestion } from "./useCongestion";
+import { useFollow } from "./useFollow";
 import { useNow } from "./useNow";
 
 interface Props {
   fetcher?: (signal: AbortSignal) => Promise<SegmentState[]>;
   intervalMs?: number;
+  alertsFetcher?: (signal: AbortSignal) => Promise<PublicAlert[]>;
+  alertsIntervalMs?: number;
   now?: () => number;
 }
 
-export default function App({ fetcher, intervalMs, now = Date.now }: Props = {}) {
+export default function App({
+  fetcher,
+  intervalMs,
+  alertsFetcher,
+  alertsIntervalMs,
+  now = Date.now,
+}: Props = {}) {
   const view = useCongestion({ fetcher, intervalMs, now });
+  const alerts = useAlerts({ fetcher: alertsFetcher, intervalMs: alertsIntervalMs, now });
+  const follow = useFollow(alerts.alerts, now);
+  const approaches = new Map(view.segments.map((s) => [s.road_segment_id, s.approach]));
   const current = useNow(30_000, now);
   const updated = latestUpdate(view.segments);
   const dataAge = updated ? current - new Date(updated).getTime() : 0;
@@ -33,10 +48,22 @@ export default function App({ fetcher, intervalMs, now = Date.now }: Props = {})
       </a>
       <header className="entete">
         <h1>Circulation en ville</h1>
-        <p>L'état de la circulation, tronçon par tronçon. Sans compte, sans inscription.</p>
+        <p>
+          Les alertes et l'état de la circulation, tronçon par tronçon. Sans compte, sans
+          inscription.
+        </p>
       </header>
       <main id="contenu" tabIndex={-1}>
         <SimulatedBanner />
+        <NotificationsZone follow={follow} current={current} />
+        <AlertsSection
+          view={alerts}
+          approaches={approaches}
+          follow={follow}
+          current={current}
+          onRetry={alerts.refresh}
+        />
+        <FollowPanel follow={follow} />
         {view.status === "loading" ? <LoadingPanel /> : null}
         {view.status === "error" && view.error ? (
           <ErrorPanel error={view.error} onRetry={view.refresh} busy={view.refreshing} />
@@ -84,7 +111,11 @@ export default function App({ fetcher, intervalMs, now = Date.now }: Props = {})
                       <h3 id={`carrefour-${group.intersection}`}>Carrefour {group.intersection}</h3>
                       <ul className="liste">
                         {group.segments.map((segment) => (
-                          <SegmentCard key={segment.road_segment_id} segment={segment} />
+                          <SegmentCard
+                            key={segment.road_segment_id}
+                            segment={segment}
+                            follow={follow}
+                          />
                         ))}
                       </ul>
                     </section>
