@@ -24,6 +24,8 @@ from app.schemas.indicators import (
 )
 from app.services.indicators import DEFAULT_LIMIT, MAX_LIMIT, IndicatorService, InvalidCursor
 
+UN_CHAMP_INVALIDE = "1 champ invalide."
+
 router = APIRouter(prefix="/indicators", tags=["indicators"])
 VIEWER = {"x-required-role": Role.VIEWER.value}
 
@@ -47,7 +49,7 @@ def parse_utc(value: str | None, field: str) -> datetime | None:
     except ValueError as error:
         raise ProblemError(
             VALIDATION_ERROR,
-            "1 champ invalide.",
+            UN_CHAMP_INVALIDE,
             errors=[{"field": f"query.{field}", "message": "Date et heure UTC impossibles."}],
         ) from error
 
@@ -76,7 +78,7 @@ def list_indicators(
     if start is not None and end is not None and end <= start:
         raise ProblemError(
             VALIDATION_ERROR,
-            "1 champ invalide.",
+            UN_CHAMP_INVALIDE,
             errors=[{"field": "query.to", "message": "Doit être postérieure à `from`."}],
         )
     filters = IndicatorFilters(
@@ -94,7 +96,7 @@ def list_indicators(
     except InvalidCursor as error:
         raise ProblemError(
             VALIDATION_ERROR,
-            "1 champ invalide.",
+            UN_CHAMP_INVALIDE,
             errors=[{"field": "query.cursor", "message": "Curseur inconnu."}],
         ) from error
     return IndicatorPageResponse(

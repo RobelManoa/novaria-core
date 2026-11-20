@@ -18,6 +18,10 @@ from prevision import HORIZONS_MIN, HORIZONS_PAS, MPH_EN_KMH, PAS_MIN, evaluatio
 from prevision.donnees import Serie
 from preparation import decoupage
 
+SEPARATEUR_PREMIERE_COLONNE = "|---|"
+
+ENTETE_METHODE = "| Méthode | "
+
 DOSSIER = RACINE / "ml" / "evaluation"
 JSON = DOSSIER / "prevision.json"
 MARKDOWN = DOSSIER / "prevision-resultats.md"
@@ -207,7 +211,7 @@ def markdown(r: dict) -> str:
         p = d["parties"][nom]
         ligne.append(f"| {titre} | {p['pas']} | {p['debut']} | {p['fin']} |")
     ligne += ["", f"Exemples d'apprentissage : {d['exemples_apprentissage']} (un instant sur {r['protocole']['pas_apprentissage']}, {d['capteurs']} capteurs). Unité : miles par heure (mph) ; 1 mph = {_n(MPH_EN_KMH, 3)} km/h.", "",
-              "## Test sur METR-LA : MAE / RMSE (mph)", "", "| Méthode | " + " | ".join(f"{m} min" for m in h) + " |", "|---|" + "---|" * len(h)]
+              "## Test sur METR-LA : MAE / RMSE (mph)", "", ENTETE_METHODE + " | ".join(f"{m} min" for m in h) + " |", SEPARATEUR_PREMIERE_COLONNE + "---|" * len(h)]
     for nom in ordre:
         ligne.append(f"| {NOMS_METHODES[nom]} | " + " | ".join(_cellule(h[m]["test"].get(nom)) for m in h) + " |")
     ligne += ["", "## Meilleur modèle contre les références", "",
@@ -225,16 +229,16 @@ def markdown(r: dict) -> str:
     s = r["simule"]
     ligne += ["", "## Run simulé : MAE / RMSE (mph), modèles appris sur METR-LA, sans réapprentissage", "",
               f"Trois runs de 6 h ({', '.join(s['runs'])}), exemples réunis. Vitesses du simulateur converties de km/h en mph. **Limite de validité : voir [`prevision-comparaison.md`](prevision-comparaison.md).**", "",
-              "| Méthode | " + " | ".join(f"{m} min" for m in s["horizons"]) + " |", "|---|" + "---|" * len(s["horizons"])]
+              ENTETE_METHODE + " | ".join(f"{m} min" for m in s["horizons"]) + " |", SEPARATEUR_PREMIERE_COLONNE + "---|" * len(s["horizons"])]
     for nom in ordre:
         ligne.append(f"| {NOMS_METHODES[nom]} | " + " | ".join(_cellule(s["horizons"][m]["methodes"].get(nom)) for m in s["horizons"]) + " |")
     ligne.append("| Exemples mesurés | " + " | ".join(str(s["horizons"][m]["n"]) for m in s["horizons"]) + " |")
     ligne.append("| Vitesse réelle moyenne (mph) | " + " | ".join(_n(s["horizons"][m]["vitesse_reelle_moyenne_mph"], 1) for m in s["horizons"]) + " |")
     ligne += ["", "Biais moyen, prévision − réel (mph) : négatif, le modèle prévoit une vitesse plus basse que la réalité.", "",
-              "| Méthode | " + " | ".join(f"{m} min" for m in s["horizons"]) + " |", "|---|" + "---|" * len(s["horizons"])]
+              ENTETE_METHODE + " | ".join(f"{m} min" for m in s["horizons"]) + " |", SEPARATEUR_PREMIERE_COLONNE + "---|" * len(s["horizons"])]
     for nom in ("persistance", *MODELES):
         ligne.append(f"| {NOMS_METHODES[nom]} | " + " | ".join(_n(s["horizons"][m]["methodes"][nom]["biais"]) for m in s["horizons"]) + " |")
-    ligne += ["", "## Biais du modèle sur METR-LA (test), pour comparaison", "", "| Méthode | " + " | ".join(f"{m} min" for m in h) + " |", "|---|" + "---|" * len(h)]
+    ligne += ["", "## Biais du modèle sur METR-LA (test), pour comparaison", "", ENTETE_METHODE + " | ".join(f"{m} min" for m in h) + " |", SEPARATEUR_PREMIERE_COLONNE + "---|" * len(h)]
     for nom in ("persistance", *MODELES):
         ligne.append(f"| {NOMS_METHODES[nom]} | " + " | ".join(_n(h[m]["test"][nom]["biais"]) for m in h) + " |")
     return "\n".join(ligne) + "\n"

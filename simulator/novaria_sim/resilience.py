@@ -66,7 +66,7 @@ def retry(
     retry_on: tuple[type[BaseException], ...] = (Exception,),
     never_retry: tuple[type[BaseException], ...] = (),
     sleep: Callable[[float], None] = time.sleep,
-    rng: Callable[[], float] = random.random,  # noqa: S311
+    rng: Callable[[], float] = random.random,  # noqa: S311 - dispersion des reprises, pas de sécurité
     observer: Observer | None = None,
     name: str = "",
 ) -> Any:

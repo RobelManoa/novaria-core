@@ -14,6 +14,8 @@ même calendrier de congestion. Évaluer sur un scénario jamais vu exige un qua
 from collections import Counter
 from dataclasses import dataclass
 
+NOTE_SANS_ANOMALIE = "sans anomalie"
+
 JEU_ID = "novaria-congestion-v1"
 NUMERO_DE_VERSION = 1
 TRAIN, VALIDATION, TEST = "train", "validation", "test"
@@ -45,7 +47,7 @@ class RunSpec:
 HEURE = 3600
 CATALOGUE: tuple[RunSpec, ...] = (
     # --- Journée calme : tout reste fluide, 08:00 à 14:00 (le jour par défaut dure 24 h, la nuit est vide)
-    RunSpec("ds1-calme-s11", "journee-calme", 11, TRAIN, "08:00", 6 * HEURE, note="sans anomalie"),
+    RunSpec("ds1-calme-s11", "journee-calme", 11, TRAIN, "08:00", 6 * HEURE, note=NOTE_SANS_ANOMALIE),
     RunSpec("ds1-calme-s12", "journee-calme", 12, TRAIN, "08:00", 6 * HEURE,
             ("muet:sensor=SENSOR_003,at=+3600,duration=10m",), "capteur muet pendant 10 minutes"),
     RunSpec("ds1-calme-s13", "journee-calme", 13, VALIDATION, "08:00", 6 * HEURE,
@@ -53,7 +55,7 @@ CATALOGUE: tuple[RunSpec, ...] = (
     RunSpec("ds1-calme-s14", "journee-calme", 14, TEST, "08:00", 6 * HEURE,
             ("doublon:sensor=SENSOR_001,at=+1200,duration=30m,copies=2,lag=3",), "messages reçus trois fois"),
     # --- Heure de pointe : les approches Nord et Ouest se saturent entre 07:20 et 08:50 (décalage par tronçon)
-    RunSpec("ds1-pointe-s21", "heure-de-pointe", 21, TRAIN, "06:00", 5 * HEURE, note="sans anomalie"),
+    RunSpec("ds1-pointe-s21", "heure-de-pointe", 21, TRAIN, "06:00", 5 * HEURE, note=NOTE_SANS_ANOMALIE),
     RunSpec("ds1-pointe-s22", "heure-de-pointe", 22, TRAIN, "06:00", 5 * HEURE,
             ("retard:sensor=SENSOR_002,at=+5400,duration=30m,delay=120",
              "doublon:sensor=SENSOR_004,at=+5400,duration=30m,copies=1,lag=2"), "retards et doublons pendant la montée"),
@@ -63,7 +65,7 @@ CATALOGUE: tuple[RunSpec, ...] = (
             ("retard:sensor=SENSOR_002,at=+6600,duration=20m,delay=120",
              "muet:sensor=SENSOR_004,at=+7200,duration=10m"), "retards puis capteur muet"),
     # --- Incident ponctuel : ROAD_005 de 08:10 à 08:35, les autres approches de INT_02 ralentissent
-    RunSpec("ds1-incident-s31", "incident-ponctuel", 31, TRAIN, "07:30", 3 * HEURE, note="sans anomalie"),
+    RunSpec("ds1-incident-s31", "incident-ponctuel", 31, TRAIN, "07:30", 3 * HEURE, note=NOTE_SANS_ANOMALIE),
     RunSpec("ds1-incident-s32", "incident-ponctuel", 32, TRAIN, "07:30", 3 * HEURE,
             ("muet:sensor=SENSOR_005,at=+2400,duration=20m",), "le capteur de l'incident se tait pendant l'incident"),
     RunSpec("ds1-incident-s33", "incident-ponctuel", 33, VALIDATION, "07:30", 3 * HEURE,

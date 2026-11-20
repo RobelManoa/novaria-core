@@ -192,7 +192,7 @@ class Docker:
 def sonder_http(url: str, delai_s: float) -> tuple[bool, str]:
     requete = urllib.request.Request(url, method="GET")  # noqa: S310 - adresses locales du fichier de configuration
     try:
-        with urllib.request.urlopen(requete, timeout=delai_s) as reponse:  # noqa: S310
+        with urllib.request.urlopen(requete, timeout=delai_s) as reponse:  # noqa: S310 - adresses locales du fichier de configuration
             return reponse.status == 200, f"HTTP {reponse.status}"
     except urllib.error.HTTPError as erreur:
         return False, f"HTTP {erreur.code}"
@@ -207,7 +207,7 @@ def _resultat(futur) -> tuple[bool, str]:
     """Le résultat d'une sonde ; une sonde qui plante est une sonde en échec, jamais un tour de mesure perdu."""
     try:
         return futur.result()
-    except Exception as erreur:  # noqa: BLE001
+    except Exception as erreur:  # noqa: BLE001 - la boucle de mesure ne doit jamais mourir
         return False, f"sonde en erreur ({erreur.__class__.__name__})"
 
 
@@ -625,7 +625,7 @@ class Observatoire:
         requete = urllib.request.Request(f"http://127.0.0.1:{port}/api/v1/run", method=methode, headers={"Content-Type": "application/json"},
                                          data=None if corps is None else json.dumps(corps).encode())  # noqa: S310 - adresse locale
         try:
-            with urllib.request.urlopen(requete, timeout=10) as reponse:  # noqa: S310
+            with urllib.request.urlopen(requete, timeout=10) as reponse:  # noqa: S310 - adresses locales du fichier de configuration
                 return reponse.status, json.loads(reponse.read() or b"{}")
         except urllib.error.HTTPError as erreur:
             try:

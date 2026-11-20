@@ -1,7 +1,8 @@
 """Contrôle de la politique de vulnérabilités (issue CLD-23) : bibliothèque standard seulement.
 
 Vérifie que chaque exception de .snyk a une raison, une expiration et une entrée au registre des risques,
-et qu'un scan planifié hebdomadaire existe dans ci.yml.
+qu'un scan planifié hebdomadaire existe dans ci.yml, et (issue CLD-19) qu'aucun contrôle n'est désactivé sans raison :
+suppressions `# noqa` de sécurité expliquées, marqueurs de désactivation interdits, exceptions SonarQube datées.
 Lancement : python3 -m unittest discover -s scripts/dev   (Windows : py -3 -m unittest discover -s scripts/dev)
 """
 import re
@@ -110,6 +111,80 @@ class ScanPlanifie(unittest.TestCase):
 
     def test_le_scan_planifie_a_son_propre_groupe_de_concurrence(self):
         self.assertIn("github.event_name == 'schedule'", self.ci)
+
+
+DOSSIERS_EXCLUS = {"node_modules", ".venv", "venv", ".git", "var", "dist", "build", "coverage", "__pycache__"}
+NOQA_SECURITE = re.compile(r"#\s*noqa:\s*((?:S\d{3}|BLE001)(?:\s*,\s*(?:[A-Z]+\d+))*)(.*)$")
+MARQUEURS_INTERDITS = ("NOSONAR", "nosemgrep", "eslint-disable", "@ts-ignore", "@ts-expect-error", "# nosec")
+LIMITE_EXCEPTION = date(2026, 12, 9)
+
+
+def fichiers(suffixes: tuple[str, ...]):
+    for chemin in ROOT.rglob("*"):
+        if chemin.suffix in suffixes and chemin.is_file() and not DOSSIERS_EXCLUS & set(chemin.relative_to(ROOT).parts):
+            yield chemin
+
+
+class DesactivationsExpliquees(unittest.TestCase):
+    """CLD-19 : aucune désactivation silencieuse de contrôle."""
+
+    def test_chaque_noqa_de_securite_a_sa_raison(self):
+        sans_raison = []
+        for chemin in fichiers((".py",)):
+            lignes = chemin.read_text(encoding="utf-8").splitlines()
+            for numero, ligne in enumerate(lignes, 1):
+                trouve = NOQA_SECURITE.search(ligne)
+                if not trouve:
+                    continue
+                reste = trouve[2].strip(" :-–—")
+                precedente = lignes[numero - 2].strip() if numero > 1 else ""
+                if not reste and not precedente.startswith("#"):
+                    sans_raison.append(f"{chemin.relative_to(ROOT).as_posix()}:{numero}")
+        self.assertEqual(sans_raison, [], "suppression `# noqa` de sécurité sans raison (écrire la raison après le code)")
+
+    def test_aucun_marqueur_de_desactivation_dans_le_code(self):
+        trouves = []
+        for chemin in fichiers((".py", ".ts", ".tsx", ".js", ".mjs")):
+            if chemin.name.startswith("test_") or chemin.name == "test_exceptions.py":
+                continue  # les tests de la CI citent ces mots pour les interdire
+            for numero, ligne in enumerate(chemin.read_text(encoding="utf-8").splitlines(), 1):
+                for marqueur in MARQUEURS_INTERDITS:
+                    if marqueur in ligne:
+                        trouves.append(f"{chemin.relative_to(ROOT).as_posix()}:{numero} ({marqueur})")
+        self.assertEqual(trouves, [])
+
+    def test_sonar_ne_desactive_aucune_regle(self):
+        propres = lire("sonar-project.properties")
+        self.assertNotRegex(propres, r"(?m)^\s*sonar\.issue\.ignore\.")
+
+
+class ExceptionsSonar(unittest.TestCase):
+    """CLD-19 : chaque résultat SonarQube justifié a une raison et une expiration, avant la fin du projet."""
+
+    def setUp(self):
+        texte = lire("docs/04-devsecops/exceptions.md")
+        debut = texte.index("### 15.3")
+        fin = texte.index("### 15.4")
+        self.lignes = [
+            [c.strip() for c in ligne.strip().strip("|").split("|")]
+            for ligne in texte[debut:fin].splitlines()
+            if re.match(r"^\| (python|typescript|plsql):S\d+ ", ligne)
+        ]
+
+    def test_les_regles_justifiees_ont_une_raison_et_une_expiration_avant_la_soutenance(self):
+        self.assertGreaterEqual(len(self.lignes), 6)
+        for ligne in self.lignes:
+            with self.subTest(regle=ligne[0]):
+                decision, raison, expiration = ligne[2], ligne[3], ligne[-1]
+                self.assertIn(decision, ("Corrigé", "Justifié"))
+                self.assertGreater(len(raison), 40, "raison absente ou trop courte")
+                if decision == "Justifié":
+                    self.assertLessEqual(jour(expiration), LIMITE_EXCEPTION)
+                    self.assertLess(jour(expiration), SOUTENANCE)
+
+    def test_le_nombre_d_exceptions_snyk_annonce_est_exact(self):
+        self.assertIn(f"Cinq exceptions au 20/11/2026", lire("docs/04-devsecops/exceptions.md"))
+        self.assertEqual(len(exceptions_snyk()), 5)
 
 
 if __name__ == "__main__":

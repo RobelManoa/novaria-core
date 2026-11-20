@@ -12,6 +12,8 @@ from pathlib import Path
 from anomalies import campagne, evaluation, isolation, regles
 from jeu_entrainement.simulation import RACINE
 
+SEPARATEUR_DEUX_COLONNES = "|---|---|"
+
 DOSSIER = RACINE / "ml" / "evaluation"
 JSON = DOSSIER / "anomalies.json"
 MARKDOWN = DOSSIER / "anomalies-resultats.md"
@@ -111,19 +113,19 @@ def markdown(r: dict) -> str:
         lignes.append(f"| {titre} | {_pct(x['precision'])} | {x['episodes_vrais']} | {x['episodes_faux']} | {_n(x['fausses_par_heure'])} |")
     lignes += ["", "## Isolation Forest sans seuil : aire sous la courbe ROC des scores", "",
                "Mesure indépendante du seuil : 1 = les messages touchés ont toujours un score plus bas que les messages normaux, 0,5 = au hasard. « — » : aucun message n'existe pendant l'anomalie (capteur muet).", "",
-               "| Anomalie | AUC |", "|---|---|"]
+               "| Anomalie | AUC |", SEPARATEUR_DEUX_COLONNES]
     for type_ in TYPES:
         if type_ in r["auc_isolation_forest"]:
             valeur = r["auc_isolation_forest"][type_]
             lignes.append(f"| {NOMS_TYPES[type_]} | {'—' if valeur is None else f'{valeur:.3f}'.replace('.', ',')} |")
     if "muet" not in r["auc_isolation_forest"]:
         lignes.append(f"| {NOMS_TYPES['muet']} | — |")
-    lignes += ["", "## Quelle règle donne la première alerte", "", "| Anomalie | Première alerte des règles (nombre d'anomalies) |", "|---|---|"]
+    lignes += ["", "## Quelle règle donne la première alerte", "", "| Anomalie | Première alerte des règles (nombre d'anomalies) |", SEPARATEUR_DEUX_COLONNES]
     for type_ in TYPES:
         premiere = d["regles"]["premiere_alerte"].get(type_)
         if premiere:
             lignes.append(f"| {NOMS_TYPES[type_]} | " + ", ".join(f"`{k}` ({v})" for k, v in sorted(premiere.items())) + " |")
-    lignes += ["", "## Seuils des règles", "", "| Paramètre | Valeur |", "|---|---|"] + [f"| `{k}` | {_n(v, 2).rstrip('0').rstrip(',')} |" for k, v in p["parametres_regles"].items()]
+    lignes += ["", "## Seuils des règles", "", "| Paramètre | Valeur |", SEPARATEUR_DEUX_COLONNES] + [f"| `{k}` | {_n(v, 2).rstrip('0').rstrip(',')} |" for k, v in p["parametres_regles"].items()]
     return "\n".join(lignes) + "\n"
 
 
