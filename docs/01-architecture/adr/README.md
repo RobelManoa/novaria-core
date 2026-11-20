@@ -3,7 +3,7 @@
 Une ADR (Architecture Decision Record, fiche de décision d'architecture) consigne **une décision**, le **problème** qui l'impose, les **options** étudiées, le **choix** et ses **conséquences**. Ce dossier est la preuve de l'issue DOC-04 et la référence des arbitrages techniques de Novaria Core, socle d'UrbanHub.
 
 Responsables : Daddy Luciano et Manoa Robel (relecture croisée).
-Dernière mise à jour : 20/10/2026 (exécution locale d'abord : ADR 023 à 028).
+Dernière mise à jour : 20/11/2026 (application citoyenne : ADR 030).
 
 ## Comment lire
 
@@ -42,6 +42,7 @@ flowchart TB
         A26[026 Postes Windows et Linux]
         A27[027 Jeux de données et provenance]
         A28[028 États de congestion et alertes]
+        A30[030 Application citoyenne]
     end
     subgraph LIV["Livraison et cloud (cible documentée)"]
         A3[003 AWS ECS Fargate + Docker]
@@ -122,6 +123,7 @@ flowchart TB
 | [027](ADR-027-jeux-de-donnees-et-provenance.md) | Jeux de données et provenance : simulateur Python d'abord | Proposée | À demander (jeu de données) |
 | [028](ADR-028-etats-de-congestion-et-alertes.md) | États de congestion, hystérésis et alertes par épisode | Proposée (seuils de départ) | À demander (indicateurs) |
 | [029](ADR-029-passerelle-et-authentification.md) | Passerelle d'API : le jeton et le rôle sont contrôlés avant tout service | Proposée | Non demandée |
+| [030](ADR-030-application-citoyenne-perimetre-et-acces.md) | Application citoyenne : un usager sans compte, en lecture seule, par des routes publiques à liste blanche | Proposée | À demander (C-08) |
 
 Vocabulaire des statuts : **Acceptée** (décidée) · **Acceptée sous condition** (décidée, avec une porte de sortie datée) · **Proposée** (analysée, confirmation attendue) · **À décider** (décision ouverte) · **Remplacée par ADR-XXX**.
 

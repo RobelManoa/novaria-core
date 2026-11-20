@@ -8,7 +8,7 @@ Ce document décrit ce qui se passe quand tout va bien (parcours nominaux), puis
 
 | Acteur | Rôle | Remarque |
 |---|---|---|
-| Usager | Se déplace, reçoit les alertes de congestion | En v1, le canal de notification est simulé |
+| Usager (citoyen) | Se déplace, consulte l'état de la circulation et les alertes en cours, **sans compte** | Anonyme et en lecture seule, par l'application citoyenne et des routes publiques ([ADR-030](../01-architecture/adr/ADR-030-application-citoyenne-perimetre-et-acces.md), proposée) ; en v1, le canal de notification est simulé |
 | Opérateur de mobilité | Surveille le réseau, accuse réception des alertes, commande manuellement les feux | Rôle d'API `operator` (proposition) |
 | Administrateur | Gère les comptes et les règles d'alerte | Rôle d'API `admin` (proposition) |
 | Observateur | Consulte sans agir | Rôle d'API `viewer` (proposition) |
@@ -112,6 +112,17 @@ Les contrats `traffic.recommendations` et `signal.status` ne sont pas encore éc
 | 4 | Module d'apprentissage | Prévoit la vitesse (modèle entraîné sur METR-LA, testé aussi sur un run simulé) et la sert par `GET /forecasts` | `ml/evaluation/` ; réponses de l'API | EXG-IA-07 |
 | 5 | Tableau de bord | Affiche la prévision avec son horizon et sa provenance | Écran | EXG-TDB-04, EXG-NFR-13 |
 
+### P7. Un citoyen consulte la circulation (proposé, non construit)
+
+Parcours **proposé** par l'[ADR-030](../01-architecture/adr/ADR-030-application-citoyenne-perimetre-et-acces.md) (demande C-08, jalon M6) : aucune de ces étapes n'existe encore dans le code. Le citoyen n'a pas de compte et ne voit ni donnée brute, ni capteur, ni feu.
+
+| N° | Qui | Fait quoi | Ce qui reste comme trace | Exigences |
+|---|---|---|---|---|
+| 1 | Citoyen | Ouvre l'application citoyenne sur son téléphone, sans se connecter | Aucune trace applicative ; journal technique de la passerelle | EXG-NFR-15 |
+| 2 | Application citoyenne | Appelle `GET /api/v1/public/congestion` ; affiche chaque tronçon « Fluide », « Ralenti » ou « Congestionné », avec l'heure de mise à jour et la mention « Données simulées » | Écran | EXG-NFR-13, EXG-NFR-15 |
+| 3 | Application citoyenne | Appelle `GET /api/v1/public/alerts` à intervalle régulier ; affiche les alertes de congestion en cours (tronçon, gravité, heure), sans cause affirmée | Écran ; `alertes.alert` n'est pas modifiée | EXG-ALE-01, EXG-ALE-03 |
+| 4 | Citoyen | Suit un tronçon : le choix reste dans son navigateur ; quand une alerte naît sur ce tronçon, l'application l'affiche (notification simulée, aucun envoi) | Navigateur du citoyen seulement | EXG-NFR-03 |
+
 ## 3. Cas d'échec
 
 Colonne « Comportement » : **Défini** quand une décision (ADR, dictionnaire, contrat) le fixe ; **Proposé** quand il s'agit d'une proposition à valider par le binôme.
@@ -147,6 +158,9 @@ Colonne « Comportement » : **Défini** quand une décision (ADR, dictionnaire,
 | CE-27 | Ligne d'un chargement ETL qui viole une contrainte | Refus de la ligne ; écriture dans `dwh.etl_reject` avec la règle et le motif ; taux de rejet publié | `dwh.etl_reject` | Défini (DQ-09) | EXG-DON-03 |
 | CE-28 | Modèle sous le seuil d'acceptation | Non enregistré au registre ; l'essai reste tracé avec le statut `rejected` | `model_runs` | Proposé (IA-05) | EXG-IA-04 |
 | CE-29 | Dérive des vitesses par rapport au jeu d'entraînement | Alarme de dérive | Journal de surveillance | Défini (note de cadrage) | EXG-IA-05 |
+| CE-30 | L'une des deux routes publiques ne répond pas (service arrêté ou lent) | L'application le dit en clair (« information momentanément indisponible »), garde l'autre vue et marque l'état affiché comme périmé ; aucun détail technique | Journal du service | Proposé (ADR-030) | EXG-NFR-05, EXG-NFR-15 |
+| CE-31 | Un visiteur dépasse la limite de débit d'une route publique | Réponse 429 avec un délai conseillé ; l'application attend avant de réessayer ; les autres visiteurs ne sont pas touchés | Journal de la passerelle | Proposé (ADR-030) | EXG-API-01 |
+| CE-32 | Une écriture, une route interne ou un jeton d'équipe est envoyé à une route publique | Refus (méthode non permise ou route inconnue) ; le jeton ne donne rien de plus que l'anonyme ; aucune donnée interne dans la réponse | Journal de la passerelle | Proposé (ADR-030) | EXG-API-01 |
 
 Les trois cas **Proposé** liés aux pannes d'infrastructure (CE-23 à CE-25) attendent l'ADR « Observabilité et résilience entre services » (MS-16) : ils ne sont pas encore une décision.
 

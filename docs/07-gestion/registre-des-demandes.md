@@ -2,7 +2,7 @@
 
 Projet : Novaria Core, socle d'UrbanHub (bloc de compétences BC05)
 Responsables : Daddy Luciano et Manoa Robel (relecture croisée)
-Dernière mise à jour : 20/10/2026
+Dernière mise à jour : 20/11/2026
 Issue de suivi : GES-05
 
 Ce registre consigne chaque exigence et chaque demande nouvelle avec un statut, une équipe, un jalon et les issues qui la réalisent. Il remplace la lecture dispersée des présentations et sert de référence au moment des arbitrages.
@@ -61,11 +61,12 @@ Source : diapositive 6 de la présentation (« évaluer le besoin réel avant d'
 |---|---|---|---|---|---|---|---|
 | C-01 | 17/10/2026 | Construire Novaria Core en microservices depuis zéro : collecte, traitement, alerte usager, réponse extérieure ; chaque service a l'architecture qui lui convient | Binôme (Manoa Robel) | Incluse | Les deux · M1 à M4 | MS-01 à MS-17 | À demander (la topologie présentée décrit un seul back-end) |
 | C-02 | 17/10/2026 | Service de collecte alimenté par des données IoT (Internet of Things) simulées | Binôme | Incluse | Données · M2 | MS-07, MS-08 | À demander (voir écart E-04) |
-| C-03 | 17/10/2026 | Service d'alerte usager : alertes envoyées aux usagers et consultables sur le tableau de bord | Binôme | Incluse | Back-end, Front-end · M2, M3 | MS-11, MS-14 | À demander |
+| C-03 | 17/10/2026 | Service d'alerte usager : alertes envoyées aux usagers et consultables sur le tableau de bord | Binôme | Incluse (côté usager : voir C-08) | Back-end, Front-end · M2, M3 | MS-11, MS-14 | À demander |
 | C-04 | 17/10/2026 | Service de réponse extérieure : gestion des feux de circulation, le trafic routier étant l'exemple retenu en première année du master | Binôme | Incluse | Back-end · M2 | MS-12 | À demander |
 | C-05 | 20/10/2026 | Exécuter le projet sur `localhost` pour le moment, pas sur les services AWS ; conserver les documents AWS, ajouter une documentation localhost et des ADR | Professeur, **oralement** (transmis par Manoa Robel) | Incluse | Les deux · M1 à M4 | LOC-01 à LOC-06, ADR 023 à 025 | **Oral le 20/10/2026 ; confirmation écrite à obtenir** |
 | C-06 | 20/10/2026 | Traiter la détection de congestion avant la prévision ; label pris dans la vérité terrain du simulateur | Binôme | Incluse | IA · M4 | IA-01, IA-08, IA-09, DAT-10, ADR 015 et 028 | À demander (niveau Machine Learning) |
 | C-07 | 20/10/2026 | Jeux de données : générateur Python v0 d'abord, SUMO si le temps le permet ; METR-LA pour la prévision seulement ; jeu de l'UCI pour le tutoriel | Binôme | Incluse | IA, Données · M3 à M4 | IA-08, IA-10, IA-11, DAT-01, ADR 027 | À demander (point 2 de GES-06) |
+| C-08 | 20/11/2026 | Application citoyenne (PoC) : un usager **sans compte** consulte, en lecture seule, l'état de la circulation par tronçon et les alertes en cours, sur téléphone, avec la mention « données simulées ». React avec Vite, pas d'application native. Accès par des routes publiques à liste blanche ; ni données brutes, ni capteurs, ni commandes ([ADR-030](../01-architecture/adr/ADR-030-application-citoyenne-perimetre-et-acces.md)) | Binôme (Manoa Robel) | Incluse (PoC) | Les deux · M6 | CIT-01 à CIT-08, ADR 030 | À demander |
 
 ## 4. Exclusions
 
@@ -77,6 +78,7 @@ Source : diapositive 6 de la présentation (« évaluer le besoin réel avant d'
 | X-04 | Hébergement hors AWS | AWS est le seul cloud du projet | Binôme | À consigner |
 | X-05 | Estimation financière AWS avant l'inventaire des ressources | Règle de rigueur budgétaire | Diapo 7 | À consigner |
 | X-06 | Exécution sur des services AWS pendant le projet | Consigne du professeur (C-05) ; reprise possible sur autorisation écrite | Professeur (oral) | Oral le 20/10/2026 ; écrit à obtenir |
+| X-07 | Dans l'application citoyenne (C-08) : compte citoyen, notifications réelles (courriel, SMS, notification poussée), géolocalisation de l'usager, itinéraires, prévisions, historique, application native (React Native) ; exposition de données brutes, de capteurs, de commandes de feux ou de noms d'opérateurs | PoC de huit jours avant la soutenance, aucune donnée réelle, aucune donnée personnelle à collecter ; réexamen si des notifications réelles sont voulues ([ADR-030](../01-architecture/adr/ADR-030-application-citoyenne-perimetre-et-acces.md), section 8) | Binôme (Manoa Robel) | À demander |
 
 ## 5. Points à arbitrer avec le professeur (issue GES-06)
 
@@ -87,6 +89,7 @@ Source : diapositive 6 de la présentation (« évaluer le besoin réel avant d'
 5. Cahier des charges fonctionnel et validation des contrats d'API et de la topologie, microservices compris (R-02, C-01 à C-04).
 6. Exigence formelle de temps réel, qui conditionne Kafka et Flink (B-03).
 7. **Confirmation écrite** de la consigne « localhost, pas AWS » (C-05, risque R7).
+8. **Application citoyenne** : périmètre d'un PoC sans compte, en lecture seule, avec des données simulées (C-08, X-07).
 
 ## 6. Écarts constatés à traiter
 

@@ -5,7 +5,7 @@ Les spécifications répondent à trois questions : **que doit faire le système
 | Fichier | Contenu | Issue | État |
 |---|---|---|---|
 | [exigences.md](exigences.md) | 53 exigences vérifiables : contexte, critère mesurable, priorité (Doit, Devrait, Pourrait), preuve attendue, état constaté | DOC-05 | v1, relecture croisée à faire |
-| [parcours.md](parcours.md) | 6 parcours nominaux et 29 cas d'échec, chacun rattaché à ses exigences | DOC-05 | v1, relecture croisée à faire |
+| [parcours.md](parcours.md) | 7 parcours nominaux et 32 cas d'échec, chacun rattaché à ses exigences | DOC-05 | v1, relecture croisée à faire |
 | [regles-de-gestion.md](regles-de-gestion.md) | 28 règles sur l'identité, la provenance, le calcul, les alertes, les droits et la conservation des données | DOC-05 | v1, relecture croisée à faire |
 | [contracts/openapi/](../../contracts/openapi/README.md) | Un contrat REST `/api/v1` par service : ressources, entrées, sorties, erreurs, authentification, versionnement (issu du contrat unique de BE-01) | BE-01, MS-03 | Brouillon, validation du professeur attendue (GES-06) |
 

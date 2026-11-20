@@ -2,7 +2,7 @@
 
 Projet : Novaria Core, socle d'UrbanHub (bloc de compétences BC05)
 Responsables : Daddy Luciano et Manoa Robel (relecture croisée)
-Dernière mise à jour : 20/10/2026
+Dernière mise à jour : 20/11/2026
 Issue de suivi : GES-07
 
 Ce journal consigne, dans l'ordre des dates, chaque changement de périmètre : ce qui est demandé, la décision, son impact et qui a décidé.
@@ -26,3 +26,4 @@ Ce journal consigne, dans l'ordre des dates, chaque changement de périmètre : 
 | 20/10/2026 | C-06 : congestion avant prévision ; label = vérité terrain du simulateur | Incluse | ADR-015 réécrite ; IA-08, IA-09 ajoutées ; IA-01 et IA-03 modifiées | Binôme |
 | 20/10/2026 | C-07 : générateur Python v0, SUMO conditionnel, METR-LA pour la prévision, UCI pour le tutoriel | Incluse | ADR-027 ; IA-08, IA-10, IA-11, DAT-10 ajoutées | Binôme |
 | 18/11/2026 | IA-11 : prototype SUMO lancé (décision de lancement consignée) | Incluse (conditionnelle levée) | ADR-027, option B ; `docs/06-ia-mlops/prototype-sumo.md` ; image Docker `ml/sumo/` hors pile | Manoa Robel (validation de Daddy Luciano à faire) |
+| 20/11/2026 | C-08 : application citoyenne (PoC), usager sans compte, lecture seule, routes publiques à liste blanche ; exclusions X-07 (compte, notifications réelles, géolocalisation, application native) | Incluse (validation du professeur à demander) | [ADR-030](../01-architecture/adr/ADR-030-application-citoyenne-perimetre-et-acces.md) ; issues CIT-01 à CIT-08 (jalon M6) ; risques R13 et R14 ; code sur la branche temporaire `dev-citoyen` avant fusion dans `main` ; contrôles SonarQube et Snyk **inchangés** (non bloquants pour cette branche seulement, à passer ou à excepter par écrit avant la fusion dans `main`) | Manoa Robel (validation de Daddy Luciano à faire) |
