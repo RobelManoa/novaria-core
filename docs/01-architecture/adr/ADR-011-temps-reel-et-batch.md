@@ -11,6 +11,8 @@
 | S'appuie sur | [ADR-009](ADR-009-bus-evenements.md), [ADR-014](ADR-014-architecture-decisionnelle.md) |
 
 > **Mise à jour du 20/10/2026 ([ADR-023](ADR-023-execution-locale-d-abord.md)).** L'exécution sur AWS (service géré, ECS) est documentée, non exécutée : Flink, Kafka et les tâches par lots tournent en local dans Docker Compose.
+>
+> **Mise à jour du 16/11/2026 (DAT-09).** Un prototype Flink SQL est écrit et mesuré : [rapport](../../03-donnees/prototype-flux.md). Flink 1.20 lit `iot.raw`, agrège en fenêtres de 1 et de 5 minutes avec le filigrane de 10 s de cette décision, et écrit dans MongoDB ; ses agrégats égalent un recalcul par lots sur 312 fenêtres sans anomalie. Deux écarts avec la décision : le retard autorisé de 30 s est réglé mais son effet n'est pas démontré, et un message trop en retard est perdu sans trace (pas de `errors.dlq` en SQL pur) ; le job ne déduplique pas. **La décision n'est pas modifiée** : le moteur du service de traitement reste le repli Python ([flux](../../03-donnees/flux.md), section 3).
 
 ## 1. Problème
 

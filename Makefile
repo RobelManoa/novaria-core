@@ -6,7 +6,7 @@ DEV = $(PY) scripts/dev/dev.py
 PY_API ?= $(if $(wildcard venv/bin/python),venv/bin/python,$(PY))
 DEV_API = $(PY_API) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint a11y-audit format new-service quality-up quality-down hooks terraform-check drift-check dataset-build test-ml test-gateway test-gateway-unit gateway-routes reference-mesure preparation-check ml-env ml-train ml-anomalies ml-prevision ml-sumo ml-registre ml-registre-essai bigdata-build bigdata-test bigdata parcours flux-complet observatoire panne sauvegarde sauvegarde-liste restauration sauvegarde-planifier acces tableau-de-bord rollback
+.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint a11y-audit format new-service quality-up quality-down hooks terraform-check drift-check dataset-build test-ml test-gateway test-gateway-unit gateway-routes reference-mesure preparation-check ml-env ml-train ml-anomalies ml-prevision ml-sumo ml-registre ml-registre-essai bigdata-build bigdata-test bigdata parcours flux-complet observatoire panne sauvegarde sauvegarde-liste restauration sauvegarde-planifier acces tableau-de-bord rollback flux-proto test-flux-proto
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -194,3 +194,7 @@ tableau-de-bord: ## Tableau de bord de pilotage : exigences, risques, livrables 
 	$(DEV) tableau-de-bord
 acces:         ## Essais d'autorisation et de refus : compare la matrice d'accès à l'API, PostgreSQL et MongoDB (CLD-18)
 	$(DEV) acces
+flux-proto: ## Prototype de flux temps réel (Kafka, Flink SQL, MongoDB ; DAT-09) : make flux-proto C="demo --duree 12m" (ou build, up, job, produire, verifier, down)
+	$(DEV) flux-proto -- $(or $(C),demo)
+test-flux-proto: ## Tests du prototype de flux, sans Docker (recalcul, rendu SQL, comparaison)
+	cd data/streaming && $(PY) -m unittest discover -s tests -t .

@@ -1,0 +1,63 @@
+# Prototype de flux temps réel (DAT-09) : s'ajoute au docker-compose.yml de la racine, qui fournit Kafka (LOC-04) et MongoDB
+# (LOC-02) :
+#   docker compose -f docker-compose.yml -f data/streaming/compose.yml up -d kafka kafka-init mongo flink-jobmanager flink-taskmanager
+# `python scripts/dev/dev.py flux-proto ...` le fait à la place de la main. Le prototype n'est pas dans le docker-compose.yml de
+# la racine : il ne démarre pas avec `make up`.
+#
+# Mémoire : la machine virtuelle de Docker Desktop a souvent 3 Go. Un JobManager (640 Mo), un TaskManager à un seul emplacement
+# (1 Go), Kafka (tas de 384 Mo) et MongoDB (cache de 256 Mo) y tiennent ; les valeurs par défaut de Flink (1,6 Go + 1,7 Go) non.
+services:
+  kafka:
+    environment:
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx384m"
+
+  mongo:
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.25", "--bind_ip_all"]
+
+  flink-jobmanager:
+    build:
+      context: ./data/streaming
+      dockerfile: Dockerfile
+    image: novaria-flink-proto:1.20.5
+    command: jobmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        jobmanager.memory.process.size: 640m
+        parallelism.default: 1
+        rest.address: flink-jobmanager
+        state.checkpoints.dir: file:///flink-data/checkpoints
+        state.savepoints.dir: file:///flink-data/savepoints
+        execution.checkpointing.interval: 10s
+        execution.checkpointing.mode: AT_LEAST_ONCE
+        restart-strategy.type: fixed-delay
+        restart-strategy.fixed-delay.attempts: 3
+        restart-strategy.fixed-delay.delay: 5s
+    ports: ["127.0.0.1:${FLINK_PORT:-8081}:8081"]
+    volumes:
+      - flinkdata:/flink-data
+    depends_on:
+      kafka: { condition: service_healthy }
+      mongo: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/overview > /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+
+  flink-taskmanager:
+    image: novaria-flink-proto:1.20.5
+    command: taskmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.memory.process.size: 1024m
+        taskmanager.numberOfTaskSlots: 1
+    volumes:
+      - flinkdata:/flink-data
+    depends_on:
+      flink-jobmanager: { condition: service_healthy }
+
+volumes:
+  flinkdata:
