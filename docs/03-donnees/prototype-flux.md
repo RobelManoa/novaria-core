@@ -159,18 +159,15 @@ Résultat : 308 fenêtres égales sur 312, 4 écarts, tous expliqués par ces an
 
 ## 8. Reproduire
 
-```bash
-python3 scripts/dev/dev.py init-env        # une fois
-python3 scripts/dev/dev.py flux-proto build
-python3 scripts/dev/dev.py flux-proto demo --debit 60
-python3 scripts/dev/dev.py flux-proto demo --debit 60 --run-id proto-flux-anomalies \
-  --anomalie "doublon:sensor=SENSOR_001,at=+20,copies=1,lag=5" \
-  --anomalie "retard:sensor=SENSOR_010,at=+40,delay=45" \
-  --anomalie "retard:sensor=SENSOR_011,at=+100,delay=600"
-make test-flux-proto                       # tests sans Docker
-```
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Créer `.env` (une fois) | `python3 scripts/dev/dev.py init-env` | `py -3 scripts/dev/dev.py init-env` |
+| Construire l'image | `python3 scripts/dev/dev.py flux-proto build` | `py -3 scripts/dev/dev.py flux-proto build` |
+| Démonstration (60 événements par seconde) | `python3 scripts/dev/dev.py flux-proto demo --debit 60` | `py -3 scripts/dev/dev.py flux-proto demo --debit 60` |
+| Démonstration avec un doublon et deux retards | `python3 scripts/dev/dev.py flux-proto demo --debit 60 --run-id proto-flux-anomalies --anomalie "doublon:sensor=SENSOR_001,at=+20,copies=1,lag=5" --anomalie "retard:sensor=SENSOR_010,at=+40,delay=45" --anomalie "retard:sensor=SENSOR_011,at=+100,delay=600"` | `py -3 scripts/dev/dev.py flux-proto demo --debit 60 --run-id proto-flux-anomalies --anomalie "doublon:sensor=SENSOR_001,at=+20,copies=1,lag=5" --anomalie "retard:sensor=SENSOR_010,at=+40,delay=45" --anomalie "retard:sensor=SENSOR_011,at=+100,delay=600"` |
+| Tests sans Docker | `make test-flux-proto` (ou, depuis `data/streaming` : `python3 -m unittest discover -s tests -t .`) | Depuis `data/streaming` : `py -3 -m unittest discover -s tests -t .` (`make` n'existe pas sous Windows) |
 
-Sous Windows, remplacer `python3` par `py -3`. Le premier lancement télécharge 1,4 Go. La commande `demo` sort avec le code 0 si les agrégats égalent le recalcul, 1 sinon (le second essai sort donc avec 1 : c'est son but). Détails dans le [README du prototype](../../data/streaming/README.md).
+Le premier lancement télécharge 1,4 Go. La commande `demo` sort avec le code 0 si les agrégats égalent le recalcul, 1 sinon (le second essai sort donc avec 1 : c'est son but). Les mesures de ce document viennent d'un poste Windows (en-tête) ; les commandes Linux n'ont **pas été essayées** (non vérifié). Détails dans le [README du prototype](../../data/streaming/README.md).
 
 ## 9. Décisions à valider (Daddy et Manoa)
 
