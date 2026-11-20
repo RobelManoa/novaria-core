@@ -1,0 +1,64 @@
+# Matrice d'accès avec les routes publiques de l'application citoyenne (CIT-02). Données simulées, pile locale.
+# Commande : python3 scripts/dev/dev.py acces
+# Date : 2026-11-20 · Linux · Docker Compose · passerelle rechargée (nginx -s reload) pour lire les routes générées
+# Famille « api public » : 8 accès accordés sur 8 (GET sur les 2 routes × 4 sujets), 52 refus sur 52 (4 écritures × 2 routes × 4 sujets,
+# et 5 chemins hors liste × 4 sujets). Les routes ne sont pas encore servies (CIT-03) : le service répond 404 « Ressource inconnue » après
+# avoir été atteint, ce que la matrice compte comme un accès accordé ; l'écriture et l'espace hors liste sont refusés par la passerelle.
+# 3 échecs ne viennent PAS de cette tâche : droits MongoDB de svc_traitement sur `ingestion_runs`, déjà constatés à l'exécution du 17/11/2026
+# (matrice-acces.md, section 6 : la collection n'existe pas sur cette pile de travail, plus ancienne que le script d'initialisation).
+# Code de sortie : 1 (à cause de ces 3 échecs) · accès interdits accordés : 0 (critère de CLD-18).
+# Sortie de la commande, sans modification :
+
+Matrice d'accès de la pile locale : essais d'autorisation et de refus (la pile doit tourner : dev.py up).
+API : 29 routes × 4 sujets, par la passerelle…
+API publique (citoyen) : lecture ouverte, écritures refusées, espace public fermé…
+API : un essai direct sur chaque service…
+PostgreSQL : catalogue des droits et essais réels…
+MongoDB : droits des utilisateurs et essais réels…
+
+  api                      accès accordés 70/70 · accès refusés 42/42
+  api public               accès accordés 8/8 · accès refusés 52/52
+  service direct           accès accordés 3/3 · accès refusés 6/6
+  postgres (catalogue)     accès accordés 15/15 · accès refusés 69/69
+  postgres (essai réel)    accès accordés 4/4 · accès refusés 4/4
+  mongo (catalogue)        accès accordés 22/25 · accès refusés 115/115
+  mongo (essai réel)       accès accordés 5/5 · accès refusés 5/5
+
+Un essai autorisé et un essai refusé par sujet :
+  [OK] anonyme          autorisé POST /api/v1/auth/login → HTTP 422, rôle exigé : aucun
+  [OK] anonyme          refusé   GET /api/v1/indicators → HTTP 401, rôle exigé : viewer
+  [OK] viewer           autorisé GET /api/v1/indicators → HTTP 200, rôle exigé : viewer
+  [OK] viewer           refusé   POST /api/v1/signals/… → HTTP 403, rôle exigé : operator
+  [OK] operator         autorisé POST /api/v1/alerts/… → HTTP 404, rôle exigé : operator
+  [OK] operator         refusé   PATCH /api/v1/alert-rules/… → HTTP 403, rôle exigé : admin
+  [OK] admin            autorisé GET /api/v1/users → HTTP 200, rôle exigé : admin
+  [OK] admin            refusé   POST /api/v1/measurements → HTTP 404 : la passerelle ne l'expose pas
+  [OK] svc_app          autorisé SELECT count(*) FROM app.users → exécutée
+  [OK] svc_app          refusé   SELECT count(*) FROM dwh.fact_traffic_window → permission denied
+  [OK] svc_traitement   autorisé UPDATE dwh.fact_traffic_window SET vehicle_count = vehicle_count WHERE → exécutée
+  [OK] svc_traitement   refusé   SELECT count(*) FROM app.users → permission denied
+  [OK] svc_alerte       autorisé UPDATE alertes.alert SET state = state WHERE false → exécutée
+  [OK] svc_alerte       refusé   SELECT count(*) FROM dwh.fact_traffic_window → permission denied
+  [OK] svc_lecture      autorisé SELECT count(*) FROM dwh.v_indicator → exécutée
+  [OK] svc_lecture      refusé   UPDATE dwh.fact_traffic_window SET vehicle_count = vehicle_count WHERE → permission denied
+  [OK] svc_collecte     autorisé db.raw_events.countDocuments({}) → exécutée
+  [OK] svc_collecte     refusé   db.raw_events.deleteOne({ _id: ObjectId('000000000000000000000000') }) → Unauthorized
+  [OK] svc_reponse      autorisé db.audit_logs.countDocuments({}) → exécutée
+  [OK] svc_reponse      refusé   db.raw_events.countDocuments({}) → Unauthorized
+  [OK] svc_backend      autorisé db.usage_stats.countDocuments({}) → exécutée
+  [OK] svc_backend      refusé   db.raw_events.countDocuments({}) → Unauthorized
+  [OK] svc_ml           autorisé db.model_runs.countDocuments({}) → exécutée
+  [OK] svc_ml           refusé   db.raw_events.insertOne({ essai_refuse: true }) → Unauthorized
+
+Écarts connus (contrôle prévu et absent, non compté comme un succès) :
+  [ÉCART] Kafka : 6 sujets, 14 droits de production ou de consommation déclarés dans contracts/topics.json, aucun appliqué
+          `kafka-acls --list` : at org.apache.kafka.tools.AclCommand.main(AclCommand.java:82) Caused by: org.apache.kafka.common.errors.SecurityDisabledException: No Authorizer is configured on the broker
+  [ÉCART] Dépôt des mesures (POST /api/v1/measurements) : accessible sans jeton depuis le poste
+          POST sans jeton : HTTP 422 (validation du corps atteinte : aucun contrôle d’accès devant)
+[ÉCHEC] mongo (catalogue) · svc_traitement · ingestion_runs · find : attendu accès, droits réels : aucun
+[ÉCHEC] mongo (catalogue) · svc_traitement · ingestion_runs · insert : attendu accès, droits réels : aucun
+[ÉCHEC] mongo (catalogue) · svc_traitement · ingestion_runs · update : attendu accès, droits réels : aucun
+
+420/423 essais conformes à la matrice, 2 écart(s) connu(s).
+Accès interdits accordés : 0 (critère de CLD-18 : 0).  Accès prévus refusés ou non concluants : 3.
+CODE=1

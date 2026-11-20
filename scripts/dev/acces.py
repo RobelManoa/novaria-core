@@ -36,7 +36,10 @@ SUJETS_API = ("anonyme", "viewer", "operator", "admin")
 PRIVILEGES_PG = ("SELECT", "INSERT", "UPDATE", "DELETE")
 METHODES_DE_LECTURE = ("GET", "HEAD")
 PAUSE_S = 0.07  # la passerelle limite à 20 requêtes par seconde : on reste en dessous
+PAUSE_PUBLIC_S = 0.6  # les routes publiques sont limitées à 2 requêtes par seconde par adresse (rafale de 10)
 ID_INCONNU = "essai-inconnu"
+ESPACE_PUBLIC = "/api/v1/public/"
+METHODES_D_ECRITURE = ("POST", "PUT", "PATCH", "DELETE")
 
 
 @dataclass
@@ -97,6 +100,8 @@ def acces_attendu(matrice: dict, sujet: str, methode: str, chemin: str) -> tuple
     api = matrice["api"]
     if chemin in api["publiques"]:
         return True, None, "public"
+    if chemin in api.get("publiques_lecture", []):
+        return methode in METHODES_DE_LECTURE, None, "public (citoyen, lecture seule)"
     for ressource in api["ressources"]:
         if any(chemin == p or chemin.startswith(p + "/") for p in ressource["chemins"]):
             exige = ressource["lecture"] if methode in METHODES_DE_LECTURE else ressource["action"]
@@ -123,8 +128,15 @@ def routes_du_contrat(chemin: Path = ROUTES) -> list[dict]:
 def verifier_la_matrice_contre_les_contrats(matrice: dict, routes: list[dict]) -> list[str]:
     """Les rôles exigés par les contrats OpenAPI (routes.json, généré) doivent être ceux de la matrice : sinon un des deux ment."""
     ecarts = []
+    declarees = {chemin_declare(r["pattern"]) for r in routes if r["role"] is None and r["method"] == "GET"}
+    for chemin in matrice["api"].get("publiques_lecture", []):  # une route publique de la matrice doit être une route GET publique des contrats
+        if chemin not in declarees:
+            ecarts.append(f"GET {chemin} : publique dans la matrice, absente ou protégée dans les contrats")
     for route in routes:
         chemin = chemin_declare(route["pattern"])
+        if chemin.startswith(ESPACE_PUBLIC) and chemin not in matrice["api"].get("publiques_lecture", []):
+            ecarts.append(f"{route['method']} {chemin} : dans l'espace public des contrats, absente de la matrice")
+            continue
         _, exige, ressource = acces_attendu(matrice, "admin", route["method"], chemin)
         if exige != route["role"]:
             ecarts.append(f"{route['method']} {chemin} : matrice {exige}, contrats {route['role']}")
@@ -206,7 +218,7 @@ class Pile:
 
 def classer_http(statut: int, hors_passerelle: bool = False) -> bool | None:
     """Vrai : la requête a atteint le service (accès accordé) ; faux : refusée ; None : essai raté (réseau, limitation de débit)."""
-    if statut in (401, 403) or (hors_passerelle and statut == 404):
+    if statut in (401, 403) or (hors_passerelle and statut in (404, 405)):
         return False
     return None if statut in (0, 429) or statut >= 502 else True
 
@@ -215,6 +227,8 @@ def classer_http(statut: int, hors_passerelle: bool = False) -> bool | None:
 def essais_api(pile: Pile, matrice: dict, jetons: dict[str, str], routes: list[dict], pause: Callable[[float], None] = time.sleep) -> list[Essai]:
     essais = []
     for route in routes:
+        if chemin_declare(route["pattern"]).startswith(ESPACE_PUBLIC):
+            continue  # l'espace public a sa propre famille d'essais (essais_public) et sa propre limite de débit
         chemin = chemin_concret(route["pattern"])
         for sujet in SUJETS_API:
             attendu, exige, ressource = acces_attendu(matrice, sujet, route["method"], chemin_declare(route["pattern"]))
@@ -229,6 +243,31 @@ def essais_api(pile: Pile, matrice: dict, jetons: dict[str, str], routes: list[d
         essais.append(Essai("api", sujet, "mesures (dépôt interne)", "POST /api/v1/measurements", False, classer_http(statut, hors_passerelle=True),
                             f"HTTP {statut} : la passerelle ne l'expose pas"))
         pause(PAUSE_S)
+    return essais
+
+
+def essais_public(pile: Pile, matrice: dict, jetons: dict[str, str], pause: Callable[[float], None] = time.sleep) -> list[Essai]:
+    """Application citoyenne (ADR-030, CIT-02) : la lecture est ouverte à tous, toute écriture est refusée à tous, et l'espace
+    public ne contient rien d'autre que les routes déclarées. Les écritures et les chemins inconnus sont refusés par la passerelle
+    avant le service (405, 404) : ils ne comptent pas dans la limite de débit des routes publiques."""
+    api, essais = matrice["api"], []
+    for chemin in api.get("publiques_lecture", []):
+        for sujet in SUJETS_API:
+            statut = pile.appel_conclusif("GET", f"{pile.passerelle}{chemin}", jetons.get(sujet))
+            essais.append(Essai("api public", sujet, "public (citoyen, lecture seule)", f"GET {chemin}", True, classer_http(statut),
+                                f"HTTP {statut}, aucun jeton exigé{' ; un jeton d équipe ne change rien' if sujet != 'anonyme' else ''}"))
+            pause(PAUSE_PUBLIC_S)
+            for methode in METHODES_D_ECRITURE:
+                statut = pile.appel_conclusif(methode, f"{pile.passerelle}{chemin}", jetons.get(sujet), b"{}", hors_passerelle=True)
+                essais.append(Essai("api public", sujet, "public (citoyen, lecture seule)", f"{methode} {chemin}", False, classer_http(statut, hors_passerelle=True),
+                                    f"HTTP {statut} : écriture refusée par la passerelle"))
+                pause(PAUSE_S)
+    for chemin in api.get("espace_public_interdit", []):
+        for sujet in SUJETS_API:
+            statut = pile.appel_conclusif("GET", f"{pile.passerelle}{chemin}", jetons.get(sujet), hors_passerelle=True)
+            essais.append(Essai("api public", sujet, "espace public (hors liste)", f"GET {chemin}", False, classer_http(statut, hors_passerelle=True),
+                                f"HTTP {statut} : route inexistante dans l'espace public"))
+            pause(PAUSE_S)
     return essais
 
 
@@ -408,6 +447,8 @@ def executer(pile: Pile, matrice: dict | None = None, routes: list[dict] | None 
         jetons = {role: pile.jeton(nom, mot_de_passe) for role, (nom, mot_de_passe) in comptes.items()}
         afficher(f"API : {len(routes)} routes × 4 sujets, par la passerelle…")
         essais += essais_api(pile, matrice, jetons, routes, pause)
+        afficher("API publique (citoyen) : lecture ouverte, écritures refusées, espace public fermé…")
+        essais += essais_public(pile, matrice, jetons, pause)
         afficher("API : un essai direct sur chaque service…")
         essais += essais_services_directs(pile, jetons, pause)
         afficher("PostgreSQL : catalogue des droits et essais réels…")

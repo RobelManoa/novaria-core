@@ -28,6 +28,8 @@ tags:
     description: Résultats d'agrégation par fenêtre et état de congestion.
   - name: Prévisions
     description: Vitesses prévues à court terme.
+  - name: Public
+    description: Routes publiques, sans jeton, en lecture seule, pour l'application citoyenne (ADR-030, CIT-02).
   - name: Rapports
     description: Rapports PDF produits par le robot d'automatisation (RPA, ADR-019). Proposition (FE-06).
 
@@ -331,6 +333,35 @@ paths:
         "422": { $ref: "common.yaml#/components/responses/ValidationError" }
         "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
 
+  /api/v1/public/congestion:
+    get:
+      tags: [Public]
+      operationId: getPublicCongestion
+      summary: État de congestion de chaque tronçon (public)
+      description: |
+        Route **publique** pour l'application citoyenne ([ADR-030](../../docs/01-architecture/adr/ADR-030-application-citoyenne-perimetre-et-acces.md)) :
+        **sans jeton, en lecture seule**. Elle donne, pour chaque tronçon, l'état stabilisé du dernier run (ADR-028) et rien d'autre :
+        ni comptage, ni vitesse, ni identifiant de capteur, ni provenance interne. Chaque champ est dans une **liste blanche**
+        (`additionalProperties: false`) : un champ ajouté au modèle interne n'apparaît pas ici sans changer ce contrat.
+
+        Aucun paramètre en v1 : la liste est bornée (un élément par tronçon du réseau). La passerelle limite le débit par adresse
+        (zone `citoyen`) et fixe `Cache-Control`. Un jeton d'équipe envoyé à cette route est ignoré et **n'est pas transmis** au service.
+      security: []
+      responses:
+        "200":
+          description: Un élément par tronçon, dans l'ordre de `road_segment_id`.
+          headers:
+            Cache-Control: { $ref: "common.yaml#/components/headers/CacheControlPublic" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicCongestionList" }
+              example:
+                items:
+                  - { road_segment_id: ROAD_001, intersection_id: INT_01, approach: N, state: FREE_FLOW, updated_at: "2026-11-20T08:20:00Z", simulated: true }
+                  - { road_segment_id: ROAD_002, intersection_id: INT_01, approach: E, state: CONGESTED, updated_at: "2026-11-20T08:20:00Z", simulated: true }
+        "429": { $ref: "common.yaml#/components/responses/TooManyRequests" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
 components:
   securitySchemes:
     bearerAuth: { $ref: "common.yaml#/components/securitySchemes/bearerAuth" }
@@ -549,3 +580,29 @@ components:
             items:
               type: array
               items: { $ref: "#/components/schemas/Report" }
+    PublicSegmentState:
+      type: object
+      description: |
+        Ce que le public voit d'un tronçon. **Liste blanche** (ADR-030, section 4.4) : ces six champs et aucun autre.
+        Jamais : `vehicle_count`, `flow_veh_per_min`, `average_speed_kmh`, `speed_ratio`, `sample_count`, `sensor_id`, `provenance`
+        (`run_id`, `scenario_id`, `seed`), `classifier_version`.
+      additionalProperties: false
+      required: [road_segment_id, intersection_id, approach, state, updated_at, simulated]
+      properties:
+        road_segment_id: { $ref: "common.yaml#/components/schemas/RoadSegmentId" }
+        intersection_id: { $ref: "common.yaml#/components/schemas/IntersectionId" }
+        approach: { type: string, enum: [N, E, S, W], description: Côté d'où arrive la circulation. }
+        state: { $ref: "#/components/schemas/CongestionState" }
+        updated_at: { $ref: "common.yaml#/components/schemas/UtcDateTime" }
+        simulated:
+          type: boolean
+          description: Vrai quand la donnée vient du simulateur (`provenance.source_type` = `SIMULATED`). L'application l'affiche toujours (ADR-027).
+    PublicCongestionList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 500
+          items: { $ref: "#/components/schemas/PublicSegmentState" }

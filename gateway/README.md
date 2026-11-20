@@ -11,7 +11,7 @@
 | `nginx.conf` | Cadre commun : variables d'environnement lues, limites, pages d'erreur au format `Problem`, sondes. Monté sur `/etc/nginx/nginx.conf` |
 | `routes.conf` | **Généré** depuis `contracts/openapi/` : un `location` par chemin (service, méthodes autorisées) |
 | `routes.json` | **Généré** : le rôle exigé par (méthode, chemin), lu par `auth.js` |
-| `protected.conf`, `public.conf`, `upstream.conf` | Ce que reçoit une route protégée, une route publique, et l'envoi vers un service (en-têtes transmis) |
+| `protected.conf`, `public.conf`, `citoyen.conf`, `upstream.conf` | Ce que reçoit une route protégée, une route publique (sonde, connexion), une route **citoyenne** (CIT-02 : sans jeton, lecture seule, ni jeton ni cookie transmis), et l'envoi vers un service (en-têtes transmis) |
 | `auth.js` | njs : vérification du jeton et du rôle, CORS, en-têtes de sécurité, corrélation |
 | `tests/` | `test_gateway.py` (passerelle réelle, Docker), `auth.test.mjs` (Node, sans Docker) |
 
@@ -25,6 +25,8 @@ Le dossier est monté en lecture seule sur `/etc/nginx/gateway`. **Aucun secret 
 |---|---|---|
 | `GET /api/v1/health` | `traitement` (provisoire, jusqu'au service API métier) | publique |
 | `POST /api/v1/auth/login` | `traitement` | publique (limite propre, section 4) |
+| `GET /api/v1/public/congestion` | `traitement` | **citoyenne** : publique, lecture seule, `Cache-Control: public, max-age=5` sur un 200 et `no-store` sinon |
+| `GET /api/v1/public/alerts` | `alerte` | **citoyenne** (idem) |
 | `GET /api/v1/auth/me` | `traitement` | `viewer` |
 | `/api/v1/users`, `/users/{id}` | `traitement` | `admin` |
 | `/api/v1/intersections`, `/road-segments`, `/indicators`, `/forecasts`, `/reports` (et sous-chemins du contrat) | `traitement` | `viewer` |
@@ -58,6 +60,7 @@ Le jeton n'est accepté que dans l'en-tête `Authorization` : jamais dans l'adre
 | Toutes les routes, par adresse | 20 requêtes par seconde, rafale de 40 | `limit_req_zone … zone=api` dans `nginx.conf` |
 | `POST /api/v1/auth/login`, par adresse | 10 par minute, rafale de 5 (en plus de celle du service : 10 essais par minute et 5 échecs par identifiant, BE-08) | `zone=login` |
 | Flux SSE ouverts en même temps, par adresse | 10 | `limit_conn_zone … zone=streams` |
+| Routes publiques de l'application citoyenne (`/api/v1/public/…`), par adresse | 2 par seconde, rafale de 10 (une page en fait 2 par rafraîchissement) ; les écritures (405) et les chemins inconnus (404) sont refusés avant et ne comptent pas | `zone=citoyen`, `citoyen.conf` |
 | Corps de requête | 1 Mo | `client_max_body_size` |
 
 Au-delà : `429` `RATE_LIMITED` au format `Problem` avec `Retry-After` (1 s, 6 s pour la connexion). **Adresse du client** : le front-end (nginx) envoie l'adresse du navigateur dans `X-Forwarded-For` ; la passerelle ne la croit que d'un relais du réseau privé (`set_real_ip_from`, `real_ip_recursive off`).

@@ -177,6 +177,34 @@ test("l'authentification et le flux ne sont pas mis en cache", () => {
   assert.equal(headersFor({ path: "/api/v1/authx" })["Cache-Control"], undefined);
 });
 
+test("une route publique se garde 5 secondes si la réponse est un 200, jamais sinon (ADR-030, CIT-02)", () => {
+  for (const path of ["/api/v1/public/congestion", "/api/v1/public/alerts"]) {
+    assert.equal(headersFor({ path, status: 200 })["Cache-Control"], "public, max-age=5", path);
+    assert.equal(auth.PUBLIC_CACHE, "public, max-age=5");
+    for (const status of [204, 400, 404, 405, 429, 500, 503, undefined]) {
+      assert.equal(headersFor({ path, status })["Cache-Control"], "no-store", `${path} ${status}`);
+    }
+  }
+});
+
+test("seules les routes de l'espace public sont mises en cache", () => {
+  for (const path of ["/api/v1/alerts", "/api/v1/indicators/latest", "/api/v1/publicity", "/api/v1/signals"]) {
+    assert.equal(headersFor({ path, status: 200 })["Cache-Control"], undefined, path);
+  }
+});
+
+test("l'espace public lui-même, une erreur sans route, n'est jamais gardé", () => {
+  assert.equal(headersFor({ path: "/api/v1/public", status: 404 })["Cache-Control"], "no-store");
+  assert.equal(headersFor({ path: "/api/v1/public/", status: 404 })["Cache-Control"], "no-store");
+});
+
+test("la mise en cache d'une route publique ne dépend pas de la chaîne de requête de l'appelant et garde le CORS", () => {
+  const h = headersFor({ path: "/api/v1/public/alerts", status: 200, origin: "http://localhost:8080" });
+  assert.equal(h["Access-Control-Allow-Origin"], "http://localhost:8080");
+  assert.equal(h["Vary"], "Origin", "un cache partagé ne doit pas servir une origine à une autre");
+  assert.equal(h["Access-Control-Allow-Credentials"], undefined, "jamais de cookie");
+});
+
 test("HSTS seulement derrière un point qui parle TLS", () => {
   assert.match(headersFor({ forwardedProto: "https" })["Strict-Transport-Security"], /max-age=31536000/);
   assert.equal(headersFor({ forwardedProto: "http" })["Strict-Transport-Security"], undefined);

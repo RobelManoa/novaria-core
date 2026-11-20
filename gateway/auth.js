@@ -31,6 +31,10 @@ const CORS_METHODS = "GET, POST, PATCH, OPTIONS";
 const CORS_HEADERS = "Authorization, Content-Type, X-Correlation-ID";
 const CORS_EXPOSED = "X-Correlation-ID, Retry-After, Allow, WWW-Authenticate";
 const CORS_MAX_AGE = "600";
+// Routes publiques de l'application citoyenne (ADR-030, CIT-02) : une réponse 200 se garde 5 s, le reste jamais.
+const PUBLIC_PREFIX = "/api/v1/public/";
+const isPublicSpace = (path) => path === "/api/v1/public" || path.startsWith(PUBLIC_PREFIX);
+const PUBLIC_CACHE = "public, max-age=5";
 
 // En-têtes que la passerelle impose : ce que les services envoient d'équivalent est effacé.
 const OWNED = [
@@ -138,6 +142,10 @@ function responseHeaders(options) {
   if (path === "/api/v1/auth/login" || path.startsWith("/api/v1/auth/") || path === "/api/v1/events/stream") {
     headers["Cache-Control"] = "no-store"; // ni jeton ni identité ni flux dans un cache
   }
+  if (isPublicSpace(path)) {
+    // Ni une erreur, ni une limite de débit, ni une pré-vérification ne doivent être gardées par un cache.
+    headers["Cache-Control"] = options.status === 200 ? PUBLIC_CACHE : "no-store";
+  }
   if (options.forwardedProto === "https") {
     // Le point qui termine TLS parle HTTPS ; en local il n'y a pas de TLS et l'en-tête n'aurait aucun effet.
     headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
@@ -221,8 +229,12 @@ function createHandlers(environment, routesPath) {
     OWNED.forEach((name) => {
       delete r.headersOut[name];
     });
+    if (isPublicSpace(r.variables.request_uri.split("?")[0])) {
+      delete r.headersOut["Cache-Control"]; // sur une route publique, seul le délai fixé ici fait foi
+    }
     const wanted = responseHeaders({
       origins,
+      status: r.status,
       origin: r.headersIn["Origin"],
       method: r.variables.request_method,
       path: r.variables.request_uri.split("?")[0],
@@ -246,5 +258,5 @@ export default {
   verify: handlers.verify,
   preflight: handlers.preflight,
   headers: handlers.headers,
-  createHandlers, decode, keyProblem, requiredRole, allowedOrigin, responseHeaders, bearerToken, parseOrigins,
+  PUBLIC_CACHE, createHandlers, decode, keyProblem, requiredRole, allowedOrigin, responseHeaders, bearerToken, parseOrigins,
 };

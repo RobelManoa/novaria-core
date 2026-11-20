@@ -7,7 +7,9 @@ Lancer :  python -m unittest discover -s scripts/dev -p "test_gateway_routes.py"
 import importlib.util
 import json
 import re
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -63,9 +65,12 @@ class RoutesGenerees(unittest.TestCase):
         self.assertEqual(table, attendu)
         self.assertGreaterEqual(len([r for r in table.values() if r]), 20)
 
-    def test_les_routes_publiques_sont_la_sonde_et_la_connexion_et_rien_d_autre(self):
+    def test_les_routes_publiques_sont_la_sonde_la_connexion_et_les_deux_routes_citoyennes_et_rien_d_autre(self):
         publiques = {(r["method"], r["pattern"]) for r in self.routes if r["role"] is None}
-        self.assertEqual(publiques, {("GET", "^/api/v1/health$"), ("POST", "^/api/v1/auth/login$")})
+        self.assertEqual(publiques, {("GET", "^/api/v1/health$"), ("POST", "^/api/v1/auth/login$"),
+                                     ("GET", "^/api/v1/public/alerts$"), ("GET", "^/api/v1/public/congestion$")})
+        self.assertEqual({r["method"] for r in self.routes if r["pattern"].startswith("^/api/v1/public/")}, {"GET"},
+                         "l'espace public est en lecture seule")
 
     def test_les_roles_sont_ceux_des_services(self):
         roles = {r["role"] for r in self.routes} - {None}
@@ -90,14 +95,30 @@ class RoutesGenerees(unittest.TestCase):
         routes = lire("routes.conf")
         blocs = re.findall(r"  location (?:=|~) \S+ \{\n(.*?)\n  \}\n", routes, re.S)
         self.assertGreaterEqual(len(blocs), 20)
-        publics = 0
+        publics = citoyens = 0
         for bloc in blocs:
-            inclus = re.findall(r"include /etc/nginx/gateway/(protected|public)\.conf;", bloc)
+            inclus = re.findall(r"include /etc/nginx/gateway/(protected|public|citoyen)\.conf;", bloc)
             self.assertEqual(len(inclus), 1, bloc)
             self.assertEqual(len(re.findall(r"proxy_pass http://(traitement|alerte|reponse):8000;", bloc)), 1, bloc)
             self.assertIn("if ($request_method !~", bloc)  # méthodes du contrat seulement : le reste est un 405
             publics += inclus[0] == "public"
+            citoyens += inclus[0] == "citoyen"
         self.assertEqual(publics, 2)  # la sonde et la connexion
+        self.assertEqual(citoyens, 2)  # les deux routes de l'application citoyenne
+
+    def test_les_routes_de_l_espace_public_utilisent_citoyen_conf_et_les_autres_jamais(self):
+        routes = lire("routes.conf")
+        for chemin, bloc in re.findall(r"  location (?:=|~) (\S+) \{\n(.*?)\n  \}\n", routes, re.S):
+            self.assertEqual("citoyen.conf" in bloc, chemin.startswith("/api/v1/public/"), chemin)
+
+    def test_citoyen_conf_ne_transmet_ni_jeton_ni_cookie_ni_identite_et_limite_le_debit(self):
+        conf = lire("citoyen.conf")
+        for attendu in ('proxy_set_header Authorization "";', 'proxy_set_header Cookie "";', 'proxy_set_header X-User-Id "";',
+                        'proxy_set_header X-User-Role "";', "limit_req zone=citoyen", "js_header_filter auth.headers;",
+                        "include /etc/nginx/gateway/upstream.conf;"):
+            self.assertIn(attendu, conf)
+        self.assertNotIn("auth_request", conf, "une route publique n'authentifie personne")
+        self.assertRegex(lire("nginx.conf"), r"limit_req_zone \$binary_remote_addr zone=citoyen:\d+m rate=\d+r/s;")
 
     def test_aucun_proxy_pass_hors_des_routes_generees(self):
         self.assertNotIn("proxy_pass", lire("nginx.conf"))
@@ -163,6 +184,67 @@ class ConfigurationDeLaPasserelle(unittest.TestCase):
         self.assertNotRegex(js, r"r\.(error|log|warn)\([^)]*(token|key|secret|Authorization)", )  # jamais dans un message
         self.assertIn('header.alg !== "HS256"', js)  # l'algorithme est fixé
         self.assertIn("exp <= now", js)
+
+
+@unittest.skipIf(yaml is None, "PyYAML absent : pip install pyyaml")
+class GardesDeLEspacePublic(unittest.TestCase):
+    """Le générateur refuse d'ouvrir une route par erreur : la surface sans jeton est celle de l'ADR-030 et rien de plus."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.generateur = charger_generateur()
+
+    def lire_avec(self, modification):
+        """Génère les routes depuis une copie des contrats que `modification(contrats)` a changée."""
+        ancien = self.generateur.CONTRATS
+        with tempfile.TemporaryDirectory() as dossier:
+            copie = Path(dossier)
+            for fichier in CONTRATS.glob("*.yaml"):
+                shutil.copy(fichier, copie / fichier.name)
+            modification(copie)
+            self.generateur.CONTRATS = copie
+            try:
+                return self.generateur.lire_routes()
+            finally:
+                self.generateur.CONTRATS = ancien
+
+    @staticmethod
+    def changer(copie, fichier, fonction):
+        chemin = copie / fichier
+        doc = yaml.safe_load(chemin.read_text(encoding="utf-8"))
+        fonction(doc)
+        chemin.write_text(yaml.safe_dump(doc, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    def test_les_contrats_actuels_passent(self):
+        self.assertTrue(self.lire_avec(lambda copie: None))
+
+    def test_une_ecriture_dans_l_espace_public_est_refusee(self):
+        def ajouter(doc):
+            doc["paths"]["/api/v1/public/alerts"]["post"] = {"operationId": "writePublic", "summary": "x", "tags": ["Public"], "security": [], "responses": {"200": {"description": "x"}}}
+
+        with self.assertRaises(SystemExit) as ctx:
+            self.lire_avec(lambda copie: self.changer(copie, "alerte.openapi.yaml", ajouter))
+        self.assertIn("lecture seule", str(ctx.exception))
+
+    def test_une_route_protegee_dans_l_espace_public_est_refusee(self):
+        def proteger(doc):
+            del doc["paths"]["/api/v1/public/alerts"]["get"]["security"]
+            doc["paths"]["/api/v1/public/alerts"]["get"]["x-required-role"] = "viewer"
+
+        with self.assertRaises(SystemExit) as ctx:
+            self.lire_avec(lambda copie: self.changer(copie, "alerte.openapi.yaml", proteger))
+        self.assertIn("sans jeton", str(ctx.exception))
+
+    def test_une_route_publique_hors_de_l_espace_public_est_refusee(self):
+        def ouvrir(doc):
+            doc["paths"]["/api/v1/alerts"]["get"]["security"] = []
+
+        with self.assertRaises(SystemExit) as ctx:
+            self.lire_avec(lambda copie: self.changer(copie, "alerte.openapi.yaml", ouvrir))
+        self.assertIn("publique hors de /api/v1/public/", str(ctx.exception))
+
+    def test_la_sonde_et_la_connexion_restent_les_seules_publiques_hors_de_l_espace(self):
+        self.assertEqual(self.generateur.PUBLIQUES_HORS_ESPACE, {("/api/v1/health", "get"), ("/api/v1/auth/login", "post")})
 
 
 if __name__ == "__main__":

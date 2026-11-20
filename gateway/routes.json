@@ -81,6 +81,16 @@
  },
  {
   "method": "GET",
+  "pattern": "^/api/v1/public/alerts$",
+  "role": null
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/public/congestion$",
+  "role": null
+ },
+ {
+  "method": "GET",
   "pattern": "^/api/v1/reports$",
   "role": "viewer"
  },

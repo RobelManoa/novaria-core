@@ -24,6 +24,8 @@ tags:
     description: Sonde utilisée par Docker et le pipeline.
   - name: Alertes
     description: Cycle de vie des alertes et règles.
+  - name: Public
+    description: Routes publiques, sans jeton, en lecture seule, pour l'application citoyenne (ADR-030, CIT-02).
   - name: Flux
     description: Diffusion en direct au Tableau de bord.
 
@@ -277,6 +279,35 @@ paths:
         "403": { $ref: "common.yaml#/components/responses/Forbidden" }
         "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
 
+  /api/v1/public/alerts:
+    get:
+      tags: [Public]
+      operationId: getPublicAlerts
+      summary: Alertes de congestion en cours (public)
+      description: |
+        Route **publique** pour l'application citoyenne ([ADR-030](../../docs/01-architecture/adr/ADR-030-application-citoyenne-perimetre-et-acces.md)) :
+        **sans jeton, en lecture seule**. Seulement les alertes de type `CONGESTION` **non résolues** (`CREATED`, `NOTIFIED`,
+        `ACKNOWLEDGED`), de la plus récente à la plus ancienne. Jamais : `SENSOR_FAULT` ni `TRAFFIC_ANOMALY`, la cause
+        (toujours `UNKNOWN`), la règle, l'épisode, l'historique, `acknowledged_by` (nom d'un opérateur : donnée personnelle),
+        la provenance interne. Chaque champ est dans une **liste blanche** (`additionalProperties: false`).
+
+        Aucun paramètre en v1 : la liste est bornée à 100 alertes. La passerelle limite le débit par adresse (zone `citoyen`)
+        et fixe `Cache-Control`. Un jeton d'équipe envoyé à cette route est ignoré et **n'est pas transmis** au service.
+      security: []
+      responses:
+        "200":
+          description: Les alertes en cours, éventuellement aucune (`items` vide).
+          headers:
+            Cache-Control: { $ref: "common.yaml#/components/headers/CacheControlPublic" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicAlertList" }
+              example:
+                items:
+                  - { alert_id: 3f0c1f0e-8a52-4d3c-9d58-1b9a3e5c7a10, road_segment_id: ROAD_002, intersection_id: INT_01, severity: WARNING, opened_at: "2026-11-20T08:18:30Z", simulated: true }
+        "429": { $ref: "common.yaml#/components/responses/TooManyRequests" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
 components:
   securitySchemes:
     bearerAuth: { $ref: "common.yaml#/components/securitySchemes/bearerAuth" }
@@ -397,3 +428,28 @@ components:
         enabled: { type: boolean }
         params: { type: object, additionalProperties: true }
         min_gap_s: { type: integer, minimum: 0 }
+    PublicAlert:
+      type: object
+      description: |
+        Ce que le public voit d'une alerte de congestion en cours. **Liste blanche** (ADR-030, section 4.4) : ces six champs et
+        aucun autre. Pas de `kind` (toujours `CONGESTION` ici), pas d'`state` (toujours non résolue), pas de `cause`.
+      additionalProperties: false
+      required: [alert_id, road_segment_id, intersection_id, severity, opened_at, simulated]
+      properties:
+        alert_id: { type: string, format: uuid }
+        road_segment_id: { $ref: "common.yaml#/components/schemas/RoadSegmentId" }
+        intersection_id: { $ref: "common.yaml#/components/schemas/IntersectionId" }
+        severity: { $ref: "#/components/schemas/Severity" }
+        opened_at: { $ref: "common.yaml#/components/schemas/UtcDateTime" }
+        simulated:
+          type: boolean
+          description: Vrai quand la donnée vient du simulateur (`provenance.source_type` = `SIMULATED`). L'application l'affiche toujours (ADR-027).
+    PublicAlertList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/PublicAlert" }

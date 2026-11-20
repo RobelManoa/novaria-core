@@ -5,8 +5,8 @@ Un contrat par service ([ADR-008](../../docs/01-architecture/adr/ADR-008-microse
 | Fichier | Service | Rôle | Opérations |
 |---|---|---|---|
 | `api-metier.openapi.yaml` | API métier (portée par `services/traitement` tant que le point ouvert n° 1 des diagrammes C4 n'est pas tranché ; BE-02 et BE-03) | Santé, authentification, comptes | 7 |
-| `traitement.openapi.yaml` | Traitement | Référentiel, indicateurs, prévisions, rapports | 10 (les trois d'indicateurs existent : [API des indicateurs](../../docs/03-donnees/api-indicateurs.md) ; les prévisions sont servies par une référence : [API des prévisions](../../docs/03-donnees/api-previsions.md) ; les deux de rapports sont servis depuis le 10/11/2026 mais restent une Proposition à relire, FE-06 : [Rapports automatiques](../../docs/03-donnees/rapports-automatiques.md)) |
-| `alerte.openapi.yaml` | Alerte usager | Alertes, règles, flux SSE (Server-Sent Events) | 8 |
+| `traitement.openapi.yaml` | Traitement | Référentiel, indicateurs, prévisions, rapports, **état public** (CIT-02) | 11 (les trois d'indicateurs existent : [API des indicateurs](../../docs/03-donnees/api-indicateurs.md) ; les prévisions sont servies par une référence : [API des prévisions](../../docs/03-donnees/api-previsions.md) ; les deux de rapports sont servis depuis le 10/11/2026 mais restent une Proposition à relire, FE-06 : [Rapports automatiques](../../docs/03-donnees/rapports-automatiques.md)) |
+| `alerte.openapi.yaml` | Alerte usager | Alertes, règles, flux SSE (Server-Sent Events), **alertes publiques** (CIT-02) | 9 |
 | `reponse.openapi.yaml` | Réponse extérieure | État des feux, commande manuelle | 5 |
 | `collecte.openapi.yaml` | Collecte | Dépôt des mesures par le simulateur (réseau interne) | 2 |
 | `common.yaml` | (aucun) | Composants partagés par au moins deux services : erreur, pagination, provenance, paramètres, réponses d'erreur, sonde | — |
@@ -23,6 +23,8 @@ Tous les chemins commencent par `/api/v1`, comme dans BE-01 : le client du table
 | `/api/v1/intersections`, `/api/v1/road-segments`, `/api/v1/indicators`, `/api/v1/forecasts`, `/api/v1/reports` | Traitement |
 | `/api/v1/alerts`, `/api/v1/alert-rules`, `/api/v1/events` | Alerte usager |
 | `/api/v1/signals` | Réponse extérieure |
+| `/api/v1/public/congestion` | Traitement : **route publique**, sans jeton, lecture seule (application citoyenne, [ADR-030](../../docs/01-architecture/adr/ADR-030-application-citoyenne-perimetre-et-acces.md)) |
+| `/api/v1/public/alerts` | Alerte usager : **route publique**, sans jeton, lecture seule (idem) |
 | `/api/v1/health` | API métier (la sonde des autres services n'est pas exposée) |
 | `/api/v1/measurements` | **Non exposé** : réseau interne, simulateur vers collecte |
 

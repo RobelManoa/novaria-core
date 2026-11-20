@@ -95,7 +95,7 @@ class Pile:
                 "    add_header X-Powered-By factice always;\n"
                 f"    return 200 '{{\"service\":\"{service}\",\"method\":\"$request_method\",\"uri\":\"$request_uri\","
                 '"user":"$http_x_user_id","role":"$http_x_user_role","auth":"$http_authorization",'
-                '"xff":"$http_x_forwarded_for","corr":"$http_x_correlation_id"}\';\n  }\n}\n',
+                '"xff":"$http_x_forwarded_for","corr":"$http_x_correlation_id","cookie":"$http_cookie"}\';\n  }\n}\n',
                 encoding="utf-8", newline="\n")
             nom = f"{self.nom}-{service}"
             docker("run", "-d", "--name", nom, "--network", self.nom, "--network-alias", service,
@@ -327,11 +327,12 @@ class PasserelleReelle(unittest.TestCase):
 
     def test_les_routes_publiques_n_exigent_pas_de_jeton(self):
         chemins = {(r["method"], chemin_de(r["pattern"])) for r in self.publiques()}
-        self.assertEqual(chemins, {("GET", "/api/v1/health"), ("POST", "/api/v1/auth/login")})
+        self.assertEqual(chemins, {("GET", "/api/v1/health"), ("POST", "/api/v1/auth/login"),
+                                   ("GET", "/api/v1/public/congestion"), ("GET", "/api/v1/public/alerts")})
         for methode, chemin in chemins:
             statut, _, corps, _ = self.appel(methode, chemin, corps=b"{}" if methode == "POST" else None)
             self.assertEqual(statut, 200)
-            self.assertEqual(corps["service"], "traitement")
+            self.assertEqual(corps["service"], "alerte" if chemin.endswith("/alerts") else "traitement")
 
     # ============================================================== routage et chemins
     def test_une_route_inconnue_une_methode_non_permise_et_le_depot_des_mesures(self):
@@ -393,6 +394,91 @@ class PasserelleReelle(unittest.TestCase):
         self.assertEqual(entetes["cache-control"], "no-store")
         _, entetes, _, _ = self.appel("GET", "/api/v1/events/stream", jeton_=jeton(self.cle, "viewer"))
         self.assertEqual(entetes["cache-control"], "no-store")
+
+    # ============================================================== l'application citoyenne (ADR-030, CIT-02)
+    CITOYENNES = {"/api/v1/public/congestion": "traitement", "/api/v1/public/alerts": "alerte"}
+
+    def test_une_route_citoyenne_ne_transmet_ni_jeton_ni_cookie_ni_identite(self):
+        """Un citoyen est anonyme : ce qu'un client écrit (jeton d'équipe, cookie, identité) n'atteint jamais le service."""
+        for chemin, service in self.CITOYENNES.items():
+            for avec_jeton in (None, jeton(self.cle, "admin")):
+                with self.subTest(chemin=chemin, jeton=bool(avec_jeton)):
+                    statut, _, corps, _ = self.appel("GET", chemin, jeton_=avec_jeton, entetes={
+                        "Cookie": "session=abc", "X-User-Id": "pirate", "X-User-Role": "admin"})
+                    self.assertEqual(statut, 200)
+                    self.assertEqual(corps["service"], service)
+                    self.assertEqual((corps["auth"], corps["cookie"], corps["user"], corps["role"]), ("", "", "", ""))
+                    self.assertEqual(corps["method"], "GET")
+
+    def test_un_jeton_d_equipe_ne_donne_rien_de_plus_sur_une_route_citoyenne(self):
+        for chemin in self.CITOYENNES:
+            anonyme = self.appel("GET", chemin)
+            admin = self.appel("GET", chemin, jeton_=jeton(self.cle, "admin"))
+            self.assertEqual((anonyme[0], anonyme[2]["service"]), (admin[0], admin[2]["service"]))
+            invalide = self.appel("GET", chemin, jeton_="pas-un-jeton")
+            self.assertEqual(invalide[0], 200, "un jeton faux n'est pas un motif de refus : il est ignoré")
+
+    def test_toute_ecriture_sur_une_route_citoyenne_est_refusee_pour_tous_les_roles(self):
+        for chemin in self.CITOYENNES:
+            for methode in ("POST", "PUT", "PATCH", "DELETE"):
+                for role in (None, "viewer", "operator", "admin"):
+                    with self.subTest(chemin=chemin, methode=methode, role=role):
+                        statut, entetes, corps, _ = self.appel(methode, chemin, jeton_=jeton(self.cle, role) if role else None, corps=b"{}")
+                        self.assertEqual(statut, 405)
+                        self.assertEqual(corps["code"], "METHOD_NOT_ALLOWED")
+                        self.assertEqual(entetes["allow"], "GET, OPTIONS")
+                        self.assertEqual(entetes["cache-control"], "no-store")
+                        self.assertNotIn("service", corps, "la requête n'a pas atteint le service")
+
+    def test_l_espace_public_est_ferme_hors_des_deux_routes(self):
+        matrice = json.loads((RACINE / "ops" / "matrice-acces.json").read_text(encoding="utf-8"))
+        chemins = matrice["api"]["espace_public_interdit"] + ["/api/v1/public", "/api/v1/public/", "/api/v1/public/congestion/INT_01", "/api/v1/public/alerts/x/resolve"]
+        for chemin in chemins:
+            for role in (None, "admin"):
+                with self.subTest(chemin=chemin, role=role):
+                    statut, entetes, corps, _ = self.appel("GET", chemin, jeton_=jeton(self.cle, role) if role else None)
+                    self.assertEqual(statut, 404)
+                    self.assertEqual(corps["code"], "NOT_FOUND")
+                    self.assertEqual(entetes["cache-control"], "no-store")
+
+    def test_une_reponse_citoyenne_se_garde_5_secondes_et_une_erreur_jamais(self):
+        for chemin in self.CITOYENNES:
+            _, entetes, _, _ = self.appel("GET", chemin)
+            self.assertEqual(entetes["cache-control"], "public, max-age=5", chemin)
+        # Le service factice envoie ses propres en-têtes : ceux de la passerelle font foi, un seul Cache-Control.
+        _, _, _, reponse = self.appel("GET", "/api/v1/public/alerts")
+        self.assertEqual(len(reponse.msg.get_all("Cache-Control")), 1)
+
+    def test_les_routes_protegees_ne_sont_pas_mises_en_cache_par_la_regle_citoyenne(self):
+        _, entetes, _, _ = self.appel("GET", "/api/v1/alerts", jeton_=jeton(self.cle, "viewer"))
+        self.assertNotIn("public", entetes.get("cache-control", ""))
+
+    def test_les_routes_citoyennes_ont_leur_propre_limite_et_une_limite_n_en_touche_pas_une_autre(self):
+        chemin = "/api/v1/public/congestion"
+
+        def une_fois(_):
+            return self.appel("GET", chemin, ip="10.9.9.20")
+
+        # 60 appels en parallèle depuis la même adresse : bien plus que 2 par seconde plus la rafale de 10.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
+            reponses = list(pool.map(une_fois, range(60)))
+        statuts = [r[0] for r in reponses]
+        self.assertLessEqual(statuts.count(200), 14, "rafale de 10 plus le débit de la seconde écoulée")
+        self.assertGreater(statuts.count(429), 40)
+        refus = next(r for r in reponses if r[0] == 429)
+        self.assertEqual(refus[2]["code"], "RATE_LIMITED")
+        self.assertEqual(refus[1]["retry-after"], "1")
+        self.assertEqual(refus[1]["cache-control"], "no-store", "une limite de débit n'est jamais gardée par un cache")
+        self.assertEqual(self.appel("GET", chemin, ip="10.9.9.21")[0], 200, "une autre adresse n'est pas touchée")
+        self.assertEqual(self.appel("GET", "/api/v1/alerts", ip="10.9.9.20")[0], 401, "l'API protégée a sa propre zone")
+
+    def test_cors_d_une_route_citoyenne_n_autorise_que_l_origine_configuree_et_jamais_de_cookie(self):
+        _, entetes, _, _ = self.appel("GET", "/api/v1/public/alerts", entetes={"Origin": ORIGINE})
+        self.assertEqual(entetes["access-control-allow-origin"], ORIGINE)
+        self.assertNotIn("access-control-allow-credentials", entetes)
+        self.assertEqual(entetes["vary"], "Origin")
+        _, entetes, _, _ = self.appel("GET", "/api/v1/public/alerts", entetes={"Origin": AUTRE_ORIGINE})
+        self.assertNotIn("access-control-allow-origin", entetes)
 
     def test_hsts_n_est_pose_que_derriere_un_point_qui_parle_tls(self):
         _, entetes, _, _ = self.appel("GET", "/health")
