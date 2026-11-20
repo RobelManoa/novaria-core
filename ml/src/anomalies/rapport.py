@@ -91,7 +91,7 @@ def _delai(par: dict) -> str:
 def markdown(r: dict) -> str:
     p, d = r["protocole"], r["detecteurs"]
     lignes = ["# Détection d'anomalies : résultats (IA-09)", "",
-              "Fichier **généré** par `python3 scripts/dev/dev.py ml-anomalies` (ne pas modifier à la main) ; le choix argumenté est dans [`anomalies-comparaison.md`](anomalies-comparaison.md).", "",
+              "Fichier **généré** par `python3 scripts/dev/dev.py ml-anomalies` (Linux) ou `py -3 scripts/dev/dev.py ml-anomalies` (Windows) (ne pas modifier à la main) ; le choix argumenté est dans [`anomalies-comparaison.md`](anomalies-comparaison.md).", "",
               "## Protocole", "",
               f"- Évaluation : {len(p['evaluation'])} runs, {_n(p['heures_evaluation'], 0)} h de réseau simulé, {p['injections']} anomalies injectées (graines 301 et plus, distinctes de la validation et de l'apprentissage).",
               f"- Isolation Forest : {p['arbres']} arbres, {p['echantillon']} mesures par arbre, graine 42, ajusté sur {p['lignes_apprentissage']} messages **non étiquetés** ; seuil de score {_n(p['seuil_isolation_forest'], 3)} réglé sur la validation sans anomalie.",

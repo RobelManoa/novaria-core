@@ -51,7 +51,7 @@ def markdown(r: dict) -> str:
     c, s, v = r["comparaison"], r["comparaison"]["sumo"], r["comparaison"]["v0"]
     m = r["rejeu_moteur"]
     ligne = ["# Prototype SUMO : résultats du rejeu et de la comparaison (IA-11)", "",
-             "Fichier **généré** par `python3 scripts/dev/dev.py ml-sumo comparer` (ne pas modifier à la main) ; l'analyse est dans [`prototype-sumo.md`](../../docs/06-ia-mlops/prototype-sumo.md).", "",
+             "Fichier **généré** par `python3 scripts/dev/dev.py ml-sumo comparer` (Linux) ou `py -3 scripts/dev/dev.py ml-sumo comparer` (Windows) (ne pas modifier à la main) ; l'analyse est dans [`prototype-sumo.md`](../../docs/06-ia-mlops/prototype-sumo.md).", "",
              "## Le run", "", f"- Run `{r['run']['run_id']}` : carrefour {c['intersection']}, 5 h simulées à partir de 06:00, graine {r['run']['seed']}, {r['run']['messages']} événements, empreintes SHA-256 dans le manifeste.",
              f"- Capacité mesurée d'une approche : {_n(r['capacite_mesuree_vph'], 0)} véhicules/h (le v0 suppose 1 400).", "",
              "## Rejeu dans le moteur de fenêtres du traitement", "", "| Contrôle | Résultat |", "|---|---|",

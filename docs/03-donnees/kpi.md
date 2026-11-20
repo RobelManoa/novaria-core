@@ -2,7 +2,7 @@
 
 > Issue #61 (DAT-07). Critère : **chaque indicateur se recalcule à partir de la source annoncée**. Les vues sont dans
 > [`data/dwh/sql/kpi/`](../../data/dwh/sql/kpi/) (migration `0006_kpi_vues.sql`) ; le contrôle de recalcul est
-> [`controle/verifier.sql`](../../data/dwh/sql/kpi/controle/verifier.sql), lancé par `python3 scripts/dev/dev.py db-check-kpi`.
+> [`controle/verifier.sql`](../../data/dwh/sql/kpi/controle/verifier.sql), lancé par `python3 scripts/dev/dev.py db-check-kpi` (Linux) ou `py -3 scripts/dev/dev.py db-check-kpi` (Windows).
 > Cadre : [ADR-014](../01-architecture/adr/ADR-014-architecture-decisionnelle.md) (section 4.2), [ADR-028](../01-architecture/adr/ADR-028-etats-de-congestion-et-alertes.md)
 > (états, épisodes, alertes), [dictionnaire de données](dictionnaire-de-donnees.md) (sections 6 et 7).
 

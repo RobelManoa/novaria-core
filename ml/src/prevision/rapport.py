@@ -198,7 +198,7 @@ def markdown(r: dict) -> str:
     d, h = r["donnees"], r["horizons"]
     ordre = (*references.NOMS, *MODELES)
     ligne = ["# Prévision de vitesse : résultats (IA-10)", "",
-             "Fichier **généré** par `python3 scripts/dev/dev.py ml-prevision evaluer` (ne pas modifier à la main) ; le choix argumenté et la limite de validité sont dans [`prevision-comparaison.md`](prevision-comparaison.md).", "",
+             "Fichier **généré** par `python3 scripts/dev/dev.py ml-prevision evaluer` (Linux) ou `py -3 scripts/dev/dev.py ml-prevision evaluer` (Windows) (ne pas modifier à la main) ; le choix argumenté et la limite de validité sont dans [`prevision-comparaison.md`](prevision-comparaison.md).", "",
              "## Données et découpage", "",
              f"- METR-LA : {d['pas']} pas de {PAS_MIN} minutes, {d['capteurs']} capteurs, {_n(100 * d['manquantes'], 1)} % de mesures manquantes (vitesse 0 dans le fichier). Fiche : [PROVENANCE.md](../../data/datasets/metr-la/PROVENANCE.md).",
              f"- Découpage dans l'ordre du temps (70 % / 15 % / 15 %), délai de garde de {d['garde_min']} minutes ({d['ecartes_par_la_garde']} pas écartés) :", "",

@@ -2,7 +2,7 @@
 
 Projet : Novaria Core, socle d'UrbanHub (bloc de compétences BC05)
 Responsables : Daddy Luciano et Manoa Robel (relecture croisée)
-Dernière mise à jour : 27/10/2026
+Dernière mise à jour : 20/11/2026 (R6 relu en DOC-11)
 Issue de suivi : GES-07
 
 Ce registre consigne chaque risque du projet avec sa cause, son effet, un responsable, une action et un signal de suivi.
@@ -25,7 +25,7 @@ Ce registre consigne chaque risque du projet avec sa cause, son effet, un respon
 | R3 | Coûts du cloud qui dérivent | Ressources laissées actives | Dépassement du plafond | Manoa | Arrêt après chaque essai, budget AWS à alertes | Alertes AWS Budgets | Suspendu (C-05) : aucune ressource AWS |
 | R4 | Modèle sans valeur démontrée | Signal faible dans les données | Prévision inutile | Manoa | Comparaison à une référence simple | Métrique vs référence | Ouvert |
 | R5 | Cahier des charges qui évolue | Nouvelles demandes | Dérive de périmètre | Daddy | Tri inclus / exclu / à arbitrer | Journal des changements | Ouvert |
-| R6 | Écart entre l'exécution locale et la cible AWS | Aucun service AWS n'est exécuté | Surprise si AWS est autorisé plus tard (versions, droits, réseau) | Daddy | Table d'équivalences et adaptateurs (ADR-025) ; versions épinglées ; relecture à chaque jalon (DOC-11) | Écarts consignés dans la table | Ouvert |
+| R6 | Écart entre l'exécution locale et la cible AWS | Aucun service AWS n'est exécuté ; chaque équivalent local (Compose, Kafka KRaft, PySpark local, scripts de sauvegarde, Moto) n'a pas les propriétés du service géré ; **aucun adaptateur AWS n'est écrit** (ADR-025, règle 3) | Surprise si AWS est autorisé plus tard : versions, droits IAM, réseau, quotas, durabilité ; le premier adaptateur AWS serait écrit sans essai antérieur | Daddy | Table d'équivalences et adaptateurs (ADR-025, relue le 20/11/2026) ; images épinglées à la version majeure (`postgres:16`, `mongo:7`) et Kafka à la version exacte (`4.3.1`) ; code Terraform contrôlé sans compte et appliqué à Moto (CLD-17), ce qui ne prouve rien sur le vrai AWS ; test automatique d'absence de SDK AWS ; relecture à chaque jalon (DOC-11) | Écarts consignés : 4 écarts assumés (ADR-025, section 4.3) et 8 sujets « non démontré » ([remplacer AWS en local](../05-cloud-aws/remplacer-aws-en-local.md), section 4) ; **non mesuré** : la distance réelle entre local et AWS (rien n'a été essayé sur AWS) | Ouvert (relu le 20/11/2026 : cause, parades et signal mis à jour, risque inchangé) |
 | R7 | Instruction du professeur donnée oralement | Aucune trace écrite de la consigne « localhost, pas AWS » | Contestation à la soutenance, périmètre contesté | Manoa | Demander une confirmation écrite ; ligne dans les registres | Réponse écrite reçue ou non | Ouvert |
 | R8 | Postes Windows et Linux qui divergent | Deux systèmes, commandes et fins de ligne différentes | « Ça marche chez moi », temps perdu | Les deux | Docker, `dev.py`, documentation à deux colonnes (ADR-026) ; premier démarrage de Daddy consigné | Résultat de `db-check` sur chaque poste | Ouvert |
 | R9 | Données simulées prises pour des données réelles, ou modèle qui apprend le simulateur | Absence de données réelles avec comptages | Conclusions trompeuses devant le jury | Manoa | Provenance obligatoire, label = vérité terrain, découpage par run, limite écrite dans le rapport (ADR-027) | Fiche de provenance présente pour chaque jeu | Ouvert |
@@ -39,4 +39,4 @@ Ce registre consigne chaque risque du projet avec sa cause, son effet, un respon
 |---|---|---|
 | R1 à R5 | Les cinq risques de la présentation « Novaria Core : socle d'UrbanHub », reportés à l'ouverture du registre | [À VÉRIFIER : concordance avec la diapositive des risques ; le fichier de la présentation n'est pas dans le dépôt] |
 | R11 et R12 | Ajoutés le 27/10/2026 avec la révision de l'ADR-008 (MS-01) : complexité d'exploitation et délai du 10/12/2026 | Voir `docs/01-architecture/adr/ADR-008-microservices.md`, section 5 |
-| R6 à R10 | Ajoutés le 20/10/2026 : R6 à R9 avec l'exécution locale d'abord (C-05 à C-07), R10 avec la politique de vulnérabilités (CLD-23) | Voir `journal-changements.md` ; toute faille sans correctif est notée en R10 |
+| R6 à R10 | Ajoutés le 20/10/2026 : R6 à R9 avec l'exécution locale d'abord (C-05 à C-07), R10 avec la politique de vulnérabilités (CLD-23) | Voir `journal-changements.md` ; toute faille sans correctif est notée en R10. **R6 relu le 20/11/2026 (DOC-11)** : la parade « versions épinglées » ne vaut que pour Kafka et la version majeure des deux bases ; ajout de Moto, du test d'absence de SDK et de la limite « aucun adaptateur AWS écrit » |

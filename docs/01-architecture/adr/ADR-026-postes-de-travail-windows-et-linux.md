@@ -2,7 +2,7 @@
 
 | Champ | Valeur |
 |---|---|
-| Date | 20/10/2026 |
+| Date | 20/10/2026 ; relue contre le dépôt le 20/11/2026 (DOC-11) |
 | Statut | Acceptée |
 | Décideurs | Manoa Robel (Linux, Ubuntu), Daddy Luciano (Windows) |
 | Validation du professeur | Non requise |
@@ -59,15 +59,15 @@ flowchart TB
 | 4 | Fins de ligne : **LF partout** (`.gitattributes` et `.editorconfig`), y compris sous Windows. |
 | 5 | Les fichiers écrits par un outil le sont en UTF-8 par l'outil lui-même (option `--out`), jamais par la redirection `>` de PowerShell. |
 | 6 | Les chemins dans les fichiers du dépôt s'écrivent avec `/`. |
-| 7 | `make` est un **raccourci Linux** facultatif ; il appelle `dev.py` et ne contient aucune logique. |
-| 8 | Python 3.12 et Node.js 22 sont les versions de référence ; `dev.py check-tools` vérifie le poste. |
+| 7 | `make` est un **raccourci Linux** facultatif (il n'existe pas sous Windows) ; il appelle `dev.py` et ne contient aucune logique métier. Il garde de petites boucles et des contrôles d'argument (par exemple `lint` parcourt `services/*/`, `panne` exige `S=<service>`) : la même action passe par `dev.py` ou par les deux commandes de la colonne Windows. |
+| 8 | Python 3.12 (minimum) et Node.js 22 sont les versions de référence : celles de la CI, des verrous de dépendances (`requires-python >= 3.12`) et de `dev.py check-tools`, qui refuse un Python plus ancien. **Écart assumé** : les images des services et du simulateur sont construites sur `python:3.15-slim`, le prototype Big Data sur `python:3.12-slim`, et un poste peut avoir une version intermédiaire (Python 3.14 sous Windows le 20/11/2026) ; la CI ne teste qu'avec 3.12. |
 | 9 | Chaque membre annonce son système à Claude (voir `CLAUDE.md`) pour obtenir les bonnes commandes. |
 
 ## 5. Conséquences
 
 **Positives**
 
-- Une commande de référence ; le comportement est testé sans Docker (17 tests).
+- Une commande de référence ; le comportement est testé sans Docker (17 tests au 20/10/2026 ; la suite `scripts/dev` en compte aujourd'hui plusieurs centaines).
 - Daddy garde son poste ; Manoa le sien.
 - Les erreurs classiques de Windows (CRLF, UTF-16, chemins) sont traitées à la source.
 
@@ -81,7 +81,7 @@ flowchart TB
 
 | Risque | Parade |
 |---|---|
-| Une documentation ne donne qu'une variante | Revue en pull request (liste de contrôle du gabarit) |
+| Une documentation ne donne qu'une variante | Revue en pull request (liste de contrôle du gabarit) ; **depuis DOC-11**, un test automatique (`scripts/dev/test_deux_variantes.py`) échoue si une commande `python3` n'a pas sa variante `py -3` dans le même passage |
 | Fin de ligne CRLF dans un script monté dans un conteneur | `.gitattributes` ; dépannage dans le guide du poste |
 | Une fonction de `dev.py` marche sous Linux seulement | Appels `subprocess` sans shell ; test sous Windows par Daddy au premier démarrage |
 | Version de Python trop ancienne | `check-tools` signale le manque |
@@ -95,7 +95,7 @@ Si Docker Desktop est inutilisable sur le poste Windows (mémoire, virtualisatio
 | Contrôle | Preuve |
 |---|---|
 | `dev.py` ne dépend d'aucun shell | Tests unitaires avec appels simulés |
-| Premier démarrage sous Windows | Daddy exécute `check-tools`, `init-env`, `db-up`, `db-check` et note le résultat dans l'issue LOC-01 |
+| Premier démarrage sous Windows | Fait le 27/10/2026 sous Windows (volumes neufs, `db-check` complet : [preuve LOC-02](../../03-donnees/preuve-loc-02-mongodb.md)). Le résultat n'est **pas** consigné dans l'issue LOC-01 : la preuve est ce document |
 | Fins de ligne | `git ls-files --eol` ne montre aucun `w/crlf` pour les `.sh` |
 
 ## 8. Conditions de réexamen

@@ -1,6 +1,6 @@
 # Détection d'anomalies : résultats (IA-09)
 
-Fichier **généré** par `python3 scripts/dev/dev.py ml-anomalies` (ne pas modifier à la main) ; le choix argumenté est dans [`anomalies-comparaison.md`](anomalies-comparaison.md).
+Fichier **généré** par `python3 scripts/dev/dev.py ml-anomalies` (Linux) ou `py -3 scripts/dev/dev.py ml-anomalies` (Windows) (ne pas modifier à la main) ; le choix argumenté est dans [`anomalies-comparaison.md`](anomalies-comparaison.md).
 
 ## Protocole
 

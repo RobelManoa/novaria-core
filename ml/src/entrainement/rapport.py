@@ -37,7 +37,7 @@ def _ligne(nom: str, m: dict) -> str:
 def _tracabilite(t: dict) -> list[str]:
     modifie = " (code modifié, non commité)" if t["code_modifie_non_commite"] else ""
     return ["# Résultats de la comparaison (IA-03)", "",
-            "Fichier **généré** par `python3 scripts/dev/dev.py ml-train rapport` à partir de `selection.json` et de `resultat-test.json` : ne pas l'écrire à la main. Le choix argumenté est dans [comparaison.md](comparaison.md).", "",
+            "Fichier **généré** par `python3 scripts/dev/dev.py ml-train rapport` (Linux) ou `py -3 scripts/dev/dev.py ml-train rapport` (Windows) à partir de `selection.json` et de `resultat-test.json` : ne pas l'écrire à la main. Le choix argumenté est dans [comparaison.md](comparaison.md).", "",
             "> **Données simulées.** Un modèle entraîné sur le simulateur apprend le simulateur : ces résultats prouvent la chaîne, pas la précision en conditions réelles.", "",
             "## 1. Traçabilité", "", "| Champ | Valeur |", "|---|---|",
             f"| Jeu | `{t['dataset_id']}`, empreinte `{t['dataset_sha256']}` |", f"| Graine | {t['seed']} |",

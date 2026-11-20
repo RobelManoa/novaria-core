@@ -201,12 +201,12 @@ Un retard et un doublon sur le même capteur et le même intervalle se combinent
 
 Le service du conteneur (section 10) accepte une anomalie **pendant qu'un run tourne**. Sans `at`, elle touche le **prochain intervalle** : le passé n'est jamais modifié, une date passée est refusée.
 
-```bash
-curl -X POST http://127.0.0.1:8005/api/v1/run -H 'Content-Type: application/json' \
-  -d '{"scenario":"heure-de-pointe","seed":42,"duration":"10m","rate":24,"sink":"fichier","run_id":"essai"}'
-curl -X POST http://127.0.0.1:8005/api/v1/anomalies -H 'Content-Type: application/json' \
-  -d '{"kind":"muet","sensor":"SENSOR_007","duration":"1m"}'
-```
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Lancer un run | `curl -X POST http://127.0.0.1:8005/api/v1/run -H 'Content-Type: application/json' -d '{"scenario":"heure-de-pointe","seed":42,"duration":"10m","rate":24,"sink":"fichier","run_id":"essai"}'` | `Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8005/api/v1/run -ContentType "application/json" -Body '{"scenario":"heure-de-pointe","seed":42,"duration":"10m","rate":24,"sink":"fichier","run_id":"essai"}'` |
+| Injecter une anomalie pendant le run | `curl -X POST http://127.0.0.1:8005/api/v1/anomalies -H 'Content-Type: application/json' -d '{"kind":"muet","sensor":"SENSOR_007","duration":"1m"}'` | `Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8005/api/v1/anomalies -ContentType "application/json" -Body '{"kind":"muet","sensor":"SENSOR_007","duration":"1m"}'` |
+
+Sous Windows PowerShell, `curl` est un alias de `Invoke-WebRequest` (autre syntaxe) : utiliser `Invoke-RestMethod` comme ci-dessus, ou `curl.exe` avec des guillemets doublés.
 
 La réponse donne l'anomalie résolue, avec sa date de début (`start`). Le manifeste du run la garde : on peut rejouer le run à l'identique avec `--anomalies-file`.
 

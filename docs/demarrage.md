@@ -4,26 +4,29 @@ Ce guide s'adresse à toute personne qui rejoint Novaria Core, côté backend ou
 
 ## 1. Prérequis
 
-| Outil | Version | Vérification |
-|---|---|---|
-| Git | récente | `git --version` |
-| Docker et Docker Compose | récente | `docker info` (sans `sudo`) |
-| Python | 3.12 (celle de la CI) | `python3 --version` |
-| Node.js | 22 | `node --version` |
-| Make | toute version | `make --version` |
+| Outil | Version | Vérification sous Linux (bash) | Vérification sous Windows (PowerShell) |
+|---|---|---|---|
+| Git | récente | `git --version` | `git --version` |
+| Docker et Docker Compose | récente | `docker info` (sans `sudo`) | `docker info` (Docker Desktop lancé) |
+| Python | 3.12 minimum (celle de la CI) | `python3 --version` | `py -3 --version` |
+| Node.js | 22 | `node --version` | `node --version` |
+| Make | toute version ; **Linux seulement**, facultatif | `make --version` | n'existe pas : utiliser `py -3 scripts/dev/dev.py <commande>` |
 
-Sous Linux, ajoutez-vous au groupe Docker : `sudo usermod -aG docker $USER`, puis rouvrez la session.
+Le poste se vérifie en une commande : `python3 scripts/dev/dev.py check-tools` (Linux) ou `py -3 scripts/dev/dev.py check-tools` (Windows).
+
+Sous Linux, ajoutez-vous au groupe Docker : `sudo usermod -aG docker $USER`, puis rouvrez la session. Sous Windows, installez Docker Desktop (moteur WSL 2) et lancez-le avant toute commande `docker`. Le détail des deux postes et le dépannage sont dans [poste-de-travail.md](08-exploitation/poste-de-travail.md).
 
 Il faut un compte GitHub avec accès au dépôt `RobelManoa/novaria-core`. Aucun jeton Snyk ou Sonar n'est nécessaire en local : ces secrets ne servent qu'à la CI.
 
 ## 2. Démarrer l'environnement
 
-```bash
-git clone git@github.com:RobelManoa/novaria-core.git
-cd novaria-core
-cp .env.example .env      # valeurs locales sans danger ; le fichier n'est jamais versionné
-make up                   # tout : bases, bus, 4 services, simulateur, passerelle, front-end (puis vérifie chaque /health)
-```
+| Étape | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Cloner | `git clone git@github.com:RobelManoa/novaria-core.git` puis `cd novaria-core` | `git clone git@github.com:RobelManoa/novaria-core.git` puis `cd novaria-core` |
+| Créer `.env` (mots de passe **aléatoires**, jamais affichés ; le fichier n'est jamais versionné) | `python3 scripts/dev/dev.py init-env` | `py -3 scripts/dev/dev.py init-env` |
+| Tout démarrer : bases, bus, 4 services, simulateur, passerelle, front-end, puis vérifier chaque `/health` | `python3 scripts/dev/dev.py up` ou `make up` | `py -3 scripts/dev/dev.py up` |
+
+`.env.example` ne contient que des valeurs factices : une copie à la main (`cp .env.example .env`) donne des mots de passe connus, que la configuration refuse hors de l'environnement local ([ADR-024](01-architecture/adr/ADR-024-bases-de-donnees-locales.md), règle 3). Utilisez `init-env`.
 
 | Conteneur | Adresse sur le poste | Sonde de santé |
 |---|---|---|
@@ -33,18 +36,20 @@ make up                   # tout : bases, bus, 4 services, simulateur, passerell
 | Simulateur | `127.0.0.1:8005` | `/api/v1/health` |
 | PostgreSQL | `localhost:5432` | |
 | MongoDB | `localhost:27017` | |
-| Kafka (bus d'événements) | `127.0.0.1:9094` depuis le poste, `kafka:9092` depuis un conteneur ; sujets : `make kafka-topics` ([kafka-local.md](08-exploitation/kafka-local.md)) |
+| Kafka (bus d'événements) | `127.0.0.1:9094` depuis le poste, `kafka:9092` depuis un conteneur ; sujets : `dev.py kafka-topics` ou `make kafka-topics` ([kafka-local.md](08-exploitation/kafka-local.md)) |
 
-Le test est réussi quand `make up` finit par « Les 9 sondes répondent » (`make health` le refait à tout moment). Pour arrêter : `make down` (les données sont conservées). Pour suivre les journaux d'un service : `make logs S=traitement`. Ordre de démarrage, ports et dépannage : [pile-locale.md](08-exploitation/pile-locale.md).
+Le test est réussi quand `up` finit par « Les 9 sondes répondent » (`dev.py health` ou `make health` le refait à tout moment). Pour arrêter : `dev.py down` ou `make down` (les données sont conservées). Pour suivre les journaux d'un service : `dev.py logs traitement` ou `make logs S=traitement`. Sous Windows, `dev.py` s'écrit `py -3 scripts/dev/dev.py`. Ordre de démarrage, ports et dépannage : [pile-locale.md](08-exploitation/pile-locale.md).
 
 **Port déjà utilisé** (erreur `address already in use`) : un PostgreSQL, un MongoDB ou un autre programme local occupe le port. Changez la variable correspondante dans votre `.env` (par exemple `POSTGRES_PORT=5433`, `MONGO_PORT=27018` ou `GATEWAY_PORT=8100` ; la liste est dans `.env.example`), puis relancez `make up`. Les conteneurs continuent de se parler sur les ports internes habituels.
 
 Accès aux bases depuis le terminal :
 
-```bash
-docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
-docker compose exec mongo sh -c 'mongosh -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin'
-```
+| Base | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| PostgreSQL | `python3 scripts/dev/dev.py psql` | `py -3 scripts/dev/dev.py psql` |
+| MongoDB | `python3 scripts/dev/dev.py mongosh` | `py -3 scripts/dev/dev.py mongosh` |
+
+Ces commandes ouvrent le client dans le conteneur avec le compte administrateur : le mot de passe vient du conteneur, jamais de la ligne de commande.
 
 ## 3. Travailler côté backend
 
@@ -64,25 +69,29 @@ Le dossier `services/traitement/tests/` contient `unit/`, `integration/` et `con
 
 ### Boucle de développement locale (avec rechargement automatique)
 
-```bash
-docker compose up -d postgres mongo     # les bases seulement
-cd services/traitement
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt
-uvicorn app.main:app --reload           # http://localhost:8000/docs
-```
+| Étape | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Les bases seulement | `docker compose up -d postgres mongo` | `docker compose up -d postgres mongo` |
+| Aller dans le service | `cd services/traitement` | `cd services\traitement` |
+| Créer et activer l'environnement | `python3 -m venv .venv && source .venv/bin/activate` | `py -3 -m venv .venv; .\.venv\Scripts\Activate.ps1` |
+| Installer les dépendances | `pip install -r requirements-dev.txt` | `pip install -r requirements-dev.txt` |
+| Lancer avec rechargement | `uvicorn app.main:app --reload` (http://localhost:8000/docs) | `uvicorn app.main:app --reload` (http://localhost:8000/docs) |
+
+Sous Windows, si PowerShell refuse `Activate.ps1` (stratégie d'exécution), lancez une fois `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 
 Les variables lues par le backend sont les mêmes que celles que `docker-compose.yml` injecte : `ENVIRONMENT`, `GIT_SHA`, `POSTGRES_URL`, `MONGO_URL`, `MONGO_DB`, `JWT_SECRET`, et pour l'API métier `APP_DATABASE_URL` et `AUDIT_MONGO_URL` (journal d'audit, facultative : sans elle rien n'est écrit). En local hors Docker, créez `services/traitement/.env` (ignoré par Git) avec les mêmes noms, en remplaçant `postgres` et `mongo` par `localhost` et en utilisant les ports hôte de votre `.env`.
 
 ### Vérifier avant chaque commit
 
-```bash
-cd services/traitement
-ruff check . && ruff format --check .    # corrige avec : ruff check --fix . && ruff format .
-python -m pytest                         # tests + couverture (coverage.xml)
-```
+Dans `services/traitement` (environnement virtuel activé) :
 
-`make lint`, `make test` et `make format` lancent le backend et le frontend ensemble. Ils exigent que l'environnement virtuel Python soit activé.
+| Contrôle | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Style et format | `ruff check . && ruff format --check .` | `ruff check .; ruff format --check .` |
+| Corriger | `ruff check --fix . && ruff format .` | `ruff check --fix .; ruff format .` |
+| Tests et couverture (`coverage.xml`) | `python -m pytest` | `python -m pytest` |
+
+`make lint`, `make test` et `make format` (Linux) lancent le backend et le frontend ensemble ; ils exigent que l'environnement virtuel Python soit activé. Sous Windows, enchaînez les commandes de la colonne de droite : Windows PowerShell 5.1 ne connaît pas `&&` (PowerShell 7 oui).
 
 ### Ajouter un endpoint, pas à pas
 
@@ -94,18 +103,19 @@ python -m pytest                         # tests + couverture (coverage.xml)
 
 ### Dépendances à ajouter
 
-`requirements.in` ne contient pour l'instant que FastAPI, Uvicorn et Pydantic. Les issues à venir demandent d'ajouter, au moment voulu : SQLAlchemy et Alembic (BE-02), un pilote PostgreSQL (le compose utilise `postgresql+psycopg://`), un client MongoDB, et une bibliothèque JWT (BE-03). Ajoutez-les avec une borne de version, comme les lignes existantes, **dans le fichier `.in`**, puis lancez `python3 scripts/dev/dev.py lock-deps <service>` : les fichiers `requirements*.txt` sont des verrous générés (versions exactes et empreintes), jamais édités à la main. Procédure : [dependances-verrouillees.md](04-devsecops/dependances-verrouillees.md).
+`requirements.in` ne contient pour l'instant que FastAPI, Uvicorn et Pydantic. Les issues à venir demandent d'ajouter, au moment voulu : SQLAlchemy et Alembic (BE-02), un pilote PostgreSQL (le compose utilise `postgresql+psycopg://`), un client MongoDB, et une bibliothèque JWT (BE-03). Ajoutez-les avec une borne de version, comme les lignes existantes, **dans le fichier `.in`**, puis lancez `python3 scripts/dev/dev.py lock-deps <service>` (Linux) ou `py -3 scripts/dev/dev.py lock-deps <service>` (Windows) : les fichiers `requirements*.txt` sont des verrous générés (versions exactes et empreintes), jamais édités à la main. Procédure : [dependances-verrouillees.md](04-devsecops/dependances-verrouillees.md).
 
 ## 4. Travailler côté frontend
 
-```bash
-cd frontend
-npm ci                    # installe exactement le package-lock.json
-npm run dev               # http://localhost:5173, les appels /api passent par le proxy vers le port 8000
-npm test                  # vitest + couverture
-npm run lint && npm run format:check
-npm run build             # contrôle de types puis construction
-```
+Dans `frontend/` (`cd frontend`, identique sous Linux et sous Windows) :
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Installer exactement le `package-lock.json` | `npm ci` | `npm ci` |
+| Serveur de développement (http://localhost:5173 ; les appels `/api` passent par le proxy vers le port 8000) | `npm run dev` | `npm run dev` |
+| Tests (Vitest, couverture) | `npm test` | `npm test` |
+| Lint et format | `npm run lint && npm run format:check` | `npm run lint; npm run format:check` |
+| Contrôle de types puis construction | `npm run build` | `npm run build` |
 
 Le code est dans `frontend/src/` : `app/`, `components/`, `features/`, `hooks/`, `pages/`, `services/` (client d'API), `styles/`, `types/`. Le formatage est géré par Prettier : `npx prettier --write src`. Le backend doit tourner pour que le proxy `/api` réponde.
 
@@ -172,9 +182,9 @@ Vérifiez les dépendances dans l'issue avant de commencer : une tâche bloquée
 
 | Symptôme | Cause et solution |
 |---|---|
-| `address already in use` au `make up` | Port 5432 ou 27017 occupé : voir la section 2 |
+| `address already in use` au démarrage (`up`) | Port 5432 ou 27017 occupé : voir la section 2 |
 | `permission denied` sur le socket Docker | Utilisateur absent du groupe `docker` : voir la section 1 |
-| `make test` ou `make lint` : `ruff` ou `pytest` introuvable | Activer l'environnement virtuel : `source services/traitement/.venv/bin/activate` |
-| `variable is not set` au lancement de Compose | `.env` manquant : `cp .env.example .env` |
-| Le conteneur frontend seul s'arrête (`host not found in upstream "passerelle"`) | Normal hors Compose : nginx a besoin de la passerelle. Utilisez `make up` |
+| `ruff` ou `pytest` introuvable (`make test`, `make lint` ou à la main) | Activer l'environnement virtuel : `source services/traitement/.venv/bin/activate` (Linux) ou `services\traitement\.venv\Scripts\Activate.ps1` (Windows) |
+| `variable is not set` au lancement de Compose | `.env` manquant : `python3 scripts/dev/dev.py init-env` (Linux) ou `py -3 scripts/dev/dev.py init-env` (Windows) |
+| Le conteneur frontend seul s'arrête (`host not found in upstream "passerelle"`) | Normal hors Compose : nginx a besoin de la passerelle. Utilisez `dev.py up` (ou `make up`) |
 | CI rouge sur `docker` après un changement de Dockerfile | Reproduire en local : `docker build services/traitement/` puis `docker build frontend/` |
