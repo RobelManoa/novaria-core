@@ -105,7 +105,7 @@ Un **citoyen qui se déplace** dans la ville : il consulte l'état de la circula
 
 ### 4.5 L'application
 
-Application **React avec Vite et TypeScript**, dans un dossier à part du tableau de bord, **conçue pour téléphone** (lecture seule, sans graphique), qui n'embarque aucun secret et n'appelle que les deux routes publiques. Son dossier, son conteneur et son port sont décidés par CIT-04.
+Application **React avec Vite et TypeScript**, dans un dossier à part du tableau de bord, **conçue pour téléphone** (lecture seule, sans graphique), qui n'embarque aucun secret et n'appelle que les deux routes publiques. Son dossier, son conteneur et son port sont décidés par CIT-04 : dossier `citizen/`, port 5174 sur `127.0.0.1`, **pas de conteneur en v1** ([application-citoyenne.md](../../08-exploitation/application-citoyenne.md), section 3).
 
 ### 4.6 Qualité et livraison pendant le développement
 

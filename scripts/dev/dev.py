@@ -1566,6 +1566,33 @@ def cmd_front_dev(args: argparse.Namespace) -> int:
         return 0
 
 
+CITIZEN_DIR = ROOT / "citizen"
+CITIZEN_PORT = 5174
+CITIZEN_ACTIONS = ("dev", "apercu", "build", "test", "captures")
+
+
+def cmd_citoyen(args: argparse.Namespace) -> int:
+    """Application citoyenne (CIT-04) : dev (Vite), apercu (version construite), build, test, captures sur écran de téléphone."""
+    npm = shutil.which("npm")
+    if npm is None:
+        raise DevError("npm est absent (Node.js 22 ou plus). Voir docs/08-exploitation/poste-de-travail.md.")
+    if not (CITIZEN_DIR / "node_modules").is_dir():
+        code = subprocess.run([npm, "ci"], cwd=CITIZEN_DIR, check=False).returncode
+        if code:
+            return code
+    scripts = {"dev": ["run", "dev"], "apercu": ["run", "preview"], "build": ["run", "build"], "test": ["test"], "captures": ["run", "captures"]}
+    if args.action in ("apercu", "captures"):
+        code = subprocess.run([npm, "run", "build"], cwd=CITIZEN_DIR, check=False).returncode
+        if code:
+            return code
+    if args.action in ("dev", "apercu"):
+        print(f"Application citoyenne : http://127.0.0.1:{CITIZEN_PORT}  (Ctrl+C pour arrêter ; la passerelle doit tourner : dev.py up, port 8000)")
+    try:
+        return subprocess.run([npm, *scripts[args.action]], cwd=CITIZEN_DIR, env=dict(os.environ), check=False).returncode
+    except KeyboardInterrupt:
+        return 0
+
+
 # --------------------------------------------------------------------------- tests d'intégration (BE-07)
 # Paquets que les tests de services/traitement importent et que l'interpréteur courant doit avoir.
 INTEGRATION_PACKAGES = ("pytest", "pytest_cov", "sqlalchemy", "alembic", "psycopg", "pymongo", "jwt", "argon2", "fastapi")
@@ -1802,6 +1829,8 @@ def build_parser() -> argparse.ArgumentParser:
     front = add("front-dev", cmd_front_dev, "lance le front-end (Vite) sur http://localhost:5173")
     front.add_argument("--stub", action="store_true", help="les appels /api passent par la maquette des prévisions (forecast-stub)")
     front.add_argument("--report-stub", action="store_true", help="les appels /api passent par la maquette des rapports (report-stub)")
+    citoyen = add("citoyen", cmd_citoyen, "application citoyenne (CIT-04) : dev, apercu, build, test, captures ; http://127.0.0.1:5174, la passerelle doit tourner")
+    citoyen.add_argument("action", choices=CITIZEN_ACTIONS, nargs="?", default="dev", help="dev : serveur de développement (défaut) ; apercu : version construite ; test ; captures : écrans de téléphone dans docs/Capture d'ecran")
     stub = add("forecast-stub", cmd_forecast_stub, "lance la MAQUETTE de GET /api/v1/forecasts devant l'API (route non implémentée côté serveur)")
     stub.add_argument("--back-minutes", type=int, default=60, help="émission décalée avant la fin des données, pour avoir un observé à comparer (60)")
     reports = add("report-stub", cmd_report_stub, "lance la MAQUETTE de GET /api/v1/reports devant l'API (routes et robot absents côté serveur)")
