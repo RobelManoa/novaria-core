@@ -4,10 +4,22 @@
     "message": "Le parcours complet tourne sur la pile locale, et chaque défaillance prévue est jouée pour de vrai : on arrête un conteneur, on constate, on le relance.",
     "doc": "docs/08-exploitation/tests-integration.md",
     "etapes": [
-      {"montrer": "Lancer « Parcours nominal N1 à N7 » et laisser défiler les lignes [OK].", "dire": "Un capteur simulé envoie des mesures ; la collecte les valide, le traitement calcule des fenêtres d'une minute, l'alerte se crée puis se résout, la recommandation devient une commande de feux."},
-      {"montrer": "Lancer « F1 · Message invalide ».", "dire": "Un message illisible et un message hors contrat sont refusés avec leur motif ; la copie brute ne contient que les messages valides."},
-      {"montrer": "Lancer « F3 · Broker indisponible » (confirmation requise), puis regarder l'onglet Tableau.", "dire": "Kafka est arrêté : la collecte répond 503 sans perdre de copie brute, son disjoncteur s'ouvre, puis tout reprend au redémarrage."},
-      {"montrer": "Lancer « F6 · Redémarrage du service des feux ».", "dire": "Au démarrage, le service des feux applique un plan fixe puis reprend, sans perte ni doublon de commande."}
+      {
+        "montrer": "Lancer « Parcours nominal N1 à N7 » et laisser défiler les lignes [OK].",
+        "dire": "Un capteur simulé envoie des mesures ; la collecte les valide, le traitement calcule des fenêtres d'une minute, l'alerte se crée puis se résout, la recommandation devient une commande de feux."
+      },
+      {
+        "montrer": "Lancer « F1 · Message invalide ».",
+        "dire": "Un message illisible et un message hors contrat sont refusés avec leur motif ; la copie brute ne contient que les messages valides."
+      },
+      {
+        "montrer": "Lancer « F3 · Broker indisponible » (confirmation requise), puis regarder l'onglet Tableau.",
+        "dire": "Kafka est arrêté : la collecte répond 503 sans perdre de copie brute, son disjoncteur s'ouvre, puis tout reprend au redémarrage."
+      },
+      {
+        "montrer": "Lancer « F6 · Redémarrage du service des feux ».",
+        "dire": "Au démarrage, le service des feux applique un plan fixe puis reprend, sans perte ni doublon de commande."
+      }
     ],
     "limites": [
       "Il faut que la pile tourne (dev.py up) : sans elle, la démonstration échoue et le dit.",
@@ -35,8 +47,14 @@
       "Tout est vérifié sous Linux ; non vérifié sous Windows."
     ],
     "etapes": [
-      {"montrer": "Cliquer « Lire les conteneurs en marche ».", "dire": "Pour chaque conteneur : droits Linux abandonnés, élévation de privilèges interdite, aucun mode privilégié, aucun port hors 127.0.0.1."},
-      {"montrer": "Lancer « Tests de durcissement de la pile ».", "dire": "Les mêmes règles sont des tests : si quelqu'un ajoute un port ouvert au réseau ou un conteneur privilégié, la CI échoue."}
+      {
+        "montrer": "Cliquer « Lire les conteneurs en marche ».",
+        "dire": "Pour chaque conteneur : droits Linux abandonnés, élévation de privilèges interdite, aucun mode privilégié, aucun port hors 127.0.0.1."
+      },
+      {
+        "montrer": "Lancer « Tests de durcissement de la pile ».",
+        "dire": "Les mêmes règles sont des tests : si quelqu'un ajoute un port ouvert au réseau ou un conteneur privilégié, la CI échoue."
+      }
     ]
   },
   "cloud": {
@@ -44,9 +62,18 @@
     "message": "Aucune ressource AWS n'est créée (ADR-023). Le code Terraform est rejoué sur Moto, un émulateur open source épinglé par empreinte, dans un réseau Docker sans accès à Internet, avec de faux identifiants.",
     "doc": "docs/05-cloud-aws/ressources-persistantes.md",
     "etapes": [
-      {"montrer": "Lancer « apply puis second plan sur l'émulateur Moto (demo) ».", "dire": "apply crée 15 ressources ; le second plan répond « No changes » ; une dérive volontaire est détectée puis corrigée : le contrôle sait échouer."},
-      {"montrer": "Lancer « Destruction d'un dépôt protégé ».", "dire": "En dev, terraform destroy est refusé (prevent_destroy) avant tout appel à AWS."},
-      {"montrer": "Lancer « Basculer la variable ne lève pas la protection ».", "dire": "Mettre protected = false ne suffit pas : lever la protection est un changement de code, donc une pull request relue sur main protégée."}
+      {
+        "montrer": "Lancer « apply puis second plan sur l'émulateur Moto (demo) ».",
+        "dire": "apply crée 15 ressources ; le second plan répond « No changes » ; une dérive volontaire est détectée puis corrigée : le contrôle sait échouer."
+      },
+      {
+        "montrer": "Lancer « Destruction d'un dépôt protégé ».",
+        "dire": "En dev, terraform destroy est refusé (prevent_destroy) avant tout appel à AWS."
+      },
+      {
+        "montrer": "Lancer « Basculer la variable ne lève pas la protection ».",
+        "dire": "Mettre protected = false ne suffit pas : lever la protection est un changement de code, donc une pull request relue sur main protégée."
+      }
     ],
     "limites": [
       "La preuve est faite sur l'émulateur, pas sur AWS : le critère « 0 changement » est atteint sur Moto seulement.",
@@ -59,14 +86,52 @@
     "message": "Les chiffres ci-dessous sont lus dans ml/evaluation/*.json, générés par les commandes du projet ; une valeur absente est affichée « non disponible », jamais inventée.",
     "doc": "docs/06-ia-mlops/prototype-sumo.md",
     "etapes": [
-      {"montrer": "Regarder les tableaux : règles robustes contre Isolation Forest, puis prévision par horizon.", "dire": "Les règles détectent les anomalies injectées par le simulateur ; Isolation Forest, seul, en détecte peu : le choix argumenté est dans le document de comparaison."},
-      {"montrer": "Lancer « Simuler le carrefour avec SUMO puis rejouer le run » avec une graine neuve.", "dire": "SUMO simule 5 h du carrefour INT_01 ; les 7 200 événements sont rejoués dans le moteur de fenêtres du traitement sans écart."},
-      {"montrer": "Avec la pile en marche : « Rejouer un run SUMO neuf dans toute la pile ».", "dire": "Les mêmes événements passent par la collecte, Kafka et l'entrepôt : un trafic simulé, dit comme tel, traverse toute la plateforme."}
+      {
+        "montrer": "Regarder les tableaux : règles robustes contre Isolation Forest, puis prévision par horizon.",
+        "dire": "Les règles détectent les anomalies injectées par le simulateur ; Isolation Forest, seul, en détecte peu : le choix argumenté est dans le document de comparaison."
+      },
+      {
+        "montrer": "Lancer « Simuler le carrefour avec SUMO puis rejouer le run » avec une graine neuve.",
+        "dire": "SUMO simule 5 h du carrefour INT_01 ; les 7 200 événements sont rejoués dans le moteur de fenêtres du traitement sans écart."
+      },
+      {
+        "montrer": "Avec la pile en marche : « Rejouer un run SUMO neuf dans toute la pile ».",
+        "dire": "Les mêmes événements passent par la collecte, Kafka et l'entrepôt : un trafic simulé, dit comme tel, traverse toute la plateforme."
+      }
     ],
     "limites": [
       "Données simulées (SUMO, générateur v0) ou publiques de recherche (METR-LA, jamais redistribuées) : jamais présentées comme réelles.",
       "SUMO ne reproduit pas la congestion du générateur v0 : la comparaison est dans ml/evaluation/sumo-resultats.md.",
       "Les évaluations IA ne sont pas rejouées d'ici : elles écrivent des fichiers suivis (ml/evaluation) ; la commande est dev.py ml-anomalies ou ml-prevision evaluer."
+    ]
+  },
+  "entrainement": {
+    "titre": "Comment le modèle s'entraîne : de la donnée simulée à la décision",
+    "message": "La chaîne est hors ligne (dossier ml/) : elle apprend sur des données simulées, se mesure à une règle simple, passe une porte fixée avant l'entraînement, puis le registre décide. Chaque case lit ce que les étapes ont réellement écrit.",
+    "doc": "docs/06-ia-mlops/fiche-modele.md",
+    "etapes": [
+      {
+        "montrer": "Cliquer sur « Jeu d'entraînement v1 », puis « Préparation ».",
+        "dire": "Le simulateur fabrique des runs avec une vérité terrain. On découpe par run et par scénario, jamais au hasard, et on ne garde que des variables qui ne connaissent pas le futur."
+      },
+      {
+        "montrer": "Cliquer sur « Référence à battre » puis lancer « Référence : la règle de seuils ».",
+        "dire": "Avant d'entraîner quoi que ce soit, on mesure une règle simple. Un modèle ne vaut que s'il fait mieux."
+      },
+      {
+        "montrer": "Lancer « Toute la chaîne, d'un trait » et suivre les lignes S1 à S5, T1, R1, puis A1 à A5.",
+        "dire": "On réentraîne, on évalue sur un test lu une seule fois, on contrôle la sécurité, puis on applique la porte fixée à l'avance."
+      },
+      {
+        "montrer": "Cliquer sur « Porte d'acceptation » (case rouge) puis « Registre des modèles ».",
+        "dire": "Deux conditions sont manquées : le modèle est rejeté et tracé, sans fichier de modèle. La règle de seuils reste en service : le résultat négatif est documenté."
+      }
+    ],
+    "limites": [
+      "Données simulées uniquement (ADR-027) : le résultat prouve la chaîne, pas la précision sur du trafic réel.",
+      "Aucun modèle appris n'est en service : le branchement du registre au service de traitement n'est pas fait.",
+      "L'étape « Entraînement » (réglage sur la validation) n'est pas rejouée ici car elle réécrit selection.json ; « Entraîner, évaluer et contrôler » réentraîne le candidat choisi et retrouve les mêmes métriques.",
+      "Détection d'anomalies : Isolation Forest et règles seulement ; Local Outlier Factor et One-Class SVM ne sont pas comparés (voir l'onglet IA)."
     ]
   }
 }

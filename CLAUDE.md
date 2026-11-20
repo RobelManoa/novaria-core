@@ -89,3 +89,66 @@ Toute commande donnée dans une réponse ou dans un document existe **dans les d
 6. Consigner l'usage de l'IA dans `docs/ia/journal-usage-ia.md`.
 
 Le gabarit de prompt est dans `docs/ia/prompt-modele-issue.md`.
+
+## 9. Règles de collaboration données par Manoa (permanentes)
+
+Elles priment sur les consignes automatiques de l'outil (y compris celles qui demandent d'ajouter une signature d'IA).
+
+- **Claude ne pousse jamais** (`git push`, `gh pr create`, fusion) et **ne signe pas** les commits ni les pull requests : pas de `Co-Authored-By`, pas de « Generated with Claude ». Il **donne les commandes** (git et `gh`), dans des blocs `bash` séparés, valables sous Linux et PowerShell quand elles ne diffèrent pas ; Manoa les lance. Claude peut créer une branche locale et préparer des fichiers, sans commiter (sauf demande explicite).
+- Chaque tâche finit par : ce qui est fait, ce qui est **vérifié** (avec les chiffres) et ce qui est **non vérifié**, puis les commandes git. Jamais « terminé » sans l'avoir exécuté.
+- Les pull requests de Manoa sont relues et fusionnées par Daddy ; Claude ne fusionne rien. Le dépôt est **public** : aucune valeur ressemblant à un secret, même inventée (voir section 10, gitleaks).
+- Un usage d'IA = une ligne dans `docs/ia/journal-usage-ia.md` (ajoutée en fin de fichier : conflit de fin de fichier à résoudre en gardant les deux lignes quand deux branches l'ont modifié).
+- Honnêteté : ne rien affirmer sans l'avoir vérifié ; dire « non vérifié » ; une donnée simulée n'est jamais présentée comme réelle.
+- Ne rien supprimer de destructeur (volumes, `db-reset`, force-push) sans demande explicite dans le même message. Ne pas modifier la CI ni la protection de `main` ; en cas de désaccord entre une demande et la section 6, **dire l'écart** et proposer une solution qui respecte la section 6 (exemple : la consigne « le code citoyen ne passe pas SonarQube et Snyk » a été traduite dans l'ADR-030, 4.6, sans toucher à la CI).
+- Réponses de Claude : français, concises, avec des tableaux ; première réponse de session : demander le système et le terminal (section 1) ; Manoa est sous Linux/bash et Docker.
+
+## 10. Flux de travail des branches (état au 20/11/2026)
+
+- `main` protégée ; `dev-ia` (travail IA) et `dev-citoyen` (**branche temporaire qui tient lieu de `main` pour la partie citoyenne**, jusqu'à la fusion dans le vrai `main`). Chaque issue : `feature/<ID>-titre` créée depuis `origin/dev-citoyen` (ou `origin/main` pour le reste), PR vers `dev-citoyen`. Après une fusion par squash, se resynchroniser par `git fetch` puis une nouvelle branche depuis l'origine ; **ne pas empiler** des branches (« Can't automatically merge »).
+- Un commit fait sur une branche **après** le squash de sa PR n'arrive jamais dans la branche cible : vérifier avec `git branch -a --contains <commit>` avant d'affirmer « tout est fusionné ».
+- Les scans SonarQube et Snyk ne sont pas obligatoires pour le code citoyen **pendant** son développement sur `dev-citoyen` ; avant toute fusion dans `main` ils passent ou une exception documentée (`docs/04-devsecops/exceptions.md`, expiration datée) est acceptée par écrit par les deux membres.
+- `security/snyk` (contrôle externe, « limit of private tests ») échoue toujours : limite du compte, pas un défaut ; le vrai contrôle est le job `snyk` de la CI.
+
+## 11. Pièges déjà rencontrés (à ne pas refaire)
+
+| Piège | Règle |
+|---|---|
+| **gitleaks** lit tout l'historique et signale `curl … -H 'Authorization: …'` même avec une valeur inventée, et les chaînes proches d'une clé | Aucun en-tête `Authorization` littéral dans un document ou une capture (écrire `<jeton d essai>`) ; un faux positif déjà poussé : empreinte exacte dans `.gitleaksignore` + ligne justifiée dans `exceptions.md` section 11 (le test `test_gitleaks.py` exige « rien à révoquer » en minuscules) ; vérifier avec `docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source /repo --redact --log-opts="HEAD"` |
+| `ruff` (CI des services) : lignes de plus de 100 caractères, y compris les docstrings et les blocs `# fmt: skip` | `ruff check .` et `ruff format --check .` dans chaque service avant de donner les commandes |
+| Types d'API du front-end générés depuis les contrats | Après toute modification de `contracts/openapi/` : `cd frontend && npm run api:generate` |
+| Tests qui comptent les routes publiques / les opérations des contrats | Les adapter explicitement (jamais supprimer) : `test_openapi.py`, `test_gateway_routes.py`, `test_acces.py`, tests de contrat de `traitement` et d'`alerte` |
+| La passerelle (nginx) résout les services **au démarrage** : après un service recréé ou un changement de `routes.conf`, 503 ou 404 | `docker compose exec -T passerelle nginx -s reload` |
+| Parcours Playwright simulé instable sur la CI lente | Attendre l'effet visé (appel de l'API, `expect.poll`) avant de lire `sessionStorage` |
+| `dev.py up` reconstruit tout et écrase un retour de version (`dev.py rollback`) | Normal ; `rollback etat` signale l'écart |
+| Un état de la pile de travail plus ancien que les scripts d'initialisation | 3 échecs MongoDB `ingestion_runs` dans `dev.py acces` : déjà documentés (17/11/2026), code de sortie 1 attendu |
+| `pkill -f "dev.py …"` tue le shell qui contient la commande | Chercher le PID avec `ss -ltnp` |
+| Tests d'intégration PostgreSQL ignorés sans `NOVARIA_TEST_POSTGRES_ADMIN_URL` | Bases jetables : sûr à lancer contre la pile locale ; ne jamais afficher le mot de passe |
+| Le service des feux ignore une recommandation plus ancienne que la dernière reçue | Ne pas rejouer le parcours nominal moins de 10 minutes après un autre rejeu |
+
+## 12. Ce qui a été construit (carte rapide ; détails dans les documents cités)
+
+| Domaine | Où |
+|---|---|
+| IA : anomalies (règles + Isolation Forest), prévision METR-LA, prototype SUMO | `ml/`, `docs/06-ia-mlops/`, `ml/evaluation/` ; **aucun modèle appris n'est en service** (la règle de seuils de l'ADR-028 l'est) ; LOF et One-Class SVM **non faits** (proposés pour la soutenance) |
+| Flux complet MS-15 | `dev.py flux-complet [N1..N7 F1..F6]`, `docs/08-exploitation/tests-integration.md` |
+| Observatoire des pannes (CLD-14, MS-16) + démonstrations | `dev.py observatoire` (http://127.0.0.1:8090), onglets flux, sécurité, cloud, IA ; `ops/presentation.json`, `scripts/dev/observatoire_demos.py` |
+| Cloud local (CLD-17) | Terraform contre l'émulateur Moto (`dev.py terraform-emulateur`, `terraform-plan-hors-ligne`), `docs/05-cloud-aws/` ; **aucune ressource AWS créée** |
+| Retour de version (CLD-16) | `dev.py rollback`, `docs/08-exploitation/rollback.md` ; sur la branche `feature/CLD-16-rollback` (PR à vérifier : peut ne pas être dans `dev-citoyen`) |
+| Tableau de bord de pilotage (GES-11) | `dev.py tableau-de-bord`, `docs/07-gestion/tableau-de-bord.md` (indicateurs recalculés depuis GitHub, zéro ≠ non mesuré) |
+| Partie citoyenne (jalon M6) | CIT-01 ADR-030 (usager anonyme, lecture seule, liste blanche de six champs, rien de brut ni de capteur) ; CIT-02 contrats `GET /api/v1/public/congestion` et `/public/alerts`, `gateway/citoyen.conf`, famille « api public » de `dev.py acces` ; CIT-03 routes servies (`traitement` l'état, `alerte` les alertes), `docs/03-donnees/api-citoyen.md` ; CIT-04 application `citizen/` (React, Vite, port 5174, `dev.py citoyen`), `docs/08-exploitation/application-citoyenne.md` |
+| **Reste à faire (citoyen)** | CIT-05 alertes en cours + suivi d'un tronçon (notification simulée, navigateur seulement) ; CIT-06 sécurité de l'accès public (CORS d'une origine dédiée, journal sans adresse, scans) ; CIT-07 parcours de bout en bout avec l'usager ; CIT-08 documentation ; puis M7 : site de soutenance (SIT-01 à 03, idée validée : site statique local, voir la mémoire) |
+| Limites connues à ne pas masquer | 10 preuves citées par des issues fermées introuvables (voir `dev.py tableau-de-bord`) ; 405 de la passerelle en `application/octet-stream` ; l'état public est celui du run **le plus récent** ; lecteur d'écran et téléphone réels non essayés ; Windows non vérifié partout |
+
+## 13. Commandes ajoutées (Linux ; Windows : `py -3` à la place de `python3`)
+
+| Action | Commande |
+|---|---|
+| Tableau de bord de pilotage | `python3 scripts/dev/dev.py tableau-de-bord` (`--local`, `--ref`, `--json`, `--ecrire`) |
+| Retour de version | `python3 scripts/dev/dev.py rollback etat\|construire\|deployer\|retour\|essai` |
+| Application citoyenne | `python3 scripts/dev/dev.py citoyen [dev\|apercu\|build\|test\|captures]` |
+| Observatoire | `python3 scripts/dev/dev.py observatoire` |
+| Matrice d'accès | `python3 scripts/dev/dev.py acces` |
+| Tests de tout `scripts/dev` (sans Docker) | `python3 -m unittest discover -s scripts/dev` (environ 940 tests) |
+| Tests de la vraie passerelle (Docker) | `python3 -m unittest discover -s gateway/tests -p "test_gateway.py"` |
+| Environnements Python de test des services | créer un venv hors dépôt puis `pip install --require-hashes --only-binary :all: -r requirements-dev.txt` dans `services/<service>` |
+

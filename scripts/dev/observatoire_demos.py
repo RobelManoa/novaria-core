@@ -30,7 +30,7 @@ LIGNES_MAX = 500
 LIGNE_MAX = 400
 RESULTAT = re.compile(r"^\[(OK|ÉCHEC)\]\s+(\S+)\s+(.*)$")
 GRAINE = re.compile(r"^\d{1,6}$")
-THEMES = ("flux", "securite", "cloud", "ia")
+THEMES = ("flux", "securite", "cloud", "ia", "entrainement")
 
 
 @dataclass(frozen=True)
@@ -46,6 +46,8 @@ class Demo:
     pile_requise: bool = False
     accepte_graine: bool = False
     rejeu_sur_pile: bool = False  # rejouer publie aussi sur la collecte (la pile doit tourner)
+    suite: tuple[tuple[str, ...], ...] = ()  # plusieurs commandes de dev.py, l'une après l'autre
+    codes_ok: tuple[int, ...] = (0,)  # codes de sortie qui sont un succès : une porte fermée (1) est le résultat attendu
 
 
 def _flux(identifiant: str, libelle: str, montre: str, cas: tuple[str, ...], duree: str, arrete: bool) -> Demo:
@@ -70,6 +72,15 @@ DEMOS: tuple[Demo, ...] = (
     Demo("ia-sumo", "ia", "Simuler le carrefour avec SUMO puis rejouer le run", "SUMO (dans Docker) simule 5 h du carrefour INT_01 avec une graine au choix, puis le run est rejoué dans le moteur de fenêtres du traitement.", ("ml-sumo", "simuler", "rejouer"), "environ 10 s", accepte_graine=True),
     Demo("ia-sumo-pile", "ia", "Rejouer un run SUMO neuf dans toute la pile", "Même simulation avec une graine neuve, puis les 7 200 événements sont publiés sur la collecte : traitement, entrepôt et alertes les voient comme un vrai trafic (données simulées).", ("ml-sumo", "simuler", "rejouer"), "environ 1 min 30", pile_requise=True, accepte_graine=True, rejeu_sur_pile=True),
 )
+ENTRAINEMENT: tuple[Demo, ...] = (
+    Demo("ent-preparation", "entrainement", "Préparation : découpage et variables", "Vérifie le découpage par run et les variables permises : aucune fuite du futur, empreinte du découpage. Le test n'est pas lu.", ("preparation-check",), "quelques secondes"),
+    Demo("ent-reference", "entrainement", "Référence : la règle de seuils", "Mesure la règle de seuils (ADR-028) sur l'entraînement et la validation : c'est le barème que le modèle doit battre.", ("reference-mesure",), "quelques secondes"),
+    Demo("ent-evaluer", "entrainement", "Entraîner, évaluer et contrôler", "Réentraîne le candidat choisi, l'évalue sur le test et rejoue les contrôles de sécurité (S1 à S5, T1, R1) et les conditions A1 à A5 : mêmes métriques que celles enregistrées.", ("ml-pipeline", "evaluer"), "environ 5 s"),
+    Demo("ent-porte", "entrainement", "Porte d'acceptation", "Dit si le modèle passe la porte. Code de sortie 1 = porte fermée : c'est le résultat attendu ici (modèle rejeté), pas une panne.", ("ml-pipeline", "porte"), "quelques secondes", codes_ok=(0, 1)),
+    Demo("ent-registre", "entrainement", "Registre : quel modèle est en service ?", "Interroge le registre : aucun modèle appris n'est en service, la règle de seuils reste le classificateur (ADR-015).", ("ml-registre", "en-service"), "quelques secondes", pile_requise=True),
+    Demo("ent-tout", "entrainement", "Toute la chaîne, d'un trait", "Préparation, référence, entraînement et évaluation, contrôles, puis porte : de la donnée à la décision, en direct.", ("ml-pipeline",), "environ 15 s", suite=(("preparation-check",), ("reference-mesure",), ("ml-pipeline", "evaluer"), ("ml-pipeline", "porte")), codes_ok=(0, 1)),
+)
+DEMOS = DEMOS + ENTRAINEMENT
 PAR_ID = {d.identifiant: d for d in DEMOS}
 
 
@@ -79,6 +90,8 @@ def charger_presentation(chemin: Path = PRESENTATION) -> dict:
 
 def commandes(demo: Demo, graine: str | None = None) -> list[list[str]]:
     """Les commandes (arguments de dev.py puis hors dev.py pour les tests) à lancer, dans l'ordre."""
+    if demo.suite:
+        return [[sys.executable, str(DEV), *etape] for etape in demo.suite]
     if demo.arguments[0] == "__tests__":
         return [[sys.executable, "-m", "unittest", "discover", "-s", str(DEV.parent), "-p", demo.arguments[1]]]
     if demo.accepte_graine:
@@ -122,7 +135,7 @@ class Taches:
         with self.verrou:
             if self.courante and self.courante["etat"] == "en_cours":
                 raise RuntimeError(f"« {self.courante['libelle']} » est déjà en cours")
-            self.courante = {"id": demo.identifiant, "libelle": demo.libelle, "theme": demo.theme, "etat": "en_cours", "debut": self.horloge(), "fin": None, "code": None, "lignes": deque(maxlen=LIGNES_MAX), "commande": " && ".join(" ".join(c) for c in suite)}
+            self.courante = {"id": demo.identifiant, "libelle": demo.libelle, "theme": demo.theme, "etat": "en_cours", "debut": self.horloge(), "fin": None, "code": None, "lignes": deque(maxlen=LIGNES_MAX), "commande": " && ".join(" ".join(c) for c in suite), "codes_ok": demo.codes_ok}
             tache = self.courante
         threading.Thread(target=self._executer, args=(tache, suite), daemon=True).start()
         return self._vue(tache)
@@ -136,7 +149,7 @@ class Taches:
                 for ligne in self.processus.stdout or ():
                     tache["lignes"].append(ligne.rstrip("\n")[:LIGNE_MAX])
                 code = self.processus.wait()
-                if code != 0:
+                if code not in tache["codes_ok"]:
                     break
         except OSError as erreur:
             tache["lignes"].append(f"impossible de lancer la commande : {type(erreur).__name__}")
@@ -145,7 +158,7 @@ class Taches:
             with self.verrou:
                 tache["code"], tache["fin"] = code, self.horloge()
                 if tache["etat"] != "arrete":
-                    tache["etat"] = "ok" if code == 0 else "echec"
+                    tache["etat"] = "ok" if code in tache["codes_ok"] else "echec"
                 self.historique[tache["id"]] = self._vue(tache, avec_lignes=False)
                 self.processus = None
 

@@ -30,6 +30,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import observatoire_demos as demos
+import observatoire_ml
 import tableau as tb
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -822,6 +823,8 @@ def fabriquer_gestionnaire(obs: Observatoire, jeton: str, port: int) -> type[Bas
                 self._json(200, obs.securite())
             elif adresse.path == "/api/ia":
                 self._json(200, demos.synthese_ia())
+            elif adresse.path == "/api/entrainement":
+                self._json(200, observatoire_ml.carte())
             elif adresse.path == "/api/trace":
                 try:
                     self._json(200, obs.trace(parse_qs(adresse.query).get("id", [""])[0]))

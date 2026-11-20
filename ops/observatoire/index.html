@@ -154,6 +154,7 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
       <button role="tab" id="t-securite" aria-selected="false" data-vue="securite" type="button">Sécurité du poste</button>
       <button role="tab" id="t-cloud" aria-selected="false" data-vue="cloud" type="button">Cloud local (Moto)</button>
       <button role="tab" id="t-ia" aria-selected="false" data-vue="ia" type="button">IA et prototypes</button>
+      <button role="tab" id="t-entrainement" aria-selected="false" data-vue="entrainement" type="button">Entraînement du modèle</button>
     </nav>
     <div id="vue"></div>
   </section>
@@ -291,7 +292,7 @@ function dessinerVue() {
     tab.append(corps); zone.append(h("div", { style: "overflow-x:auto" }, tab));
     if (lignes.length > en.length + 6) zone.append(h("p", { class: "discret" }, `… et ${lignes.length - en.length - 6} autres alarmes à l'état OK.`));
   } else if (THEMES_DEMO.includes(vue)) {
-    if (vue === "securite") dessinerSecurite(zone); else if (vue === "ia") dessinerIA(zone); else dessinerDemos(zone, vue);
+    if (vue === "securite") dessinerSecurite(zone); else if (vue === "ia") dessinerIA(zone); else if (vue === "entrainement") dessinerEntrainement(zone); else dessinerDemos(zone, vue);
   } else if (vue === "tableau") {
     dessinerTableau(zone);
   } else if (vue === "chrono") {
@@ -316,8 +317,8 @@ function dessinerVue() {
 }
 
 // ---- démonstrations : flux complet, sécurité, cloud local, IA (observatoire_demos.py ; textes dans ops/presentation.json)
-const THEMES_DEMO = ["flux", "securite", "cloud", "ia"];
-let demos = null, securite = null, synthese = null, erreurDemo = "";
+const THEMES_DEMO = ["flux", "securite", "cloud", "ia", "entrainement"];
+let demos = null, securite = null, synthese = null, erreurDemo = "", carteMl = null, noeudMl = "porte";
 const duree = (d) => (d && d.debut ? `${Math.round(((d.fin || Date.now() / 1000) - d.debut))} s` : "");
 function listeTexte(titre, lignes) { return [h("h3", { style: "margin:12px 0 4px" }, titre), h("ul", {}, ...lignes.map((x) => h("li", {}, x)))]; }
 function presentation(zone, theme) {
@@ -392,6 +393,77 @@ function dessinerSecurite(zone) {
   if (p) zone.append(h("div", { class: "deux" }, h("div", {}, ...listeTexte("Corrigé", p.corrige)), h("div", {}, ...listeTexte("Ce qui reste (non corrigé)", p.reste))));
 }
 const pct = (v) => (v === null || v === undefined ? "non disponible" : fmt(v * 100, 0, " %"));
+// ---- la chaîne d'entraînement en schéma vivant : chaque case lit ce que les étapes ont réellement écrit (observatoire_ml.py)
+const ETAT_MAP = { ok: "ok", alarme: "alarme", touche: "touche", arret: "arret" };
+const ETAT_TEXTE = { ok: "fait", alarme: "refus voulu", touche: "à relier", arret: "rien trouvé" };
+const COMMANDE_VERS_NOEUDS = { "preparation-check": ["preparation"], "reference-mesure": ["reference"], "ml-pipeline evaluer": ["entrainement", "evaluation", "controles"], "ml-pipeline porte": ["porte"], "ml-registre en-service": ["registre"] };
+function noeudsEnCours() {
+  const c = demos && demos.courante;
+  if (!c || c.etat !== "en_cours" || c.theme !== "entrainement") return [];
+  const derniere = [...c.lignes].reverse().find((l) => l.startsWith("$ "));
+  if (!derniere) return [];
+  const cle = Object.keys(COMMANDE_VERS_NOEUDS).find((k) => derniere.includes(k));
+  return cle ? COMMANDE_VERS_NOEUDS[cle] : [];
+}
+function court(texte, max) { return texte.length > max ? texte.slice(0, max - 1) + "…" : texte; }
+function dessinerCarteMl(zone) {
+  const L = 176, H = 72, ECART_X = 30, ECART_Y = 58, X0 = 4, Y0 = 6, NC = carteMl.colonnes;
+  const svg = s("svg", { viewBox: `0 0 ${X0 * 2 + NC * L + (NC - 1) * ECART_X} ${Y0 * 2 + 2 * H + ECART_Y}`, role: "img", "aria-label": "Chaîne d'entraînement du modèle : du simulateur au registre des modèles" });
+  const defs = s("defs"), marque = s("marker", { id: "fleche-ml", viewBox: "0 0 10 10", refX: "9", refY: "5", markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse" });
+  marque.append(s("path", { d: "M0 0 L10 5 L0 10 z", fill: "context-stroke" })); defs.append(marque); svg.append(defs);
+  const pos = {}, actifs = noeudsEnCours();
+  for (const n of carteMl.noeuds) pos[n.id] = { x: X0 + n.colonne * (L + ECART_X), y: Y0 + n.ligne * (H + ECART_Y) };
+  for (const lien of carteMl.liens) {
+    const a = pos[lien.de], b = pos[lien.vers];
+    const verticale = a.x === b.x;  // deux cases l'une sous l'autre : de bas en haut de case
+    const x1 = verticale ? a.x + L / 2 : a.x + L, y1 = verticale ? a.y + H : a.y + H / 2, x2 = verticale ? b.x + L / 2 : b.x, y2 = verticale ? b.y : b.y + H / 2;
+    const d = verticale ? `M${x1} ${y1} L ${x2} ${y2}` : `M${x1} ${y1} C ${x1 + 24} ${y1}, ${x2 - 24} ${y2}, ${x2} ${y2}`;
+    svg.append(s("path", { class: "lien" + (lien.pointille ? " actif" : ""), "stroke-dasharray": lien.pointille ? "6 5" : "", "marker-end": "url(#fleche-ml)", d }));
+  }
+  for (const n of carteMl.noeuds) {
+    const p = pos[n.id];
+    const g = s("g", { class: `noeud etat-${ETAT_MAP[n.etat]}${actifs.includes(n.id) ? " prevu" : ""}${noeudMl === n.id ? " choisi" : ""}`, tabindex: "0", role: "button", "aria-label": `${n.libelle} : ${n.sous}` });
+    g.append(s("rect", { x: p.x, y: p.y, width: L, height: H }), s("text", { x: p.x + 10, y: p.y + 24, "font-weight": "600" }, court(n.libelle, 24)), s("text", { class: "sous", x: p.x + 10, y: p.y + 44 }, court(n.sous, 30)), s("text", { class: "sous", x: p.x + 10, y: p.y + 61 }, actifs.includes(n.id) ? "en cours…" : ETAT_TEXTE[n.etat]));
+    const choisir = () => { noeudMl = n.id; rendre(); };
+    g.addEventListener("click", choisir);
+    g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choisir(); } });
+    svg.append(g);
+  }
+  zone.append(svg);
+  zone.append(h("div", { class: "legende" },
+    h("span", {}, h("i", { class: "puce", style: "border-color:var(--ok)" }), "fait"),
+    h("span", {}, h("i", { class: "puce", style: "border-color:var(--alarme);background:var(--alarme-fond)" }), "refus voulu (modèle rejeté)"),
+    h("span", {}, h("i", { class: "puce", style: "border-color:var(--touche);background:var(--touche-fond)" }), "à relier ou à corriger"),
+    h("span", {}, h("i", { class: "puce", style: "border-color:var(--arret);border-style:dashed" }), "rien trouvé"),
+    h("span", {}, h("i", { class: "puce", style: "border-color:var(--accent);border-style:dashed" }), "en cours de rejeu")));
+}
+function detailNoeudMl(zone) {
+  const n = carteMl.noeuds.find((x) => x.id === noeudMl) || carteMl.noeuds[0];
+  const demo = n.demo && demos ? demos.demos.find((d) => d.id === n.demo) : null;
+  const c = demos && demos.courante, occupe = !!(c && c.etat === "en_cours");
+  const carte = h("div", { class: "carte", style: "margin-top:12px" }, h("h3", { style: "margin:0 0 6px" }, n.libelle), h("p", { class: "discret", style: "margin:0 0 10px" }, `${n.sous} · ${ETAT_TEXTE[n.etat]}`));
+  const ligne = (nom, valeur) => [h("dt", {}, nom), h("dd", {}, valeur)];
+  carte.append(h("dl", {}, ...ligne("Ce que fait cette étape", n.role.replaceAll("**", "")), ...ligne("Entre", n.entree), ...ligne("Sort", n.sortie), ...ligne("Commande", n.commande || "—"),
+    ...n.details.flatMap((d) => ligne(d.nom, d.valeur))));
+  if (demo) {
+    const lancer = h("button", { class: "principal", type: "button", disabled: occupe }, "Rejouer cette étape en direct");
+    lancer.addEventListener("click", () => lancerDemo(demo, null));
+    carte.append(h("div", { class: "actions" }, lancer, h("span", { class: "discret" }, demo.duree + (demo.pile_requise ? " · pile requise" : ""))));
+  } else carte.append(h("p", { class: "discret", style: "margin-top:10px" }, "Cette étape ne se rejoue pas ici : elle réécrit un fichier suivi par Git ou dépend d'un outil externe. Son résultat est lu dans les fichiers."));
+  zone.append(carte);
+}
+function dessinerEntrainement(zone) {
+  if (!demos) { zone.append(h("p", { class: "vide" }, "Chargement…")); return; }
+  presentation(zone, "entrainement");
+  if (!carteMl) zone.append(h("p", { class: "vide" }, "Lecture des étapes…"));
+  else { zone.append(h("div", { class: "bloc" }, "La chaîne, de la donnée à la décision (cliquez sur une case)")); dessinerCarteMl(zone); detailNoeudMl(zone); }
+  zone.append(h("div", { class: "bloc" }, "Rejouer en direct"));
+  zone.append(h("div", { class: "cartes" }, ...demos.demos.filter((d) => d.theme === "entrainement").map(carteDemo)));
+  sortieDemo(zone, "entrainement");
+  limites(zone, "entrainement");
+}
+async function lireCarteMl() { try { carteMl = await api("/api/entrainement"); } catch (e) { carteMl = null; } }
+
 function dessinerIA(zone) {
   dessinerDemos(zone, "ia");
   if (!synthese) { zone.append(h("p", { class: "vide" }, "Chargement des évaluations…")); return; }
@@ -507,7 +579,7 @@ function rendre() {
   siChange("etapes", [etat && etat.panne, rapport && rapport.alarmes.length, rapport && rapport.cause], dessinerEtapes);
   siChange("carte", [visible, choisi, etat && etat.panne && etat.panne.service], dessinerCarte);
   siChange("detail", [visible, choisi, etat && etat.panne], dessinerDetail);
-  siChange("vue", [vue, !THEMES_DEMO.includes(vue) && etat && etat.alarmes.map((a) => [a.etat, a.raison]), chrono.length, rapport && [rapport.alarmes, rapport.journaux, rapport.cause, rapport.impact], vue === "tableau" && tableau, trace, erreurTrace, THEMES_DEMO.includes(vue) && [demos && demos.courante, demos && demos.courante && demos.courante.etat === "en_cours" && Math.floor(Date.now() / 3000), demos && demos.demos.map((d) => d.dernier && d.dernier.etat), securite, synthese, erreurDemo]], dessinerVue);
+  siChange("vue", [vue, !THEMES_DEMO.includes(vue) && etat && etat.alarmes.map((a) => [a.etat, a.raison]), chrono.length, rapport && [rapport.alarmes, rapport.journaux, rapport.cause, rapport.impact], vue === "tableau" && tableau, trace, erreurTrace, THEMES_DEMO.includes(vue) && [demos && demos.courante, demos && demos.courante && demos.courante.etat === "en_cours" && Math.floor(Date.now() / 3000), demos && demos.demos.map((d) => d.dernier && d.dernier.etat), securite, synthese, erreurDemo, carteMl, noeudMl]], dessinerVue);
 }
 async function rafraichir() {
   try {
@@ -515,6 +587,7 @@ async function rafraichir() {
     rapport = etat.panne ? await api("/api/rapport") : null;
     if (vue === "tableau") tableau = await api("/api/tableau");
     if (THEMES_DEMO.includes(vue)) demos = await api("/api/demos");
+    if (vue === "entrainement") await lireCarteMl();
     rendre();
   } catch (e) { document.getElementById("pastille").textContent = "Observatoire injoignable"; }
 }
@@ -522,6 +595,7 @@ document.querySelectorAll("[role=tab]").forEach((b) => b.addEventListener("click
   vue = b.dataset.vue;
   if (vue === "tableau") { try { tableau = await api("/api/tableau"); } catch (e) { tableau = null; } }
   if (THEMES_DEMO.includes(vue)) { try { demos = await api("/api/demos"); } catch (e) { demos = null; } }
+  if (vue === "entrainement") await lireCarteMl();
   if (vue === "ia" && !synthese) { try { synthese = await api("/api/ia"); } catch (e) { synthese = null; } }
   dessinerVue();
 }));
