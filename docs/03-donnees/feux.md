@@ -184,7 +184,7 @@ La file d'envoi est en mémoire, bornée à 10 000 événements (les plus ancien
 
 ### 10.2 Tests d'intégration contre un vrai Kafka et un vrai MongoDB
 
-`py -3 scripts/dev/dev.py test-integration --service reponse` monte un projet Compose jetable (Kafka avec ses six sujets, MongoDB initialisé avec ses comptes de service, ports propres) et le supprime ensuite. Le service est le vrai : consommateur de groupe, producteur `acks=all`, compte `svc_reponse`, les trois fils. Seule l'**horloge** est accélérée (×10) pour que les phases de 10 s et les silences de plusieurs minutes se jouent en secondes ; aucune règle n'est modifiée.
+`python3 scripts/dev/dev.py test-integration --service reponse` (Linux) ou `py -3 scripts/dev/dev.py test-integration --service reponse` (Windows) monte un projet Compose jetable (Kafka avec ses six sujets, MongoDB initialisé avec ses comptes de service, ports propres) et le supprime ensuite. Le service est le vrai : consommateur de groupe, producteur `acks=all`, compte `svc_reponse`, les trois fils. Seule l'**horloge** est accélérée (×10) pour que les phases de 10 s et les silences de plusieurs minutes se jouent en secondes ; aucune règle n'est modifiée.
 
 | Ce qui est prouvé sur le vrai système | Tests |
 |---|---|
@@ -273,10 +273,12 @@ On casse volontairement le code (70 mutations : comparaisons inversées, garde r
 
 ## 11. Lancer et vérifier
 
-| Action | Commande |
-|---|---|
-| Tests unitaires et de contrat (sans base ni bus) | `cd services/reponse` puis `pytest` |
-| Tests d'intégration (Kafka et MongoDB jetables) | `py -3 scripts/dev/dev.py test-integration --service reponse` (Windows) ou `make test-integration-reponse` |
-| Tout démarrer | `py -3 scripts/dev/dev.py up` |
-| Lire l'état des feux | `curl -H "Authorization: Bearer <jeton>" http://127.0.0.1:8000/api/v1/signals` |
-| Envoyer une commande | `curl -X POST -H "Authorization: Bearer <jeton opérateur>" -H "Content-Type: application/json" -d '{"action":"SET_PHASE","phase_id":"P2","duration_s":30,"reason":"Évacuation"}' http://127.0.0.1:8000/api/v1/signals/INT_01/commands` |
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Tests unitaires et de contrat (sans base ni bus) | `cd services/reponse` puis `pytest` | `cd services\reponse` puis `pytest` |
+| Tests d'intégration (Kafka et MongoDB jetables) | `python3 scripts/dev/dev.py test-integration --service reponse` ou `make test-integration-reponse` | `py -3 scripts/dev/dev.py test-integration --service reponse` |
+| Tout démarrer | `python3 scripts/dev/dev.py up` | `py -3 scripts/dev/dev.py up` |
+| Lire l'état des feux | `curl -H "Authorization: Bearer <jeton>" http://127.0.0.1:8000/api/v1/signals` | `Invoke-RestMethod -Headers @{Authorization = "Bearer <jeton>"} http://127.0.0.1:8000/api/v1/signals` |
+| Envoyer une commande | `curl -X POST -H "Authorization: Bearer <jeton opérateur>" -H "Content-Type: application/json" -d '{"action":"SET_PHASE","phase_id":"P2","duration_s":30,"reason":"Évacuation"}' http://127.0.0.1:8000/api/v1/signals/INT_01/commands` | `Invoke-RestMethod -Method Post -Headers @{Authorization = "Bearer <jeton opérateur>"} -ContentType "application/json; charset=utf-8" -Body '{"action":"SET_PHASE","phase_id":"P2","duration_s":30,"reason":"Évacuation"}' http://127.0.0.1:8000/api/v1/signals/INT_01/commands` |
+
+Sous Windows PowerShell, `curl` est un alias de `Invoke-WebRequest` : écrire `curl.exe` pour appeler le vrai `curl`, ou utiliser `Invoke-RestMethod` comme ci-dessus.

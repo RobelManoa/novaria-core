@@ -3,7 +3,7 @@
 Une ADR (Architecture Decision Record, fiche de décision d'architecture) consigne **une décision**, le **problème** qui l'impose, les **options** étudiées, le **choix** et ses **conséquences**. Ce dossier est la preuve de l'issue DOC-04 et la référence des arbitrages techniques de Novaria Core, socle d'UrbanHub.
 
 Responsables : Daddy Luciano et Manoa Robel (relecture croisée).
-Dernière mise à jour : 20/10/2026 (exécution locale d'abord : ADR 023 à 028).
+Dernière mise à jour : 20/11/2026 (exécution locale d'abord : ADR 023 à 028, relus contre le dépôt en DOC-11).
 
 ## Comment lire
 
@@ -115,7 +115,7 @@ flowchart TB
 | [020](ADR-020-terraform.md) | Infrastructure as Code avec Terraform | Acceptée | À consigner |
 | [021](ADR-021-docker-deploiement.md) | Docker, images signées, déploiement du code, des données et des modèles | Acceptée (signature à ajouter) | À consigner (R-09) |
 | [022](ADR-022-hebergement-mongodb.md) | Hébergement de MongoDB sur AWS | Proposée ; essai différé par 023 | Non requise |
-| [023](ADR-023-execution-locale-d-abord.md) | **Exécution locale d'abord** : AWS documenté, non exécuté | Acceptée (instruction orale, confirmation écrite à obtenir) | Donnée oralement le 20/10/2026 |
+| [023](ADR-023-execution-locale-d-abord.md) | **Exécution locale d'abord** : AWS documenté, non exécuté | Acceptée (instruction orale, confirmation écrite à obtenir : toujours aucune réponse consignée au 20/11/2026) | Donnée oralement le 20/10/2026 |
 | [024](ADR-024-bases-de-donnees-locales.md) | Bases de données locales : PostgreSQL et MongoDB dans Docker | Acceptée | Non requise |
 | [025](ADR-025-equivalents-locaux-des-services-aws.md) | Équivalents locaux des services AWS et adaptateurs remplaçables | Acceptée | Non requise |
 | [026](ADR-026-postes-de-travail-windows-et-linux.md) | Postes Windows et Linux : Docker et un lanceur Python commun | Acceptée | Non requise |
@@ -150,7 +150,7 @@ Vocabulaire des statuts : **Acceptée** (décidée) · **Acceptée sous conditio
 | Sujet | Issue | Jalon |
 |---|---|---|
 | Observabilité et résilience entre services | MS-16 | M4 |
-| Relecture de la table d'équivalences locales/AWS | DOC-11 | M4 |
+| Relecture de la table d'équivalences locales/AWS | DOC-11 | M4 ; faite le 20/11/2026 (pull request de relecture) ; prochaine relecture : à chaque jalon |
 | Signature des images (proposition d'issue CLD-25) | écart E-02 | M4 |
 
 ## Charge de travail et simplifications prévues

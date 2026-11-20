@@ -2,11 +2,13 @@
 
 Tableau de bord web de Novaria Core : React 19, Vite 6, TypeScript 5.7, Vitest 3. L'interface est en français et doit rester utilisable sur un téléphone (360 px de large) comme sur un ordinateur (1280 px et plus).
 
+Ces commandes sont les mêmes sous Linux et sous Windows ; seul l'enchaînement diffère : `&&` (bash, PowerShell 7) devient `;` dans Windows PowerShell 5.1.
+
 ```bash
 npm ci
 npm run dev        # http://localhost:5173 (proxy /api vers le backend, port 8000)
 npm test           # vitest + couverture (coverage/lcov.info)
-npm run lint && npm run format:check
+npm run lint && npm run format:check      # Windows PowerShell 5.1 : npm run lint; npm run format:check
 npm run build      # contrôle de types puis construction
 npm run e2e        # parcours de bout en bout sur la pile Docker réelle, avec Chrome (MS-14 ; voir docs/03-donnees/tableau-de-bord.md)
 npm run e2e:simule # parcours de bout en bout sur l'API simulée (FE-08, après npm run build ; voir « Tests du front-end »)
@@ -327,9 +329,9 @@ Rapport complet, chiffres et limites : [`rapport-tests.md`](rapport-tests.md).
 
 ## Vérifier avant une pull request
 
-```bash
-npm ci && npm run lint && npm run format:check && npm test && npm run build
-```
+| Linux (bash) | Windows (PowerShell) |
+|---|---|
+| `npm ci && npm run lint && npm run format:check && npm test && npm run build` | `npm ci; npm run lint; npm run format:check; npm test; npm run build` (vérifier le code de sortie de chaque commande ; PowerShell 7 accepte `&&`) |
 
 Le job `frontend` de la CI exécute ces mêmes commandes. Pour le conteneur : `docker build -t novaria-frontend:test frontend`, puis lancer l'image avec le service `backend` accessible (par exemple `docker compose up --build`) ; `nginx.conf` renvoie toute route inconnue vers `index.html`, donc un rechargement direct de `/alertes` fonctionne.
 
