@@ -141,6 +141,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/congestion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * État de congestion de chaque tronçon (public)
+         * @description Route **publique** pour l'application citoyenne ([ADR-030](../../docs/01-architecture/adr/ADR-030-application-citoyenne-perimetre-et-acces.md)) :
+         *     **sans jeton, en lecture seule**. Elle donne, pour chaque tronçon, l'état stabilisé du dernier run (ADR-028) et rien d'autre :
+         *     ni comptage, ni vitesse, ni identifiant de capteur, ni provenance interne. Chaque champ est dans une **liste blanche**
+         *     (`additionalProperties: false`) : un champ ajouté au modèle interne n'apparaît pas ici sans changer ce contrat.
+         *
+         *     Aucun paramètre en v1 : la liste est bornée (un élément par tronçon du réseau). La passerelle limite le débit par adresse
+         *     (zone `citoyen`) et fixe `Cache-Control`. Un jeton d'équipe envoyé à cette route est ignoré et **n'est pas transmis** au service.
+         */
+        get: operations["getPublicCongestion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reports": {
         parameters: {
             query?: never;
@@ -361,6 +387,27 @@ export interface components {
             seed?: number;
             source_type: components["schemas"]["SourceType"];
         } & (unknown & unknown);
+        PublicCongestionList: {
+            items: components["schemas"]["PublicSegmentState"][];
+        };
+        /**
+         * @description Ce que le public voit d'un tronçon. **Liste blanche** (ADR-030, section 4.4) : ces six champs et aucun autre.
+         *     Jamais : `vehicle_count`, `flow_veh_per_min`, `average_speed_kmh`, `speed_ratio`, `sample_count`, `sensor_id`, `provenance`
+         *     (`run_id`, `scenario_id`, `seed`), `classifier_version`.
+         */
+        PublicSegmentState: {
+            /**
+             * @description Côté d'où arrive la circulation.
+             * @enum {string}
+             */
+            approach: "N" | "E" | "S" | "W";
+            intersection_id: components["schemas"]["IntersectionId"];
+            road_segment_id: components["schemas"]["RoadSegmentId"];
+            /** @description Vrai quand la donnée vient du simulateur (`provenance.source_type` = `SIMULATED`). L'application l'affiche toujours (ADR-027). */
+            simulated: boolean;
+            state: components["schemas"]["CongestionState"];
+            updated_at: components["schemas"]["UtcDateTime"];
+        };
         /**
          * @description Métadonnées d'un rapport PDF. **Proposition (FE-06).** `sha256` permet de contrôler le fichier
          *     reçu ; la provenance des données du rapport n'y figure pas (question pour la relecture).
@@ -459,6 +506,16 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description Limite de débit atteinte ; code `RATE_LIMITED`. */
+        TooManyRequests: {
+            headers: {
+                "Retry-After": components["headers"]["RetryAfter"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description Jeton absent, invalide ou expiré ; code `UNAUTHENTICATED`. */
         Unauthorized: {
             headers: {
@@ -513,7 +570,16 @@ export interface components {
         Limit: number;
     };
     requestBodies: never;
-    headers: never;
+    headers: {
+        /**
+         * @description Mise en cache d'une route **publique** (application citoyenne, ADR-030). Une réponse `200` se garde 5 secondes
+         *     (`public, max-age=5`) ; toute autre réponse (erreur, limite de débit) n'est jamais gardée (`no-store`).
+         *     Posé par la passerelle, qui écrase l'en-tête du service.
+         */
+        CacheControlPublic: string;
+        /** @description Secondes à attendre avant de réessayer. */
+        RetryAfter: number;
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
@@ -743,6 +809,51 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    getPublicCongestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            "5XX": components["responses"]["ServerError"];
+            /** @description Un élément par tronçon, dans l'ordre de `road_segment_id`. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControlPublic"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "road_segment_id": "ROAD_001",
+                     *           "intersection_id": "INT_01",
+                     *           "approach": "N",
+                     *           "state": "FREE_FLOW",
+                     *           "updated_at": "2026-11-20T08:20:00Z",
+                     *           "simulated": true
+                     *         },
+                     *         {
+                     *           "road_segment_id": "ROAD_002",
+                     *           "intersection_id": "INT_01",
+                     *           "approach": "E",
+                     *           "state": "CONGESTED",
+                     *           "updated_at": "2026-11-20T08:20:00Z",
+                     *           "simulated": true
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PublicCongestionList"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
         };
     };
     listReports: {

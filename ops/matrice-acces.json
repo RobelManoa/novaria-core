@@ -5,6 +5,10 @@
     "roles": ["viewer", "operator", "admin"],
     "commentaire_roles": "Les rôles sont ordonnés : viewer < operator < admin. Un rôle supérieur peut tout ce que peut un rôle inférieur.",
     "publiques": ["/api/v1/health", "/api/v1/auth/login"],
+    "publiques_lecture": ["/api/v1/public/congestion", "/api/v1/public/alerts"],
+    "commentaire_publiques_lecture": "Application citoyenne (ADR-030, CIT-02) : routes ouvertes à TOUS, anonyme compris, en lecture (GET) seulement. Toute écriture y est refusée pour tous les sujets, administrateur compris (405). Un jeton d'équipe n'y donne rien de plus que l'anonyme.",
+    "espace_public_interdit": ["/api/v1/public/indicators", "/api/v1/public/signals", "/api/v1/public/users", "/api/v1/public/alert-rules", "/api/v1/public/measurements"],
+    "commentaire_espace_public_interdit": "Chemins qu'on pourrait croire publics et qui ne le sont pas : l'espace /api/v1/public/ ne contient que les routes listées dans publiques_lecture ; tout le reste y répond 404 pour tous les sujets.",
     "exemples": {
       "anonyme": {"autorise": "POST /api/v1/auth/login", "refuse": "GET /api/v1/indicators"},
       "viewer": {"autorise": "GET /api/v1/indicators", "refuse": "POST /api/v1/signals/…"},

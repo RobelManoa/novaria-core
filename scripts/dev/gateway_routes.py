@@ -11,6 +11,8 @@ Une route absente des contrats n'existe pas à la passerelle : 404. Une route pr
 - le chemin exact (les paramètres `{id}` deviennent `[^/]+`) ; un autre chemin est un 404 ;
 - les méthodes du contrat (plus OPTIONS, la pré-vérification CORS) ; une autre méthode est un 405 ;
 - `routes.json` dit le rôle ; `auth.js` le vérifie avant que la requête n'atteigne le service.
+- une route sous /api/v1/public/ (application citoyenne, ADR-030) est publique, en lecture seule, a sa propre limite de débit et
+  ne transmet jamais de jeton ni de cookie : `citoyen.conf`.
 
 Usage :  python scripts/dev/gateway_routes.py          écrit les deux fichiers
          python scripts/dev/gateway_routes.py --check  échoue si les fichiers ne sont pas à jour (code 1)
@@ -34,6 +36,10 @@ GATEWAY = ROOT / "gateway"
 SERVICES = {"alerte": "alerte", "traitement": "traitement", "reponse": "reponse", "api-metier": "traitement"}
 INTERNES = {"collecte"}
 VERBES = ("get", "post", "patch", "put", "delete")
+# Routes sans jeton. L'espace public de l'application citoyenne (ADR-030) est en lecture seule ; hors de cet espace, seules la
+# sonde et la connexion peuvent être publiques : une route publique ajoutée par erreur dans un contrat fait échouer la génération.
+ESPACE_PUBLIC = "/api/v1/public/"
+PUBLIQUES_HORS_ESPACE = {("/api/v1/health", "get"), ("/api/v1/auth/login", "post")}
 # Réglages particuliers de certaines routes (flux SSE : pas de tampon, connexion longue, nombre de flux limité).
 PARTICULARITES = {
     "/api/v1/events/stream": [
@@ -67,6 +73,11 @@ def lire_routes() -> list[dict]:
                 if operation is None:
                     continue
                 publique = operation.get("security") == []
+                if chemin.startswith(ESPACE_PUBLIC):
+                    if not publique or verbe != "get":
+                        raise SystemExit(f"{fichier.name} : {verbe.upper()} {chemin} : l'espace public est en lecture seule et sans jeton (GET, security: [])")
+                elif publique and (chemin, verbe) not in PUBLIQUES_HORS_ESPACE:
+                    raise SystemExit(f"{fichier.name} : {verbe.upper()} {chemin} est publique hors de {ESPACE_PUBLIC} (seules la sonde et la connexion le sont)")
                 role = None if publique else operation.get("x-required-role")
                 if not publique and role is None:
                     raise SystemExit(f"{fichier.name} : {verbe.upper()} {chemin} est protégée mais sans x-required-role")
@@ -106,6 +117,7 @@ def routes_conf(routes: list[dict]) -> str:
         service = operations[0]["service"]
         methodes = sorted({o["method"] for o in operations} | {"OPTIONS"})
         publique = all(o["role"] is None for o in operations)
+        famille = "citoyen" if chemin.startswith(ESPACE_PUBLIC) else "public" if publique else "protected"
         roles = ", ".join(f"{o['method']} {o['role'] or 'publique'}" for o in operations)
         autorisees = "|".join(methodes)
         lignes += [
@@ -115,7 +127,7 @@ def routes_conf(routes: list[dict]) -> str:
             f'      add_header Allow "{", ".join(methodes)}" always;',
             f"      return 405 '{PROBLEME_405}';",
             "    }",
-            f"    include /etc/nginx/gateway/{'public' if publique else 'protected'}.conf;",
+            f"    include /etc/nginx/gateway/{famille}.conf;",
             *[f"    {ligne}" for ligne in PARTICULARITES.get(chemin, [])],
             f"    proxy_pass http://{service}:8000;",
             "  }",

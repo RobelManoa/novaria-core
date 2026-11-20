@@ -39,6 +39,8 @@ Les rôles sont **ordonnés** : `viewer` < `operator` < `admin`. Un rôle supér
 | Ressource | Chemins | anonyme | `viewer` | `operator` | `admin` |
 |---|---|---|---|---|---|
 | Routes publiques | `/api/v1/health`, `POST /api/v1/auth/login` | oui | oui | oui | oui |
+| **Routes publiques de l'application citoyenne** (CIT-02, [ADR-030](../01-architecture/adr/ADR-030-application-citoyenne-perimetre-et-acces.md)) | `GET /api/v1/public/congestion`, `GET /api/v1/public/alerts` | lire | lire | lire | lire |
+| Écriture sur ces routes, et tout autre chemin sous `/api/v1/public/` | `POST`, `PUT`, `PATCH`, `DELETE` ; `/api/v1/public/indicators`, `/signals`, `/users`… | refusé (405 ; 404) | refusé | refusé | refusé |
 | Profil du compte connecté | `/api/v1/auth/me` | — | lire | lire | lire |
 | Indicateurs, carrefours, tronçons, prévisions, rapports | `/api/v1/indicators`, `/intersections`, `/road-segments`, `/forecasts`, `/reports` | — | lire | lire | lire |
 | Alertes et flux temps réel | `/api/v1/alerts`, `/events/stream` | — | lire | lire, **acquitter, résoudre** | lire, acquitter, résoudre |
@@ -112,9 +114,21 @@ Deux catégories d'échec, de gravité différente :
 | Besoin | Linux (bash) | Windows (PowerShell) |
 |---|---|---|
 | Rejouer tous les essais | `python3 scripts/dev/dev.py acces` ou `make acces` | `py -3 scripts/dev/dev.py acces` |
-| Tests du banc, sans Docker (39 tests) | `python3 -m unittest discover -s scripts/dev -p "test_acces.py"` | `py -3 -m unittest discover -s scripts/dev -p "test_acces.py"` |
+| Tests du banc, sans Docker (53 tests) | `python3 -m unittest discover -s scripts/dev -p "test_acces.py"` | `py -3 -m unittest discover -s scripts/dev -p "test_acces.py"` |
 
 Prérequis : `.env` créé, pile démarrée (`dev.py up`), Docker. La commande ne modifie aucune donnée de la pile. Code de sortie 0 si tous les essais sont conformes, 1 sinon (les écarts connus de Kafka et de la collecte ne changent pas le code : ce sont des constats).
+
+## 5 bis. Routes publiques de l'application citoyenne (CIT-02, 20/11/2026)
+
+La matrice a deux clés de plus (`api.publiques_lecture`, `api.espace_public_interdit`) et le banc une famille d'essais, **`api public`** :
+
+| Essai | Attendu | Sujets |
+|---|---|---|
+| `GET` sur chacune des deux routes | accès accordé, **sans jeton** ; un jeton d'équipe ne change rien | anonyme, `viewer`, `operator`, `admin` |
+| `POST`, `PUT`, `PATCH`, `DELETE` sur chacune | **refusé par la passerelle** (405), y compris pour l'administrateur | les quatre sujets |
+| `GET` sur cinq chemins de l'espace public hors liste (`indicators`, `signals`, `users`, `alert-rules`, `measurements`) | refusé (404) | les quatre sujets |
+
+Le banc compare aussi la matrice aux contrats : une route publique de la matrice absente des contrats, ou une route de l'espace public des contrats absente de la matrice, est un échec (`verifier_la_matrice_contre_les_contrats`). Résultat du 20/11/2026 : `api public  accès accordés 8/8 · accès refusés 52/52`, **accès interdits accordés : 0** ([sortie complète](sorties-acces/acces-citoyen-2026-11-20.txt)). Limite : les routes ne sont pas encore servies (CIT-03) : le service répond 404 après avoir été atteint, ce que la matrice compte comme un accès accordé ; le contenu des réponses sera prouvé par les tests de CIT-03.
 
 ## 6. Preuve : exécution du 17/11/2026
 

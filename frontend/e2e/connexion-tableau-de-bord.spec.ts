@@ -131,13 +131,21 @@ test("connexion puis tableau de bord, avec les valeurs de l'API", async ({ page 
 });
 
 test("une session refusée par le serveur renvoie à la connexion", async ({ page }) => {
-  await installFakeApi(page, { rejectToken: true });
+  const api = await installFakeApi(page, { rejectToken: true });
   await page.goto("/connexion");
   await signIn(page);
   // La connexion réussit, mais le serveur refuse ensuite le jeton : on revient à la connexion, sans écran de données.
+  // On attend d'abord que le jeton ait été présenté (donc refusé) : sans cela, l'URL est déjà « /connexion » et la session
+  // est vide *avant* la connexion, et la lecture de `sessionStorage` tombe entre l'enregistrement du jeton et son effacement
+  // (échec vu sur un poste lent de la CI).
+  await expect
+    .poll(() => api.calls.some((call) => call.authorization === `Bearer ${TOKEN}`))
+    .toBe(true);
+  await expect
+    .poll(() => page.evaluate(() => sessionStorage.getItem("novaria-session")))
+    .toBeNull();
   await expect(page).toHaveURL(/\/connexion/);
   await expect(page.getByRole("heading", { level: 1, name: "Connexion" })).toBeVisible();
-  expect(await page.evaluate(() => sessionStorage.getItem("novaria-session"))).toBeNull();
   // Aucune donnée n'est affichée : le serveur a refusé le jeton, toute lecture reçoit un 401.
   await expect(page.getByRole("region", { name: "Indicateurs clés" })).toHaveCount(0);
 });

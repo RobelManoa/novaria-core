@@ -31,8 +31,8 @@ METHODES = {"get", "put", "post", "patch", "delete", "head", "options"}
 ROLES = {"viewer", "operator", "admin"}
 PUBLIQUES = {  # opérations sans jeton, par service
     "api-metier": {"getHealth", "login"},
-    "traitement": {"getHealth"},
-    "alerte": {"getHealth"},
+    "traitement": {"getHealth", "getPublicCongestion"},  # la seconde : application citoyenne (ADR-030, CIT-02)
+    "alerte": {"getHealth", "getPublicAlerts"},
     "reponse": {"getHealth"},
     "collecte": {"getHealth", "ingestMeasurement"},
 }
@@ -55,11 +55,14 @@ OPERATIONS_DE_BE_01 = {
     ("sendSignalCommand", "POST", "/api/v1/signals/{intersection_id}/commands"),
     ("listForecasts", "GET", "/api/v1/forecasts"), ("streamEvents", "GET", "/api/v1/events/stream"),
 }
-# Opérations ajoutées depuis BE-01 : le dépôt des mesures (MS-03) et les rapports du robot (FE-06, Proposition).
+# Opérations ajoutées depuis BE-01 : le dépôt des mesures (MS-03), les rapports du robot (FE-06, Proposition) et les deux routes
+# publiques de l'application citoyenne (CIT-02, ADR-030).
 OPERATIONS_AJOUTEES = {
     ("ingestMeasurement", "POST", "/api/v1/measurements"),
     ("listReports", "GET", "/api/v1/reports"),
     ("downloadReport", "GET", "/api/v1/reports/{report_id}/content"),
+    ("getPublicCongestion", "GET", "/api/v1/public/congestion"),
+    ("getPublicAlerts", "GET", "/api/v1/public/alerts"),
 }
 GENRES = ("schemas", "parameters", "responses", "headers", "securitySchemes")
 

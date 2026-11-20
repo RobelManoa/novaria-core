@@ -36,6 +36,12 @@ components:
     RetryAfter:
       description: Secondes à attendre avant de réessayer.
       schema: { type: integer, minimum: 1 }
+    CacheControlPublic:
+      description: |
+        Mise en cache d'une route **publique** (application citoyenne, ADR-030). Une réponse `200` se garde 5 secondes
+        (`public, max-age=5`) ; toute autre réponse (erreur, limite de débit) n'est jamais gardée (`no-store`).
+        Posé par la passerelle, qui écrase l'en-tête du service.
+      schema: { type: string, examples: ["public, max-age=5"] }
 
   responses:
     Unauthorized:

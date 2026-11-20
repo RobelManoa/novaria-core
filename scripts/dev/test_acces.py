@@ -278,6 +278,117 @@ class BancEnFace(unittest.TestCase):
         self.assertGreater(attendus_refuses, 0)
 
 
+class PasserelleCitoyenne:
+    """La passerelle devant les routes publiques (CIT-02). Réglages de panne : une écriture qui passe, un chemin inconnu qui répond,
+    une lecture qui exige un jeton."""
+
+    PUBLIQUES = ("/api/v1/public/congestion", "/api/v1/public/alerts")
+
+    def __init__(self, ecriture_ouverte=False, espace_ouvert=False, lecture_protegee=False):
+        self.passerelle, self.appels = "http://passerelle", []
+        self.ecriture_ouverte, self.espace_ouvert, self.lecture_protegee = ecriture_ouverte, espace_ouvert, lecture_protegee
+
+    def appel_conclusif(self, methode, url, jeton=None, corps=None, delai=15, hors_passerelle=False):
+        chemin = url.removeprefix(self.passerelle)
+        self.appels.append((methode, chemin, jeton))
+        if chemin in self.PUBLIQUES:
+            if methode == "GET":
+                return 401 if self.lecture_protegee and jeton is None else 200
+            return 200 if self.ecriture_ouverte and jeton == "operator" else 405
+        return 200 if self.espace_ouvert and jeton == "viewer" else 404
+
+
+class EspacePublic(unittest.TestCase):
+    """L'application citoyenne (ADR-030) : lecture ouverte à tous, écritures refusées à tous, espace fermé hors liste."""
+
+    JETONS = {"viewer": "viewer", "operator": "operator", "admin": "admin"}
+
+    def essais(self, pile):
+        return a.essais_public(pile, MATRICE, self.JETONS, pause=lambda _: None)
+
+    def test_la_matrice_declare_les_routes_publiques_en_lecture_seule(self):
+        api = MATRICE["api"]
+        self.assertEqual(api["publiques_lecture"], ["/api/v1/public/congestion", "/api/v1/public/alerts"])
+        self.assertTrue(set(api["publiques_lecture"]).isdisjoint(api["publiques"]), "ni la sonde ni la connexion")
+        for chemin in api["espace_public_interdit"]:
+            self.assertTrue(chemin.startswith(a.ESPACE_PUBLIC))
+            self.assertNotIn(chemin, api["publiques_lecture"])
+
+    def test_la_lecture_est_ouverte_a_tous_et_toute_ecriture_est_refusee_a_tous(self):
+        for sujet in a.SUJETS_API:
+            for chemin in MATRICE["api"]["publiques_lecture"]:
+                self.assertTrue(a.acces_attendu(MATRICE, sujet, "GET", chemin)[0], (sujet, chemin))
+                for methode in a.METHODES_D_ECRITURE:
+                    self.assertFalse(a.acces_attendu(MATRICE, sujet, methode, chemin)[0], (sujet, methode, chemin))
+
+    def test_une_passerelle_conforme_donne_zero_ecart(self):
+        essais = self.essais(PasserelleCitoyenne())
+        self.assertEqual([e for e in essais if not e.ok], [])
+        self.assertEqual(a.accord_interdit(essais), [])
+        self.assertEqual(len(essais), 4 * 2 * (1 + 4) + 4 * len(MATRICE["api"]["espace_public_interdit"]))
+        self.assertEqual({e.famille for e in essais}, {"api public"})
+
+    def test_chaque_methode_d_ecriture_est_essayee_avec_les_quatre_sujets_y_compris_l_administrateur(self):
+        pile = PasserelleCitoyenne()
+        self.essais(pile)
+        ecritures = {(m, j) for m, c, j in pile.appels if c == "/api/v1/public/alerts" and m != "GET"}
+        self.assertEqual(ecritures, {(m, j) for m in a.METHODES_D_ECRITURE for j in (None, "viewer", "operator", "admin")})
+
+    def test_une_ecriture_qui_passe_est_un_acces_interdit_accorde(self):
+        interdits = a.accord_interdit(self.essais(PasserelleCitoyenne(ecriture_ouverte=True)))
+        self.assertEqual({(e.sujet, e.operation.split()[0]) for e in interdits}, {("operator", m) for m in a.METHODES_D_ECRITURE})
+
+    def test_un_chemin_de_l_espace_public_qui_repond_est_un_acces_interdit_accorde(self):
+        interdits = a.accord_interdit(self.essais(PasserelleCitoyenne(espace_ouvert=True)))
+        self.assertEqual({e.sujet for e in interdits}, {"viewer"})
+        self.assertEqual({e.operation for e in interdits}, {f"GET {c}" for c in MATRICE["api"]["espace_public_interdit"]})
+
+    def test_une_lecture_publique_qui_exige_un_jeton_est_un_refus_inattendu(self):
+        inattendus = a.refus_inattendu(self.essais(PasserelleCitoyenne(lecture_protegee=True)))
+        self.assertEqual({(e.sujet, e.operation) for e in inattendus}, {("anonyme", f"GET {c}") for c in MATRICE["api"]["publiques_lecture"]})
+
+    def test_une_ecriture_non_concluante_n_est_pas_un_refus(self):
+        class Limitee(PasserelleCitoyenne):
+            def appel_conclusif(self, methode, url, jeton=None, corps=None, delai=15, hors_passerelle=False):
+                return 429
+
+        essais = self.essais(Limitee())
+        self.assertTrue(all(e.obtenu is None for e in essais))
+        self.assertFalse(any(e.ok for e in essais))
+
+    def test_405_n_est_un_refus_que_depuis_la_passerelle(self):
+        self.assertIs(a.classer_http(405, hors_passerelle=True), False)
+        self.assertIs(a.classer_http(405), True, "d'un service direct, 405 prouve seulement que la route est atteinte")
+
+    def test_les_routes_de_l_espace_public_ne_sont_pas_rejouees_par_les_essais_de_l_api(self):
+        routes = a.routes_du_contrat()
+        pile = PasserelleFausse()
+        public = [r for r in routes if r["pattern"].startswith("^/api/v1/public/")]
+        self.assertEqual(len(public), 2)
+        essais = a.essais_api(pile, MATRICE, self.JETONS, [r for r in ROUTES] + public, pause=lambda _: None)
+        self.assertFalse([c for _, c, _ in pile.appels if c.startswith("/api/v1/public/")])
+        self.assertEqual(len(essais), 4 * 4 + 4)
+
+    def test_une_route_publique_de_la_matrice_absente_des_contrats_est_signalee(self):
+        routes = [r for r in a.routes_du_contrat() if r["pattern"] != "^/api/v1/public/alerts$"]
+        ecarts = a.verifier_la_matrice_contre_les_contrats(MATRICE, routes)
+        self.assertEqual(ecarts, ["GET /api/v1/public/alerts : publique dans la matrice, absente ou protégée dans les contrats"])
+
+    def test_une_route_de_l_espace_public_absente_de_la_matrice_est_signalee(self):
+        matrice = json.loads(json.dumps(MATRICE))
+        matrice["api"]["publiques_lecture"].remove("/api/v1/public/alerts")
+        ecarts = a.verifier_la_matrice_contre_les_contrats(matrice, a.routes_du_contrat())
+        self.assertTrue(any("dans l'espace public des contrats, absente de la matrice" in e for e in ecarts), ecarts)
+
+    def test_une_route_publique_devenue_protegee_dans_les_contrats_est_signalee(self):
+        routes = a.routes_du_contrat()
+        for route in routes:
+            if route["pattern"] == "^/api/v1/public/alerts$":
+                route["role"] = "viewer"
+        ecarts = a.verifier_la_matrice_contre_les_contrats(MATRICE, routes)
+        self.assertTrue(any("publique dans la matrice, absente ou protégée" in e for e in ecarts), ecarts)
+
+
 class CompteJetable(unittest.TestCase):
     def test_les_comptes_d_essai_sont_supprimes_meme_si_un_essai_echoue(self):
         class Pile:
