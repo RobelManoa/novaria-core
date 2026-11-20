@@ -45,7 +45,7 @@ def api_get(api: str, path: str, query: dict[str, str], token: str | None) -> di
 def login(api: str, user: str, password: str) -> str:
     body = json.dumps({"username": user, "password": password}).encode()
     request = urllib.request.Request(f"{api}/api/v1/auth/login", data=body, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
+    with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 : adresse donnée par l'utilisateur, http(s) seulement
         return json.loads(response.read())["access_token"]
 
 

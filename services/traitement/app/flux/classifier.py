@@ -83,7 +83,7 @@ def advance(
 
     slow = _streak(base.slow, ratio < thresholds.slow_below)
     free = _streak(base.free, ratio > thresholds.free_above)
-    current = replace(
+    current: Hysteresis = replace(
         base,
         slow=slow,
         slow_since=(obs.start_ms if base.slow == 0 else base.slow_since) if slow else None,

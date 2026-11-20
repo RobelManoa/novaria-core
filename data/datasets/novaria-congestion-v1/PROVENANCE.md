@@ -1,6 +1,6 @@
 # Fiche de provenance du jeu `novaria-congestion-v1` (version 1)
 
-Issue : IA-08 · Décision : [ADR-027](../../../docs/01-architecture/adr/ADR-027-jeux-de-donnees-et-provenance.md), règles 1 à 8 · Fichier généré par `python3 ml/src/construire_jeu.py` : ne pas l'écrire à la main.
+Issue : IA-08 · Décision : [ADR-027](../../../docs/01-architecture/adr/ADR-027-jeux-de-donnees-et-provenance.md), règles 1 à 8 · Fichier généré par `python3 ml/src/construire_jeu.py` (Linux) ou `py -3 ml/src/construire_jeu.py` (Windows) : ne pas l'écrire à la main.
 
 Abréviations : IA (intelligence artificielle), SHA-256 (Secure Hash Algorithm, empreinte de 256 bits), UTC (Temps universel coordonné).
 

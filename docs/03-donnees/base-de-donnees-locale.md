@@ -148,7 +148,7 @@ Outils graphiques facultatifs : DBeaver (PostgreSQL) et MongoDB Compass, connect
 |---|---|---|
 | `Docker est introuvable` | Docker non installé ou non dans le chemin | `check-tools` indique l'installation selon le système |
 | `Cannot connect to the Docker daemon` | Docker Desktop fermé (Windows) ou service arrêté (Linux) | Ouvrir Docker Desktop ; sous Linux : `sudo systemctl start docker` |
-| `permission denied` sur le socket Docker (Linux) | Utilisateur absent du groupe `docker` | `sudo usermod -aG docker $USER`, puis rouvrir la session |
+| `permission denied` sur le socket Docker (Linux ; sans objet sous Windows, où Docker Desktop gère l'accès) | Utilisateur absent du groupe `docker` | `sudo usermod -aG docker $USER`, puis rouvrir la session |
 | `port is already allocated` | Un autre PostgreSQL ou MongoDB écoute déjà | Changer `POSTGRES_PORT` ou `MONGO_PORT` dans `.env`, puis `down` et `db-up` |
 | `required variable ... is missing` | `.env` absent ou ancien | `init-env` ; si `.env` date d'avant le 20/10/2026, le recréer (`init-env --force`) puis `db-reset` |
 | `password authentication failed` | `.env` recréé alors que les volumes gardent les anciens mots de passe | `db-reset`, puis `db-up` |

@@ -117,7 +117,7 @@ class EntrepotPostgresRejouable(EntrepotPostgres):
         limite = "" if nombre is None else " ORDER BY window_start, road_segment_key, window_size_s LIMIT %s"
         # Fragment constant, valeurs par paramètres (S608 ne s'applique pas).
         sql = (
-            "DELETE FROM dwh.fact_traffic_window f USING (SELECT road_segment_key, window_start, window_size_s "  # noqa: S608
+            "DELETE FROM dwh.fact_traffic_window f USING (SELECT road_segment_key, window_start, window_size_s "  # noqa: S608 - fragment constant, valeurs en paramètres
             f"FROM dwh.fact_traffic_window WHERE run_id = %s{limite}) d "
             "WHERE f.run_id = %s AND f.road_segment_key = d.road_segment_key AND f.window_start = d.window_start "
             "AND f.window_size_s = d.window_size_s"

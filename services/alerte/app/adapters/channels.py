@@ -63,7 +63,7 @@ class WebhookChannel:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=self._timeout_s) as response:  # noqa: S310
+            with urllib.request.urlopen(request, timeout=self._timeout_s) as response:  # noqa: S310 - schéma contrôlé dans `__init__`
                 status = response.status
         except (urllib.error.URLError, TimeoutError, OSError) as error:
             raise NotificationFailed(type(error).__name__) from error

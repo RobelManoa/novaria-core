@@ -24,6 +24,8 @@ from app.schemas.api import AlertDetailOut, AlertOut, AlertPageOut, Problem, Res
 from app.services.alerts import AlertService
 from app.services.ports import AlertFilter, AlertStore, InvalidTransition, NotFound
 
+ALERTE_INCONNUE = "Alerte inconnue."
+
 router = APIRouter(tags=["Alertes"])
 
 UTC_PATTERN = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?Z$"
@@ -45,7 +47,7 @@ def _known_id(alert_id: str) -> str:
     try:
         return str(uuid.UUID(alert_id))
     except ValueError as error:
-        raise ProblemError(NOT_FOUND, "Alerte inconnue.") from error
+        raise ProblemError(NOT_FOUND, ALERTE_INCONNUE) from error
 
 
 def _cannot(error: InvalidTransition) -> ProblemError:
@@ -123,7 +125,7 @@ def get_alert(
 ) -> dict:
     found = store.get_alert(_known_id(alert_id))
     if found is None:
-        raise ProblemError(NOT_FOUND, "Alerte inconnue.")
+        raise ProblemError(NOT_FOUND, ALERTE_INCONNUE)
     alert, history = found
     return {**alert_out(alert), "history": [history_out(h) for h in history]}
 
@@ -144,7 +146,7 @@ def acknowledge(
     try:
         alert, _changed = service.acknowledge(_known_id(alert_id), claims.subject)
     except NotFound as error:
-        raise ProblemError(NOT_FOUND, "Alerte inconnue.") from error
+        raise ProblemError(NOT_FOUND, ALERTE_INCONNUE) from error
     except InvalidTransition as error:
         raise _cannot(error) from error
     return alert_out(alert)
@@ -169,7 +171,7 @@ def resolve(
             _known_id(alert_id), claims.subject, body.comment if body else None
         )
     except NotFound as error:
-        raise ProblemError(NOT_FOUND, "Alerte inconnue.") from error
+        raise ProblemError(NOT_FOUND, ALERTE_INCONNUE) from error
     except InvalidTransition as error:
         raise _cannot(error) from error
     return alert_out(alert)

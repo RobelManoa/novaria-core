@@ -76,7 +76,7 @@ def se_connecter(
 ) -> str:
     envoyer = envoyer or _envoyer
     base = _verifier_base(base)
-    requete = urllib.request.Request(  # noqa: S310
+    requete = urllib.request.Request(  # noqa: S310 : adresse de la passerelle, http(s) vérifié par `_verifier_base`
         f"{base}/api/v1/auth/login",
         data=json.dumps({"username": utilisateur, "password": mot_de_passe}).encode(),
         headers={"Content-Type": "application/json"},
@@ -101,7 +101,7 @@ def lire_indicateurs(
         parametres = {"from": debut, "to": fin, "window_size_s": fenetre_s, "limit": PAGE}
         if curseur:
             parametres["cursor"] = curseur
-        requete = urllib.request.Request(  # noqa: S310
+        requete = urllib.request.Request(  # noqa: S310 : adresse de la passerelle, http(s) vérifié par `_verifier_base`
             f"{base}/api/v1/indicators?{urllib.parse.urlencode(parametres)}",
             headers={"Authorization": f"Bearer {jeton}"},
         )

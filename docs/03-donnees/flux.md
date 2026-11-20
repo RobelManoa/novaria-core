@@ -72,8 +72,8 @@ L'[ADR-011](../01-architecture/adr/ADR-011-temps-reel-et-batch.md) retient Apach
 | Constat au 05/11/2026 | Valeur |
 |---|---|
 | Date du point de décision de l'ADR-011 | 01/11/2026, dépassée |
-| Flink dans `docker-compose.yml` | absent (aucun JobManager ni TaskManager) |
-| Prototype Flink (DAT-09) | ouvert, non réalisé |
+| Flink dans `docker-compose.yml` | absent (aucun JobManager ni TaskManager) ; le prototype DAT-09 a son propre `data/streaming/compose.yml` |
+| Prototype Flink (DAT-09) | **réalisé le 16/11/2026** : [rapport](prototype-flux.md). Flink SQL tient en 1,2 à 1,3 Go et égale un recalcul par lots sur 312 fenêtres, mais il compte un doublon deux fois et perd un message trop en retard sans trace. Il ne remplace pas ce service |
 | Conséquence | **le moteur est un consommateur Python** ; domaine, contrats et sujets sont ceux prévus |
 
 | Ce que Flink apportait | Ce que fait ce service à la place | Écart |
@@ -328,7 +328,7 @@ Après chaque module, des défauts ont été injectés un par un dans le code (b
 
 ### 10.3 Contre un vrai Kafka, un vrai PostgreSQL, un vrai MongoDB
 
-`python3 scripts/dev/dev.py test-integration --service flux` : projet Compose jetable, migrations SQL appliquées, six sujets créés, **comptes réels `svc_traitement`** (leurs droits de production suffisent).
+`python3 scripts/dev/dev.py test-integration --service flux` (Linux) ou `py -3 scripts/dev/dev.py test-integration --service flux` (Windows) : projet Compose jetable, migrations SQL appliquées, six sujets créés, **comptes réels `svc_traitement`** (leurs droits de production suffisent).
 
 | Test | Résultat |
 |---|---|
