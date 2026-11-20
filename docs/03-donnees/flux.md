@@ -328,7 +328,7 @@ Après chaque module, des défauts ont été injectés un par un dans le code (b
 
 ### 10.3 Contre un vrai Kafka, un vrai PostgreSQL, un vrai MongoDB
 
-`python3 scripts/dev/dev.py test-integration --service flux` : projet Compose jetable, migrations SQL appliquées, six sujets créés, **comptes réels `svc_traitement`** (leurs droits de production suffisent).
+`python3 scripts/dev/dev.py test-integration --service flux` (Linux) ou `py -3 scripts/dev/dev.py test-integration --service flux` (Windows) : projet Compose jetable, migrations SQL appliquées, six sujets créés, **comptes réels `svc_traitement`** (leurs droits de production suffisent).
 
 | Test | Résultat |
 |---|---|

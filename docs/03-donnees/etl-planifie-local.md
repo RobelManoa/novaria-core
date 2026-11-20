@@ -27,7 +27,7 @@ dossier installable (`pip install data/etl`) et déclare trois commandes (`novar
 
 ## 3. Chargement idempotent des fenêtres de trafic
 
-`python3 scripts/dev/dev.py etl-charger --file fenetres.csv --run-id <run>` contrôle un fichier de fenêtres puis l'écrit dans
+`python3 scripts/dev/dev.py etl-charger --file fenetres.csv --run-id <run>` (Linux) ou `py -3 scripts/dev/dev.py etl-charger --file fenetres.csv --run-id <run>` (Windows) contrôle un fichier de fenêtres puis l'écrit dans
 `dwh.fact_traffic_window` avec le compte `svc_traitement`.
 
 **Fichier d'entrée.** Placé dans `data/datasets/fenetres/` (dossier ignoré par git) et désigné par son nom : un chemin vers un autre dossier est refusé, comme pour le nettoyage de Paris. CSV UTF-8 séparé par des virgules, une fenêtre par ligne, colonnes de
@@ -64,9 +64,11 @@ section 3.2, l'interdit : les jeux réels restent des fichiers. Les fenêtres ch
 prouver le chargement : 24 tronçons du réseau de démonstration × 36 fenêtres de 5 minutes, valeurs par formule, jamais
 présentées comme mesures.
 
-```bash
-python3 data/etl/tests/echantillon_fenetres.py --out data/datasets/fenetres/fenetres-demo.csv --defects   # 868 lignes dont 4 à refuser
-```
+| Linux (bash) | Windows (PowerShell) |
+|---|---|
+| `python3 data/etl/tests/echantillon_fenetres.py --out data/datasets/fenetres/fenetres-demo.csv --defects` | `py -3 data\etl\tests\echantillon_fenetres.py --out data/datasets/fenetres/fenetres-demo.csv --defects` |
+
+Le fichier contient 868 lignes dont 4 à refuser.
 
 ## 4. Planifier le lot en local
 
@@ -79,7 +81,7 @@ voit l'échec. Rejouer un lot est sans effet de bord, car chaque étape est idem
 |---|---|---|
 | **Linux** : `cron` | Remplacer `/CHEMIN/VERS/novaria-core` dans `data/etl/planification/novaria-etl.cron`, puis `crontab -e` et coller la ligne (chaque jour à 02:30, heure du poste) | `crontab -e`, supprimer la ligne |
 | **Windows** : Planificateur de tâches | `powershell -ExecutionPolicy Bypass -File data\etl\planification\installer-tache-windows.ps1 -Heure 02:30` (tâche « Novaria ETL », compte courant, session ouverte, aucun mot de passe stocké) | même script avec `-Supprimer` |
-| **Sans planificateur** | `python3 scripts/dev/dev.py etl-lot` à la main ou `make etl-lot` | — |
+| **Sans planificateur** | `python3 scripts/dev/dev.py etl-lot` à la main ou `make etl-lot` (Linux) ; `py -3 scripts/dev/dev.py etl-lot` (Windows) | — |
 
 Prérequis communs : `dev.py db-up` lancé (PostgreSQL et MongoDB), `.env` présent, `pip install -r data/etl/requirements.txt`.
 La sortie du lot est ajoutée à `var/log/etl-lot.log` (dossier ignoré par git). **Limite** : le poste doit être allumé à l'heure
@@ -94,9 +96,9 @@ relance à la main avec `--day`).
 
 ## 5. Rejouer et comparer
 
-```bash
-python3 scripts/dev/dev.py etl-rejouer --file fenetres-demo.csv --run-id preuve-dat06 --from-scratch --report
-```
+| Linux (bash) | Windows (PowerShell) |
+|---|---|
+| `python3 scripts/dev/dev.py etl-rejouer --file fenetres-demo.csv --run-id preuve-dat06 --from-scratch --report` | `py -3 scripts/dev/dev.py etl-rejouer --file fenetres-demo.csv --run-id preuve-dat06 --from-scratch --report` |
 
 Trois passes sur le même fichier et le même `run_id`, avec les totaux relevés **dans la table** après chacune : (1) chargement
 initial ; (2) rejeu à l'identique ; (3) reprise après incident : un dixième des lignes du run est supprimé, puis le fichier est

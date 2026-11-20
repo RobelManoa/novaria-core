@@ -1,6 +1,6 @@
 # Prototype SUMO : résultats du rejeu et de la comparaison (IA-11)
 
-Fichier **généré** par `python3 scripts/dev/dev.py ml-sumo comparer` (ne pas modifier à la main) ; l'analyse est dans [`prototype-sumo.md`](../../docs/06-ia-mlops/prototype-sumo.md).
+Fichier **généré** par `python3 scripts/dev/dev.py ml-sumo comparer` (Linux) ou `py -3 scripts/dev/dev.py ml-sumo comparer` (Windows) (ne pas modifier à la main) ; l'analyse est dans [`prototype-sumo.md`](../../docs/06-ia-mlops/prototype-sumo.md).
 
 ## Le run
 

@@ -2,7 +2,7 @@
 
 | Champ | Valeur |
 |---|---|
-| Date | 20/10/2026 |
+| Date | 20/10/2026 ; relue contre le code et les migrations le 20/11/2026 (DOC-11) |
 | Statut | Proposée : seuils fixés définitivement, sans changement, dans le [cadrage ML](../../06-ia-mlops/cadrage-ml.md) du 12/11/2026 (IA-01) ; question Q1 au professeur sans réponse |
 | Décideurs | Manoa Robel, Daddy Luciano |
 | Validation du professeur | À demander avec les indicateurs (ADR-014) |
@@ -93,7 +93,7 @@ flowchart LR
 | Risque | Parade |
 |---|---|
 | Seuils mal réglés (trop d'alertes ou détection trop tardive) | Mesure du délai de détection et des fausses alertes par jour (IA-03) ; réglage avant l'entraînement |
-| Route vide prise pour une route arrêtée | Vitesse `null` quand aucun véhicule ; fenêtre vide comptée comme fluide |
+| Route vide prise pour une route arrêtée | Vitesse `null` quand aucun véhicule : une fenêtre **complète mais sans véhicule** (route vide) est fluide et compte pour le retour à `FREE_FLOW`. Une fenêtre **sans message** d'un tronçon déjà vu n'est pas fluide : elle est `UNKNOWN` (complétude < 0,5) |
 | Capteur défaillant vu comme congestion | Complétude < 0,5 ⇒ `UNKNOWN` ; alerte `SENSOR_FAULT` distincte |
 | Accusation de cause | Cause `UNKNOWN` par défaut |
 
@@ -115,3 +115,15 @@ Si l'hystérésis s'avère difficile à régler, un seuil unique avec durée min
 - Le premier run montre un délai de détection ou un taux de fausses alertes inacceptable.
 - Le professeur définit autrement « congestion ».
 - Un jeu réel avec comptages permet de calibrer les seuils.
+
+## 9. État vérifié le 20/11/2026 (DOC-11)
+
+| Point de l'ADR | Constat dans le dépôt | Preuve |
+|---|---|---|
+| Seuils et nombre de fenêtres du tableau de transitions | **Identiques** : 0,60, 0,35, 0,45, 0,70 et complétude 0,5 | `services/traitement/app/flux/rules.py` (tableau des seuils) |
+| Fenêtres de 1 minute, quatre états | Conforme ; le service calcule aussi des fenêtres de 5 minutes pour les tendances ([ADR-011](ADR-011-temps-reel-et-batch.md)) | `services/traitement/app/flux/windows.py` |
+| Route vide fluide, capteur muet `UNKNOWN` | Conforme (corrigé dans la section 5 : l'ADR disait « fenêtre vide comptée comme fluide ») | `classifier.py` ; exemples `indicateur-route-vide.json` (`FREE_FLOW`) et `indicateur-donnees-insuffisantes.json` (`UNKNOWN`) |
+| Une alerte par épisode | Index unique partiel `alert_one_open_per_segment_idx` sur (`kind`, `road_segment_id`, `run_id`) pour les alertes non résolues : un index par **type**, tronçon et run, comme écrit | `db/postgres/migrations/0003_alertes.sql` |
+| Cause `UNKNOWN` par défaut | `DEFAULT 'UNKNOWN'` et `CHECK` sur les cinq causes | même migration |
+| Classificateur appris comparé à la règle (point 7) | **Fait (IA-03, 12/11/2026) : le modèle retenu est rejeté** ; la règle de seuils reste le classificateur en service | [exigences](../../02-specifications/exigences.md), EXG-IA-03 ; [`ml/evaluation/`](../../../ml/evaluation/comparaison.md) |
+| Statut « Proposée » | **Inchangé** : la question Q1 au professeur est sans réponse ; les seuils sont fixés dans le cadrage ML et ne dépendent pas de cette réponse pour tourner | [cadrage ML](../../06-ia-mlops/cadrage-ml.md) |

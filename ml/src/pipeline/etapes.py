@@ -15,6 +15,8 @@ from registre.registre import Registre, RegistreErreur
 from registre.runs import RunDejaEnregistre, RunStore
 from stockage import ObjectStore, sha256
 
+DECISION_ACCEPTEE = "accepté"
+
 
 def configuration_figee() -> tuple[dict, dict, str]:
     """La sélection d'IA-03 et le résultat du test qui la cite : le pipeline n'entraîne que cette configuration, telle quelle.
@@ -81,7 +83,7 @@ def evaluer(*, dossier_jeu: Path = donnees.DOSSIER_JEU, runs: RunStore, objets: 
     accepte, raisons = decision.decider(conditions, securite_dicts)
     run_id = identifiant(c.nom, selection_sha, info["git_sha"], info["code_modifie_non_commite"])
     document = {
-        "pipeline_version": pipeline.VERSION, "run_id": run_id, "decision": "accepté" if accepte else "rejeté",
+        "pipeline_version": pipeline.VERSION, "run_id": run_id, "decision": DECISION_ACCEPTEE if accepte else "rejeté",
         "candidat": c.nom, "libelle": c.libelle, "params": params, "variante": variante, "selection_sha256": selection_sha,
         "tracabilite": info, "conditions": conditions, "securite": securite_dicts, "modele": mesures_modele.en_dict(),
         "regle": mesures_regle.en_dict(), "modele_sha256": sha256(octets) if octets else None,
@@ -116,7 +118,7 @@ def porte(*, runs: RunStore, objets: ObjectStore, message=print) -> bool:
     """La porte : rend `True` si le modèle est accepté ; sinon écrit le run `rejected` (la trace, jamais un fichier) et rend `False`."""
     d = decision.lire()
     pipeline.RAPPORT_MD.write_text(decision.rapport(d), encoding="utf-8")
-    if d["decision"] == "accepté":
+    if d["decision"] == DECISION_ACCEPTEE:
         message(f"Porte ouverte : {d['run_id']} remplit toutes les conditions et tous les contrôles bloquants")
         return True
     try:
@@ -132,7 +134,7 @@ def porte(*, runs: RunStore, objets: ObjectStore, message=print) -> bool:
 def enregistrer(*, runs: RunStore, objets: ObjectStore, message=print) -> dict:
     """Après la porte seulement : promeut le modèle préparé. Refuse si la décision n'est pas « accepté » ou si le fichier a changé."""
     d = decision.lire()
-    if d["decision"] != "accepté":
+    if d["decision"] != DECISION_ACCEPTEE:
         raise Bloque(f"{d['run_id']} : décision « {d['decision']} », modèle non enregistré")
     if not pipeline.MODELE_PREPARE.is_file():
         raise tracabilite.ControleDeSecurite("aucun modèle préparé à enregistrer")

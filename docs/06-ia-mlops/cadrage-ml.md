@@ -251,7 +251,7 @@ Code de sortie : 0 jeu intact, 1 écart (chaque écart est écrit sur la sortie 
 
 ## 10. Reproduire les mesures
 
-Prérequis : le jeu v1 existe (`python3 ml/src/construire_jeu.py`, environ 40 s). Bibliothèque standard seulement ; durée d'une mesure : environ 11 secondes.
+Prérequis : le jeu v1 existe (`python3 ml/src/construire_jeu.py` sous Linux, `py -3 ml\src\construire_jeu.py` sous Windows, environ 40 s). Bibliothèque standard seulement ; durée d'une mesure : environ 11 secondes.
 
 | Action | Linux (bash) | Windows (PowerShell) |
 |---|---|---|

@@ -108,7 +108,7 @@ def telecharger(adresse: str, dossier: Path, *, ouvrir: Ouvrir = ouvrir_par_defa
     Les octets sont écrits tels que reçus. En cas d'échec, le fichier provisoire est supprimé.
     """
     _verifier_adresse(adresse)
-    requete = urllib.request.Request(adresse, headers={"User-Agent": AGENT, "Accept-Encoding": "identity"})  # noqa: S310
+    requete = urllib.request.Request(adresse, headers={"User-Agent": AGENT, "Accept-Encoding": "identity"})  # noqa: S310 : adresse vérifiée par `_verifier_adresse` (https et hôte du jeu ouvert)
     dossier.mkdir(parents=True, exist_ok=True)
     descripteur, nom = tempfile.mkstemp(prefix="telechargement-", suffix=".part", dir=dossier)
     chemin = Path(nom)
@@ -168,7 +168,7 @@ def date_de_modification_source(*, ouvrir: Ouvrir = ouvrir_par_defaut) -> dateti
 
     Information facultative : elle explique pourquoi une même fenêtre peut changer d'empreinte d'un jour à l'autre.
     """
-    requete = urllib.request.Request(ADRESSE_JEU, headers={"User-Agent": AGENT, "Accept-Encoding": "identity"})  # noqa: S310
+    requete = urllib.request.Request(ADRESSE_JEU, headers={"User-Agent": AGENT, "Accept-Encoding": "identity"})  # noqa: S310 : adresse constante du jeu ouvert en https
     try:
         with ouvrir(requete, DELAI_S) as flux:
             octets = flux.read(8 * BLOC)

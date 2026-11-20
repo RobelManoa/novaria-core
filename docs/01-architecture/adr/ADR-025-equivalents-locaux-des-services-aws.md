@@ -2,11 +2,11 @@
 
 | Champ | Valeur |
 |---|---|
-| Date | 20/10/2026 ; table relue contre le dépôt le 13/11/2026 (LOC-05) |
+| Date | 20/10/2026 ; table relue contre le dépôt le 13/11/2026 (LOC-05), puis le 20/11/2026 (DOC-11) |
 | Statut | Acceptée |
 | Décideurs | Manoa Robel, Daddy Luciano |
 | Validation du professeur | Non requise (conséquence de [ADR-023](ADR-023-execution-locale-d-abord.md)) |
-| Issues liées | LOC-04, LOC-05, DAT-06, DAT-08, DAT-09, IA-04, IA-05, IA-06, BE-08, MS-16, MS-17 |
+| Issues liées | LOC-04, LOC-05, DAT-06, DAT-08, DAT-09, IA-04, IA-05, IA-06, BE-08, MS-16, MS-17, CLD-14 à CLD-18, DOC-11 |
 | Compétences BC05 | Architectures de données décisionnelles, Traitement de flux en temps réel, Big Data, MLOps |
 | S'appuie sur | [ADR-010](ADR-010-architecture-hexagonale.md), [ADR-023](ADR-023-execution-locale-d-abord.md) |
 
@@ -38,7 +38,7 @@ Plusieurs ADR (Architecture Decision Record, enregistrement de décision d'archi
 | Service AWS prévu | Usage dans Novaria Core | Équivalent local retenu | Adaptateur ou configuration |
 |---|---|---|---|
 | ECS (Elastic Container Service) Fargate | Exécuter les conteneurs | Docker Compose | Mêmes images ([ADR-021](ADR-021-docker-deploiement.md)) |
-| ECR (Elastic Container Registry) | Stocker les images | Images construites localement (`docker compose build`) | Le SHA (Secure Hash Algorithm) du commit est un argument de construction (`GIT_SHA`), lu par la sonde de santé ; l'image n'est pas encore étiquetée au SHA (nécessaire au retour de version, CLD-16) |
+| ECR (Elastic Container Registry) | Stocker les images | Images construites localement (`docker compose build`) | Le SHA (Secure Hash Algorithm) du commit est un argument de construction (`GIT_SHA`), lu par la sonde de santé. **Depuis CLD-16**, `dev.py rollback` construit des images `novaria-local/<service>:<SHA>` (12 caractères) et remet en service la révision précédente ; une image `docker compose build` ordinaire n'est toujours pas étiquetée au SHA ([retour de version](../../08-exploitation/rollback.md)) |
 | API AWS (appelée par Terraform, pas par les services) | Vérifier que le code d'infrastructure s'applique et ne dérive pas (CLD-17) | **Moto** (émulateur d'API AWS, licence Apache-2.0) dans Docker, sur un réseau interne sans route vers Internet | `dev.py terraform-emulateur` ; [ressources persistantes](../../05-cloud-aws/ressources-persistantes.md) |
 | RDS (Relational Database Service) PostgreSQL | Base métier et entrepôt | Conteneur `postgres:16-alpine` ([ADR-024](ADR-024-bases-de-donnees-locales.md)) | `POSTGRES_URL` |
 | Hébergement MongoDB ([ADR-022](ADR-022-hebergement-mongodb.md)) | Journaux, événements bruts | Conteneur `mongo:7` | `MONGO_URL` |
@@ -48,11 +48,11 @@ Plusieurs ADR (Architecture Decision Record, enregistrement de décision d'archi
 | EMR (Elastic MapReduce) | Prototype Big Data | PySpark en mode local, dans un conteneur (DAT-08, [rapport](../../03-donnees/prototype-bigdata.md)) | Même programme ; le maître est fixé à `local[N]` dans `ouvrir_session` : sur EMR, la plateforme le fixe (adaptation non écrite) |
 | Glue | Catalogue et ETL (Extract, Transform, Load) | Scripts Python d'ETL, catalogue = [dictionnaire de données](../../03-donnees/dictionnaire-de-donnees.md) | Documenté ; Glue non exécuté |
 | SageMaker | Entraînement et service de modèles | Entraînement local (scikit-learn), registre dans MongoDB `model_runs` ([ADR-017](ADR-017-mlops-mlsecops.md)) | Même script d'entraînement |
-| CloudWatch | Journaux, métriques, alarmes | Journaux JSON (JavaScript Object Notation) sur la sortie standard ; point `/metrics` dans `traitement` (IA-06), dans les autres services avec MS-16 (à faire) | Format de journal identique |
-| Secrets Manager | Secrets d'exécution | `.env` généré, ignoré par Git | `Settings` de `services/traitement/app/core/config.py` |
-| IAM (Identity and Access Management) et OIDC (OpenID Connect) | Identités, accès du CI (Continuous Integration, intégration continue) | Comptes de base de données par service ; aucun accès cloud | Aucun jeton AWS dans GitHub |
-| EventBridge Scheduler | Tâches planifiées | `cron`, Planificateur de tâches Windows, ou profil Compose `ops` | Commande `dev.py` |
-| VPC (Virtual Private Cloud, réseau privé virtuel), ALB (Application Load Balancer, répartiteur de charge) | Réseau et entrée | Réseau Compose, ports sur `127.0.0.1` | Documenté |
+| CloudWatch | Journaux, métriques, alarmes | Journaux JSON (JavaScript Object Notation) avec identifiant de corrélation sur la sortie standard ; `GET /metrics` au format Prometheus dans les **quatre** services (IA-06 pour `traitement`, MS-16 pour les autres) ; alarmes locales déclarées dans `ops/alarmes.json`, évaluées par `dev.py observatoire` et `dev.py panne` (CLD-14, [diagnostic](../../08-exploitation/diagnostic.md), [observabilité](../../08-exploitation/observabilite.md)) | Format de journal identique ; l'alarme n'est pas une alarme CloudWatch |
+| Secrets Manager | Secrets d'exécution | `.env` généré par `dev.py init-env`, ignoré par Git ; les services et la passerelle lisent leurs secrets dans l'environnement du conteneur | `Settings` de `services/traitement/app/core/config.py` (chaque service a la sienne) ; la passerelle lit `JWT_SECRET` par la directive `env` de nginx |
+| IAM (Identity and Access Management) et OIDC (OpenID Connect) | Identités, accès du CI (Continuous Integration, intégration continue) | Rôles `viewer`, `operator`, `admin` vérifiés à la passerelle ([ADR-029](ADR-029-passerelle-et-authentification.md)) ; comptes de base de données par service ; aucun accès cloud | Matrice rôles × ressources et essais d'autorisation et de refus : `dev.py acces` ([matrice d'accès](../../05-cloud-aws/matrice-acces.md), CLD-18) ; aucun jeton AWS dans GitHub |
+| EventBridge Scheduler | Tâches planifiées | `cron`, Planificateur de tâches Windows, profil Compose `ops` (sauvegardes), ou un planificateur Python sans `cron` : `dev.py sauvegarde-planifier`, `dev.py rpa-planifier` | Commande `dev.py` |
+| VPC (Virtual Private Cloud, réseau privé virtuel), ALB (Application Load Balancer, répartiteur de charge) | Réseau et entrée | Réseau Compose ; ports publiés sur `127.0.0.1` ; la passerelle est l'entrée des quatre services | Documenté |
 
 **Addendum du 19/11/2026 (CLD-17) : un émulateur d'API AWS, pour l'infrastructure seulement.** L'option A reste écartée **pour les services** (ils parlent à des équivalents libres derrière des ports). Un émulateur n'est retenu que pour **rejouer le code Terraform** sans compte : *Moto* (Apache-2.0, publié régulièrement, ECR et CloudWatch Logs gérés). *LocalStack* n'est plus un choix stable : depuis le 23/03/2026 son image exige un compte et un jeton, et l'édition communautaire n'est plus entretenue ([annonce](https://blog.localstack.cloud/the-road-ahead-for-localstack/)). L'émulateur ne prouve pas le comportement du vrai AWS (quotas, droits, valeurs refusées).
 
@@ -100,7 +100,7 @@ flowchart LR
 | Risque | Parade |
 |---|---|
 | Un SDK AWS s'infiltre dans le domaine | Revue de code ; règle 1 vérifiée en pull request (CONTRIBUTING) |
-| Table d'équivalences périmée | Relecture à chaque jalon (DOC-11) |
+| Table d'équivalences périmée | Relecture à chaque jalon (DOC-11) ; dernière relecture : 20/11/2026 |
 | Comportement différent entre Kafka local et MSK | Versions et paramètres notés ; test de contrat de bus |
 
 ## 6. Plan de repli
@@ -111,7 +111,7 @@ Si un port s'avère trop lourd à maintenir, le service utilise directement l'é
 
 | Contrôle | Preuve |
 |---|---|
-| Aucune importation AWS dans le code | Test automatique `ml/tests/test_absence_sdk_aws.py` (job `ml` de la CI) : importations, dépendances et installations de `services/`, `ml/`, `simulator/`, `data/`, `automation/`, `gateway/`, `scripts/`, `frontend/` ; vert le 13/11/2026 |
+| Aucune importation AWS dans le code | Test automatique `ml/tests/test_absence_sdk_aws.py` (job `ml` de la CI) : importations, dépendances et installations de `services/`, `ml/`, `simulator/`, `data/`, `automation/`, `gateway/`, `scripts/`, `frontend/` ; 12 tests verts le 20/11/2026 (Windows, Python 3.14) |
 | Chaque ligne de la table a une issue | LOC-04, LOC-05 et les issues réorientées |
 | Les variables de configuration sont dans `.env.example` | `STORAGE_BACKEND` y figure ; `test_dev.py` contrôle les variables du compose |
 

@@ -2,14 +2,14 @@
 
 | Champ | Valeur |
 |---|---|
-| Date | 20/10/2026 |
+| Date | 20/10/2026 ; relue contre le dépôt le 20/11/2026 (DOC-11) |
 | Statut | Acceptée |
 | Décideurs | Manoa Robel, Daddy Luciano |
 | Validation du professeur | Non requise (réalise [ADR-002](ADR-002-postgresql-mongodb.md) en local, dans le cadre de [ADR-023](ADR-023-execution-locale-d-abord.md)) |
 | Issues liées | LOC-01, LOC-02, LOC-03, DAT-02, DAT-10, BE-02, BE-05, MS-08, MS-10 |
 | Compétences BC05 | Architectures de données décisionnelles, Documentation et spécifications techniques |
 | S'appuie sur | [ADR-002](ADR-002-postgresql-mongodb.md), [ADR-008](ADR-008-microservices.md), [ADR-009](ADR-009-bus-evenements.md), [ADR-014](ADR-014-architecture-decisionnelle.md) |
-| Complété par | [Guide des bases locales](../../03-donnees/base-de-donnees-locale.md), [sauvegarde et restauration](../../08-exploitation/sauvegarde-restauration-locale.md) |
+| Complété par | [Guide des bases locales](../../03-donnees/base-de-donnees-locale.md), [sauvegarde et restauration](../../08-exploitation/sauvegarde-restauration-locale.md), [sauvegarde planifiée et restauration vérifiée](../../08-exploitation/restauration.md) (CLD-15) |
 
 ## 1. Problème
 
@@ -59,7 +59,7 @@ flowchart TB
     subgraph MGI["Instance MongoDB 7"]
         direction LR
         C1["raw_events, rejects<br/>svc_collecte"] ~~~ C2["processing_stats, ingestion_runs<br/>svc_traitement"]
-        C2 ~~~ C3["audit_logs<br/>svc_reponse, svc_backend"]
+        C2 ~~~ C3["audit_logs<br/>svc_reponse, svc_backend<br/>usage_stats : svc_backend"]
         C3 ~~~ C4["model_runs<br/>svc_ml"]
     end
     INIT["Première initialisation :<br/>db/postgres/init, db/mongo/init"] --> PGI & MGI
@@ -68,14 +68,14 @@ flowchart TB
 
 | N° | Règle |
 |---|---|
-| 1 | Images officielles `postgres:16-alpine` et `mongo:7`, épinglées dans `docker-compose.yml`. |
+| 1 | Images officielles `postgres:16-alpine` et `mongo:7`, épinglées à la **version majeure** dans `docker-compose.yml` (pas à une version mineure ni à une empreinte : un `docker pull` peut changer la version mineure). |
 | 2 | Les ports ne sont publiés que sur `127.0.0.1` : aucune base joignable depuis le réseau. |
 | 3 | Les mots de passe sont **générés au hasard** dans `.env` par `dev.py init-env` (ignoré par Git, jamais affiché). `.env.example` ne contient que des valeurs factices. |
 | 4 | **Un compte de connexion par service**, sans droit d'administration ; l'administrateur local ne sert qu'à l'initialisation, aux migrations et aux sauvegardes. |
 | 5 | Dates en UTC (Coordinated Universal Time) : `timezone = UTC` sur la base ; colonnes `timestamptz`. |
 | 6 | Les contraintes vivent dans la base (clés, `CHECK`, index uniques partiels) : une règle du [dictionnaire de données](../../03-donnees/dictionnaire-de-donnees.md) violée est refusée à l'écriture. |
 | 7 | MongoDB : validateurs `$jsonSchema` en mode strict (erreur à l'écriture), index à durée de vie (14 jours pour `raw_events`, 30 jours pour `rejects`), rôles à droits minimaux. |
-| 8 | Sauvegarde : `pg_dump` (format personnalisé, droits inclus) et `mongodump`, fichier de comptage, rotation à 7, `restore-check` dans une base jetable, `restore` après confirmation. |
+| 8 | Sauvegarde : `pg_dump` (format personnalisé, droits inclus) et `mongodump`, fichier de comptage, rotation à 7, `restore-check` dans une base jetable, `restore` après confirmation. **Depuis CLD-15** : `dev.py sauvegarde` (manifeste, conservation par paliers) et `dev.py restauration` (environnement Docker isolé, lignes et sommes de contrôle comparées) ; la règle ci-dessus reste celle de `dev.py backup`. |
 | 9 | Aucune clé étrangère entre schémas de services différents : les liens sont des identifiants textuels. |
 | 10 | Les scripts d'initialisation ne s'exécutent qu'au premier démarrage d'un volume vide ; un changement de droits ou de collections passe par une migration ou par `db-reset`. |
 
@@ -95,7 +95,7 @@ flowchart TB
 - Mise en œuvre de BE-02 (30/10/2026) : la révision Alembic `0001` crée `app.users` ; la table de versions est dans `app` (`svc_app` ne peut rien créer dans `public`) ; détail dans le [dictionnaire](../../03-donnees/dictionnaire-de-donnees.md), section 11.2.
 - Ajouter une collection MongoDB sur une base existante demande une procédure dédiée (le script d'initialisation ne s'exécute qu'une fois).
 - Pas de journal de transactions : la sauvegarde est un instantané.
-- Le comportement de MongoDB sous Docker n'a pas pu être exécuté pendant la rédaction (voir section 7).
+- Le comportement de MongoDB sous Docker n'avait pas pu être exécuté pendant la rédaction ; il l'a été le 27/10/2026 (voir section 7).
 
 **Risques et parades**
 
@@ -116,9 +116,9 @@ Si MongoDB pose un problème de démarrage ou de droits sur un poste, l'applicat
 |---|---|
 | Initialisation, migrations, idempotence, refus d'une migration modifiée, droits, contraintes, sauvegarde, restauration sur PostgreSQL 16 réel | **Exécutés** le 20/10/2026 |
 | Script MongoDB : syntaxe et appels simulés ; exemple de mesure accepté par le validateur | **Exécutés** |
-| Démarrage de MongoDB sous Docker, `db-check` complet (21 `[OK]`), mesure conforme acceptée, mesure sans provenance refusée, index de durée de vie de 14 jours | **Exécutés** le 27/10/2026 sous Windows, volumes neufs ([preuve LOC-02](../../03-donnees/preuve-loc-02-mongodb.md)) |
-| Sauvegarde et restauration MongoDB ; mêmes contrôles sous Linux | **À exécuter sur un poste avec Docker** (critère de LOC-03 ; poste Linux) |
-| Tests des commandes `dev.py` | 17 tests |
+| Démarrage de MongoDB sous Docker, `db-check` complet (21 `[OK]` à l'époque ; **23 aujourd'hui**, 9 pour PostgreSQL et 14 pour MongoDB), mesure conforme acceptée, mesure sans provenance refusée, index de durée de vie de 14 jours | **Exécutés** le 27/10/2026 sous Windows, volumes neufs ([preuve LOC-02](../../03-donnees/preuve-loc-02-mongodb.md)) |
+| Sauvegarde et restauration MongoDB, sous Linux | **Exécutées** pour CLD-15 : restauration dans un environnement isolé, lignes et sommes de contrôle identiques ([restauration](../../08-exploitation/restauration.md), section 8). Le guide [sauvegarde et restauration](../../08-exploitation/sauvegarde-restauration-locale.md) (LOC-03) garde la mention « exécution réelle à faire » pour MongoDB : **écart entre les deux documents, non résolu ici**. Les commandes PowerShell et Docker Desktop de CLD-15 ne sont **pas vérifiées** (poste Windows) |
+| Tests des commandes `dev.py` | 17 tests au 20/10/2026 ; la suite `scripts/dev` en compte aujourd'hui plusieurs centaines (`python3 -m unittest discover -s scripts/dev` ; Windows : `py -3 -m unittest discover -s scripts/dev`) |
 
 ## 8. Conditions de réexamen
 
