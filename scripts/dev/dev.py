@@ -1217,6 +1217,47 @@ def cmd_terraform_check(args: argparse.Namespace) -> int:
     return code
 
 
+def cmd_terraform_plan_hors_ligne(args: argparse.Namespace) -> int:
+    """Plan Terraform hors ligne sur une copie jetable (CLD-17) : sans compte AWS, sans modifier le dépôt ; la logique est dans terraform_plan_hors_ligne.py."""
+    import tempfile
+
+    import terraform_plan_hors_ligne as plan
+
+    require_docker()
+    racine = ROOT / "infra" / "terraform"
+    with tempfile.TemporaryDirectory(prefix="novaria-tf-") as temporaire:
+        code, sortie = plan.executer(racine, args.mode, args.env, Path(temporaire))
+    print(sortie)
+    ecarts = plan.verdict(args.mode, code, sortie)
+    for ecart in ecarts:
+        print(f"ÉCART : {ecart}", file=sys.stderr)
+    return 1 if ecarts else 0
+
+
+def cmd_terraform_emulateur(args: argparse.Namespace) -> int:
+    """Terraform appliqué à un émulateur d'API AWS local (Moto) puis plan rejoué : 0 changement ? (CLD-17) ; la logique est dans terraform_emulateur.py."""
+    import tempfile
+
+    import terraform_emulateur as emulateur
+
+    require_docker()
+    racine = ROOT / "infra" / "terraform"
+    print(f"Terraform sur l'émulateur local Moto (réseau Docker interne, aucun appel vers AWS), environnement {args.env} :")
+    with tempfile.TemporaryDirectory(prefix="novaria-tf-") as temporaire:
+        resultats = emulateur.executer(racine, args.env, Path(temporaire))
+    for resultat in resultats:
+        print(f"  [{'OK' if resultat.ok else 'ÉCHEC'}] {resultat.etape.nom} (code {resultat.code})")
+    if args.sortie:
+        cible = Path(args.sortie)
+        cible.parent.mkdir(parents=True, exist_ok=True)
+        cible.write_text(emulateur.transcription(resultats, args.env, time.strftime('%Y-%m-%d')), encoding="utf-8", newline="\n")
+        print(f"Compte rendu écrit : {cible}")
+    ecarts = emulateur.verdict(resultats)
+    for ecart in ecarts:
+        print(f"ÉCART : {ecart}", file=sys.stderr)
+    return 1 if ecarts or not resultats else 0
+
+
 # --------------------------------------------------------------------------- prototype Big Data (DAT-08)
 def cmd_bigdata_build(_: argparse.Namespace) -> int:
     """Construit l'image du prototype Big Data (PySpark en mode local, Java 21) ; la première fois, plusieurs minutes."""
@@ -1246,6 +1287,13 @@ def cmd_bigdata_test(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------- matrice d'accès et essais de refus (CLD-18)
+def cmd_tableau_de_bord(args: argparse.Namespace) -> int:
+    """Tableau de bord de pilotage (GES-11) : exigences, risques et livrables par jalon, recalculés depuis GitHub."""
+    options = (["--ref", args.ref] if args.ref else []) + (["--local"] if args.local else []) + (["--json"] if args.json else []) + (["--ecrire"] if args.ecrire else [])
+    script = ROOT / "scripts" / "github" / "tableau_de_bord.py"
+    return subprocess.run([sys.executable, str(script), *options], cwd=ROOT, env={**os.environ, "PYTHONUTF8": "1"}, check=False).returncode
+
+
 def cmd_acces(args: argparse.Namespace) -> int:
     """Compare ops/matrice-acces.json à ce que la pile applique : essais autorisés et refusés sur l'API, PostgreSQL et MongoDB."""
     import acces
@@ -1850,6 +1898,12 @@ def build_parser() -> argparse.ArgumentParser:
     tf.add_argument("--sans-snyk", action="store_true", help="écarte l'analyse Snyk IaC (le résultat reste « incomplet » dans le compte rendu de l'issue)")
     tf.add_argument("--lock", action="store_true", help="régénère .terraform.lock.hcl (réseau nécessaire) au lieu de contrôler")
     tf.add_argument("--verbose", action="store_true", help="montre la sortie de chaque outil, pas seulement celle des échecs")
+    tp = add("terraform-plan-hors-ligne", cmd_terraform_plan_hors_ligne, "plan Terraform hors ligne sur une copie jetable, sans compte AWS : ce qui serait créé, et ce que les protections refusent de détruire (CLD-17, Docker)")
+    tp.add_argument("--mode", choices=("plan", "destruction-protegee", "bascule-variable"), default="plan", help="plan : premier plan, état vide ; destruction-protegee : état fictif, la destruction est refusée ; bascule-variable : protected = false, toujours refusé")
+    tp.add_argument("--env", choices=("dev", "demo"), default="dev", help="environnement Terraform (dev par défaut ; les modes d'état fictif ne visent que dev)")
+    te = add("terraform-emulateur", cmd_terraform_emulateur, "Terraform appliqué à l'émulateur d'API AWS Moto (local, ouvert), puis plan rejoué : 0 changement ? (CLD-17, Docker)")
+    te.add_argument("--env", choices=("dev", "demo"), default="dev", help="environnement Terraform (dev : protégé ; demo : jetable)")
+    te.add_argument("--sortie", help="écrit le compte rendu étape par étape dans ce fichier")
     bd = add("bigdata-build", cmd_bigdata_build, "construit l'image du prototype Big Data, PySpark local (DAT-08, Docker)")
     bd = add("bigdata", cmd_bigdata, "lance le prototype Big Data dans son image : generer, nettoyer, verifier, mesurer (Docker)")
     bd.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
@@ -1858,6 +1912,11 @@ def build_parser() -> argparse.ArgumentParser:
     bdt = add("bigdata-test", cmd_bigdata_test, "tests du prototype Big Data dans son image (Docker)")
     bdt.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
     bdt.add_argument("--memoire", default="6g", help="mémoire allouée au conteneur (6g par défaut)")
+    tdb = add("tableau-de-bord", cmd_tableau_de_bord, "tableau de bord de pilotage (GES-11) : exigences vérifiées, risques traités, livrables par jalon, recalculés depuis GitHub")
+    tdb.add_argument("--ref", help="branche, étiquette ou empreinte lue sur GitHub (main par défaut)")
+    tdb.add_argument("--local", action="store_true", help="lit exigences.md et registre-risques.md dans la copie de travail")
+    tdb.add_argument("--json", action="store_true", help="sortie JSON")
+    tdb.add_argument("--ecrire", action="store_true", help="met à jour le bloc mesuré de docs/07-gestion/tableau-de-bord.md")
     ac = add("acces", cmd_acces, "essais d'autorisation et de refus : compare la matrice d'accès à l'API, PostgreSQL et MongoDB (CLD-18)")
     ac.add_argument("--max-echecs", type=int, default=20, help="nombre d'échecs détaillés (20 par défaut)")
     sv = add("sauvegarde", cmd_sauvegarde, "sauvegarde PostgreSQL et MongoDB avec manifeste, puis conservation par paliers (CLD-15)")

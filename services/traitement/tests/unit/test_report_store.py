@@ -85,13 +85,12 @@ def test_a_stray_file_without_a_json_name_is_ignored(tmp_path, store):
 # --- Ouverture et intégrité -------------------------------------------------------------------
 
 
-def test_opening_a_report_gives_its_metadata_and_the_path_of_its_pdf(tmp_path, store):
+def test_opening_a_report_gives_its_metadata_and_the_verified_bytes_of_its_pdf(tmp_path, store):
     report_id = deposit(tmp_path, file_name="rapport.pdf")
     report = store.open(report_id)
     assert report is not None
-    assert report.path == tmp_path / f"{report_id}.pdf"
     assert report.metadata.file_name == "rapport.pdf"
-    assert report.path.read_bytes() == PDF
+    assert report.content == PDF
 
 
 def test_an_unknown_report_is_none(store):

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { Page, Route } from "@playwright/test";
 
@@ -6,8 +7,10 @@ import type { Page, Route } from "@playwright/test";
 // entre ce que l'API a répondu et ce que l'écran affiche fait échouer le parcours.
 
 export const USERNAME = "operateur1";
-export const PASSWORD = "mot-de-passe-e2e";
-export const TOKEN = "jeton-e2e";
+// Identifiants jetables : tirés au hasard à chaque exécution et jamais écrits dans le dépôt (ils ne servent qu'à cette
+// API simulée, dans ce processus).
+export const PASSWORD = `e2e-${randomUUID()}`;
+export const TOKEN = `e2e-${randomUUID()}`;
 
 export interface Expected {
   meta: { run_id: string; indicator_count: number; segment_count: number };

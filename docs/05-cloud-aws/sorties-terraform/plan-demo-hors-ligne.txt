@@ -1,0 +1,378 @@
+# Premier plan, environnement demo (dépôts jetables : force_delete vrai, skip_destroy faux), état vide. Hors ligne.
+# Commande : python3 scripts/dev/dev.py terraform-plan-hors-ligne --mode plan --env demo
+# Date : 2026-11-19 · Terraform 1.17.0 (conteneur) · fournisseur AWS ~> 6.0 · code de sortie de la commande : 0
+# Sortie de Terraform, sans modification :
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # module.ecr.aws_ecr_lifecycle_policy.service["alerte"] will be created
+  + resource "aws_ecr_lifecycle_policy" "service" {
+      + id          = (known after apply)
+      + policy      = jsonencode(
+            {
+              + rules = [
+                  + {
+                      + action       = {
+                          + type = "expire"
+                        }
+                      + description  = "Conserver les 20 dernières images"
+                      + rulePriority = 1
+                      + selection    = {
+                          + countNumber = 20
+                          + countType   = "imageCountMoreThan"
+                          + tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        )
+      + region      = "eu-west-1"
+      + registry_id = (known after apply)
+      + repository  = "novaria-demo-alerte"
+    }
+
+  # module.ecr.aws_ecr_lifecycle_policy.service["collecte"] will be created
+  + resource "aws_ecr_lifecycle_policy" "service" {
+      + id          = (known after apply)
+      + policy      = jsonencode(
+            {
+              + rules = [
+                  + {
+                      + action       = {
+                          + type = "expire"
+                        }
+                      + description  = "Conserver les 20 dernières images"
+                      + rulePriority = 1
+                      + selection    = {
+                          + countNumber = 20
+                          + countType   = "imageCountMoreThan"
+                          + tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        )
+      + region      = "eu-west-1"
+      + registry_id = (known after apply)
+      + repository  = "novaria-demo-collecte"
+    }
+
+  # module.ecr.aws_ecr_lifecycle_policy.service["frontend"] will be created
+  + resource "aws_ecr_lifecycle_policy" "service" {
+      + id          = (known after apply)
+      + policy      = jsonencode(
+            {
+              + rules = [
+                  + {
+                      + action       = {
+                          + type = "expire"
+                        }
+                      + description  = "Conserver les 20 dernières images"
+                      + rulePriority = 1
+                      + selection    = {
+                          + countNumber = 20
+                          + countType   = "imageCountMoreThan"
+                          + tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        )
+      + region      = "eu-west-1"
+      + registry_id = (known after apply)
+      + repository  = "novaria-demo-frontend"
+    }
+
+  # module.ecr.aws_ecr_lifecycle_policy.service["reponse"] will be created
+  + resource "aws_ecr_lifecycle_policy" "service" {
+      + id          = (known after apply)
+      + policy      = jsonencode(
+            {
+              + rules = [
+                  + {
+                      + action       = {
+                          + type = "expire"
+                        }
+                      + description  = "Conserver les 20 dernières images"
+                      + rulePriority = 1
+                      + selection    = {
+                          + countNumber = 20
+                          + countType   = "imageCountMoreThan"
+                          + tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        )
+      + region      = "eu-west-1"
+      + registry_id = (known after apply)
+      + repository  = "novaria-demo-reponse"
+    }
+
+  # module.ecr.aws_ecr_lifecycle_policy.service["traitement"] will be created
+  + resource "aws_ecr_lifecycle_policy" "service" {
+      + id          = (known after apply)
+      + policy      = jsonencode(
+            {
+              + rules = [
+                  + {
+                      + action       = {
+                          + type = "expire"
+                        }
+                      + description  = "Conserver les 20 dernières images"
+                      + rulePriority = 1
+                      + selection    = {
+                          + countNumber = 20
+                          + countType   = "imageCountMoreThan"
+                          + tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        )
+      + region      = "eu-west-1"
+      + registry_id = (known after apply)
+      + repository  = "novaria-demo-traitement"
+    }
+
+  # module.ecr.aws_ecr_repository.disposable["alerte"] will be created
+  + resource "aws_ecr_repository" "disposable" {
+      + arn                  = (known after apply)
+      + force_delete         = true
+      + id                   = (known after apply)
+      + image_tag_mutability = "IMMUTABLE"
+      + name                 = "novaria-demo-alerte"
+      + region               = "eu-west-1"
+      + registry_id          = (known after apply)
+      + repository_url       = (known after apply)
+      + tags_all             = {
+          + "env"          = "demo"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+
+      + encryption_configuration {
+          + encryption_type = "AES256"
+          + kms_key         = (known after apply)
+        }
+
+      + image_scanning_configuration {
+          + scan_on_push = true
+        }
+    }
+
+  # module.ecr.aws_ecr_repository.disposable["collecte"] will be created
+  + resource "aws_ecr_repository" "disposable" {
+      + arn                  = (known after apply)
+      + force_delete         = true
+      + id                   = (known after apply)
+      + image_tag_mutability = "IMMUTABLE"
+      + name                 = "novaria-demo-collecte"
+      + region               = "eu-west-1"
+      + registry_id          = (known after apply)
+      + repository_url       = (known after apply)
+      + tags_all             = {
+          + "env"          = "demo"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+
+      + encryption_configuration {
+          + encryption_type = "AES256"
+          + kms_key         = (known after apply)
+        }
+
+      + image_scanning_configuration {
+          + scan_on_push = true
+        }
+    }
+
+  # module.ecr.aws_ecr_repository.disposable["frontend"] will be created
+  + resource "aws_ecr_repository" "disposable" {
+      + arn                  = (known after apply)
+      + force_delete         = true
+      + id                   = (known after apply)
+      + image_tag_mutability = "IMMUTABLE"
+      + name                 = "novaria-demo-frontend"
+      + region               = "eu-west-1"
+      + registry_id          = (known after apply)
+      + repository_url       = (known after apply)
+      + tags_all             = {
+          + "env"          = "demo"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+
+      + encryption_configuration {
+          + encryption_type = "AES256"
+          + kms_key         = (known after apply)
+        }
+
+      + image_scanning_configuration {
+          + scan_on_push = true
+        }
+    }
+
+  # module.ecr.aws_ecr_repository.disposable["reponse"] will be created
+  + resource "aws_ecr_repository" "disposable" {
+      + arn                  = (known after apply)
+      + force_delete         = true
+      + id                   = (known after apply)
+      + image_tag_mutability = "IMMUTABLE"
+      + name                 = "novaria-demo-reponse"
+      + region               = "eu-west-1"
+      + registry_id          = (known after apply)
+      + repository_url       = (known after apply)
+      + tags_all             = {
+          + "env"          = "demo"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+
+      + encryption_configuration {
+          + encryption_type = "AES256"
+          + kms_key         = (known after apply)
+        }
+
+      + image_scanning_configuration {
+          + scan_on_push = true
+        }
+    }
+
+  # module.ecr.aws_ecr_repository.disposable["traitement"] will be created
+  + resource "aws_ecr_repository" "disposable" {
+      + arn                  = (known after apply)
+      + force_delete         = true
+      + id                   = (known after apply)
+      + image_tag_mutability = "IMMUTABLE"
+      + name                 = "novaria-demo-traitement"
+      + region               = "eu-west-1"
+      + registry_id          = (known after apply)
+      + repository_url       = (known after apply)
+      + tags_all             = {
+          + "env"          = "demo"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+
+      + encryption_configuration {
+          + encryption_type = "AES256"
+          + kms_key         = (known after apply)
+        }
+
+      + image_scanning_configuration {
+          + scan_on_push = true
+        }
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["alerte"] will be created
+  + resource "aws_cloudwatch_log_group" "service" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/novaria/demo/alerte"
+      + name_prefix                 = (known after apply)
+      + region                      = "eu-west-1"
+      + retention_in_days           = 7
+      + skip_destroy                = false
+      + tags_all                    = {
+          + "env"          = "demo"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["collecte"] will be created
+  + resource "aws_cloudwatch_log_group" "service" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/novaria/demo/collecte"
+      + name_prefix                 = (known after apply)
+      + region                      = "eu-west-1"
+      + retention_in_days           = 7
+      + skip_destroy                = false
+      + tags_all                    = {
+          + "env"          = "demo"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["frontend"] will be created
+  + resource "aws_cloudwatch_log_group" "service" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/novaria/demo/frontend"
+      + name_prefix                 = (known after apply)
+      + region                      = "eu-west-1"
+      + retention_in_days           = 7
+      + skip_destroy                = false
+      + tags_all                    = {
+          + "env"          = "demo"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["reponse"] will be created
+  + resource "aws_cloudwatch_log_group" "service" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/novaria/demo/reponse"
+      + name_prefix                 = (known after apply)
+      + region                      = "eu-west-1"
+      + retention_in_days           = 7
+      + skip_destroy                = false
+      + tags_all                    = {
+          + "env"          = "demo"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+    }
+
+  # module.observability.aws_cloudwatch_log_group.service["traitement"] will be created
+  + resource "aws_cloudwatch_log_group" "service" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/novaria/demo/traitement"
+      + name_prefix                 = (known after apply)
+      + region                      = "eu-west-1"
+      + retention_in_days           = 7
+      + skip_destroy                = false
+      + tags_all                    = {
+          + "env"          = "demo"
+          + "projet"       = "novaria"
+          + "proprietaire" = "binome-novaria"
+        }
+    }
+
+Plan: 15 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + ecr_repository_urls = {
+      + alerte     = (known after apply)
+      + collecte   = (known after apply)
+      + frontend   = (known after apply)
+      + reponse    = (known after apply)
+      + traitement = (known after apply)
+    }
+  + log_group_names     = {
+      + alerte     = "/novaria/demo/alerte"
+      + collecte   = "/novaria/demo/collecte"
+      + frontend   = "/novaria/demo/frontend"
+      + reponse    = "/novaria/demo/reponse"
+      + traitement = "/novaria/demo/traitement"
+    }

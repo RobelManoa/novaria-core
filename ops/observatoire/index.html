@@ -97,6 +97,16 @@ dialog { border: 1px solid var(--bord); border-radius: 10px; background: var(--c
 dialog::backdrop { background: rgba(0,0,0,.5); }
 .bandeau { grid-column: 1 / -1; padding: 8px 14px; border-radius: 8px; background: var(--alarme-fond); color: var(--alarme); font-weight: 600; display: none; }
 .bandeau.visible { display: block; }
+.pill.non { background: var(--alarme-fond); color: var(--alarme); }
+.cartes { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); margin: 8px 0 12px; }
+.demo { border: 1px solid var(--bord); border-radius: 10px; padding: 10px 12px; }
+.demo.en-cours { border-color: var(--accent); background: var(--accent-fond); }
+.demo p { margin: 4px 0 8px; font-size: 13.5px; }
+.demo .actions { margin-top: 6px; align-items: center; }
+.demo input[type=number] { width: 90px; font: inherit; padding: 4px 8px; border: 1px solid var(--bord); border-radius: 6px; background: var(--carte); color: var(--texte); }
+.lignes-ok { color: var(--ok); font-weight: 600; } .lignes-ko { color: var(--alarme); font-weight: 600; }
+.deux { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.lien-doc { font-size: 13px; }
 </style>
 </head>
 <body>
@@ -140,6 +150,10 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
       <button role="tab" id="t-chrono" aria-selected="false" data-vue="chrono" type="button">Chronologie</button>
       <button role="tab" id="t-tableau" aria-selected="false" data-vue="tableau" type="button">Tableau : débit, erreurs, retard</button>
       <button role="tab" id="t-rapport" aria-selected="false" data-vue="rapport" type="button">Diagnostic : alarme, journal, cause</button>
+      <button role="tab" id="t-flux" aria-selected="false" data-vue="flux" type="button">Flux complet (MS-15)</button>
+      <button role="tab" id="t-securite" aria-selected="false" data-vue="securite" type="button">Sécurité du poste</button>
+      <button role="tab" id="t-cloud" aria-selected="false" data-vue="cloud" type="button">Cloud local (Moto)</button>
+      <button role="tab" id="t-ia" aria-selected="false" data-vue="ia" type="button">IA et prototypes</button>
     </nav>
     <div id="vue"></div>
   </section>
@@ -276,6 +290,8 @@ function dessinerVue() {
     for (const a of lignes.slice(0, en.length ? en.length + 6 : 8)) corps.append(h("tr", {}, h("td", { class: "etat " + a.etat }, a.etat), h("td", {}, a.nom), h("td", {}, a.cible), h("td", {}, a.gravite), h("td", {}, a.depuis ? new Date(a.depuis * 1000).toISOString().slice(11, 19) : "—"), h("td", {}, a.raison)));
     tab.append(corps); zone.append(h("div", { style: "overflow-x:auto" }, tab));
     if (lignes.length > en.length + 6) zone.append(h("p", { class: "discret" }, `… et ${lignes.length - en.length - 6} autres alarmes à l'état OK.`));
+  } else if (THEMES_DEMO.includes(vue)) {
+    if (vue === "securite") dessinerSecurite(zone); else if (vue === "ia") dessinerIA(zone); else dessinerDemos(zone, vue);
   } else if (vue === "tableau") {
     dessinerTableau(zone);
   } else if (vue === "chrono") {
@@ -296,6 +312,110 @@ function dessinerVue() {
     zone.append(h("h3", { style: "margin:12px 0 4px" }, "4 · Impact : prévu et constaté"));
     zone.append(h("p", {}, "Prévu (services qui dépendent de celui-ci) : ", h("b", {}, rapport.impact.prevu.join(", ") || "aucun"), ". Constaté (services avec une alarme) : ", h("b", {}, rapport.impact.observe_en_alarme.join(", ") || "aucun"), "."));
     zone.append(h("p", { class: "discret" }, rapport.effet_documente));
+  }
+}
+
+// ---- démonstrations : flux complet, sécurité, cloud local, IA (observatoire_demos.py ; textes dans ops/presentation.json)
+const THEMES_DEMO = ["flux", "securite", "cloud", "ia"];
+let demos = null, securite = null, synthese = null, erreurDemo = "";
+const duree = (d) => (d && d.debut ? `${Math.round(((d.fin || Date.now() / 1000) - d.debut))} s` : "");
+function listeTexte(titre, lignes) { return [h("h3", { style: "margin:12px 0 4px" }, titre), h("ul", {}, ...lignes.map((x) => h("li", {}, x)))]; }
+function presentation(zone, theme) {
+  const p = demos && demos.presentation && demos.presentation[theme];
+  if (!p) return;
+  zone.append(h("p", {}, h("b", {}, p.titre)), h("p", { class: "discret" }, p.message), h("p", { class: "lien-doc discret" }, "Preuve écrite : ", h("code", {}, p.doc)));
+  if (p.etapes) {
+    const corps = h("tbody");
+    p.etapes.forEach((e, i) => corps.append(h("tr", {}, h("td", {}, String(i + 1)), h("td", {}, e.montrer), h("td", {}, e.dire))));
+    zone.append(h("div", { style: "overflow-x:auto" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "#"), h("th", {}, "On montre"), h("th", {}, "On dit"))), corps)));
+  }
+}
+function limites(zone, theme) {
+  const p = demos && demos.presentation && demos.presentation[theme];
+  if (p && p.limites) zone.append(...listeTexte("Limites, dites avec la démonstration", p.limites));
+}
+async function lancerDemo(d, graine) {
+  if (d.arrete_des_conteneurs && !confirm(`« ${d.libelle} » arrête puis relance des conteneurs de la pile. Continuer ?`)) return;
+  erreurDemo = "";
+  try { await api("/api/demos/lancer", { id: d.id, confirmer: d.arrete_des_conteneurs, graine: graine || undefined }); } catch (e) { erreurDemo = e.message; }
+  await rafraichirDemos();
+}
+function carteDemo(d) {
+  const c = demos.courante, enCours = c && c.etat === "en_cours", moi = c && c.id === d.id, dernier = moi ? c : d.dernier;
+  const bloc = h("div", { class: "demo" + (moi && enCours ? " en-cours" : "") }, h("b", {}, d.libelle), h("p", {}, d.montre),
+    h("span", { class: "discret" }, `${d.duree}${d.arrete_des_conteneurs ? " · arrête des conteneurs" : ""}${d.pile_requise ? " · pile requise" : ""}`));
+  const actions = h("div", { class: "actions" });
+  let graine = null;
+  if (d.accepte_graine) { graine = h("input", { type: "number", min: "1", max: "999999", value: "42", "aria-label": "Graine de SUMO", title: "Graine de SUMO : une graine neuve donne un run jamais vu" }); actions.append(h("span", { class: "discret" }, "graine"), graine); }
+  const lancer = h("button", { class: "principal", type: "button", disabled: !!enCours }, "Lancer");
+  lancer.addEventListener("click", () => lancerDemo(d, graine && graine.value));
+  actions.append(lancer);
+  if (moi && enCours) { const arreter = h("button", { type: "button" }, "Interrompre"); arreter.addEventListener("click", async () => { try { await api("/api/demos/arreter", {}); } catch (e) { erreurDemo = e.message; } await rafraichirDemos(); }); actions.append(arreter); }
+  if (dernier) actions.append(h("span", { class: "pill " + (dernier.etat === "ok" ? "ok" : dernier.etat === "en_cours" ? "semi" : "non") }, dernier.etat === "ok" ? "réussi" : dernier.etat === "en_cours" ? "en cours" : dernier.etat === "arrete" ? "interrompu" : "échec"), h("span", { class: "discret" }, duree(dernier)));
+  bloc.append(actions);
+  return bloc;
+}
+function sortieDemo(zone, theme) {
+  const c = demos.courante;
+  if (erreurDemo) zone.append(h("p", { class: "mauvais", role: "alert" }, erreurDemo));
+  if (!c || c.theme !== theme) return;
+  zone.append(h("div", { class: "bloc" }, `Sortie de « ${c.libelle} » (${c.etat === "en_cours" ? "en cours, " : ""}${duree(c)})`));
+  if (c.resultats.length) zone.append(h("ul", {}, ...c.resultats.map((r) => h("li", {}, h("span", { class: r.ok ? "lignes-ok" : "lignes-ko" }, r.ok ? "OK " : "ÉCHEC "), `${r.cas} ${r.texte}`))));
+  const sortie = h("div", { class: "journal", tabindex: "0", "aria-label": "Sortie de la commande", style: "max-height:320px" }, c.lignes.join("\n") || "(aucune sortie pour le moment)");
+  zone.append(sortie);
+  sortie.scrollTop = sortie.scrollHeight;
+}
+function dessinerDemos(zone, theme) {
+  if (!demos) { zone.append(h("p", { class: "vide" }, "Chargement…")); return; }
+  presentation(zone, theme);
+  zone.append(h("div", { class: "cartes" }, ...demos.demos.filter((d) => d.theme === theme).map(carteDemo)));
+  sortieDemo(zone, theme);
+  limites(zone, theme);
+}
+async function rafraichirDemos() { try { demos = await api("/api/demos"); } catch (e) { demos = null; } rendre(); }
+const oui = (v) => h("span", { class: "pill " + (v ? "ok" : "non") }, v ? "oui" : "NON");
+function dessinerSecurite(zone) {
+  if (!demos) { zone.append(h("p", { class: "vide" }, "Chargement…")); return; }
+  const p = demos.presentation && demos.presentation.securite;
+  presentation(zone, "securite");
+  const lire = h("button", { class: "principal", type: "button" }, "Lire les conteneurs en marche");
+  lire.addEventListener("click", async () => { try { securite = await api("/api/securite"); } catch (e) { securite = { disponible: false, conteneurs: [], resume: e.message }; } rendre(); });
+  zone.append(h("div", { class: "barre" }, lire, h("span", { class: securite && securite.graves && securite.graves.length ? "mauvais" : "discret" }, securite ? securite.resume : "Pas encore lu : le constat vient de docker inspect, pas de la documentation.")));
+  if (securite && securite.conteneurs.length) {
+    const corps = h("tbody");
+    for (const c of securite.conteneurs) corps.append(h("tr", {}, h("td", {}, h("b", {}, c.service)), h("td", {}, c.utilisateur), h("td", {}, oui(c.cap_drop_all)), h("td", {}, oui(c.no_new_privileges)), h("td", {}, oui(!c.privilegie && !c.reseau_hote && !c.sock_docker)), h("td", {}, c.ports_exposes.length ? h("span", { class: "mauvais" }, c.ports_exposes.join(", ")) : "127.0.0.1 seulement ou aucun")));
+    zone.append(h("div", { style: "overflow-x:auto" }, h("table", {}, h("thead", {}, h("tr", {}, ...["Conteneur", "Utilisateur", "cap_drop ALL", "no-new-privileges", "Ni privilégié, ni hôte, ni socket Docker", "Ports publiés"].map((x) => h("th", {}, x)))), corps)));
+    zone.append(h("p", { class: "discret" }, "« NON » sur cap_drop ou no-new-privileges est attendu pour les bases et Kafka : leurs images démarrent avec des droits qu'elles abandonnent (revue de sécurité, section 2)."));
+  }
+  zone.append(h("div", { class: "cartes" }, ...demos.demos.filter((d) => d.theme === "securite").map(carteDemo)));
+  sortieDemo(zone, "securite");
+  if (p) zone.append(h("div", { class: "deux" }, h("div", {}, ...listeTexte("Corrigé", p.corrige)), h("div", {}, ...listeTexte("Ce qui reste (non corrigé)", p.reste))));
+}
+const pct = (v) => (v === null || v === undefined ? "non disponible" : fmt(v * 100, 0, " %"));
+function dessinerIA(zone) {
+  dessinerDemos(zone, "ia");
+  if (!synthese) { zone.append(h("p", { class: "vide" }, "Chargement des évaluations…")); return; }
+  if (synthese.anomalies && synthese.anomalies.length) {
+    zone.append(h("div", { class: "bloc" }, "Détection d'anomalies sur les anomalies injectées par le simulateur (ml/evaluation/anomalies.json)"));
+    const types = Object.keys(synthese.anomalies[0].rappel_par_type);
+    const corps = h("tbody");
+    for (const d of synthese.anomalies) corps.append(h("tr", {}, h("td", {}, h("b", {}, d.detecteur)), h("td", { class: "num" }, pct(d.precision)), h("td", { class: "num" }, fmt(d.fausses_par_heure, 2)), ...types.map((t) => h("td", { class: "num" }, pct(d.rappel_par_type[t])))));
+    zone.append(h("div", { style: "overflow-x:auto" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Détecteur"), h("th", { class: "num" }, "Précision"), h("th", { class: "num" }, "Fausses / h"), ...types.map((t) => h("th", { class: "num" }, "Rappel " + t)))), corps)));
+  } else zone.append(h("p", { class: "vide" }, "Anomalies : fichier non disponible (python3 scripts/dev/dev.py ml-anomalies)."));
+  const pv = synthese.prevision;
+  if (pv && pv.horizons) {
+    zone.append(h("div", { class: "bloc" }, "Prévision de vitesse METR-LA (données de recherche, non redistribuées) : erreur par horizon"));
+    const corps = h("tbody");
+    for (const [hz, bloc] of Object.entries(pv.horizons)) {
+      const test = bloc.test || {};
+      corps.append(h("tr", {}, h("td", {}, `${hz} min`), h("td", {}, Object.entries(test).map(([nom, m]) => `${nom} : MAE ${m && m.mae !== undefined ? fmt(m.mae, 2) : "non disponible"}`).join(" · ") || "non disponible"), h("td", {}, bloc.meilleur_modele || "non disponible")));
+    }
+    zone.append(h("div", { style: "overflow-x:auto" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Horizon"), h("th", {}, "MAE sur le jeu de test"), h("th", {}, "Meilleur sur la validation"))), corps)));
+  }
+  const sm = synthese.sumo;
+  if (sm) {
+    zone.append(h("div", { class: "bloc" }, "Prototype SUMO contre le générateur v0 (ml/evaluation/sumo.json)"));
+    zone.append(h("p", {}, `Capacité mesurée d'une approche : ${sm.capacite_mesuree_vph === null || sm.capacite_mesuree_vph === undefined ? "non disponible" : fmt(sm.capacite_mesuree_vph, 0, " véhicules/h")} (le v0 suppose 1 400). Rejeu dans le moteur de fenêtres : `, h("code", {}, JSON.stringify(sm.rejeu_moteur || {}).slice(0, 240)), ". Corrélation des profils de demande : ", fmt(sm.comparaison && sm.comparaison.correlation_profil_de_demande, 2), "."));
   }
 }
 
@@ -387,17 +507,24 @@ function rendre() {
   siChange("etapes", [etat && etat.panne, rapport && rapport.alarmes.length, rapport && rapport.cause], dessinerEtapes);
   siChange("carte", [visible, choisi, etat && etat.panne && etat.panne.service], dessinerCarte);
   siChange("detail", [visible, choisi, etat && etat.panne], dessinerDetail);
-  siChange("vue", [vue, etat && etat.alarmes.map((a) => [a.etat, a.raison]), chrono.length, rapport && [rapport.alarmes, rapport.journaux, rapport.cause, rapport.impact], vue === "tableau" && tableau, trace, erreurTrace], dessinerVue);
+  siChange("vue", [vue, !THEMES_DEMO.includes(vue) && etat && etat.alarmes.map((a) => [a.etat, a.raison]), chrono.length, rapport && [rapport.alarmes, rapport.journaux, rapport.cause, rapport.impact], vue === "tableau" && tableau, trace, erreurTrace, THEMES_DEMO.includes(vue) && [demos && demos.courante, demos && demos.courante && demos.courante.etat === "en_cours" && Math.floor(Date.now() / 3000), demos && demos.demos.map((d) => d.dernier && d.dernier.etat), securite, synthese, erreurDemo]], dessinerVue);
 }
 async function rafraichir() {
   try {
     [etat, chrono] = await Promise.all([api("/api/etat"), api("/api/chronologie")]);
     rapport = etat.panne ? await api("/api/rapport") : null;
     if (vue === "tableau") tableau = await api("/api/tableau");
+    if (THEMES_DEMO.includes(vue)) demos = await api("/api/demos");
     rendre();
   } catch (e) { document.getElementById("pastille").textContent = "Observatoire injoignable"; }
 }
-document.querySelectorAll("[role=tab]").forEach((b) => b.addEventListener("click", async () => { vue = b.dataset.vue; if (vue === "tableau") { try { tableau = await api("/api/tableau"); } catch (e) { tableau = null; } } dessinerVue(); }));
+document.querySelectorAll("[role=tab]").forEach((b) => b.addEventListener("click", async () => {
+  vue = b.dataset.vue;
+  if (vue === "tableau") { try { tableau = await api("/api/tableau"); } catch (e) { tableau = null; } }
+  if (THEMES_DEMO.includes(vue)) { try { demos = await api("/api/demos"); } catch (e) { demos = null; } }
+  if (vue === "ia" && !synthese) { try { synthese = await api("/api/ia"); } catch (e) { synthese = null; } }
+  dessinerVue();
+}));
 document.getElementById("theme").addEventListener("click", () => {
   const racine = document.documentElement, sombre = racine.dataset.theme ? racine.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
   racine.dataset.theme = sombre ? "light" : "dark";

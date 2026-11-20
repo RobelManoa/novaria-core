@@ -28,8 +28,8 @@ flowchart LR
 
 | Élément | Contenu | Écart avec l'[ADR-020](../01-architecture/adr/ADR-020-terraform.md) |
 |---|---|---|
-| `modules/ecr` | un dépôt par service, étiquettes immuables, analyse à la poussée, chiffrement, purge des anciennes images | l'ADR place les dépôts dans `envs/base`, qui n'existe pas encore |
-| `modules/observability` | un groupe de journaux CloudWatch par service, durée de conservation réglable | conforme |
+| `modules/ecr` | un dépôt par service, étiquettes immuables, analyse à la poussée, chiffrement, purge des anciennes images ; **protégé** (`prevent_destroy`) sauf dans `demo` (CLD-17, [ressources persistantes](ressources-persistantes.md)) | l'ADR place les dépôts dans `envs/base`, qui n'existe pas encore |
+| `modules/observability` | un groupe de journaux CloudWatch par service, durée de conservation réglable ; les journaux survivent à une destruction sauf dans `demo` (`skip_destroy`) | conforme |
 | `envs/dev`, `envs/demo` | fournisseur AWS (région `eu-west-1`, étiquettes `projet`, `env`, `proprietaire`), appel des deux modules | `demo` détruit les dépôts même pleins, conservation 7 jours |
 | `.terraform.lock.hcl` (un par environnement) | version exacte du fournisseur et empreintes | conforme (versionné) |
 | Réseau, RDS, MongoDB, état distant S3, rôle OIDC | **absents** | CLD-10 et CLD-11, différées |

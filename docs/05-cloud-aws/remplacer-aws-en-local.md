@@ -75,7 +75,7 @@ Légende : **Local** = faisable tel quel ; **À reformuler** = l'énoncé cite A
 | **#135 MS-16** | Observabilité locale | Journaux JSON avec identifiant de corrélation, `/metrics` dans chaque service, règle d'alerte | Local |
 | **#87 CLD-14** | « Détection dans CloudWatch » | Arrêter un service, détecter par l'état des conteneurs, les sondes HTTP et les journaux ; l'alarme est une règle déclarée dans `ops/alarmes.json`, évaluée par `dev.py observatoire` et `dev.py panne` (pas de Prometheus). Voir [diagnostic](../08-exploitation/diagnostic.md) | Réalisé (relecture à faire) |
 | **#89 CLD-16** | « Rollback d'ECS » | Redéployer l'image du SHA précédent avec Compose ; documenter que les données ne reviennent pas | À reformuler |
-| **#90 CLD-17** | `terraform plan` à 0 changement | Le plan exige des identifiants : non exécuté. Contrôles statiques faits : [contrôles Terraform sans compte](controles-terraform-sans-compte.md). Option à évaluer : un module Terraform avec le fournisseur Docker pour montrer l'idempotence en local (non vérifié) | À reformuler |
+| **#90 CLD-17** | `terraform plan` à 0 changement | Le plan exige des identifiants : non exécuté. Contrôles statiques faits : [contrôles Terraform sans compte](controles-terraform-sans-compte.md). **Fait le 19/11/2026** : le code Terraform est appliqué à **Moto** (émulateur d'API AWS local, Apache-2.0) puis le plan est rejoué : **0 changement**, la dérive est vue, les protections des ressources persistantes jouent ; voir [ressources persistantes](ressources-persistantes.md) | Atteint sur l'émulateur, **non sur AWS** (aucun compte) |
 | **#91 CLD-18** | Matrice d'accès IAM | Matrice rôles × ressources locale : rôles de la passerelle, comptes de base par service ; un essai autorisé et un refusé par rôle | À reformuler |
 | **#136 MS-17** | ECR, ECS Fargate, MSK | Compose : un conteneur par service, révision du commit vérifiée, seule la passerelle exposée. Déploiement AWS : documenté | À reformuler ; AWS documenté |
 | **#93 GES-09** | Chiffrage AWS | Coût **projeté**, tarifs publics, mention « projeté, non déployé » | Documenté |
@@ -148,7 +148,7 @@ Résultat attendu : le premier contrôle ne renvoie aucun fichier (relevé du 13
 |---|---|
 | Reformulation des énoncés #87, #89, #90, #91, #136, #105 | À décider à deux ; non faite |
 | Prometheus et Alertmanager pour les alarmes locales | À évaluer : absents de la pile actuelle, non essayés |
-| Terraform avec le fournisseur Docker pour CLD-17 | À évaluer, non essayé |
+| Terraform avec le fournisseur Docker pour CLD-17 | Écarté : l'émulateur Moto applique le code réel (`dev.py terraform-emulateur`) |
 | `/metrics` des autres services que `traitement` | Non vérifié |
 | Commandes Windows de la section 5 | Non vérifiées |
 | Issues déjà fermées | Non relues pour ce document |

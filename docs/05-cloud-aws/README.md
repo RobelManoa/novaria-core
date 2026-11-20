@@ -24,6 +24,7 @@ flowchart LR
 | Région eu-west-1 | [ADR-006](../01-architecture/adr/ADR-006-region-eu-west-1.md) | Cible documentée |
 | Compte, plafond de dépense, plan B | [ADR-007](../01-architecture/adr/ADR-007-compte-aws.md) | Différée ; plan B appliqué |
 | Infrastructure as Code | [ADR-020](../01-architecture/adr/ADR-020-terraform.md), `infra/terraform` | Squelette écrit et contrôlé sans compte ([contrôles](controles-terraform-sans-compte.md)), non appliqué |
+| Ressources persistantes protégées, second plan (CLD-17) | [ressources-persistantes.md](ressources-persistantes.md), [sorties](sorties-terraform/) | Plan à 0 changement **sur l'émulateur local Moto** (`dev.py terraform-emulateur`), non sur AWS (aucun compte) ; protections écrites et prouvées |
 | Docker, images, déploiement | [ADR-021](../01-architecture/adr/ADR-021-docker-deploiement.md) | Images locales ; publication documentée |
 | Hébergement MongoDB | [ADR-022](../01-architecture/adr/ADR-022-hebergement-mongodb.md) | Local en conteneur ; AWS documenté |
 | Équivalents locaux de chaque service | [ADR-025](../01-architecture/adr/ADR-025-equivalents-locaux-des-services-aws.md) | Table de référence |

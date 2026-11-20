@@ -17,6 +17,7 @@ module "ecr" {
 
   prefix       = "novaria-demo"
   services     = var.services
+  protected    = false # environnement jetable : se détruit après chaque séance (CLD-21)
   force_delete = true
 }
 
@@ -26,4 +27,5 @@ module "observability" {
   environment    = "demo"
   services       = var.services
   retention_days = 7
+  protected      = false
 }

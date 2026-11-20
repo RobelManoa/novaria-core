@@ -15,8 +15,9 @@ provider "aws" {
 module "ecr" {
   source = "../../modules/ecr"
 
-  prefix   = "novaria-dev"
-  services = var.services
+  prefix    = "novaria-dev"
+  services  = var.services
+  protected = true # dépôts d'images protégés : `terraform destroy` échoue
 }
 
 module "observability" {
@@ -25,4 +26,5 @@ module "observability" {
   environment    = "dev"
   services       = var.services
   retention_days = 14
+  protected      = true # les journaux survivent à une destruction
 }

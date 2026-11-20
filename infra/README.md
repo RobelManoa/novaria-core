@@ -15,6 +15,8 @@ Contrôles possibles sans compte, avec Docker seulement (Terraform, tflint et Sn
 | Tous les contrôles | `python3 scripts/dev/dev.py terraform-check` | `py -3 scripts/dev/dev.py terraform-check` |
 | Régénérer le verrou des fournisseurs | `python3 scripts/dev/dev.py terraform-check --lock` | `py -3 scripts/dev/dev.py terraform-check --lock` |
 
+Second plan à 0 changement et protections des ressources persistantes (CLD-17), **sans compte AWS** : `python3 scripts/dev/dev.py terraform-emulateur` applique le code à l'émulateur local Moto puis rejoue le plan (Windows : `py -3 ...`) ; `terraform-plan-hors-ligne` donne les plans sans émulateur. Détails : [ressources persistantes](../docs/05-cloud-aws/ressources-persistantes.md). Sur le vrai AWS, le second plan reste différé (aucun compte).
+
 Détail des étapes, résultats et proposition de job de CI : [contrôles Terraform sans compte](../docs/05-cloud-aws/controles-terraform-sans-compte.md).
 
 Équivalents locaux de chaque service : [ADR-025](../docs/01-architecture/adr/ADR-025-equivalents-locaux-des-services-aws.md). Index des documents AWS : [docs/05-cloud-aws](../docs/05-cloud-aws/README.md).
