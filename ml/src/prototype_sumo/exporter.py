@@ -39,7 +39,7 @@ def identifiant_du_run(graine: int) -> str:
 
 
 def _lire(chemin: Path):
-    arbre = ET.parse(chemin)  # noqa: S314 - XML produit par notre propre SUMO, dans un dossier à nous
+    arbre = ET.parse(chemin)  # noqa: S314 - XML produit par notre propre SUMO dans un dossier à nous
     return arbre.getroot().iter("interval")
 
 

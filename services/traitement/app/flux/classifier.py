@@ -19,6 +19,7 @@ Choix d'interprétation, à confirmer par la relecture (docs/03-donnees/flux.md,
 """
 
 from dataclasses import dataclass, replace
+from typing import cast
 
 from .rules import DEFAULT_THRESHOLDS, Thresholds
 
@@ -83,7 +84,7 @@ def advance(
 
     slow = _streak(base.slow, ratio < thresholds.slow_below)
     free = _streak(base.free, ratio > thresholds.free_above)
-    current: Hysteresis = replace(
+    current = replace(
         base,
         slow=slow,
         slow_since=(obs.start_ms if base.slow == 0 else base.slow_since) if slow else None,
@@ -95,7 +96,8 @@ def advance(
         free=free,
         free_since=(obs.start_ms if base.free == 0 else base.free_since) if free else None,
     )
-    return replace(current, state=_next_state(current, thresholds))
+    # `replace` rend un type générique : on dit à l'analyseur que c'est bien un `Hysteresis`.
+    return replace(current, state=_next_state(cast(Hysteresis, current), thresholds))
 
 
 def _entry_state(ratio: float | None, th: Thresholds) -> str:
