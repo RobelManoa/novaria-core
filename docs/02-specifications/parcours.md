@@ -114,7 +114,7 @@ Les contrats `traffic.recommendations` et `signal.status` ne sont pas encore éc
 
 ### P7. Un citoyen consulte la circulation (proposé, non construit)
 
-Parcours **proposé** par l'[ADR-030](../01-architecture/adr/ADR-030-application-citoyenne-perimetre-et-acces.md) (demande C-08, jalon M6). **Construit** : les deux routes publiques des étapes 2 et 3 ([api-citoyen.md](../03-donnees/api-citoyen.md), CIT-03). **Pas encore construit** : l'application elle-même (étapes 1 et 4, CIT-04 et CIT-05). Le citoyen n'a pas de compte et ne voit ni donnée brute, ni capteur, ni feu.
+Parcours **proposé** par l'[ADR-030](../01-architecture/adr/ADR-030-application-citoyenne-perimetre-et-acces.md) (demande C-08, jalon M6). **Construit** : les deux routes publiques des étapes 2 et 3 ([api-citoyen.md](../03-donnees/api-citoyen.md), CIT-03). **Construit** aussi : l'application et la vue de l'état (étapes 1 et 2, [application-citoyenne.md](../08-exploitation/application-citoyenne.md), CIT-04). **Pas encore construit** : les alertes dans l'application et le suivi d'un tronçon (étapes 3 et 4, CIT-05). Le citoyen n'a pas de compte et ne voit ni donnée brute, ni capteur, ni feu.
 
 | N° | Qui | Fait quoi | Ce qui reste comme trace | Exigences |
 |---|---|---|---|---|

@@ -1,0 +1,42 @@
+{
+  "name": "novaria-core-citoyen",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Application citoyenne (PoC) : l'état de la circulation, sans compte, en lecture seule (ADR-030, CIT-04).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "format:check": "prettier --check src tests scripts",
+    "test": "vitest run --coverage",
+    "captures": "node scripts/captures.mjs"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@testing-library/jest-dom": "^6.6.0",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.6.8",
+    "@types/node": "22.20.5",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "@vitest/coverage-v8": "^5.0.5",
+    "axe-core": "^4.10.3",
+    "eslint": "^9.17.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "globals": "^15.14.0",
+    "jsdom": "^25.0.0",
+    "playwright-core": "1.64.1",
+    "prettier": "^3.4.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.72.1",
+    "vite": "^6.4.5",
+    "vitest": "^5.0.5"
+  }
+}
