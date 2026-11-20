@@ -1,0 +1,72 @@
+{
+  "flux": {
+    "titre": "Flux complet : du capteur à la commande de feux (MS-15)",
+    "message": "Le parcours complet tourne sur la pile locale, et chaque défaillance prévue est jouée pour de vrai : on arrête un conteneur, on constate, on le relance.",
+    "doc": "docs/08-exploitation/tests-integration.md",
+    "etapes": [
+      {"montrer": "Lancer « Parcours nominal N1 à N7 » et laisser défiler les lignes [OK].", "dire": "Un capteur simulé envoie des mesures ; la collecte les valide, le traitement calcule des fenêtres d'une minute, l'alerte se crée puis se résout, la recommandation devient une commande de feux."},
+      {"montrer": "Lancer « F1 · Message invalide ».", "dire": "Un message illisible et un message hors contrat sont refusés avec leur motif ; la copie brute ne contient que les messages valides."},
+      {"montrer": "Lancer « F3 · Broker indisponible » (confirmation requise), puis regarder l'onglet Tableau.", "dire": "Kafka est arrêté : la collecte répond 503 sans perdre de copie brute, son disjoncteur s'ouvre, puis tout reprend au redémarrage."},
+      {"montrer": "Lancer « F6 · Redémarrage du service des feux ».", "dire": "Au démarrage, le service des feux applique un plan fixe puis reprend, sans perte ni doublon de commande."}
+    ],
+    "limites": [
+      "Il faut que la pile tourne (dev.py up) : sans elle, la démonstration échoue et le dit.",
+      "Ne pas rejouer le parcours nominal moins de 10 minutes après un autre rejeu : le service des feux ignore une recommandation plus ancienne que la dernière reçue ; la garde d'horloge le signale.",
+      "Données simulées uniquement. Vérifié sous Linux ; non vérifié sous Windows."
+    ]
+  },
+  "securite": {
+    "titre": "Sécurité du poste : ce qui est vérifié, corrigé et ce qui reste",
+    "message": "Le contrôle ci-dessous lit les conteneurs en marche (docker inspect) : il ne répète pas ce que dit la documentation, il le constate.",
+    "doc": "docs/04-devsecops/revue-securite-pile-locale.md",
+    "corrige": [
+      "Dix ports publiés, tous sur 127.0.0.1 : rien n'est joignable depuis le réseau.",
+      "cap_drop ALL et no-new-privileges sur les dix services applicatifs (ancre x-durcissement de docker-compose.yml).",
+      "Une faille connue d'opentelemetry-api (CVE-2026-126360) corrigée dans collecte et traitement.",
+      "scripts/github/secrets.sh aws refuse sans accord écrit des deux membres : plus de variable AWS_ROLE_ARN créée par erreur.",
+      "Verrous de dépendances avec empreintes, y compris les paquets de Windows (colorama, tzdata)."
+    ],
+    "reste": [
+      "Kafka sans authentification ni ACL (PLAINTEXT), port lié à 127.0.0.1.",
+      "Dépôt des mesures sur la collecte sans authentification (capteurs simulés).",
+      "Pas de TLS entre les services ; jeton JWT à clé symétrique (HS256).",
+      "Snyk et l'analyse des images de base ne tournent pas sur ce poste : ils tournent dans la CI.",
+      "Sept failles moyennes dans les outils de construction du front-end (développement seulement).",
+      "Tout est vérifié sous Linux ; non vérifié sous Windows."
+    ],
+    "etapes": [
+      {"montrer": "Cliquer « Lire les conteneurs en marche ».", "dire": "Pour chaque conteneur : droits Linux abandonnés, élévation de privilèges interdite, aucun mode privilégié, aucun port hors 127.0.0.1."},
+      {"montrer": "Lancer « Tests de durcissement de la pile ».", "dire": "Les mêmes règles sont des tests : si quelqu'un ajoute un port ouvert au réseau ou un conteneur privilégié, la CI échoue."}
+    ]
+  },
+  "cloud": {
+    "titre": "Cloud local : Terraform contre un émulateur AWS (Moto)",
+    "message": "Aucune ressource AWS n'est créée (ADR-023). Le code Terraform est rejoué sur Moto, un émulateur open source épinglé par empreinte, dans un réseau Docker sans accès à Internet, avec de faux identifiants.",
+    "doc": "docs/05-cloud-aws/ressources-persistantes.md",
+    "etapes": [
+      {"montrer": "Lancer « apply puis second plan sur l'émulateur Moto (demo) ».", "dire": "apply crée 15 ressources ; le second plan répond « No changes » ; une dérive volontaire est détectée puis corrigée : le contrôle sait échouer."},
+      {"montrer": "Lancer « Destruction d'un dépôt protégé ».", "dire": "En dev, terraform destroy est refusé (prevent_destroy) avant tout appel à AWS."},
+      {"montrer": "Lancer « Basculer la variable ne lève pas la protection ».", "dire": "Mettre protected = false ne suffit pas : lever la protection est un changement de code, donc une pull request relue sur main protégée."}
+    ],
+    "limites": [
+      "La preuve est faite sur l'émulateur, pas sur AWS : le critère « 0 changement » est atteint sur Moto seulement.",
+      "Les plans hors ligne utilisent un état fictif (compte 000000000000) : ils prouvent la configuration, pas un apply.",
+      "Non vérifié : le comportement réel de skip_destroy chez AWS, et Windows."
+    ]
+  },
+  "ia": {
+    "titre": "IA et prototypes : ce que les mesures disent, et leurs limites",
+    "message": "Les chiffres ci-dessous sont lus dans ml/evaluation/*.json, générés par les commandes du projet ; une valeur absente est affichée « non disponible », jamais inventée.",
+    "doc": "docs/06-ia-mlops/prototype-sumo.md",
+    "etapes": [
+      {"montrer": "Regarder les tableaux : règles robustes contre Isolation Forest, puis prévision par horizon.", "dire": "Les règles détectent les anomalies injectées par le simulateur ; Isolation Forest, seul, en détecte peu : le choix argumenté est dans le document de comparaison."},
+      {"montrer": "Lancer « Simuler le carrefour avec SUMO puis rejouer le run » avec une graine neuve.", "dire": "SUMO simule 5 h du carrefour INT_01 ; les 7 200 événements sont rejoués dans le moteur de fenêtres du traitement sans écart."},
+      {"montrer": "Avec la pile en marche : « Rejouer un run SUMO neuf dans toute la pile ».", "dire": "Les mêmes événements passent par la collecte, Kafka et l'entrepôt : un trafic simulé, dit comme tel, traverse toute la plateforme."}
+    ],
+    "limites": [
+      "Données simulées (SUMO, générateur v0) ou publiques de recherche (METR-LA, jamais redistribuées) : jamais présentées comme réelles.",
+      "SUMO ne reproduit pas la congestion du générateur v0 : la comparaison est dans ml/evaluation/sumo-resultats.md.",
+      "Les évaluations IA ne sont pas rejouées d'ici : elles écrivent des fichiers suivis (ml/evaluation) ; la commande est dev.py ml-anomalies ou ml-prevision evaluer."
+    ]
+  }
+}

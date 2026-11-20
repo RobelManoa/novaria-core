@@ -2,7 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { routes } from "@/app/router";
-import { NAV_ENTRIES } from "@/features/navigation/entries";
+import { EXTERNAL_ENTRIES, NAV_ENTRIES } from "@/features/navigation/entries";
 import { renderApp } from "../utils/renderApp";
 
 const h1 = () => screen.getByRole("heading", { level: 1 });
@@ -30,7 +30,7 @@ describe("navigation sur ordinateur", () => {
 
   it("liste les cinq entrées du menu, la page d'accueil étant la page active", () => {
     renderApp();
-    const links = within(mainNav()).getAllByRole("link");
+    const links = within(mainNav()).getAllByRole("link").slice(0, NAV_ENTRIES.length);
     expect(links.map((link) => link.textContent)).toEqual(NAV_ENTRIES.map((entry) => entry.label));
     expect(within(mainNav()).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute(
       "aria-current",
@@ -39,6 +39,17 @@ describe("navigation sur ordinateur", () => {
     expect(within(mainNav()).getByRole("link", { name: "Alertes" })).not.toHaveAttribute(
       "aria-current",
     );
+  });
+
+  it("ajoute en dernier un lien vers l'observatoire, dans un nouvel onglet et sans fuite d'opener", () => {
+    renderApp();
+    const links = within(mainNav()).getAllByRole("link");
+    expect(links).toHaveLength(NAV_ENTRIES.length + EXTERNAL_ENTRIES.length);
+    const lien = within(mainNav()).getByRole("link", { name: /^Observatoire/ });
+    expect(lien).toHaveAttribute("href", "http://127.0.0.1:8090/");
+    expect(lien).toHaveAttribute("target", "_blank");
+    expect(lien).toHaveAttribute("rel", "noopener noreferrer");
+    expect(lien).not.toHaveAttribute("aria-current");
   });
 
   it("ne déplace pas le focus et fixe le titre au premier chargement", () => {
@@ -59,8 +70,8 @@ describe("navigation sur ordinateur", () => {
       "aria-current",
       "page",
     );
-    // Le tableau de bord, les prévisions, les rapports et les alertes ont un vrai contenu : seules les autres pages sont encore des encarts « prochainement ».
-    if (!["/", "/previsions", "/rapports", "/alertes"].includes(path)) {
+    // Le tableau de bord, les prévisions, les rapports, les alertes et les feux ont un vrai contenu : seules les autres pages sont encore des encarts « prochainement ».
+    if (!["/", "/previsions", "/rapports", "/alertes", "/feux"].includes(path)) {
       expect(screen.getByText("Cette section sera disponible prochainement.")).toBeInTheDocument();
     }
   });

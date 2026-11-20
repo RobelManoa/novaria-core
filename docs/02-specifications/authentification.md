@@ -117,9 +117,9 @@ Preuve sous Linux : [À COMPLÉTER par Manoa Robel].
 | Sujet | Position actuelle | Suite |
 |---|---|---|
 | Limitation du débit de la connexion (429 du contrat) | **Faite (BE-08)** : 10 essais par minute et par adresse, 5 échecs par identifiant sur 15 minutes, puis `429` avec `Retry-After` ; le compteur est dans la mémoire du processus. [Sécurité applicative](../04-devsecops/securite-applicative.md) | Compteur partagé si le service est répliqué |
-| Qui valide le jeton | Le service le fait lui-même ; la passerelle ne le contrôle pas, et les routes des autres services n'existent pas encore | MS-13, point ouvert n° 2 des diagrammes C4 |
+| Qui valide le jeton | **Fait (MS-13, [ADR-029](../01-architecture/adr/ADR-029-passerelle-et-authentification.md))** : la passerelle le valide avant tout service (signature, expiration, rôle de la route d'après le contrat) ; chaque service garde son propre contrôle, et `traitement` relit en plus le compte | Voir [passerelle](../../gateway/README.md) |
 | Révocation | Pas de liste de jetons révoqués ; un jeton volé reste utilisable 30 minutes tant que le compte est actif. Désactiver le compte l'arrête tout de suite | À décider si le besoin apparaît |
-| Secret partagé (HS256) | Quiconque connaît `JWT_SECRET` peut émettre un jeton valide : à ne mettre que dans le service qui contrôle | Passage à une clé asymétrique si la passerelle contrôle le jeton |
+| Secret partagé (HS256) | Quiconque connaît `JWT_SECRET` peut émettre un jeton valide. Depuis MS-13 la clé est dans la passerelle, `traitement`, `alerte` et `reponse` | Clé asymétrique (la passerelle n'aurait que la clé publique) : non faite |
 | `PATCH /users/{id}` (rôle, état, mot de passe) | Non fait ; règle du contrat à respecter : un administrateur ne peut pas retirer son propre rôle (409) | Prochaine issue de comptes |
 | Format 422, 404, 405 et 500 | Fait (BE-06) : toutes passent par `Problem` | [Erreurs et versions](erreurs-et-versions-api.md) |
 | Audit des connexions | Fait (BE-05) : chaque tentative de connexion, réussie, refusée ou limitée (`429`, résultat `denied`), laisse une entrée dans `audit_logs`. [Journalisation d'audit](journalisation-audit.md) | |

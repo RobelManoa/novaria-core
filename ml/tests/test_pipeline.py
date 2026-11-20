@@ -568,6 +568,7 @@ class TestEtapes(unittest.TestCase):
         shutil.copytree(self.jeu, abime)
         octets = bytearray((abime / "train.parquet").read_bytes())
         octets[300] ^= 0xFF
+        (abime / "train.parquet").chmod(0o644)  # les objets versionnés sont en lecture seule (0o444) et la copie garde ce droit
         (abime / "train.parquet").write_bytes(bytes(octets))
         lus = []
         reel = donnees.charger

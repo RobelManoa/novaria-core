@@ -119,7 +119,7 @@ flowchart LR
 - **Limite de validité** : un modèle entraîné sur le simulateur apprend le simulateur. Le résultat prouve la chaîne (données → modèle → service → surveillance), pas la précision en conditions réelles ; le rapport l'écrit en toutes lettres. Le jeu réel (METR-LA) ne contient que des vitesses : il sert la prévision, pas la reconnaissance de l'état.
 - Pas de réseau profond : choix assumé au nom de l'explicabilité et du volume.
 - La détection par règles est moins sensible qu'un modèle sur des anomalies subtiles.
-- La licence et les conditions de redistribution du jeu METR-LA se vérifient avant tout usage (fiche de provenance).
+- La licence du jeu METR-LA a été recherchée le 18/11/2026 : **aucune licence de données trouvée**. Il est utilisé en local, à titre de recherche, sans redistribution, et ce risque est écrit dans la [fiche de provenance](../../../data/datasets/metr-la/PROVENANCE.md).
 
 **Risques et parades**
 

@@ -1,0 +1,2 @@
+# SUMO (Simulation of Urban MObility) pour le prototype IA-11. Image Docker seulement : jamais installé sur le poste, jamais dans ml/.venv.
+eclipse-sumo==1.28.0

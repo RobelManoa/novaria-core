@@ -1,0 +1,44 @@
+# Destruction d'un dépôt ECR protégé, sur un ÉTAT FICTIF (compte 000000000000) : Terraform refuse. Ce n'est pas le résultat d'un apply.
+# Commande : python3 scripts/dev/dev.py terraform-plan-hors-ligne --mode destruction-protegee
+# Date : 2026-11-19 · Terraform 1.17.0 (conteneur) · fournisseur AWS ~> 6.0 · code de sortie de la commande : 0
+# Sortie de Terraform, sans modification :
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  - destroy
+
+Terraform planned the following actions, but then encountered a problem:
+
+  # module.ecr.aws_ecr_repository.protected["alerte"] will be destroyed
+  - resource "aws_ecr_repository" "protected" {
+      - arn                  = "arn:aws:ecr:eu-west-1:000000000000:repository/novaria-dev-alerte" -> null
+      - force_delete         = false -> null
+      - id                   = "novaria-dev-alerte" -> null
+      - image_tag_mutability = "IMMUTABLE" -> null
+      - name                 = "novaria-dev-alerte" -> null
+      - registry_id          = "000000000000" -> null
+      - repository_url       = "000000000000.dkr.ecr.eu-west-1.amazonaws.com/novaria-dev-alerte" -> null
+      - tags_all             = {} -> null
+
+      - encryption_configuration {
+          - encryption_type = "AES256" -> null
+            # (1 unchanged attribute hidden)
+        }
+
+      - image_scanning_configuration {
+          - scan_on_push = true -> null
+        }
+    }
+
+Plan: 0 to add, 0 to change, 1 to destroy.
+
+Error: Instance cannot be destroyed
+
+  on ../../modules/ecr/main.tf line 9:
+   9: resource "aws_ecr_repository" "protected" {
+
+Resource module.ecr.aws_ecr_repository.protected["alerte"] has
+lifecycle.prevent_destroy set, but the plan calls for this resource to be
+destroyed. To avoid this error and continue with the plan, either disable
+lifecycle.prevent_destroy or reduce the scope of the plan using the -target
+option.

@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="jeton" content="__JETON__">
+<title>Observatoire des pannes</title>
+<style>
+:root {
+  --fond: #f4f6f8; --carte: #ffffff; --texte: #18212b; --discret: #5b6875; --bord: #d5dbe1;
+  --ok: #1f8a4c; --ok-fond: #e3f4ea; --alarme: #c62828; --alarme-fond: #fde8e8;
+  --touche: #b26a00; --touche-fond: #fff1d6; --arret: #6b7280; --accent: #1d5fd1; --accent-fond: #e5eefc;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+:root:not([data-theme="light"]) { color-scheme: light dark; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fond: #0f141a; --carte: #18202a; --texte: #e6ebf0; --discret: #98a5b3; --bord: #2c3946;
+    --ok: #4cc47f; --ok-fond: #163626; --alarme: #ff6b6b; --alarme-fond: #3d1b1d;
+    --touche: #f0a43c; --touche-fond: #3b2a10; --arret: #9aa5b1; --accent: #6ea2ff; --accent-fond: #182a4a;
+  }
+}
+:root[data-theme="dark"] {
+  --fond: #0f141a; --carte: #18202a; --texte: #e6ebf0; --discret: #98a5b3; --bord: #2c3946;
+  --ok: #4cc47f; --ok-fond: #163626; --alarme: #ff6b6b; --alarme-fond: #3d1b1d;
+  --touche: #f0a43c; --touche-fond: #3b2a10; --arret: #9aa5b1; --accent: #6ea2ff; --accent-fond: #182a4a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fond); color: var(--texte); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 14px 24px; background: var(--carte); border-bottom: 1px solid var(--bord); }
+h1 { font-size: 18px; margin: 0; }
+h2 { font-size: 14px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .04em; color: var(--discret); }
+.pastille { padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 13px; }
+.pastille.ok { background: var(--ok-fond); color: var(--ok); }
+.pastille.alarme { background: var(--alarme-fond); color: var(--alarme); }
+.discret { color: var(--discret); font-size: 13px; }
+header .espace { flex: 1; }
+button { font: inherit; border: 1px solid var(--bord); background: var(--carte); color: var(--texte); padding: 6px 14px; border-radius: 6px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.danger { background: var(--alarme); border-color: var(--alarme); color: #fff; font-weight: 600; }
+button.principal { background: var(--ok); border-color: var(--ok); color: #fff; font-weight: 600; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+main { padding: 16px 24px 32px; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 340px; }
+@media (max-width: 980px) { main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px 28px; } }
+.carte { background: var(--carte); border: 1px solid var(--bord); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.etapes { grid-column: 1 / -1; display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 760px) { .etapes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.etape { border: 1px solid var(--bord); border-radius: 10px; padding: 10px 12px; background: var(--carte); }
+.etape b { display: block; font-size: 13px; }
+.etape span { color: var(--discret); font-size: 13px; }
+.etape.fait { border-color: var(--ok); background: var(--ok-fond); }
+.etape.en-cours { border-color: var(--accent); background: var(--accent-fond); }
+svg { width: 100%; height: auto; display: block; }
+.noeud rect { fill: var(--carte); stroke: var(--bord); stroke-width: 2; rx: 8; }
+.noeud text { fill: var(--texte); font-size: 13px; pointer-events: none; }
+.noeud .sous { fill: var(--discret); font-size: 11px; }
+.noeud { cursor: pointer; }
+.noeud.etat-ok rect { stroke: var(--ok); }
+.noeud.etat-alarme rect { stroke: var(--alarme); fill: var(--alarme-fond); stroke-width: 3; }
+.noeud.etat-touche rect { stroke: var(--touche); fill: var(--touche-fond); stroke-width: 3; }
+.noeud.etat-arret rect { stroke: var(--arret); stroke-dasharray: 6 4; }
+.noeud.prevu rect { stroke: var(--accent); stroke-dasharray: 3 3; stroke-width: 3; }
+.noeud.choisi rect { stroke-width: 4; }
+.lien { stroke: var(--bord); stroke-width: 1.5; fill: none; }
+.lien.actif { stroke: var(--alarme); stroke-width: 2.5; }
+.legende { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 13px; color: var(--discret); }
+.puce { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 2px solid; }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14px; }
+dt { color: var(--discret); }
+dd { margin: 0; overflow-wrap: anywhere; }
+.bloc-effet { border-left: 4px solid var(--accent); padding: 6px 12px; background: var(--accent-fond); border-radius: 0 6px 6px 0; margin: 10px 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+nav[role=tablist] { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+nav button[aria-selected=true] { background: var(--accent); border-color: var(--accent); color: #fff; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--bord); vertical-align: top; }
+th { color: var(--discret); font-weight: 600; }
+.etat { font-weight: 700; }
+.etat.ALARM { color: var(--alarme); } .etat.OK { color: var(--ok); } .etat.INSUFFICIENT_DATA { color: var(--discret); }
+pre, .journal { font-family: var(--mono); font-size: 12.5px; background: var(--fond); border: 1px solid var(--bord); border-radius: 6px; padding: 8px 10px; overflow: auto; max-height: 260px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 4px 0 10px; }
+.tl { list-style: none; margin: 0; padding: 0; }
+.tl li { display: grid; grid-template-columns: 78px 1fr; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--bord); font-size: 14px; }
+.tl .t { font-family: var(--mono); color: var(--discret); }
+.tl .injection { color: var(--alarme); font-weight: 600; } .tl .retablissement { color: var(--ok); font-weight: 600; }
+.vide { color: var(--discret); font-style: italic; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
+.pill.ok { background: var(--ok-fond); color: var(--ok); } .pill.ouvert { background: var(--alarme-fond); color: var(--alarme); }
+.pill.semi { background: var(--touche-fond); color: var(--touche); } .pill.vide { background: var(--fond); color: var(--discret); }
+svg.spark { width: 110px; height: 26px; vertical-align: middle; } svg.spark polyline { fill: none; stroke: var(--accent); stroke-width: 1.8; }
+.barre { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 4px 0 12px; }
+.barre input { font: inherit; padding: 6px 10px; border: 1px solid var(--bord); border-radius: 6px; background: var(--carte); color: var(--texte); min-width: 260px; }
+.bloc { margin: 14px 0 6px; font-size: 14px; font-weight: 700; }
+.mauvais { color: var(--alarme); font-weight: 700; }
+dialog { border: 1px solid var(--bord); border-radius: 10px; background: var(--carte); color: var(--texte); max-width: 440px; }
+dialog::backdrop { background: rgba(0,0,0,.5); }
+.bandeau { grid-column: 1 / -1; padding: 8px 14px; border-radius: 8px; background: var(--alarme-fond); color: var(--alarme); font-weight: 600; display: none; }
+.bandeau.visible { display: block; }
+.pill.non { background: var(--alarme-fond); color: var(--alarme); }
+.cartes { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); margin: 8px 0 12px; }
+.demo { border: 1px solid var(--bord); border-radius: 10px; padding: 10px 12px; }
+.demo.en-cours { border-color: var(--accent); background: var(--accent-fond); }
+.demo p { margin: 4px 0 8px; font-size: 13.5px; }
+.demo .actions { margin-top: 6px; align-items: center; }
+.demo input[type=number] { width: 90px; font: inherit; padding: 4px 8px; border: 1px solid var(--bord); border-radius: 6px; background: var(--carte); color: var(--texte); }
+.lignes-ok { color: var(--ok); font-weight: 600; } .lignes-ko { color: var(--alarme); font-weight: 600; }
+.deux { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.lien-doc { font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Observatoire des pannes · Novaria Core</h1>
+  <span id="pastille" class="pastille ok" role="status">Chargement…</span>
+  <span id="maj" class="discret"></span>
+  <span class="espace"></span>
+  <span class="discret">Équivalent local de CloudWatch · données de la pile Docker en direct</span>
+  <button id="theme" type="button" aria-label="Changer de thème">Thème</button>
+</header>
+<main>
+  <div id="bandeau" class="bandeau" role="alert"></div>
+  <section class="etapes" aria-label="Déroulement d'une panne">
+    <div class="etape" id="e1"><b>① Panne</b><span>Un service est arrêté volontairement.</span></div>
+    <div class="etape" id="e2"><b>② Alarme</b><span>Une alarme déjà configurée se déclenche.</span></div>
+    <div class="etape" id="e3"><b>③ Journal</b><span>Les journaux montrent ce qui s'est passé.</span></div>
+    <div class="etape" id="e4"><b>④ Cause</b><span>La cause est retracée, puis le service rétabli.</span></div>
+  </section>
+
+  <section class="carte" aria-labelledby="titre-carte">
+    <h2 id="titre-carte">Architecture et état en direct</h2>
+    <svg id="carte" viewBox="0 0 980 560" role="img" aria-label="Carte des services : chaque case est un conteneur, chaque flèche une dépendance"></svg>
+    <div class="legende">
+      <span><i class="puce" style="border-color:var(--ok)"></i>en marche</span>
+      <span><i class="puce" style="border-color:var(--alarme);background:var(--alarme-fond)"></i>alarme levée</span>
+      <span><i class="puce" style="border-color:var(--touche);background:var(--touche-fond)"></i>touché par la panne</span>
+      <span><i class="puce" style="border-color:var(--arret);border-style:dashed"></i>arrêté</span>
+      <span><i class="puce" style="border-color:var(--accent);border-style:dashed"></i>impact prévu si on l'arrête</span>
+    </div>
+  </section>
+
+  <aside class="carte" aria-live="polite">
+    <h2>Service sélectionné</h2>
+    <div id="detail"><p class="vide">Cliquez sur un service de la carte.</p></div>
+  </aside>
+
+  <section class="carte" style="grid-column: 1 / -1">
+    <nav role="tablist" aria-label="Vues">
+      <button role="tab" id="t-alarmes" aria-selected="true" data-vue="alarmes" type="button">Alarmes</button>
+      <button role="tab" id="t-chrono" aria-selected="false" data-vue="chrono" type="button">Chronologie</button>
+      <button role="tab" id="t-tableau" aria-selected="false" data-vue="tableau" type="button">Tableau : débit, erreurs, retard</button>
+      <button role="tab" id="t-rapport" aria-selected="false" data-vue="rapport" type="button">Diagnostic : alarme, journal, cause</button>
+      <button role="tab" id="t-flux" aria-selected="false" data-vue="flux" type="button">Flux complet (MS-15)</button>
+      <button role="tab" id="t-securite" aria-selected="false" data-vue="securite" type="button">Sécurité du poste</button>
+      <button role="tab" id="t-cloud" aria-selected="false" data-vue="cloud" type="button">Cloud local (Moto)</button>
+      <button role="tab" id="t-ia" aria-selected="false" data-vue="ia" type="button">IA et prototypes</button>
+    </nav>
+    <div id="vue"></div>
+  </section>
+</main>
+
+<dialog id="confirmation">
+  <form method="dialog">
+    <p id="confirmation-texte"></p>
+    <div class="actions"><button value="non" type="submit">Annuler</button><button value="oui" class="danger" type="submit">Arrêter</button></div>
+  </form>
+</dialog>
+
+<script>
+"use strict";
+const JETON = document.querySelector('meta[name="jeton"]').content;
+const NS = "http://www.w3.org/2000/svg";
+let etat = null, chrono = [], rapport = null, choisi = null, vue = "alarmes", tableau = null, trace = null, erreurTrace = "";
+
+function h(nom, attrs, ...enfants) {
+  const el = document.createElement(nom);
+  for (const [k, v] of Object.entries(attrs || {})) { if (k === "class") el.className = v; else if (v !== false && v != null) el.setAttribute(k, v); }
+  for (const e of enfants.flat()) el.append(e instanceof Node ? e : document.createTextNode(String(e)));
+  return el;
+}
+function s(nom, attrs, texte) {
+  const el = document.createElementNS(NS, nom);
+  for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, v);
+  if (texte != null) el.textContent = texte;
+  return el;
+}
+async function api(chemin, corps) {
+  const options = corps === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Observatoire-Jeton": JETON }, body: JSON.stringify(corps) };
+  const r = await fetch(chemin, options);
+  const donnees = await r.json();
+  if (!r.ok) throw new Error(donnees.erreur || r.statusText);
+  return donnees;
+}
+const heure = (iso) => (iso ? iso.slice(11, 19) : "—");
+
+// ---- carte : colonnes par profondeur de dépendance
+function profondeur(id, services, memo = {}) {
+  if (memo[id] !== undefined) return memo[id];
+  const sv = services.find((x) => x.id === id);
+  memo[id] = sv.depend_de.length ? 1 + Math.max(...sv.depend_de.map((d) => profondeur(d, services, memo))) : 0;
+  return memo[id];
+}
+function statutVisuel(sv, panne) {
+  if (sv.etat !== "running") return "arret";
+  if (sv.alarmes.length) return panne && sv.id === panne.service ? "alarme" : "touche";
+  return "ok";
+}
+function dessinerCarte() {
+  const svg = document.getElementById("carte");
+  svg.replaceChildren();
+  if (!etat) return;
+  const services = etat.services, panne = etat.panne;
+  const colonnes = {};
+  for (const sv of services) (colonnes[profondeur(sv.id, services)] ||= []).push(sv);
+  const nbCol = Object.keys(colonnes).length, L = 196, H = 54, pos = {};
+  Object.entries(colonnes).forEach(([c, liste]) => liste.forEach((sv, i) => {
+    pos[sv.id] = { x: 20 + c * ((980 - 40 - L) / (nbCol - 1)), y: 20 + i * ((560 - 40 - H) / Math.max(liste.length - 1, 1)) + (liste.length === 1 ? 200 : 0) };
+  }));
+  const prevus = choisi ? services.find((x) => x.id === choisi).dependants : [];
+  const defs = s("defs"), marque = s("marker", { id: "fleche", viewBox: "0 0 10 10", refX: "9", refY: "5", markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse" });
+  marque.append(s("path", { d: "M0 0 L10 5 L0 10 z", fill: "context-stroke" })); defs.append(marque); svg.append(defs);
+  for (const sv of services) for (const amont of sv.depend_de) {
+    const a = pos[amont], b = pos[sv.id], actif = services.find((x) => x.id === amont).etat !== "running";
+    svg.append(s("path", { class: "lien" + (actif ? " actif" : ""), "marker-end": "url(#fleche)", d: `M${a.x + L} ${a.y + H / 2} C ${a.x + L + 50} ${a.y + H / 2}, ${b.x - 50} ${b.y + H / 2}, ${b.x} ${b.y + H / 2}` }));
+  }
+  for (const sv of services) {
+    const p = pos[sv.id], g = s("g", { class: `noeud etat-${statutVisuel(sv, panne)}${prevus.includes(sv.id) ? " prevu" : ""}${choisi === sv.id ? " choisi" : ""}`, tabindex: "0", role: "button", "aria-label": `${sv.libelle} : ${sv.etat}${sv.alarmes.length ? ", alarme" : ""}` });
+    g.append(s("rect", { x: p.x, y: p.y, width: L, height: H }), s("text", { x: p.x + 10, y: p.y + 23, "font-weight": "600" }, sv.libelle), s("text", { class: "sous", x: p.x + 10, y: p.y + 42 }, sv.etat === "running" ? (sv.alarmes.length ? "ALARME : " + sv.alarmes.join(", ").slice(0, 24) : "en marche") : `ARRÊTÉ · ${sv.statut.split(" ").slice(0, 2).join(" ")}`));
+    g.addEventListener("click", () => { choisi = sv.id; rendre(); });
+    g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choisi = sv.id; rendre(); } });
+    svg.append(g);
+  }
+}
+
+// ---- panneau de détail
+function dessinerDetail() {
+  const zone = document.getElementById("detail");
+  zone.replaceChildren();
+  if (!etat || !choisi) { zone.append(h("p", { class: "vide" }, "Cliquez sur un service de la carte.")); return; }
+  const sv = etat.services.find((x) => x.id === choisi), panne = etat.panne, enCours = panne && panne.en_cours;
+  zone.append(h("h3", { style: "margin:0 0 6px" }, sv.libelle), h("p", { class: "discret", style: "margin:0 0 10px" }, sv.role));
+  zone.append(h("dl", {},
+    h("dt", {}, "Conteneur"), h("dd", {}, `${sv.etat}${sv.sante ? " · " + sv.sante : ""}`),
+    h("dt", {}, "Dépend de"), h("dd", {}, sv.depend_de.join(", ") || "rien (socle)"),
+    h("dt", {}, "Touche"), h("dd", {}, sv.dependants.join(", ") || "personne en aval direct"),
+    h("dt", {}, "Alarmes"), h("dd", {}, sv.alarmes.join(", ") || "aucune"),
+    ...sv.sondes.flatMap((p) => [h("dt", {}, "Sonde"), h("dd", {}, `${p.libelle} : ${p.resultat ? (p.resultat[0] ? "OK" : "ÉCHEC") + " (" + p.resultat[1] + ")" : "—"}`)])));
+  zone.append(h("div", { class: "bloc-effet" }, h("b", {}, "Si ce service s'arrête : "), sv.effet));
+  const actions = h("div", { class: "actions" });
+  const arreter = h("button", { class: "danger", type: "button", disabled: enCours || sv.etat !== "running" }, "Arrêter ce service");
+  arreter.addEventListener("click", () => demanderArret(sv));
+  const geler = h("button", { class: "danger", type: "button", disabled: enCours || sv.etat !== "running", title: "docker compose pause : le processus vit mais ne répond plus" }, "Geler (bloquer)");
+  geler.addEventListener("click", () => demanderArret(sv, "pause"));
+  const retablir = h("button", { class: "principal", type: "button", disabled: !enCours }, "Rétablir");
+  retablir.addEventListener("click", async () => { try { await api("/api/retablir", {}); } catch (e) { alert(e.message); } await rafraichir(); });
+  const journal = h("button", { type: "button" }, "Journal récent");
+  journal.addEventListener("click", async () => {
+    const lignes = await api(`/api/journal?service=${encodeURIComponent(sv.id)}`);
+    zone.querySelector(".journal")?.remove();
+    zone.append(h("div", { class: "journal", tabindex: "0", "aria-label": "Journal récent" }, lignes.slice(-25).join("\n") || "(vide)"));
+  });
+  actions.append(arreter, geler, retablir, journal);
+  zone.append(actions);
+}
+function demanderArret(sv, mode = "stop") {
+  const boite = document.getElementById("confirmation"), socle = sv.groupe === "socle";
+  document.getElementById("confirmation-texte").textContent = `${mode === "pause" ? "Geler" : "Arrêter"} « ${sv.libelle} » ?` + (socle ? " Ce service fait partie du socle : plusieurs autres en dépendent." : "") + " La pile reste utilisable ; vous pourrez le rétablir ici.";
+  boite.returnValue = "";
+  boite.addEventListener("close", async function une() {
+    boite.removeEventListener("close", une);
+    if (boite.returnValue !== "oui") return;
+    try { await api("/api/panne", { service: sv.id, confirmer: true, mode }); } catch (e) { alert(e.message); }
+    await rafraichir();
+  });
+  boite.showModal();
+}
+
+// ---- vues du bas
+function dessinerVue() {
+  const zone = document.getElementById("vue");
+  zone.replaceChildren();
+  for (const b of document.querySelectorAll("[role=tab]")) b.setAttribute("aria-selected", String(b.dataset.vue === vue));
+  if (!etat) return;
+  if (vue === "alarmes") {
+    const en = etat.alarmes.filter((a) => a.etat === "ALARM"), ok = etat.alarmes.length - en.length;
+    zone.append(h("p", { class: "discret" }, `${en.length} alarme(s) levée(s), ${ok} à l'état OK. Trois familles : service arrêté ou malsain, sonde HTTP en échec, erreurs dans le journal (définies dans ops/alarmes.json).`));
+    const lignes = [...etat.alarmes].sort((a, b) => (b.etat === "ALARM") - (a.etat === "ALARM"));
+    const tab = h("table", {}, h("thead", {}, h("tr", {}, ...["État", "Alarme", "Cible", "Gravité", "Depuis", "Raison"].map((x) => h("th", {}, x)))));
+    const corps = h("tbody");
+    for (const a of lignes.slice(0, en.length ? en.length + 6 : 8)) corps.append(h("tr", {}, h("td", { class: "etat " + a.etat }, a.etat), h("td", {}, a.nom), h("td", {}, a.cible), h("td", {}, a.gravite), h("td", {}, a.depuis ? new Date(a.depuis * 1000).toISOString().slice(11, 19) : "—"), h("td", {}, a.raison)));
+    tab.append(corps); zone.append(h("div", { style: "overflow-x:auto" }, tab));
+    if (lignes.length > en.length + 6) zone.append(h("p", { class: "discret" }, `… et ${lignes.length - en.length - 6} autres alarmes à l'état OK.`));
+  } else if (THEMES_DEMO.includes(vue)) {
+    if (vue === "securite") dessinerSecurite(zone); else if (vue === "ia") dessinerIA(zone); else dessinerDemos(zone, vue);
+  } else if (vue === "tableau") {
+    dessinerTableau(zone);
+  } else if (vue === "chrono") {
+    if (!chrono.length) zone.append(h("p", { class: "vide" }, "Aucun événement : arrêtez un service pour déclencher la chronologie."));
+    const depart = chrono.find((e) => e.type === "injection");
+    const liste = h("ul", { class: "tl" });
+    for (const e of [...chrono].reverse()) liste.append(h("li", {}, h("span", { class: "t" }, heure(e.horodatage) + (depart ? ` (+${Math.round(e.instant - depart.instant)}s)` : "")), h("span", { class: e.type }, e.texte)));
+    zone.append(liste);
+  } else {
+    if (!rapport) { zone.append(h("p", { class: "vide" }, "Le diagnostic apparaît après l'arrêt d'un service : alarme, journaux, cause, impact.")); return; }
+    zone.append(h("h3", { style: "margin:0 0 4px" }, `1 · Alarmes levées pour ${rapport.libelle}`));
+    if (!rapport.alarmes.length) zone.append(h("p", { class: "vide" }, "Aucune alarme pour le moment (délai : 2 mesures de 5 s)."));
+    else zone.append(h("ul", {}, ...rapport.alarmes.map((a) => h("li", {}, `[${a.gravite}] ${a.nom} sur ${a.cible} : levée ${a.delai_detection_s} s après l'arrêt` + (a.retour_ok_apres_s ? `, retour à OK à ${a.retour_ok_apres_s} s` : ""), " ", h("span", { class: "discret" }, `(guide : ${a.guide})`)))));
+    zone.append(h("h3", { style: "margin:12px 0 4px" }, "2 · Ce que disent les journaux"));
+    for (const [nom, lignes] of Object.entries(rapport.journaux)) zone.append(h("div", {}, h("b", {}, nom), h("div", { class: "journal", tabindex: "0" }, lignes.join("\n") || "(rien)")));
+    zone.append(h("h3", { style: "margin:12px 0 4px" }, "3 · Cause retracée"));
+    zone.append(h("div", { class: "bloc-effet" }, h("b", {}, rapport.cause.constat), h("ul", {}, ...rapport.cause.indices.map((i) => h("li", {}, i)))));
+    zone.append(h("h3", { style: "margin:12px 0 4px" }, "4 · Impact : prévu et constaté"));
+    zone.append(h("p", {}, "Prévu (services qui dépendent de celui-ci) : ", h("b", {}, rapport.impact.prevu.join(", ") || "aucun"), ". Constaté (services avec une alarme) : ", h("b", {}, rapport.impact.observe_en_alarme.join(", ") || "aucun"), "."));
+    zone.append(h("p", { class: "discret" }, rapport.effet_documente));
+  }
+}
+
+// ---- démonstrations : flux complet, sécurité, cloud local, IA (observatoire_demos.py ; textes dans ops/presentation.json)
+const THEMES_DEMO = ["flux", "securite", "cloud", "ia"];
+let demos = null, securite = null, synthese = null, erreurDemo = "";
+const duree = (d) => (d && d.debut ? `${Math.round(((d.fin || Date.now() / 1000) - d.debut))} s` : "");
+function listeTexte(titre, lignes) { return [h("h3", { style: "margin:12px 0 4px" }, titre), h("ul", {}, ...lignes.map((x) => h("li", {}, x)))]; }
+function presentation(zone, theme) {
+  const p = demos && demos.presentation && demos.presentation[theme];
+  if (!p) return;
+  zone.append(h("p", {}, h("b", {}, p.titre)), h("p", { class: "discret" }, p.message), h("p", { class: "lien-doc discret" }, "Preuve écrite : ", h("code", {}, p.doc)));
+  if (p.etapes) {
+    const corps = h("tbody");
+    p.etapes.forEach((e, i) => corps.append(h("tr", {}, h("td", {}, String(i + 1)), h("td", {}, e.montrer), h("td", {}, e.dire))));
+    zone.append(h("div", { style: "overflow-x:auto" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "#"), h("th", {}, "On montre"), h("th", {}, "On dit"))), corps)));
+  }
+}
+function limites(zone, theme) {
+  const p = demos && demos.presentation && demos.presentation[theme];
+  if (p && p.limites) zone.append(...listeTexte("Limites, dites avec la démonstration", p.limites));
+}
+async function lancerDemo(d, graine) {
+  if (d.arrete_des_conteneurs && !confirm(`« ${d.libelle} » arrête puis relance des conteneurs de la pile. Continuer ?`)) return;
+  erreurDemo = "";
+  try { await api("/api/demos/lancer", { id: d.id, confirmer: d.arrete_des_conteneurs, graine: graine || undefined }); } catch (e) { erreurDemo = e.message; }
+  await rafraichirDemos();
+}
+function carteDemo(d) {
+  const c = demos.courante, enCours = c && c.etat === "en_cours", moi = c && c.id === d.id, dernier = moi ? c : d.dernier;
+  const bloc = h("div", { class: "demo" + (moi && enCours ? " en-cours" : "") }, h("b", {}, d.libelle), h("p", {}, d.montre),
+    h("span", { class: "discret" }, `${d.duree}${d.arrete_des_conteneurs ? " · arrête des conteneurs" : ""}${d.pile_requise ? " · pile requise" : ""}`));
+  const actions = h("div", { class: "actions" });
+  let graine = null;
+  if (d.accepte_graine) { graine = h("input", { type: "number", min: "1", max: "999999", value: "42", "aria-label": "Graine de SUMO", title: "Graine de SUMO : une graine neuve donne un run jamais vu" }); actions.append(h("span", { class: "discret" }, "graine"), graine); }
+  const lancer = h("button", { class: "principal", type: "button", disabled: !!enCours }, "Lancer");
+  lancer.addEventListener("click", () => lancerDemo(d, graine && graine.value));
+  actions.append(lancer);
+  if (moi && enCours) { const arreter = h("button", { type: "button" }, "Interrompre"); arreter.addEventListener("click", async () => { try { await api("/api/demos/arreter", {}); } catch (e) { erreurDemo = e.message; } await rafraichirDemos(); }); actions.append(arreter); }
+  if (dernier) actions.append(h("span", { class: "pill " + (dernier.etat === "ok" ? "ok" : dernier.etat === "en_cours" ? "semi" : "non") }, dernier.etat === "ok" ? "réussi" : dernier.etat === "en_cours" ? "en cours" : dernier.etat === "arrete" ? "interrompu" : "échec"), h("span", { class: "discret" }, duree(dernier)));
+  bloc.append(actions);
+  return bloc;
+}
+function sortieDemo(zone, theme) {
+  const c = demos.courante;
+  if (erreurDemo) zone.append(h("p", { class: "mauvais", role: "alert" }, erreurDemo));
+  if (!c || c.theme !== theme) return;
+  zone.append(h("div", { class: "bloc" }, `Sortie de « ${c.libelle} » (${c.etat === "en_cours" ? "en cours, " : ""}${duree(c)})`));
+  if (c.resultats.length) zone.append(h("ul", {}, ...c.resultats.map((r) => h("li", {}, h("span", { class: r.ok ? "lignes-ok" : "lignes-ko" }, r.ok ? "OK " : "ÉCHEC "), `${r.cas} ${r.texte}`))));
+  const sortie = h("div", { class: "journal", tabindex: "0", "aria-label": "Sortie de la commande", style: "max-height:320px" }, c.lignes.join("\n") || "(aucune sortie pour le moment)");
+  zone.append(sortie);
+  sortie.scrollTop = sortie.scrollHeight;
+}
+function dessinerDemos(zone, theme) {
+  if (!demos) { zone.append(h("p", { class: "vide" }, "Chargement…")); return; }
+  presentation(zone, theme);
+  zone.append(h("div", { class: "cartes" }, ...demos.demos.filter((d) => d.theme === theme).map(carteDemo)));
+  sortieDemo(zone, theme);
+  limites(zone, theme);
+}
+async function rafraichirDemos() { try { demos = await api("/api/demos"); } catch (e) { demos = null; } rendre(); }
+const oui = (v) => h("span", { class: "pill " + (v ? "ok" : "non") }, v ? "oui" : "NON");
+function dessinerSecurite(zone) {
+  if (!demos) { zone.append(h("p", { class: "vide" }, "Chargement…")); return; }
+  const p = demos.presentation && demos.presentation.securite;
+  presentation(zone, "securite");
+  const lire = h("button", { class: "principal", type: "button" }, "Lire les conteneurs en marche");
+  lire.addEventListener("click", async () => { try { securite = await api("/api/securite"); } catch (e) { securite = { disponible: false, conteneurs: [], resume: e.message }; } rendre(); });
+  zone.append(h("div", { class: "barre" }, lire, h("span", { class: securite && securite.graves && securite.graves.length ? "mauvais" : "discret" }, securite ? securite.resume : "Pas encore lu : le constat vient de docker inspect, pas de la documentation.")));
+  if (securite && securite.conteneurs.length) {
+    const corps = h("tbody");
+    for (const c of securite.conteneurs) corps.append(h("tr", {}, h("td", {}, h("b", {}, c.service)), h("td", {}, c.utilisateur), h("td", {}, oui(c.cap_drop_all)), h("td", {}, oui(c.no_new_privileges)), h("td", {}, oui(!c.privilegie && !c.reseau_hote && !c.sock_docker)), h("td", {}, c.ports_exposes.length ? h("span", { class: "mauvais" }, c.ports_exposes.join(", ")) : "127.0.0.1 seulement ou aucun")));
+    zone.append(h("div", { style: "overflow-x:auto" }, h("table", {}, h("thead", {}, h("tr", {}, ...["Conteneur", "Utilisateur", "cap_drop ALL", "no-new-privileges", "Ni privilégié, ni hôte, ni socket Docker", "Ports publiés"].map((x) => h("th", {}, x)))), corps)));
+    zone.append(h("p", { class: "discret" }, "« NON » sur cap_drop ou no-new-privileges est attendu pour les bases et Kafka : leurs images démarrent avec des droits qu'elles abandonnent (revue de sécurité, section 2)."));
+  }
+  zone.append(h("div", { class: "cartes" }, ...demos.demos.filter((d) => d.theme === "securite").map(carteDemo)));
+  sortieDemo(zone, "securite");
+  if (p) zone.append(h("div", { class: "deux" }, h("div", {}, ...listeTexte("Corrigé", p.corrige)), h("div", {}, ...listeTexte("Ce qui reste (non corrigé)", p.reste))));
+}
+const pct = (v) => (v === null || v === undefined ? "non disponible" : fmt(v * 100, 0, " %"));
+function dessinerIA(zone) {
+  dessinerDemos(zone, "ia");
+  if (!synthese) { zone.append(h("p", { class: "vide" }, "Chargement des évaluations…")); return; }
+  if (synthese.anomalies && synthese.anomalies.length) {
+    zone.append(h("div", { class: "bloc" }, "Détection d'anomalies sur les anomalies injectées par le simulateur (ml/evaluation/anomalies.json)"));
+    const types = Object.keys(synthese.anomalies[0].rappel_par_type);
+    const corps = h("tbody");
+    for (const d of synthese.anomalies) corps.append(h("tr", {}, h("td", {}, h("b", {}, d.detecteur)), h("td", { class: "num" }, pct(d.precision)), h("td", { class: "num" }, fmt(d.fausses_par_heure, 2)), ...types.map((t) => h("td", { class: "num" }, pct(d.rappel_par_type[t])))));
+    zone.append(h("div", { style: "overflow-x:auto" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Détecteur"), h("th", { class: "num" }, "Précision"), h("th", { class: "num" }, "Fausses / h"), ...types.map((t) => h("th", { class: "num" }, "Rappel " + t)))), corps)));
+  } else zone.append(h("p", { class: "vide" }, "Anomalies : fichier non disponible (python3 scripts/dev/dev.py ml-anomalies)."));
+  const pv = synthese.prevision;
+  if (pv && pv.horizons) {
+    zone.append(h("div", { class: "bloc" }, "Prévision de vitesse METR-LA (données de recherche, non redistribuées) : erreur par horizon"));
+    const corps = h("tbody");
+    for (const [hz, bloc] of Object.entries(pv.horizons)) {
+      const test = bloc.test || {};
+      corps.append(h("tr", {}, h("td", {}, `${hz} min`), h("td", {}, Object.entries(test).map(([nom, m]) => `${nom} : MAE ${m && m.mae !== undefined ? fmt(m.mae, 2) : "non disponible"}`).join(" · ") || "non disponible"), h("td", {}, bloc.meilleur_modele || "non disponible")));
+    }
+    zone.append(h("div", { style: "overflow-x:auto" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Horizon"), h("th", {}, "MAE sur le jeu de test"), h("th", {}, "Meilleur sur la validation"))), corps)));
+  }
+  const sm = synthese.sumo;
+  if (sm) {
+    zone.append(h("div", { class: "bloc" }, "Prototype SUMO contre le générateur v0 (ml/evaluation/sumo.json)"));
+    zone.append(h("p", {}, `Capacité mesurée d'une approche : ${sm.capacite_mesuree_vph === null || sm.capacite_mesuree_vph === undefined ? "non disponible" : fmt(sm.capacite_mesuree_vph, 0, " véhicules/h")} (le v0 suppose 1 400). Rejeu dans le moteur de fenêtres : `, h("code", {}, JSON.stringify(sm.rejeu_moteur || {}).slice(0, 240)), ". Corrélation des profils de demande : ", fmt(sm.comparaison && sm.comparaison.correlation_profil_de_demande, 2), "."));
+  }
+}
+
+// ---- tableau local (MS-16) : débit, erreurs, durées, disjoncteurs, retard de consommation, recherche d'une corrélation
+const fmt = (v, d = 1, u = "") => (v === null || v === undefined ? "—" : `${v.toLocaleString("fr-FR", { maximumFractionDigits: d })}${u}`);
+function spark(valeurs) {
+  const v = (valeurs || []).filter((x) => x !== null && x !== undefined);
+  const svg = s("svg", { class: "spark", viewBox: "0 0 110 26", "aria-hidden": "true" });
+  if (v.length < 2) return svg;
+  const max = Math.max(...v, 1), pas = 110 / (v.length - 1);
+  svg.append(s("polyline", { points: v.map((x, i) => `${(i * pas).toFixed(1)},${(24 - (x / max) * 22).toFixed(1)}`).join(" ") }));
+  return svg;
+}
+function pastille(etatCircuit) {
+  const [classe, texte] = etatCircuit === 2 ? ["ouvert", "OUVERT"] : etatCircuit === 1 ? ["semi", "semi-ouvert"] : ["ok", "fermé"];
+  return h("span", { class: "pill " + classe }, texte);
+}
+function dessinerTableau(zone) {
+  const barre = h("div", { class: "barre" });
+  const trafic = tableau && tableau.trafic ? tableau.trafic : { disponible: false };
+  const lancer = h("button", { class: "principal", type: "button", disabled: trafic.etat === "running" }, "Lancer le trafic simulé");
+  lancer.addEventListener("click", async () => { try { await api("/api/trafic", { action: "start", debit: 15 }); } catch (e) { alert(e.message); } await rafraichir(); });
+  const arreter = h("button", { type: "button", disabled: trafic.etat !== "running" }, "Arrêter le trafic");
+  arreter.addEventListener("click", async () => { try { await api("/api/trafic", { action: "stop" }); } catch (e) { alert(e.message); } await rafraichir(); });
+  barre.append(lancer, arreter, h("span", { class: "discret" }, trafic.disponible ? `simulateur : ${trafic.etat || "inactif"}${trafic.run ? " · run " + trafic.run : ""}` : "simulateur injoignable"));
+  const champ = h("input", { type: "text", placeholder: "identifiant de corrélation (ex. corr-1794923710000)", "aria-label": "Identifiant de corrélation", value: trace ? trace.identifiant : "" });
+  const suivre = h("button", { type: "button" }, "Suivre dans les journaux");
+  const lancerTrace = async () => { erreurTrace = ""; try { trace = await api("/api/trace?id=" + encodeURIComponent(champ.value.trim())); } catch (e) { trace = null; erreurTrace = e.message; } dessinerVue(); };
+  suivre.addEventListener("click", lancerTrace);
+  champ.addEventListener("keydown", (e) => { if (e.key === "Enter") lancerTrace(); });
+  barre.append(champ, suivre);
+  zone.append(barre);
+  if (!tableau) { zone.append(h("p", { class: "vide" }, "Chargement du tableau…")); return; }
+  zone.append(h("p", { class: "discret" }, `Taux sur les ${tableau.fenetre_s} dernières secondes, relevés de GET /metrics de chaque service. Sans trafic, les débits restent à zéro : lancez le trafic simulé.`));
+  const lignes = h("tbody");
+  for (const sv of tableau.services) {
+    const circuits = Object.entries(sv.circuits || {});
+    lignes.append(h("tr", {},
+      h("td", {}, h("b", {}, sv.libelle), sv.mesure ? "" : h("span", { class: "mauvais" }, "  /metrics muet")),
+      h("td", { class: "num" }, fmt(sv.debit, 2), " ", spark(sv.serie)),
+      h("td", { class: "num" + (sv.erreurs_5xx > 0 ? " mauvais" : "") }, fmt(sv.erreurs_5xx, 2)),
+      h("td", { class: "num" + (sv.taux_erreurs >= 0.2 ? " mauvais" : "") }, sv.taux_erreurs === null || sv.taux_erreurs === undefined ? "—" : fmt(sv.taux_erreurs * 100, 0, " %")),
+      h("td", { class: "num" }, fmt(sv.duree_moyenne_ms, 1, " ms"), " / ", fmt(sv.p95_ms, 0, " ms")),
+      h("td", {}, ...(circuits.length ? circuits.flatMap(([d, e]) => [h("span", { class: "discret" }, d + " "), pastille(e), " "]) : [h("span", { class: "discret" }, "sans dépendance gardée")])),
+      h("td", { class: "num" + (sv.erreurs_journal >= 3 ? " mauvais" : "") }, String(sv.erreurs_journal))));
+  }
+  zone.append(h("div", { style: "overflow-x:auto" }, h("table", {}, h("thead", {}, h("tr", {}, ...["Service", "Requêtes / s", "5xx / s", "Taux 5xx", "Durée moy. / p95", "Disjoncteurs", "Erreurs journal (30 s)"].map((x, i) => h("th", { class: i && i < 5 ? "num" : "" }, x)))), lignes)));
+  if (tableau.autres.length) zone.append(h("p", { class: "discret" }, "Sans point /metrics (travailleurs, passerelle, front-end) : erreurs du journal sur 30 s : " + tableau.autres.map((a) => `${a.libelle} ${a.erreurs_journal}`).join(" · ")));
+  zone.append(h("div", { class: "bloc" }, "Kafka : retard de consommation et débit d'écriture"));
+  const k = tableau.kafka;
+  if (!k.mesure) { zone.append(h("p", { class: "vide" }, "Retard Kafka non lu (broker injoignable ?).")); }
+  else {
+    const g = h("tbody");
+    for (const x of k.groupes) g.append(h("tr", {}, h("td", {}, x.groupe), h("td", {}, x.sujet), h("td", { class: "num" }, String(x.retard)), h("td", { class: "num" + (x.retard_s >= 150 ? " mauvais" : "") }, fmt(x.retard_s, 0, " s")), h("td", {}, spark(x.serie))));
+    zone.append(h("div", { style: "overflow-x:auto" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Groupe de consommation"), h("th", {}, "Sujet"), h("th", { class: "num" }, "Retard (messages)"), h("th", { class: "num" }, "Retard en temps d'écriture"), h("th", {}, "Évolution"))), g)));
+    zone.append(h("p", { class: "discret" }, "Messages écrits : " + k.sujets.map((x) => `${x.sujet} ${x.ecrits} (${fmt(x.debit, 2)} / s)`).join(" · ")));
+  }
+  if (tableau.alarmes_actives.length) zone.append(h("p", { class: "mauvais" }, "Alarmes levées : " + tableau.alarmes_actives.map((a) => `${a.alarme} (${a.cible})`).join(", ")));
+  zone.append(h("div", { class: "bloc" }, "Suivre un identifiant de corrélation à travers les services"));
+  if (erreurTrace) zone.append(h("p", { class: "mauvais" }, erreurTrace));
+  if (trace) {
+    zone.append(h("p", {}, trace.lignes.length ? "Chemin : " : "Aucune ligne dans les 30 dernières minutes. ", h("b", {}, trace.chemin.join(" → "))));
+    if (trace.lignes.length) zone.append(h("div", { class: "journal", tabindex: "0", "aria-label": "Lignes de journal de l'identifiant" }, trace.lignes.map((l) => `${l.horodatage.slice(11, 23)}  ${l.service.padEnd(16)} ${String(l.niveau).padEnd(7)} ${l.texte}${Object.keys(l.champs).length ? "  " + JSON.stringify(l.champs) : ""}`).join("\n")));
+  }
+}
+function dessinerEtapes() {
+  const injecte = !!(etat && etat.panne), alarme = !!(rapport && rapport.alarmes.length), journal = !!(rapport && Object.values(rapport.journaux).some((l) => l.length)), cause = !!(rapport && rapport.cause && rapport.cause.constat && injecte);
+  const marques = [injecte, alarme, journal && alarme, cause && alarme];
+  marques.forEach((vrai, i) => { const e = document.getElementById("e" + (i + 1)); e.className = "etape" + (vrai ? " fait" : (i === 0 || marques[i - 1]) && injecte !== (i === 0) ? " en-cours" : ""); });
+}
+function dessinerEntete() {
+  const p = document.getElementById("pastille"), b = document.getElementById("bandeau");
+  const nb = etat ? etat.alarmes.filter((a) => a.etat === "ALARM").length : 0;
+  p.className = "pastille " + (nb ? "alarme" : "ok");
+  p.textContent = !etat ? "Chargement…" : nb ? `${nb} alarme(s) levée(s)` : "Pile saine : aucune alarme";
+  document.getElementById("maj").textContent = etat ? `mesure de ${heure(etat.instant)} UTC` : "";
+  b.className = "bandeau" + (etat && etat.panne && etat.panne.en_cours ? " visible" : "");
+  if (etat && etat.panne && etat.panne.en_cours) b.textContent = `Panne contrôlée en cours : ${etat.panne.service} est arrêté depuis ${heure(etat.panne.debut)} UTC. Suivez les étapes ci-dessous, puis rétablissez le service.`;
+}
+// Une section n'est redessinée que si ce qu'elle montre a changé : un clic ou une sélection de texte ne saute pas toutes les 3 s.
+const empreintes = {};
+function siChange(nom, valeur, dessiner) {
+  const cle = JSON.stringify(valeur);
+  if (empreintes[nom] !== cle) { empreintes[nom] = cle; dessiner(); }
+}
+function rendre() {
+  const visible = etat ? etat.services.map((x) => [x.id, x.etat, x.sante, x.statut, x.alarmes, x.sondes.map((p) => p.resultat)]) : null;
+  siChange("entete", [etat && etat.alarmes.filter((a) => a.etat === "ALARM").length, etat && etat.panne, etat && etat.instant], dessinerEntete);
+  siChange("etapes", [etat && etat.panne, rapport && rapport.alarmes.length, rapport && rapport.cause], dessinerEtapes);
+  siChange("carte", [visible, choisi, etat && etat.panne && etat.panne.service], dessinerCarte);
+  siChange("detail", [visible, choisi, etat && etat.panne], dessinerDetail);
+  siChange("vue", [vue, !THEMES_DEMO.includes(vue) && etat && etat.alarmes.map((a) => [a.etat, a.raison]), chrono.length, rapport && [rapport.alarmes, rapport.journaux, rapport.cause, rapport.impact], vue === "tableau" && tableau, trace, erreurTrace, THEMES_DEMO.includes(vue) && [demos && demos.courante, demos && demos.courante && demos.courante.etat === "en_cours" && Math.floor(Date.now() / 3000), demos && demos.demos.map((d) => d.dernier && d.dernier.etat), securite, synthese, erreurDemo]], dessinerVue);
+}
+async function rafraichir() {
+  try {
+    [etat, chrono] = await Promise.all([api("/api/etat"), api("/api/chronologie")]);
+    rapport = etat.panne ? await api("/api/rapport") : null;
+    if (vue === "tableau") tableau = await api("/api/tableau");
+    if (THEMES_DEMO.includes(vue)) demos = await api("/api/demos");
+    rendre();
+  } catch (e) { document.getElementById("pastille").textContent = "Observatoire injoignable"; }
+}
+document.querySelectorAll("[role=tab]").forEach((b) => b.addEventListener("click", async () => {
+  vue = b.dataset.vue;
+  if (vue === "tableau") { try { tableau = await api("/api/tableau"); } catch (e) { tableau = null; } }
+  if (THEMES_DEMO.includes(vue)) { try { demos = await api("/api/demos"); } catch (e) { demos = null; } }
+  if (vue === "ia" && !synthese) { try { synthese = await api("/api/ia"); } catch (e) { synthese = null; } }
+  dessinerVue();
+}));
+document.getElementById("theme").addEventListener("click", () => {
+  const racine = document.documentElement, sombre = racine.dataset.theme ? racine.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  racine.dataset.theme = sombre ? "light" : "dark";
+});
+rafraichir(); setInterval(rafraichir, 3000);
+</script>
+</body>
+</html>

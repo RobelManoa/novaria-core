@@ -1,0 +1,68 @@
+name: MLSecOps
+
+# Pipeline MLOps et MLSecOps (IA-05) : entraîner, évaluer, appliquer le seuil, enregistrer, avec les contrôles de sécurité
+# du cycle ML (docs/06-ia-mlops/pipeline-mlsecops.md). Déclenché À LA MAIN seulement, et **sans aucun paramètre** :
+# le seuil d'acceptation (cadrage ML, section 6) et la configuration figée (ml/evaluation/selection.json) viennent du dépôt,
+# jamais du déclencheur, pour que personne ne puisse abaisser la barre au lancement.
+#
+# L'étape « Porte » échoue (et l'exécution devient rouge) quand le modèle est sous le seuil ou non conforme : c'est le
+# comportement attendu tant qu'aucun modèle ne remplit les conditions. L'étape « Enregistrer » ne tourne alors pas.
+#
+# Ce flux de travail n'ajoute aucun secret, n'utilise aucun compte AWS (ADR-023) et n'écrit rien dans le dépôt : tout vit sous
+# var/ (jamais versionné) et dans les artefacts de l'exécution. L'entraînement est local (scikit-learn) ; l'équivalent
+# SageMaker est documenté, non exécuté.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mlsecops-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: "ml/requirements*.txt" }
+      - name: Dépendances de l'entraînement (empreintes exigées)
+        run: pip install --require-hashes -r ml/requirements.txt
+      - name: Outil d'audit des dépendances, dans un environnement à part (empreintes exigées)
+        run: |
+          python -m venv "$RUNNER_TEMP/audit"
+          "$RUNNER_TEMP/audit/bin/pip" install --require-hashes -r ml/requirements-mlsecops.txt
+      - name: Reconstruire le jeu v1 et vérifier qu'il est identique à sa fiche (reproductibilité)
+        run: |
+          python ml/src/construire_jeu.py
+          git diff --exit-code -- data/datasets
+      - name: Entraîner et évaluer la configuration figée, appliquer les contrôles de sécurité
+        env:
+          PIP_AUDIT: ${{ runner.temp }}/audit/bin/pip-audit
+        run: python ml/src/executer_pipeline.py evaluer
+      - name: Porte - un modèle sous le seuil n'est pas enregistré
+        run: python ml/src/executer_pipeline.py porte
+      - name: Enregistrer le modèle
+        run: python ml/src/executer_pipeline.py enregistrer
+      - name: Résumé de l'exécution
+        if: always()
+        run: |
+          if [ -f var/pipeline/rapport.md ]; then cat var/pipeline/rapport.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Conserver le rapport, la décision, l'audit et la nomenclature (SBOM)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mlsecops-rapport
+          path: var/pipeline/
+          if-no-files-found: ignore
+      - name: Conserver le modèle enregistré
+        uses: actions/upload-artifact@v7
+        with:
+          name: mlsecops-modele
+          path: var/models/
+          if-no-files-found: ignore

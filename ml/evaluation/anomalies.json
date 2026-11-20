@@ -1,0 +1,207 @@
+{
+  "auc_isolation_forest": {
+    "aberrante": 0.996,
+    "chute": 0.512,
+    "doublon": 0.811,
+    "plateau": 0.936,
+    "retard": 0.757
+  },
+  "detecteurs": {
+    "isolation_forest": {
+      "episodes_faux": 40,
+      "episodes_vrais": 2,
+      "fausses_par_heure": 0.952,
+      "par_type": {
+        "aberrante": {
+          "delai_max_s": 30.0,
+          "delai_median_s": 15.0,
+          "detectees": 2,
+          "injectees": 9,
+          "rappel": 0.2222222222222222
+        },
+        "chute": {
+          "delai_max_s": null,
+          "delai_median_s": null,
+          "detectees": 0,
+          "injectees": 4,
+          "rappel": 0.0
+        },
+        "doublon": {
+          "delai_max_s": null,
+          "delai_median_s": null,
+          "detectees": 0,
+          "injectees": 9,
+          "rappel": 0.0
+        },
+        "muet": {
+          "delai_max_s": null,
+          "delai_median_s": null,
+          "detectees": 0,
+          "injectees": 9,
+          "rappel": 0.0
+        },
+        "plateau": {
+          "delai_max_s": null,
+          "delai_median_s": null,
+          "detectees": 0,
+          "injectees": 4,
+          "rappel": 0.0
+        },
+        "retard": {
+          "delai_max_s": null,
+          "delai_median_s": null,
+          "detectees": 0,
+          "injectees": 9,
+          "rappel": 0.0
+        }
+      },
+      "precision": 0.047619047619047616,
+      "premiere_alerte": {
+        "aberrante": {
+          "isolation_forest": 2
+        }
+      }
+    },
+    "regles": {
+      "episodes_faux": 4,
+      "episodes_vrais": 45,
+      "fausses_par_heure": 0.095,
+      "par_type": {
+        "aberrante": {
+          "delai_max_s": 0.0,
+          "delai_median_s": 0.0,
+          "detectees": 8,
+          "injectees": 9,
+          "rappel": 0.8888888888888888
+        },
+        "chute": {
+          "delai_max_s": 90.0,
+          "delai_median_s": 70.0,
+          "detectees": 3,
+          "injectees": 4,
+          "rappel": 0.75
+        },
+        "doublon": {
+          "delai_max_s": 3.0,
+          "delai_median_s": 3.0,
+          "detectees": 9,
+          "injectees": 9,
+          "rappel": 1.0
+        },
+        "muet": {
+          "delai_max_s": 50.0,
+          "delai_median_s": 50.0,
+          "detectees": 9,
+          "injectees": 9,
+          "rappel": 1.0
+        },
+        "plateau": {
+          "delai_max_s": 110.0,
+          "delai_median_s": 100.0,
+          "detectees": 4,
+          "injectees": 4,
+          "rappel": 1.0
+        },
+        "retard": {
+          "delai_max_s": 50.0,
+          "delai_median_s": 50.0,
+          "detectees": 9,
+          "injectees": 9,
+          "rappel": 1.0
+        }
+      },
+      "precision": 0.9183673469387755,
+      "premiere_alerte": {
+        "aberrante": {
+          "ecart_mediane": 8
+        },
+        "chute": {
+          "chute_de_debit": 3
+        },
+        "doublon": {
+          "doublon": 9
+        },
+        "muet": {
+          "capteur_muet": 9
+        },
+        "plateau": {
+          "plateau": 4
+        },
+        "retard": {
+          "capteur_muet": 6,
+          "livraison_en_retard": 3
+        }
+      }
+    }
+  },
+  "protocole": {
+    "apprentissage": [
+      "ia09-app-calme-s101",
+      "ia09-app-pointe-s102",
+      "ia09-app-ponctuel-s103",
+      "ia09-app-anom-calme-s131",
+      "ia09-app-anom-pointe-s132",
+      "ia09-app-anom-ponctuel-s133",
+      "ia09-synth-pointe-s251",
+      "ia09-synth-ponctuel-s252"
+    ],
+    "arbres": 200,
+    "budget_fausses_par_heure": 1.0,
+    "echantillon": 256,
+    "evaluation": [
+      "ia09-calme-muet-s301",
+      "ia09-calme-retard-s302",
+      "ia09-calme-doublon-s303",
+      "ia09-calme-aberrante-s304",
+      "ia09-pointe-muet-s305",
+      "ia09-pointe-retard-s306",
+      "ia09-pointe-doublon-s307",
+      "ia09-pointe-aberrante-s308",
+      "ia09-ponctuel-muet-s309",
+      "ia09-ponctuel-retard-s310",
+      "ia09-ponctuel-doublon-s311",
+      "ia09-ponctuel-aberrante-s312",
+      "ia09-synth-pointe-s331",
+      "ia09-synth-ponctuel-s332"
+    ],
+    "heures_evaluation": 42.0,
+    "injections": 44,
+    "lignes_apprentissage": 207504,
+    "parametres_regles": {
+      "chute_debit": 0.25,
+      "chute_vitesse_min": 0.85,
+      "ecart_debit": 7.5,
+      "ecart_vitesse": 6.0,
+      "plateau": 12,
+      "retard_s": 30.0,
+      "silence_s": 60.0
+    },
+    "seuil_isolation_forest": -0.7244,
+    "validation": [
+      "ia09-val-calme-s111",
+      "ia09-val-pointe-s112",
+      "ia09-val-ponctuel-s113",
+      "ia09-val-calme-s114",
+      "ia09-val-pointe-s115",
+      "ia09-val-ponctuel-s116",
+      "ia09-val-anom-calme-s121",
+      "ia09-val-anom-pointe-s122",
+      "ia09-val-anom-ponctuel-s123",
+      "ia09-synth-pointe-s241",
+      "ia09-synth-ponctuel-s242"
+    ]
+  },
+  "sources": {
+    "aberrante": "simulateur",
+    "chute": "synthétique",
+    "doublon": "simulateur",
+    "muet": "simulateur",
+    "plateau": "synthétique",
+    "retard": "simulateur"
+  },
+  "validation_sans_anomalie": {
+    "heures": 18.0,
+    "isolation_forest_fausses_par_heure": 0.833,
+    "regles_fausses_par_heure": 0.111
+  }
+}

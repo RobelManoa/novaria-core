@@ -9,6 +9,7 @@ du modèle de prévision.
 
 from fastapi import Depends, Response
 
+from app.core.metrics import REGISTRY
 from app.db.session import get_indicator_repository
 from app.drift import metrics
 from app.drift.runtime import get_drift_monitor
@@ -20,4 +21,6 @@ def read_metrics(
     indicators: IndicatorRepository = Depends(get_indicator_repository),
     monitor: DriftMonitor = Depends(get_drift_monitor),
 ) -> Response:
-    return Response(metrics.render(monitor.report(indicators)), media_type=metrics.CONTENT_TYPE)
+    # Les signaux HTTP du service (MS-16), puis la dérive des entrées du modèle (IA-06).
+    body = REGISTRY.render() + metrics.render(monitor.report(indicators))
+    return Response(body, media_type=metrics.CONTENT_TYPE)

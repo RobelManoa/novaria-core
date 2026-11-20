@@ -1,0 +1,309 @@
+{
+  "capacite_mesuree_vph": 855.0,
+  "comparaison": {
+    "correlation_profil_de_demande": 0.5772684189436716,
+    "intersection": "INT_01",
+    "sumo": {
+      "etats": {
+        "CONGESTED": 0.0,
+        "FREE_FLOW": 0.76,
+        "SLOW": 0.24
+      },
+      "etats_par_approche": {
+        "ROAD_001": {
+          "CONGESTED": 0.0,
+          "FREE_FLOW": 0.7066666666666667,
+          "SLOW": 0.29333333333333333
+        },
+        "ROAD_002": {
+          "CONGESTED": 0.0,
+          "FREE_FLOW": 0.8033333333333333,
+          "SLOW": 0.19666666666666666
+        },
+        "ROAD_003": {
+          "CONGESTED": 0.0,
+          "FREE_FLOW": 0.6666666666666666,
+          "SLOW": 0.3333333333333333
+        },
+        "ROAD_004": {
+          "CONGESTED": 0.0,
+          "FREE_FLOW": 0.8633333333333333,
+          "SLOW": 0.13666666666666666
+        }
+      },
+      "file_max_m": 280.0,
+      "file_moyenne_m": 113.7625,
+      "minutes": 1200,
+      "part_minutes_sans_vitesse": 0.0,
+      "ratio_vitesse_ecart_type": 0.14853526702202935,
+      "ratio_vitesse_min": 0.309,
+      "ratio_vitesse_moyen": 0.8008358333333334,
+      "tranches": [
+        {
+          "file_m": 23.7575,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.9056333333333334,
+          "tranche": 0,
+          "vehicules_par_minute": 8.475
+        },
+        {
+          "file_m": 53.583333333333336,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.8587083333333333,
+          "tranche": 1,
+          "vehicules_par_minute": 11.908333333333333
+        },
+        {
+          "file_m": 144.1575,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.6609583333333333,
+          "tranche": 2,
+          "vehicules_par_minute": 13.183333333333334
+        },
+        {
+          "file_m": 240.03,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.6641916666666667,
+          "tranche": 3,
+          "vehicules_par_minute": 13.266666666666667
+        },
+        {
+          "file_m": 256.9533333333333,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.6731916666666666,
+          "tranche": 4,
+          "vehicules_par_minute": 13.158333333333333
+        },
+        {
+          "file_m": 218.77833333333334,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.721875,
+          "tranche": 5,
+          "vehicules_par_minute": 11.816666666666666
+        },
+        {
+          "file_m": 121.85083333333334,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.809625,
+          "tranche": 6,
+          "vehicules_par_minute": 10.85
+        },
+        {
+          "file_m": 30.96916666666667,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.8999583333333334,
+          "tranche": 7,
+          "vehicules_par_minute": 8.991666666666667
+        },
+        {
+          "file_m": 22.5175,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.9065416666666667,
+          "tranche": 8,
+          "vehicules_par_minute": 8.416666666666666
+        },
+        {
+          "file_m": 25.0275,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.907675,
+          "tranche": 9,
+          "vehicules_par_minute": 8.85
+        }
+      ],
+      "vehicules_par_minute_ecart_type": 3.8967846432097777,
+      "vehicules_par_minute_moyen": 10.891666666666667
+    },
+    "v0": {
+      "etats": {
+        "CONGESTED": 0.15666666666666668,
+        "FREE_FLOW": 0.5966666666666667,
+        "SLOW": 0.24666666666666667
+      },
+      "etats_par_approche": {
+        "ROAD_001": {
+          "CONGESTED": 0.31333333333333335,
+          "FREE_FLOW": 0.49666666666666665,
+          "SLOW": 0.19
+        },
+        "ROAD_002": {
+          "CONGESTED": 0.0,
+          "FREE_FLOW": 0.6966666666666667,
+          "SLOW": 0.30333333333333334
+        },
+        "ROAD_003": {
+          "CONGESTED": 0.0,
+          "FREE_FLOW": 0.6966666666666667,
+          "SLOW": 0.30333333333333334
+        },
+        "ROAD_004": {
+          "CONGESTED": 0.31333333333333335,
+          "FREE_FLOW": 0.49666666666666665,
+          "SLOW": 0.19
+        }
+      },
+      "file_max_m": 216.8,
+      "file_moyenne_m": 53.300250000000005,
+      "minutes": 1200,
+      "part_minutes_sans_vitesse": 0.0,
+      "ratio_vitesse_ecart_type": 0.2694827863382723,
+      "ratio_vitesse_min": 0.111,
+      "ratio_vitesse_moyen": 0.6943941666666666,
+      "tranches": [
+        {
+          "file_m": 0.0,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.8989416666666667,
+          "tranche": 0,
+          "vehicules_par_minute": 14.375
+        },
+        {
+          "file_m": 14.413333333333332,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.8479583333333333,
+          "tranche": 1,
+          "vehicules_par_minute": 18.858333333333334
+        },
+        {
+          "file_m": 80.41166666666666,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.5887916666666667,
+          "tranche": 2,
+          "vehicules_par_minute": 19.4
+        },
+        {
+          "file_m": 143.55083333333332,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.34713333333333335,
+          "tranche": 3,
+          "vehicules_par_minute": 16.416666666666668
+        },
+        {
+          "file_m": 140.07250000000002,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.3526916666666667,
+          "tranche": 4,
+          "vehicules_par_minute": 14.808333333333334
+        },
+        {
+          "file_m": 115.025,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.4565666666666667,
+          "tranche": 5,
+          "vehicules_par_minute": 14.15
+        },
+        {
+          "file_m": 39.52916666666667,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.7500166666666667,
+          "tranche": 6,
+          "vehicules_par_minute": 15.966666666666667
+        },
+        {
+          "file_m": 0.0,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.8999083333333334,
+          "tranche": 7,
+          "vehicules_par_minute": 14.975
+        },
+        {
+          "file_m": 0.0,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.900875,
+          "tranche": 8,
+          "vehicules_par_minute": 14.441666666666666
+        },
+        {
+          "file_m": 0.0,
+          "minutes_sans_vitesse": 0.0,
+          "ratio_vitesse": 0.9010583333333333,
+          "tranche": 9,
+          "vehicules_par_minute": 14.35
+        }
+      ],
+      "vehicules_par_minute_ecart_type": 4.793728469457661,
+      "vehicules_par_minute_moyen": 15.774166666666666
+    }
+  },
+  "rejeu_moteur": {
+    "ecarts": [],
+    "fenetres_1_minute": 1200,
+    "fenetres_par_route": {
+      "ROAD_001": 300,
+      "ROAD_002": 300,
+      "ROAD_003": 300,
+      "ROAD_004": 300
+    },
+    "messages": 7200,
+    "mesures_acceptees": 7200,
+    "stats_du_moteur": {
+      "accepted": 7200
+    },
+    "vehicules": 13070
+  },
+  "run": {
+    "dernier": "2026-10-20T11:00:00Z",
+    "fichiers": {
+      "detectors.add.xml": "848a3319988bbe69ed86c260540d68b1d82c7fe32bdbb90f0594ea78bc156b83",
+      "flows.rou.xml": "1bac3770c1c36d2f47145159b3db58eebc5e39c4bc8e2a08e2c3d54b2b2c9e9f",
+      "mesures.jsonl": "0727cba9ca08374d3cf2d90f33cedd8f31c388a5c03fa31217b021e2adfadd1a",
+      "net.net.xml": "73af4ce7292721d3781510d44d141895587aad2fece25ade2c4dfafc28382b16",
+      "run.cfg": "1bdaad8b9e9aed44fadb057a6764e50c82910bbe6685df67077cde8d12c526a4"
+    },
+    "intersection": "INT_01",
+    "messages": 7200,
+    "premier": "2026-10-20T06:00:10Z",
+    "run_id": "sumo-int01-pointe-s42",
+    "scenario_id": "sumo-carrefour-int01-pointe",
+    "scenario_v0_de_reference": "heure-de-pointe",
+    "seed": 42,
+    "source": "SUMO (Simulation of Urban MObility) 1.28.0, image novaria-sumo:1.28.0",
+    "verite_terrain": "aucune : SUMO ne fournit pas d'état de congestion voulu (voir docs/06-ia-mlops/prototype-sumo.md)"
+  },
+  "variantes": [
+    {
+      "ecarts_au_rejeu": [],
+      "etats": {
+        "CONGESTED": 0.0075,
+        "FREE_FLOW": 0.011666666666666667,
+        "SLOW": 0.9808333333333333
+      },
+      "file_max_m": 280.0,
+      "file_moyenne_m": 113.7625,
+      "graine": 42,
+      "position_e1_m": -10.0,
+      "ratio_vitesse_min": 0.008,
+      "ratio_vitesse_moyen": 0.5250508333333334,
+      "vehicules_par_minute_moyen": 10.883333333333333
+    },
+    {
+      "ecarts_au_rejeu": [],
+      "etats": {
+        "CONGESTED": 0.0225,
+        "FREE_FLOW": 0.6841666666666667,
+        "SLOW": 0.29333333333333333
+      },
+      "file_max_m": 280.0,
+      "file_moyenne_m": 130.02100000000002,
+      "graine": 43,
+      "position_e1_m": -100.0,
+      "ratio_vitesse_min": 0.008,
+      "ratio_vitesse_moyen": 0.7856964882943144,
+      "vehicules_par_minute_moyen": 11.135833333333334
+    },
+    {
+      "ecarts_au_rejeu": [],
+      "etats": {
+        "CONGESTED": 0.015833333333333335,
+        "FREE_FLOW": 0.7341666666666666,
+        "SLOW": 0.25
+      },
+      "file_max_m": 280.0,
+      "file_moyenne_m": 130.927,
+      "graine": 44,
+      "position_e1_m": -100.0,
+      "ratio_vitesse_min": 0.006,
+      "ratio_vitesse_moyen": 0.788863712374582,
+      "vehicules_par_minute_moyen": 11.05
+    }
+  ]
+}

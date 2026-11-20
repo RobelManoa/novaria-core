@@ -49,7 +49,7 @@ class CommandesDocker(unittest.TestCase):
     def test_le_dockerfile_ne_tourne_pas_en_root_et_ne_copie_pas_le_code(self):
         dockerfile = (RACINE / "data" / "bigdata" / "Dockerfile").read_text(encoding="utf-8")
         self.assertIn("USER novaria", dockerfile)
-        self.assertNotRegex(dockerfile, r"(?m)^COPY (?!requirements\.txt)")
+        self.assertNotRegex(dockerfile, r"(?m)^COPY (?!requirements\.txt|--from=roues /roues )")
 
 
 if __name__ == "__main__":

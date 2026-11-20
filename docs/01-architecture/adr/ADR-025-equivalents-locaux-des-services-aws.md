@@ -39,6 +39,7 @@ Plusieurs ADR (Architecture Decision Record, enregistrement de décision d'archi
 |---|---|---|---|
 | ECS (Elastic Container Service) Fargate | Exécuter les conteneurs | Docker Compose | Mêmes images ([ADR-021](ADR-021-docker-deploiement.md)) |
 | ECR (Elastic Container Registry) | Stocker les images | Images construites localement (`docker compose build`) | Le SHA (Secure Hash Algorithm) du commit est un argument de construction (`GIT_SHA`), lu par la sonde de santé ; l'image n'est pas encore étiquetée au SHA (nécessaire au retour de version, CLD-16) |
+| API AWS (appelée par Terraform, pas par les services) | Vérifier que le code d'infrastructure s'applique et ne dérive pas (CLD-17) | **Moto** (émulateur d'API AWS, licence Apache-2.0) dans Docker, sur un réseau interne sans route vers Internet | `dev.py terraform-emulateur` ; [ressources persistantes](../../05-cloud-aws/ressources-persistantes.md) |
 | RDS (Relational Database Service) PostgreSQL | Base métier et entrepôt | Conteneur `postgres:16-alpine` ([ADR-024](ADR-024-bases-de-donnees-locales.md)) | `POSTGRES_URL` |
 | Hébergement MongoDB ([ADR-022](ADR-022-hebergement-mongodb.md)) | Journaux, événements bruts | Conteneur `mongo:7` | `MONGO_URL` |
 | S3 (Simple Storage Service) | Jeux de données, modèles, sauvegardes | Dossiers locaux derrière le port `ObjectStore` : modèles `var/models/`, jeux `data/datasets/<jeu>/` ; sauvegardes `backups/` et rapports `var/reports/` **hors du port** pour l'instant | Port `ObjectStore` (`put`, `get`, `exists`, `list`) dans `ml/src/stockage/` : `STORAGE_BACKEND=local` ([stockage d'objets](../../03-donnees/stockage-objets.md)) |
@@ -52,6 +53,8 @@ Plusieurs ADR (Architecture Decision Record, enregistrement de décision d'archi
 | IAM (Identity and Access Management) et OIDC (OpenID Connect) | Identités, accès du CI (Continuous Integration, intégration continue) | Comptes de base de données par service ; aucun accès cloud | Aucun jeton AWS dans GitHub |
 | EventBridge Scheduler | Tâches planifiées | `cron`, Planificateur de tâches Windows, ou profil Compose `ops` | Commande `dev.py` |
 | VPC (Virtual Private Cloud, réseau privé virtuel), ALB (Application Load Balancer, répartiteur de charge) | Réseau et entrée | Réseau Compose, ports sur `127.0.0.1` | Documenté |
+
+**Addendum du 19/11/2026 (CLD-17) : un émulateur d'API AWS, pour l'infrastructure seulement.** L'option A reste écartée **pour les services** (ils parlent à des équivalents libres derrière des ports). Un émulateur n'est retenu que pour **rejouer le code Terraform** sans compte : *Moto* (Apache-2.0, publié régulièrement, ECR et CloudWatch Logs gérés). *LocalStack* n'est plus un choix stable : depuis le 23/03/2026 son image exige un compte et un jeton, et l'édition communautaire n'est plus entretenue ([annonce](https://blog.localstack.cloud/the-road-ahead-for-localstack/)). L'émulateur ne prouve pas le comportement du vrai AWS (quotas, droits, valeurs refusées).
 
 ### 4.2 Règles
 

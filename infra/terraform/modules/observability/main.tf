@@ -3,4 +3,5 @@ resource "aws_cloudwatch_log_group" "service" {
 
   name              = "/${var.project}/${var.environment}/${each.key}"
   retention_in_days = var.retention_days
+  skip_destroy      = var.protected # vrai : `terraform destroy` retire le groupe de l'état mais **garde** les journaux
 }

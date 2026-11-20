@@ -1,0 +1,137 @@
+[
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/alert\\-rules$",
+  "role": "viewer"
+ },
+ {
+  "method": "PATCH",
+  "pattern": "^/api/v1/alert\\-rules/[^/]+$",
+  "role": "admin"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/alerts$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/alerts/[^/]+$",
+  "role": "viewer"
+ },
+ {
+  "method": "POST",
+  "pattern": "^/api/v1/alerts/[^/]+/acknowledge$",
+  "role": "operator"
+ },
+ {
+  "method": "POST",
+  "pattern": "^/api/v1/alerts/[^/]+/resolve$",
+  "role": "operator"
+ },
+ {
+  "method": "POST",
+  "pattern": "^/api/v1/auth/login$",
+  "role": null
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/auth/me$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/events/stream$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/forecasts$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/health$",
+  "role": null
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/indicators$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/indicators/latest$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/indicators/[^/]+$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/intersections$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/intersections/[^/]+$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/reports$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/reports/[^/]+/content$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/road\\-segments$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/signals$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/signals/[^/]+$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/signals/[^/]+/commands$",
+  "role": "viewer"
+ },
+ {
+  "method": "POST",
+  "pattern": "^/api/v1/signals/[^/]+/commands$",
+  "role": "operator"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/users$",
+  "role": "admin"
+ },
+ {
+  "method": "POST",
+  "pattern": "^/api/v1/users$",
+  "role": "admin"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/users/[^/]+$",
+  "role": "admin"
+ },
+ {
+  "method": "PATCH",
+  "pattern": "^/api/v1/users/[^/]+$",
+  "role": "admin"
+ }
+]

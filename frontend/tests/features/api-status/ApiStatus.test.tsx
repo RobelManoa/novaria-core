@@ -28,4 +28,12 @@ describe("ApiStatus", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it("dit que l'API est injoignable quand le réseau est coupé (pas de code HTTP)", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
+    render(<ApiStatus />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "API injoignable : Le serveur est injoignable. Vérifiez la connexion.",
+    );
+  });
 });

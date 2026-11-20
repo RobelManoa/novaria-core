@@ -54,7 +54,7 @@ flowchart LR
 | Glue | Catalogue, ETL (Extract, Transform, Load) | Scripts Python et [dictionnaire de données](../03-donnees/dictionnaire-de-donnees.md) | `data/etl/` | En service ; Glue non exécuté |
 | S3 | Jeux de données, modèles, sauvegardes | Port `ObjectStore` sur `var/`, dossier `backups/` | `ml/src/stockage/objets.py` | Port `ObjectStore` (écrire, lire, lister) pour les modèles et les jeux ; test d'absence de SDK : LOC-05 (#152), fait le 13/11/2026 ([stockage d'objets](../03-donnees/stockage-objets.md)). Sauvegardes et rapports restent hors du port |
 | SageMaker | Entraînement, service de modèles | scikit-learn ; registre MongoDB `model_runs` | `ml/` | En service ([ADR-017](../01-architecture/adr/ADR-017-mlops-mlsecops.md)) |
-| CloudWatch | Journaux, métriques, alarmes | Journaux JSON ; `GET /metrics` au format Prometheus | `services/traitement/app/api/metrics.py` | `/metrics` dans `traitement` ; autres services : non vérifié. Alarmes : MS-16 (#135), à faire |
+| CloudWatch | Journaux, métriques, alarmes | Journaux JSON ; `GET /metrics` au format Prometheus | `services/traitement/app/api/metrics.py` | `/metrics` dans les quatre services (MS-16) ; alarmes locales : `ops/alarmes.json` ([diagnostic](../08-exploitation/diagnostic.md), [observabilité](../08-exploitation/observabilite.md)) |
 | Secrets Manager | Secrets d'exécution | `.env` généré, ignoré par Git | `dev.py init-env` | En service |
 | IAM, OIDC | Identités, accès du CI | Rôles `viewer` / `operator` / `admin` à la passerelle ; comptes de base par service | `gateway/`, `db-check` | En service ; aucune clé AWS dans GitHub |
 | EventBridge Scheduler | Tâches planifiées | `cron`, Planificateur de tâches Windows, profil Compose `ops` | `docker-compose.yml` (profil `ops`) | En service pour les sauvegardes |
@@ -73,9 +73,9 @@ Légende : **Local** = faisable tel quel ; **À reformuler** = l'énoncé cite A
 | **#86 CLD-13**, **#134 MS-15** | Parcours de bout en bout, cas d'échec | Pile Compose réelle : capteur simulé → collecte → traitement → alerte → réponse ; pannes en arrêtant un conteneur | Local |
 | **#88 CLD-15** | Sauvegarde et restauration | `dev.py backup`, `restore-check` ; [procédure existante](../08-exploitation/sauvegarde-restauration-locale.md) | Local (en grande partie fait) |
 | **#135 MS-16** | Observabilité locale | Journaux JSON avec identifiant de corrélation, `/metrics` dans chaque service, règle d'alerte | Local |
-| **#87 CLD-14** | « Détection dans CloudWatch » | Arrêter un service, détecter par `/metrics` et les journaux ; l'alarme est une règle d'alerte locale (Prometheus avec Alertmanager, ou script `dev.py`). Ces outils ne sont pas dans la pile aujourd'hui | À reformuler |
-| **#89 CLD-16** | « Rollback d'ECS » | Redéployer l'image du SHA précédent avec Compose ; documenter que les données ne reviennent pas | À reformuler |
-| **#90 CLD-17** | `terraform plan` à 0 changement | Le plan exige des identifiants : non exécuté. Contrôles statiques faits : [contrôles Terraform sans compte](controles-terraform-sans-compte.md). Option à évaluer : un module Terraform avec le fournisseur Docker pour montrer l'idempotence en local (non vérifié) | À reformuler |
+| **#87 CLD-14** | « Détection dans CloudWatch » | Arrêter un service, détecter par l'état des conteneurs, les sondes HTTP et les journaux ; l'alarme est une règle déclarée dans `ops/alarmes.json`, évaluée par `dev.py observatoire` et `dev.py panne` (pas de Prometheus). Voir [diagnostic](../08-exploitation/diagnostic.md) | Réalisé (relecture à faire) |
+| **#89 CLD-16** | « Rollback d'ECS » | Redéployer l'image du SHA précédent avec Compose ; documenter que les données ne reviennent pas | **Fait le 20/11/2026** : `dev.py rollback`, essai sur la pile réelle, limites documentées : [rollback.md](../08-exploitation/rollback.md). Rollback d'ECS : documenté, non exécuté |
+| **#90 CLD-17** | `terraform plan` à 0 changement | Le plan exige des identifiants : non exécuté. Contrôles statiques faits : [contrôles Terraform sans compte](controles-terraform-sans-compte.md). **Fait le 19/11/2026** : le code Terraform est appliqué à **Moto** (émulateur d'API AWS local, Apache-2.0) puis le plan est rejoué : **0 changement**, la dérive est vue, les protections des ressources persistantes jouent ; voir [ressources persistantes](ressources-persistantes.md) | Atteint sur l'émulateur, **non sur AWS** (aucun compte) |
 | **#91 CLD-18** | Matrice d'accès IAM | Matrice rôles × ressources locale : rôles de la passerelle, comptes de base par service ; un essai autorisé et un refusé par rôle | À reformuler |
 | **#136 MS-17** | ECR, ECS Fargate, MSK | Compose : un conteneur par service, révision du commit vérifiée, seule la passerelle exposée. Déploiement AWS : documenté | À reformuler ; AWS documenté |
 | **#93 GES-09** | Chiffrage AWS | Coût **projeté**, tarifs publics, mention « projeté, non déployé » | Documenté |
@@ -135,7 +135,7 @@ Résultat attendu : le premier contrôle ne renvoie aucun fichier (relevé du 13
 | Qu'est-ce qui prouve que le code marche sur AWS ? | Rien : nous ne le prétendons pas. Les contrôles Terraform sont statiques ; `plan` et `apply` n'ont pas été lancés | [Contrôles Terraform sans compte](controles-terraform-sans-compte.md) |
 | Comment gérez-vous la montée en charge sans mise à l'échelle automatique ? | Elle se démontre avec le simulateur à débit réglable ; les limites sont dites | ADR-025, section 4.3 ; `scripts/dev/bench_collecte.py` |
 | Comment prouvez-vous que vos sauvegardes servent ? | Restauration dans une base jetable et comparaison des comptages | [Sauvegarde et restauration](../08-exploitation/sauvegarde-restauration-locale.md) |
-| Comment détectez-vous une panne sans CloudWatch ? | `/metrics`, journaux JSON, règle d'alerte locale (MS-16, #135, à faire) | À venir : `docs/08-exploitation/observabilite.md` |
+| Comment détectez-vous une panne sans CloudWatch ? | `/metrics`, journaux JSON avec identifiant de corrélation, alarmes locales | [observabilité](../08-exploitation/observabilite.md) |
 | Et le contrôle d'accès sans IAM ? | Rôles `viewer`, `operator`, `admin` vérifiés à la passerelle ; comptes de base par service ; le lecteur reçoit 403 sur la commande des feux | [ADR-029](../01-architecture/adr/ADR-029-passerelle-et-authentification.md), parcours de bout en bout MS-14 |
 | Combien coûterait AWS ? | Coût **projeté**, tarifs publics × durée, mention « projeté, non déployé » (GES-09, #93, à faire) | À venir : `docs/07-gestion/couts-aws.md` |
 | Que se passe-t-il si AWS est autorisé demain ? | Procédure en sept étapes, dont l'autorisation écrite et le budget ; `deploy.yml` et `terraform.yml` ne s'activent qu'avec `AWS_ROLE_ARN` | [Remettre AWS en route](README.md) |
@@ -148,7 +148,7 @@ Résultat attendu : le premier contrôle ne renvoie aucun fichier (relevé du 13
 |---|---|
 | Reformulation des énoncés #87, #89, #90, #91, #136, #105 | À décider à deux ; non faite |
 | Prometheus et Alertmanager pour les alarmes locales | À évaluer : absents de la pile actuelle, non essayés |
-| Terraform avec le fournisseur Docker pour CLD-17 | À évaluer, non essayé |
+| Terraform avec le fournisseur Docker pour CLD-17 | Écarté : l'émulateur Moto applique le code réel (`dev.py terraform-emulateur`) |
 | `/metrics` des autres services que `traitement` | Non vérifié |
 | Commandes Windows de la section 5 | Non vérifiées |
 | Issues déjà fermées | Non relues pour ce document |

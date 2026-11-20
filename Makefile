@@ -6,7 +6,7 @@ DEV = $(PY) scripts/dev/dev.py
 PY_API ?= $(if $(wildcard venv/bin/python),venv/bin/python,$(PY))
 DEV_API = $(PY_API) scripts/dev/dev.py
 
-.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint format new-service quality-up quality-down hooks terraform-check bigdata-build flux-proto test-flux-proto bigdata-test bigdata
+.PHONY: help init-env up down health lock-deps ps logs dev-deps user-create api-run front-dev front-dev-stub forecast-stub report-stub front-dev-report-stub db-up db-migrate db-migrate-app db-status db-check db-check-events db-check-kpi etl-paris etl-nettoyer-paris etl-lot etl-package psql mongosh backup restore-check restore db-reset kafka-up kafka-topics kafka-roundtrip test test-integration test-integration-collecte test-integration-flux test-integration-alerte test-integration-reponse test-collecte-debit test-contracts test-etl lint a11y-audit format new-service quality-up quality-down hooks terraform-check drift-check dataset-build test-ml test-gateway test-gateway-unit gateway-routes reference-mesure preparation-check ml-env ml-train ml-anomalies ml-prevision ml-sumo ml-registre ml-registre-essai bigdata-build bigdata-test bigdata parcours flux-complet observatoire panne sauvegarde sauvegarde-liste restauration sauvegarde-planifier acces tableau-de-bord rollback flux-proto test-flux-proto
 
 help:          ## Liste des commandes
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/'
@@ -103,6 +103,12 @@ test-integration-reponse: ## Tests de services/reponse contre Kafka et MongoDB e
 	$(DEV) test-integration --service reponse
 test-integration-alerte: ## Tests de services/alerte contre PostgreSQL migré et Kafka en conteneur (projet jetable) : délai jusqu'à l'alerte visible
 	$(DEV) test-integration --service alerte
+test-gateway: ## Passerelle réelle (nginx + njs) devant trois services factices : un appel sans jeton valide est refusé pour tous les services (Docker requis)
+	$(PY) -m unittest discover -s gateway/tests -p "test_gateway.py" -v
+test-gateway-unit: ## Logique de gateway/auth.js sous Node, sans Docker
+	node --test gateway/tests/auth.test.mjs
+gateway-routes: ## Régénère gateway/routes.conf et routes.json depuis contracts/openapi/ (à faire après un changement de contrat)
+	$(PY) scripts/dev/gateway_routes.py
 test-collecte-debit: ## Débit maximal de la collecte démarrée (make test-collecte-debit COLLECTE_URL=http://127.0.0.1:8001)
 	$(PY) scripts/dev/bench_collecte.py --url $(or $(COLLECTE_URL),http://127.0.0.1:8001)
 test-contracts: ## Valide les exemples et les cas invalides des contrats d'événements
@@ -118,11 +124,41 @@ sim-run:       ## Écrit un run complet pour IA-08 (make sim-run SCENARIO=heure-
 lint:          ## Ruff sur chaque service, ESLint et Prettier sur le frontend
 	@for d in services/*/; do (cd $$d && ruff check . && ruff format --check .) || exit 1; done
 	cd frontend && npm run lint && npm run format:check
+a11y-audit:    ## Audit d'accessibilité du frontend dans Edge ou Chrome (axe-core, clavier, thèmes) : rapport dans frontend/audit/
+	cd frontend && npm run build && npm run a11y:audit -- --check
 format:        ## Formate chaque service et le frontend
 	@for d in services/*/; do (cd $$d && ruff check --fix . && ruff format .) || exit 1; done
 	cd frontend && npx prettier --write src
 new-service:   ## Crée services/<N> depuis le gabarit (make new-service N=alerte)
 	$(DEV) new-service $(N)
+dataset-build: ## Construit le jeu d'entraînement v1 (IA-08) dans data/datasets/novaria-congestion-v1/ (40 s) ; fiche de provenance et empreintes comprises
+	$(DEV) dataset-build
+test-ml:       ## Tests du jeu d'entraînement (ml/tests, bibliothèque standard)
+	$(PY) -m unittest discover -s ml/tests -t ml
+reference-mesure: ## Mesure la règle de seuils (ADR-028) sur l'entraînement et la validation du jeu v1 (IA-01, 11 s) ; make reference-mesure SENS=1 : ajoute les variations de réglages
+	$(DEV) reference-mesure $(if $(SENS),--sensibilite,)
+preparation-check: ## Vérifie le découpage et les variables du jeu v1 (IA-02) : variables permises, aucune fuite du futur, empreinte du découpage (3 s)
+	$(DEV) preparation-check
+ml-env:        ## Crée ml/.venv et y installe scikit-learn (ml/requirements.txt, empreintes exigées)
+	$(DEV) ml-env
+ml-train:      ## Entraînement et comparaison (IA-03) : make ml-train ETAPE=validation|test|rapport ; le test n'est lu qu'une fois
+	$(if $(ETAPE),,$(error Donner une étape : make ml-train ETAPE=validation))
+	$(DEV) ml-train $(ETAPE)
+ml-anomalies:  ## Détection d'anomalies (IA-09) : règles robustes et Isolation Forest, résultats dans ml/evaluation/anomalies* (environ 1 minute)
+	$(DEV) ml-anomalies
+ml-prevision:  ## Prévision de vitesse sur METR-LA (IA-10) : make ml-prevision ETAPE=telecharger|verifier|evaluer
+	$(if $(ETAPE),,$(error Donner une étape : make ml-prevision ETAPE=verifier))
+	$(DEV) ml-prevision $(ETAPE)
+ml-sumo:       ## Prototype SUMO (IA-11) : make ml-sumo ETAPE=image|calibrer|simuler|rejouer|comparer [OPT="--pile --graine 46"]
+	$(if $(ETAPE),,$(error Donner une étape : make ml-sumo ETAPE=image))
+	$(DEV) ml-sumo $(ETAPE) $(OPT)
+ml-registre:   ## Registre des modèles (IA-04) : make ml-registre C=importer-ia03|lister|en-service|charger ; make ml-registre C="lignee <run> --jeu"
+	$(if $(C),,$(error Donner une commande : make ml-registre C=lister))
+	$(DEV) ml-registre $(C)
+ml-registre-essai: ## Tests du registre contre un MongoDB jetable (Docker ; projet Compose à part supprimé ensuite)
+	$(DEV) ml-registre-essai
+drift-check:    ## Script de dérive (IA-06) : entrées de l'exécution la plus récente contre une référence ; make drift-check REF=<run_id> ; code 1 si dérive
+	$(DEV) drift-check $(if $(REF),--reference-run $(REF),)
 terraform-check: ## Contrôles Terraform sans compte AWS (Docker) : fmt, init, validate, tflint, Snyk IaC ; make terraform-check LOCK=1 : régénère le verrou
 	$(DEV) terraform-check $(if $(LOCK),--lock,)
 quality-up:    ## SonarQube Community Build local
@@ -135,6 +171,29 @@ bigdata-test: ## Tests du prototype Big Data dans son image (Docker)
 	$(DEV) bigdata-test
 bigdata: ## Lance le prototype Big Data : make bigdata C="generer --jours 30" (ou mesurer, nettoyer, verifier ; DAT-08)
 	$(DEV) bigdata -- $(C)
+parcours:      ## Rejoue le parcours de bout en bout et les cas d'échec sur la pile locale (CLD-13) ; make parcours C="N1 N2" pour une partie
+	$(DEV) parcours $(C)
+flux-complet:  ## Flux complet du capteur à la commande de feux et cas d'échec sur la pile locale (MS-15, environ 10 minutes) ; make flux-complet C="N1 N2" pour une partie
+	$(DEV) flux-complet $(C)
+observatoire:  ## Interface graphique des pannes sur http://127.0.0.1:8090 (CLD-14, la pile doit tourner)
+	$(DEV) observatoire
+panne:         ## Panne contrôlée en ligne de commande : make panne S=kafka A="--trafic --duree 45" (CLD-14, MS-16)
+	$(if $(S),,$(error Donner un service : make panne S=traitement))
+	$(DEV) panne $(S) $(A)
+sauvegarde:    ## Sauvegarde PostgreSQL et MongoDB avec manifeste, conservation par paliers (CLD-15)
+	$(DEV) sauvegarde
+sauvegarde-liste: ## Liste les sauvegardes et ce que la conservation supprimerait (CLD-15)
+	$(DEV) sauvegarde-liste
+restauration:  ## Restaure dans un environnement isolé et compare les totaux (CLD-15) ; make restauration NEG=1 : avec les pannes injectées
+	$(DEV) restauration $(if $(NEG),--controles-negatifs,)
+sauvegarde-planifier: ## Planifie la sauvegarde sans cron (CLD-15)
+	$(DEV) sauvegarde-planifier
+rollback:      ## Retour de version en local : make rollback A=essai (etat, construire, deployer, retour, essai ; CLD-16)
+	$(DEV) rollback $(A)
+tableau-de-bord: ## Tableau de bord de pilotage : exigences, risques, livrables par jalon, depuis GitHub (GES-11)
+	$(DEV) tableau-de-bord
+acces:         ## Essais d'autorisation et de refus : compare la matrice d'accès à l'API, PostgreSQL et MongoDB (CLD-18)
+	$(DEV) acces
 flux-proto: ## Prototype de flux temps réel (Kafka, Flink SQL, MongoDB ; DAT-09) : make flux-proto C="demo --duree 12m" (ou build, up, job, produire, verifier, down)
 	$(DEV) flux-proto -- $(or $(C),demo)
 test-flux-proto: ## Tests du prototype de flux, sans Docker (recalcul, rendu SQL, comparaison)
