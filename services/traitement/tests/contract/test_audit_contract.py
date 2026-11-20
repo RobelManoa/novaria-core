@@ -23,6 +23,7 @@ from tests.fakes import PASSWORD, bearer
 
 HEALTH = ("/api/v1/health", "get")
 LOGIN = ("/api/v1/auth/login", "post")
+PUBLIC = ("/api/v1/public/congestion", "get")  # application citoyenne (ADR-030) : aucune identité
 UNKNOWN_ID = "00000000-0000-4000-8000-000000000000"
 NEW_USER = {"username": "nouveau", "password": "un-mot-de-passe-long", "role": "viewer"}
 
@@ -36,7 +37,7 @@ def routes() -> list[tuple[str, str]]:
     )
 
 
-PROTECTED = [route for route in routes() if route not in (HEALTH, LOGIN)]
+PROTECTED = [route for route in routes() if route not in (HEALTH, LOGIN, PUBLIC)]
 IDS = [f"{method.upper()} {path}" for path, method in PROTECTED]
 CASES = [(path, method, role) for path, method in PROTECTED for role in Role]
 CASE_IDS = [f"{method.upper()} {path} avec {role.value}" for path, method, role in CASES]
@@ -48,9 +49,9 @@ def call(client, path: str, method: str, headers: dict | None = None):
     return client.request(method.upper(), url, headers=headers or {}, json=body)
 
 
-def test_the_probe_and_the_login_are_the_only_routes_without_a_token():
-    assert len(PROTECTED) + 2 == len(routes())
-    assert {HEALTH, LOGIN} <= set(routes())
+def test_the_probe_the_login_and_the_public_route_are_the_only_routes_without_a_token():
+    assert len(PROTECTED) + 3 == len(routes())
+    assert {HEALTH, LOGIN, PUBLIC} <= set(routes())
 
 
 # --- Avec un jeton valide : une entrée ------------------------------------------------------

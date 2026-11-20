@@ -17,6 +17,7 @@ from app.repositories.indicators import (
     IndicatorRepository,
     IndicatorRow,
     Position,
+    PublicSegmentRow,
 )
 
 DEFAULT_LIMIT = 100
@@ -105,3 +106,6 @@ class IndicatorService:
 
     def latest(self, *, intersection_id: str | None, run_id: str | None) -> list[IndicatorRow]:
         return self._indicators.latest(intersection_id=intersection_id, run_id=run_id)
+
+    def latest_public(self) -> list[PublicSegmentRow]:
+        return self._indicators.latest_public()

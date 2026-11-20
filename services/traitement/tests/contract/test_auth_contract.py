@@ -19,10 +19,15 @@ from app.main import app
 from app.models import Role
 from app.services.auth import ROLE_LEVEL
 from tests.fakes import PASSWORD, SECRET, FakeUserRepository, bearer
-from tests.openapi_checks import API, PROBLEM, check, schema
+from tests.openapi_checks import API, PROBLEM, TRAITEMENT, check, schema
 
 HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
-PUBLIC = {("/api/v1/health", "get"), ("/api/v1/auth/login", "post")}
+# Sans jeton : la sonde, la connexion et la route de l'application citoyenne (ADR-030, CIT-03).
+PUBLIC = {
+    ("/api/v1/health", "get"),
+    ("/api/v1/auth/login", "post"),
+    ("/api/v1/public/congestion", "get"),
+}
 UNKNOWN_ID = "00000000-0000-4000-8000-000000000000"
 NEW_USER = {"username": "nouveau", "password": "un-mot-de-passe-long", "role": "viewer"}
 
@@ -85,7 +90,7 @@ def test_the_service_implements_the_login_and_the_protected_routes_of_the_contra
         ("/api/v1/users", "post"),
         ("/api/v1/users/{user_id}", "get"),
     }
-    assert PUBLIC <= implemented(), "la sonde et la connexion existent"
+    assert PUBLIC <= implemented(), "la sonde, la connexion et la route publique existent"
 
 
 def test_the_declared_roles_of_the_routes_are_the_roles_of_the_contract():
@@ -94,9 +99,12 @@ def test_the_declared_roles_of_the_routes_are_the_roles_of_the_contract():
         assert openapi[path][method]["x-required-role"] == role.value, f"{method} {path}"
 
 
-def test_the_public_routes_of_the_contract_are_the_two_we_leave_open():
+def test_the_public_routes_of_the_contract_are_the_three_we_leave_open():
     for path, method in PUBLIC:
-        assert API["paths"][path][method]["security"] == []
+        contract = (
+            API if path in API["paths"] else TRAITEMENT
+        )  # la route citoyenne est au contrat du traitement
+        assert contract["paths"][path][method]["security"] == []
 
 
 # --- 401 : sans jeton valide ----------------------------------------------------------------
@@ -175,7 +183,7 @@ def test_every_route_of_the_api_is_protected_except_the_probe_and_the_login(clie
         if path.startswith("/api/v1")
         for method in item
     }
-    assert chemins >= PUBLIC, "la sonde et la connexion existent"
+    assert chemins >= PUBLIC, "la sonde, la connexion et la route publique existent"
     for path, method in sorted(chemins - PUBLIC):
         reponse = call(client, path, method)
         assert reponse.status_code == 401, f"{method.upper()} {path} n'est pas protégée"

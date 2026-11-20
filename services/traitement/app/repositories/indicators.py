@@ -57,6 +57,14 @@ V_INDICATOR = Table(
     Column("dataset_id", Text),
 )
 _COLUMNS = V_INDICATOR.c
+# Le côté d'un tronçon n'est pas dans `v_indicator` : il vient du référentiel du même entrepôt
+# (route publique).
+DIM_ROAD_SEGMENT = Table(
+    "dim_road_segment",
+    _metadata,
+    Column("road_segment_id", Text),
+    Column("approach", Text),
+)
 
 
 @dataclass(frozen=True)
@@ -84,6 +92,18 @@ class IndicatorRow:
     scenario_id: str | None
     seed: int | None
     dataset_id: str | None
+
+
+@dataclass(frozen=True)
+class PublicSegmentRow:
+    """Ce que lit une route publique d'un tronçon : six colonnes, jamais un indicateur entier."""
+
+    road_segment_id: str
+    intersection_id: str
+    approach: str
+    congestion_state: str
+    window_start: datetime
+    source_type: str
 
 
 @dataclass(frozen=True)
@@ -115,6 +135,9 @@ class IndicatorRepository(Protocol):
 
     def latest(self, *, intersection_id: str | None, run_id: str | None) -> list[IndicatorRow]:
         """Dernière fenêtre d'une minute de chaque tronçon (run le plus récent par défaut)."""
+
+    def latest_public(self) -> list[PublicSegmentRow]:
+        """L'état de chaque tronçon du run le plus récent, six colonnes seulement (ADR-030)."""
 
 
 def _bytes_order(column):
@@ -172,6 +195,33 @@ class SqlIndicatorRepository:
         )
         rows = self._rows(query)
         return rows[0] if rows else None
+
+    def latest_public(self) -> list[PublicSegmentRow]:
+        c, d = _COLUMNS, DIM_ROAD_SEGMENT.c
+        minute = c.window_size_s == DEFAULT_WINDOW_SIZE_S
+        newest = (
+            select(c.run_id)
+            .where(minute)
+            .order_by(c.window_start.desc(), _bytes_order(c.run_id))
+            .limit(1)
+            .scalar_subquery()
+        )
+        segment = _bytes_order(c.road_segment_id)
+        query = (
+            select(
+                c.road_segment_id,
+                c.intersection_id,
+                d.approach,
+                c.congestion_state,
+                c.window_start,
+                c.source_type,
+            )
+            .select_from(V_INDICATOR.join(DIM_ROAD_SEGMENT, d.road_segment_id == c.road_segment_id))
+            .where(minute, c.run_id == newest)
+            .distinct(segment)
+            .order_by(segment, c.window_start.desc())
+        )
+        return [PublicSegmentRow(**row._mapping) for row in self._session.execute(query)]
 
     def latest(self, *, intersection_id: str | None, run_id: str | None) -> list[IndicatorRow]:
         c = _COLUMNS

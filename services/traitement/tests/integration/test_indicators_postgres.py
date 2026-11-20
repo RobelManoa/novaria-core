@@ -291,6 +291,36 @@ def test_the_two_repositories_agree_on_the_latest_indicators_too(repository, jum
     assert len(repository.latest(intersection_id=None, run_id="run-a")) == len(TRONCONS)
 
 
+def test_the_public_state_is_the_latest_indicator_of_each_segment_with_its_side(repository):
+    public = repository.latest_public()
+    dernier = repository.latest(intersection_id=None, run_id=None)
+    assert [
+        (p.road_segment_id, p.intersection_id, p.congestion_state, p.window_start) for p in public
+    ] == [
+        (r.road_segment_id, r.intersection_id, r.congestion_state, r.window_start) for r in dernier
+    ], "même source, même run, même fenêtre que les indicateurs existants"
+    assert {p.road_segment_id: p.approach for p in public} == {
+        "ROAD_001": "N",
+        "ROAD_002": "E",
+        "ROAD_005": "N",
+    }  # côtés du réseau de démonstration (migration 0005)
+    assert {p.source_type for p in public} == {r.source_type for r in dernier}
+
+
+def test_the_public_route_on_real_rows_needs_no_token_and_exposes_six_fields(client):
+    http, _ = client
+    reponse = http.get("/api/v1/public/congestion")
+    assert reponse.status_code == 200
+    check(reponse.json(), schema("PublicCongestionList", "traitement"))
+    assert [i["road_segment_id"] for i in reponse.json()["items"]] == sorted(TRONCONS)
+    for item in reponse.json()["items"]:
+        assert set(item) == {
+            "road_segment_id", "intersection_id", "approach", "state", "updated_at", "simulated",
+        }  # fmt: skip
+        assert item["updated_at"].endswith("Z"), "UTC même si la session de base est à Tokyo"
+    assert "run-a" not in reponse.text
+
+
 def test_the_order_of_run_identifiers_is_the_byte_order_whatever_the_database_collation(repository):
     lignes = tout_lire(repository, window_size_s=60)
     memes_instants = [

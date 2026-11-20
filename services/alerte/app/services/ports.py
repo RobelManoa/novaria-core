@@ -97,6 +97,13 @@ class AlertStore(Protocol):
     ) -> list[Alert]:  # fmt: skip
         """Par `opened_at` décroissant puis `alert_id` ; `after` = (ouverture, id) du dernier vu."""
 
+    def list_open_congestion(self, limit: int) -> list[Alert]:
+        """Les alertes de congestion non résolues, par `opened_at` décroissant (ADR-030).
+
+        Seulement `CONGESTION` : un défaut de capteur ou une anomalie regardent l'exploitation,
+        pas le public.
+        """
+
     def get_alert(self, alert_id: str) -> tuple[Alert, list[HistoryEntry]] | None: ...
 
     def relay_outbox(self, publish: Callable[[OutboxRow], None], *, limit: int) -> int:

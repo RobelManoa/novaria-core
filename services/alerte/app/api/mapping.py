@@ -32,6 +32,22 @@ def alert_out(alert: Alert) -> dict:
     }
 
 
+def public_alert_out(alert: Alert) -> dict:
+    """Ce que le public voit d'une alerte (ADR-030, section 4.4) : six champs, copiés un par un.
+
+    Jamais : le nom de l'opérateur (`acknowledged_by`), la cause, la règle, l'épisode, l'historique,
+    les dates internes, la provenance autre que le fait d'être simulée.
+    """
+    return {
+        "alert_id": alert.alert_id,
+        "road_segment_id": alert.road_segment_id,
+        "intersection_id": alert.intersection_id,
+        "severity": alert.severity.value,
+        "opened_at": utc_stamp(alert.opened_at),
+        "simulated": alert.provenance.source_type == "SIMULATED",
+    }
+
+
 def history_out(entry: HistoryEntry) -> dict:
     comment = (entry.details or {}).get("comment")
     return {

@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.api.deps import close_components, get_components
-from app.api.v1 import alerts, health, rules, stream
+from app.api.v1 import alerts, health, public, rules, stream
 from app.core.config import get_settings
 from app.core.errors import UPSTREAM_UNAVAILABLE, ProblemError, register_handlers
 from app.core.logs import CorrelationMiddleware, configure_logging
@@ -56,3 +56,4 @@ app.include_router(health.router, prefix="/api/v1")
 app.include_router(alerts.router, prefix="/api/v1")
 app.include_router(rules.router, prefix="/api/v1")
 app.include_router(stream.router, prefix="/api/v1")
+app.include_router(public.router, prefix="/api/v1")
