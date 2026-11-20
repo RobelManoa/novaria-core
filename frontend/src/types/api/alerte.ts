@@ -182,6 +182,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Alertes de congestion en cours (public)
+         * @description Route **publique** pour l'application citoyenne ([ADR-030](../../docs/01-architecture/adr/ADR-030-application-citoyenne-perimetre-et-acces.md)) :
+         *     **sans jeton, en lecture seule**. Seulement les alertes de type `CONGESTION` **non résolues** (`CREATED`, `NOTIFIED`,
+         *     `ACKNOWLEDGED`), de la plus récente à la plus ancienne. Jamais : `SENSOR_FAULT` ni `TRAFFIC_ANOMALY`, la cause
+         *     (toujours `UNKNOWN`), la règle, l'épisode, l'historique, `acknowledged_by` (nom d'un opérateur : donnée personnelle),
+         *     la provenance interne. Chaque champ est dans une **liste blanche** (`additionalProperties: false`).
+         *
+         *     Aucun paramètre en v1 : la liste est bornée à 100 alertes. La passerelle limite le débit par adresse (zone `citoyen`)
+         *     et fixe `Cache-Control`. Un jeton d'équipe envoyé à cette route est ignoré et **n'est pas transmis** au service.
+         */
+        get: operations["getPublicAlerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -311,6 +338,23 @@ export interface components {
             seed?: number;
             source_type: components["schemas"]["SourceType"];
         } & (unknown & unknown);
+        /**
+         * @description Ce que le public voit d'une alerte de congestion en cours. **Liste blanche** (ADR-030, section 4.4) : ces six champs et
+         *     aucun autre. Pas de `kind` (toujours `CONGESTION` ici), pas d'`state` (toujours non résolue), pas de `cause`.
+         */
+        PublicAlert: {
+            /** Format: uuid */
+            alert_id: string;
+            intersection_id: components["schemas"]["IntersectionId"];
+            opened_at: components["schemas"]["UtcDateTime"];
+            road_segment_id: components["schemas"]["RoadSegmentId"];
+            severity: components["schemas"]["Severity"];
+            /** @description Vrai quand la donnée vient du simulateur (`provenance.source_type` = `SIMULATED`). L'application l'affiche toujours (ADR-027). */
+            simulated: boolean;
+        };
+        PublicAlertList: {
+            items: components["schemas"]["PublicAlert"][];
+        };
         /** @example ROAD_001 */
         RoadSegmentId: string;
         /** @example congestion.persistante */
@@ -358,6 +402,16 @@ export interface components {
         /** @description Erreur interne ou service en aval indisponible ; code `INTERNAL_ERROR` ou `UPSTREAM_UNAVAILABLE`. Aucun détail technique n'est exposé. */
         ServerError: {
             headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Limite de débit atteinte ; code `RATE_LIMITED`. */
+        TooManyRequests: {
+            headers: {
+                "Retry-After": components["headers"]["RetryAfter"];
                 [name: string]: unknown;
             };
             content: {
@@ -418,7 +472,16 @@ export interface components {
         Limit: number;
     };
     requestBodies: never;
-    headers: never;
+    headers: {
+        /**
+         * @description Mise en cache d'une route **publique** (application citoyenne, ADR-030). Une réponse `200` se garde 5 secondes
+         *     (`public, max-age=5`) ; toute autre réponse (erreur, limite de débit) n'est jamais gardée (`no-store`).
+         *     Posé par la passerelle, qui écrase l'en-tête du service.
+         */
+        CacheControlPublic: string;
+        /** @description Secondes à attendre avant de réessayer. */
+        RetryAfter: number;
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
@@ -679,6 +742,43 @@ export interface operations {
                     "application/json": components["schemas"]["Health"];
                 };
             };
+        };
+    };
+    getPublicAlerts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            "5XX": components["responses"]["ServerError"];
+            /** @description Les alertes en cours, éventuellement aucune (`items` vide). */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControlPublic"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "alert_id": "3f0c1f0e-8a52-4d3c-9d58-1b9a3e5c7a10",
+                     *           "road_segment_id": "ROAD_002",
+                     *           "intersection_id": "INT_01",
+                     *           "severity": "WARNING",
+                     *           "opened_at": "2026-11-20T08:18:30Z",
+                     *           "simulated": true
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PublicAlertList"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
         };
     };
 }

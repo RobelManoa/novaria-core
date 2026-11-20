@@ -395,9 +395,16 @@ def test_an_unexpected_error_is_a_500_problem_without_trace(client, rig, monkeyp
 
 
 # ------------------------------------------------------------------------------------ contrat
+# Opérations du contrat pas encore servies, avec l'issue qui les sert : déclarées d'abord au contrat
+# (CIT-02), servies ensuite. Le dernier test échoue quand l'une d'elles est servie : la retirer ici.
+NOT_YET_SERVED = {("GET", "/api/v1/public/alerts"): "CIT-03"}
+
+
 def test_every_operation_of_the_contract_exists_with_the_same_role_and_id(client):
     served = client.get("/openapi.json").json()["paths"]
     for (method, path), operation in operations().items():
+        if (method, path) in NOT_YET_SERVED:
+            continue
         assert path in served and method.lower() in served[path], f"{method} {path} non servi"
         mine = served[path][method.lower()]
         assert mine["operationId"] == operation["operationId"]
@@ -414,6 +421,17 @@ def test_every_route_served_is_in_the_contract(client):
 def test_declared_error_codes_are_in_the_contract(client):
     served = client.get("/openapi.json").json()["paths"]
     for (method, path), operation in operations().items():
+        if (method, path) in NOT_YET_SERVED:
+            continue
         wanted = {c for c in operation["responses"] if c.isdigit() and c.startswith("4")}
         mine = {c for c in served[path][method.lower()]["responses"] if c.startswith("4")}
         assert wanted <= mine | {"422"}, (method, path, wanted - mine)
+
+
+def test_the_routes_not_yet_served_are_really_not_served(client):
+    """Une exception devenue inutile est retirée, sinon elle cacherait un oubli futur."""
+    served = client.get("/openapi.json").json()["paths"]
+    assert set(NOT_YET_SERVED) <= set(operations()), "route inconnue du contrat"
+    for method, path in NOT_YET_SERVED:
+        is_served = path in served and method.lower() in served[path]
+        assert not is_served, f"{method} {path} est servi : le retirer de NOT_YET_SERVED"
