@@ -1,6 +1,8 @@
 # Capture de curl via la passerelle : routes publiques de l'application citoyenne (CIT-03). Données simulées, pile locale.
 # Date : 2026-11-20 · Linux · Docker Compose · passerelle http://127.0.0.1:8000 · après `dev.py flux-complet N1 N2 N3 N4`
 # (run ms15-… : 4 capteurs de INT_01, 8 minutes). En-têtes Date, Server et Connection retirés ; la liste des alertes est raccourcie.
+# Les valeurs des en-têtes Authorization et Cookie de l'essai « jeton ignoré » sont remplacées par des repères (<jeton d essai>) :
+# c'étaient des chaînes inventées, mais gitleaks lit « curl … Authorization: … » comme un secret (docs/04-devsecops/exceptions.md, section 11).
 # L'état de congestion est celui du run le plus récent de l'entrepôt ; les alertes en cours sont toutes les alertes de congestion non
 # résolues de la pile de travail (des runs plus anciens, du 18/11/2026, y sont encore ouvertes).
 
@@ -31,7 +33,7 @@ Cache-Control: public, max-age=5
 {"items": [{"alert_id": "d0c7ced4-72b2-49e2-b240-e0e47b37e6f3", "road_segment_id": "ROAD_019", "intersection_id": "INT_05", "severity": "WARNING", "opened_at": "2026-11-18T14:18:00Z", "simulated": true}, {"alert_id": "cbe98f5c-7164-42e2-b7a9-e6bc4476d3c0", "road_segment_id": "ROAD_018", "intersection_id": "INT_05", "severity": "WARNING", "opened_at": "2026-11-18T14:18:00Z", "simulated": true}]}
 ... 40 alertes au total, 2 montrées
 
-$ curl -s -i -H 'Authorization: Bearer jeton-quelconque' -H 'Cookie: session=abc' http://127.0.0.1:8000/api/v1/public/congestion
+$ curl -s -i -H 'Authorization: <jeton d essai>' -H 'Cookie: <cookie d essai>' http://127.0.0.1:8000/api/v1/public/congestion
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 595
