@@ -10,11 +10,8 @@ const NOW = Date.parse("2026-11-20T09:12:00Z"); // 2 minutes après la mise à j
 
 type Fetcher = (signal: AbortSignal) => Promise<SegmentState[]>;
 
-/** Une case du résumé se lit « 1 tronçon congestionné » : le nombre et le nom sont deux éléments, le texte de la case est le tout. */
-const case_ = (texte: string) => (_: string, element: Element | null) =>
-  element?.tagName === "LI" &&
-  element.className.includes("resume__case") &&
-  element.textContent === texte;
+/** Ce que le citoyen voit en premier : au moins un trajet (proposé ou gardé) avec son verdict. */
+const attendreLesTrajets = () => screen.findByRole("region", { name: /trajets/i });
 
 function show(fetcher: Fetcher, now = () => NOW) {
   return render(
@@ -34,6 +31,7 @@ function pending() {
 
 describe("état de la circulation", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     Object.defineProperty(document, "hidden", { value: false, configurable: true });
   });
   afterEach(() => vi.useRealTimers());
@@ -43,72 +41,42 @@ describe("état de la circulation", () => {
       show(() => new Promise<SegmentState[]>(() => {}));
       expect(screen.getByRole("status")).toHaveTextContent("Chargement de la circulation…");
       expect(screen.getByRole("note")).toHaveTextContent("Données simulées");
-      expect(screen.queryByRole("region", { name: "Par carrefour" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: /trajets/i })).not.toBeInTheDocument();
     });
   });
 
   describe("vue principale", () => {
-    it("montre d'un coup d'œil combien de tronçons sont fluides, ralentis ou congestionnés", async () => {
+    it("montre d'abord des trajets proposés, chacun avec un mot et une phrase pour décider", async () => {
       show(async () => network());
-      const resume = await screen.findByRole("region", { name: "En un coup d'œil" });
-      expect(within(resume).getByText(case_("1 tronçon congestionné"))).toBeInTheDocument();
-      expect(within(resume).getByText(case_("1 tronçon ralenti"))).toBeInTheDocument();
-      expect(within(resume).getByText(case_("3 tronçons fluides"))).toBeInTheDocument();
-      expect(within(resume).getByText(case_("1 tronçon sans information"))).toBeInTheDocument();
-    });
-
-    it("n'affiche « sans information » que s'il y en a", async () => {
-      show(async () => [segment()]);
-      const resume = await screen.findByRole("region", { name: "En un coup d'œil" });
-      expect(within(resume).queryByText(/sans information/)).not.toBeInTheDocument();
-      expect(within(resume).getByText(case_("1 tronçon fluide"))).toBeInTheDocument();
-    });
-
-    it("liste les tronçons par carrefour, avec leur côté et un état dit en mots", async () => {
-      show(async () => network());
-      const premier = await screen.findByRole("region", { name: "Carrefour INT_01" });
-      const cartes = within(premier).getAllByRole("listitem");
-      expect(cartes).toHaveLength(4);
-      expect(within(cartes[0]).getByText("Arrivée par le nord")).toBeInTheDocument();
-      expect(within(cartes[0]).getAllByText("Congestionné").length).toBeGreaterThan(0);
-      expect(within(cartes[1]).getByText("Arrivée par l'est")).toBeInTheDocument();
-      expect(within(cartes[1]).getAllByText("Ralenti").length).toBeGreaterThan(0);
-      const second = screen.getByRole("region", { name: "Carrefour INT_02" });
-      expect(within(second).getAllByRole("listitem")).toHaveLength(2);
-      expect(within(second).getByText("Information indisponible")).toBeInTheDocument();
+      const region = await attendreLesTrajets();
+      expect(within(region).getByRole("heading", { level: 2 })).toHaveTextContent(
+        "Des trajets pour essayer",
+      );
+      const cartes = within(region).getAllByRole("listitem", {
+        name: /Aller à la gare|Aller au marché|Déposer les enfants/,
+      });
+      expect(cartes).toHaveLength(3);
+      const gare = within(region).getByRole("listitem", { name: "Aller à la gare" });
+      expect(gare).toHaveTextContent("Bloqué"); // ROAD_001 congestionné dans la fixture
+      expect(gare).toHaveTextContent("Prévoyez beaucoup de retard");
+      expect(gare).toHaveTextContent("Place de la Gare, en venant du nord");
     });
 
     it("n'écrit jamais un code technique à l'écran", async () => {
       show(async () => network());
-      await screen.findByRole("region", { name: "Carrefour INT_01" });
-      const texte = document.body.textContent ?? "";
-      for (const code of [
-        "FREE_FLOW",
-        "SLOW",
-        "CONGESTED",
-        "UNKNOWN",
-        "road_segment_id",
-        "undefined",
-        "NaN",
-        "null",
-      ]) {
-        expect(texte).not.toContain(code);
-      }
+      await attendreLesTrajets();
+      const details = document.querySelectorAll("details");
+      details.forEach((d) => d.setAttribute("open", ""));
+      expect(document.body.textContent).not.toMatch(
+        /ROAD_|INT_|\bUNKNOWN\b|FREE_FLOW|CONGESTED|\bSLOW\b|undefined|\[object/,
+      );
     });
 
-    it("dit que chaque tronçon est simulé", async () => {
-      show(async () => [segment(), segment({ road_segment_id: "ROAD_002", simulated: false })]);
-      await screen.findByRole("region", { name: "En un coup d'œil" });
-      expect(screen.getAllByText(/Simulé/)).toHaveLength(1);
-      expect(screen.getByRole("note")).toHaveTextContent("ne décrivent pas la circulation réelle");
-    });
-
-    it("donne l'heure des données et leur âge, pas l'heure de l'appel", async () => {
+    it("donne l'heure des mesures et leur âge, pas l'heure de l'appel", async () => {
       show(async () => network());
-      await screen.findByRole("region", { name: "En un coup d'œil" });
-      const ligne = screen.getByText(/Données de/);
-      expect(ligne).toHaveTextContent("il y a 2 min");
-      expect(within(ligne).getByText(/^\d{2}:\d{2}$/)).toHaveAttribute(
+      await attendreLesTrajets();
+      expect(screen.getAllByText(/il y a 2 min/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/^\d{2}:\d{2}$/)[0]).toHaveAttribute(
         "datetime",
         "2026-11-20T09:10:00Z",
       );
@@ -116,29 +84,38 @@ describe("état de la circulation", () => {
 
     it("a la structure d'une page : un seul titre 1, un contenu principal, un pied de page, un lien d'évitement", async () => {
       show(async () => network());
-      await screen.findByRole("region", { name: "En un coup d'œil" });
+      await attendreLesTrajets();
       expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-      expect(screen.getByRole("main")).toHaveAttribute("id", "contenu");
-      expect(screen.getByRole("contentinfo")).toHaveTextContent("Aucun compte, aucun cookie");
+      expect(screen.getByRole("main")).toBeInTheDocument();
+      expect(screen.getByRole("contentinfo")).toHaveTextContent(
+        "Vos trajets restent sur cet appareil",
+      );
+      expect(screen.getByRole("contentinfo")).toHaveTextContent("aucun compte, aucun cookie");
       expect(screen.getByRole("link", { name: "Aller au contenu" })).toHaveAttribute(
         "href",
         "#contenu",
       );
     });
 
-    it("n'a besoin d'aucune connexion : aucun champ de saisie, aucun lien de connexion", async () => {
+    it("n'a besoin d'aucune connexion : aucun champ de mot de passe, aucun lien de connexion", async () => {
       show(async () => network());
-      await screen.findByRole("region", { name: "En un coup d'œil" });
-      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-      expect(screen.queryByLabelText(/mot de passe|identifiant/i)).not.toBeInTheDocument();
-      expect(screen.queryByText(/se connecter|connexion/i)).not.toBeInTheDocument();
+      await attendreLesTrajets();
+      expect(document.querySelector("input[type=password]")).toBeNull();
+      expect(
+        screen.queryByRole("link", { name: /connexion|compte|inscri/i }),
+      ).not.toBeInTheDocument();
     });
   });
 
   describe("liste vide et information ancienne", () => {
-    it("une liste vide est dite sans être une erreur", async () => {
+    it("une liste vide n'est pas une erreur : chaque trajet dit « Information indisponible »", async () => {
       show(async () => []);
-      expect(await screen.findByText("Aucune information pour le moment")).toBeInTheDocument();
+      const region = await attendreLesTrajets();
+      for (const nom of ["Aller à la gare", "Aller au marché", "Déposer les enfants à l'école"]) {
+        expect(within(region).getByRole("listitem", { name: nom })).toHaveTextContent(
+          "Information indisponible",
+        );
+      }
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 
@@ -152,7 +129,7 @@ describe("état de la circulation", () => {
 
     it("n'avertit pas d'une information récente", async () => {
       show(async () => network());
-      await screen.findByRole("region", { name: "En un coup d'œil" });
+      await attendreLesTrajets();
       expect(screen.queryByText(/Information ancienne/)).not.toBeInTheDocument();
     });
   });
@@ -184,7 +161,7 @@ describe("état de la circulation", () => {
         .mockResolvedValue(network());
       show(fetcher);
       await userEvent.click(await screen.findByRole("button", { name: "Réessayer" }));
-      expect(await screen.findByRole("region", { name: "En un coup d'œil" })).toBeInTheDocument();
+      expect(await attendreLesTrajets()).toBeInTheDocument();
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
       expect(fetcher).toHaveBeenCalledTimes(2);
     });
@@ -204,11 +181,11 @@ describe("état de la circulation", () => {
         .mockResolvedValueOnce(network())
         .mockRejectedValue(new ApiError("indisponible", "x"));
       show(fetcher);
-      await screen.findByRole("region", { name: "En un coup d'œil" });
+      await attendreLesTrajets();
       await userEvent.click(screen.getByRole("button", { name: "Actualiser" }));
       expect(await screen.findByText(/Mise à jour impossible/)).toBeInTheDocument();
       expect(screen.getByText(/dernière information connue/)).toBeInTheDocument();
-      expect(screen.getByRole("region", { name: "Carrefour INT_01" })).toBeInTheDocument();
+      expect(screen.getByRole("listitem", { name: "Aller à la gare" })).toHaveTextContent("Bloqué"); // la dernière information reste
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 
@@ -219,7 +196,7 @@ describe("état de la circulation", () => {
         .mockRejectedValueOnce(new ApiError("reseau", "x"))
         .mockResolvedValue(network());
       show(fetcher);
-      await screen.findByRole("region", { name: "En un coup d'œil" });
+      await attendreLesTrajets();
       await userEvent.click(screen.getByRole("button", { name: "Actualiser" }));
       await screen.findByText(/Mise à jour impossible/);
       await userEvent.click(screen.getByRole("button", { name: "Actualiser" }));
@@ -286,18 +263,19 @@ describe("état de la circulation", () => {
       const fetcher = vi
         .fn<Fetcher>()
         .mockReturnValueOnce(premiere.promise)
-        .mockResolvedValue([segment({ state: "SLOW" })]);
+        .mockResolvedValue([segment({ road_segment_id: "ROAD_001", state: "SLOW" })]);
       show(fetcher);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(15_000);
       });
-      expect(screen.getByText(case_("1 tronçon ralenti"))).toBeInTheDocument();
+      const gare = () => screen.getByRole("listitem", { name: "Aller à la gare" });
+      expect(gare()).toHaveTextContent("Ralenti");
       await act(async () => {
-        premiere.resolve([segment({ state: "CONGESTED" })]);
+        premiere.resolve([segment({ road_segment_id: "ROAD_001", state: "CONGESTED" })]);
         await vi.advanceTimersByTimeAsync(0);
       });
-      expect(screen.getByText(case_("1 tronçon ralenti"))).toBeInTheDocument();
-      expect(screen.queryByText(case_("1 tronçon congestionné"))).not.toBeInTheDocument();
+      expect(gare()).toHaveTextContent("Ralenti");
+      expect(gare()).not.toHaveTextContent("Bloqué");
     });
 
     it("le bouton « Actualiser » est occupé pendant la lecture et rend la main ensuite", async () => {
@@ -316,11 +294,11 @@ describe("état de la circulation", () => {
   });
 
   describe("vie privée", () => {
-    it("ne garde rien sur l'appareil : ni stockage, ni cookie", async () => {
+    it("n'écrit rien sur l'appareil tant que le citoyen n'a rien gardé, et n'utilise aucun cookie", async () => {
       const ecriture = vi.spyOn(Storage.prototype, "setItem");
       show(async () => network());
-      await screen.findByRole("region", { name: "En un coup d'œil" });
-      expect(ecriture).not.toHaveBeenCalled();
+      await attendreLesTrajets();
+      expect(ecriture.mock.calls.filter(([cle]) => cle !== "novaria-citoyen-sonde")).toEqual([]);
       expect(window.localStorage.length + window.sessionStorage.length).toBe(0);
       expect(document.cookie).toBe("");
     });

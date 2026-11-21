@@ -2,8 +2,8 @@
 
 Projet : Novaria Core, socle d'UrbanHub (bloc de compétences BC05)
 Responsables : Daddy Luciano et Manoa Robel (relecture croisée)
-Dernière mise à jour : 17/11/2026
-Issue de suivi : CLD-13 (#86), dépend de FE-04 (#72) et BE-07 (#67), tous deux fermés
+Dernière mise à jour : 21/11/2026 (section 10 : le parcours avec l'usager, CIT-07)
+Issues de suivi : CLD-13 (#86), dépend de FE-04 (#72) et BE-07 (#67), tous deux fermés · CIT-07 (#275), dépend de CIT-05 (#273) et CIT-06 (#274)
 Statut : à valider par les deux membres (relecture de la pull request)
 
 Critère d'acceptation : **le parcours nominal et chaque cas d'échec sont rejoués en CI ou documentés.** Ici, ils sont **rejoués par une commande et documentés avec leur résultat** (section 4) ; la CI ne rejoue pas la chaîne complète, pour la raison de la section 7. Preuve attendue : ce document.
@@ -151,3 +151,89 @@ La chaîne n'est pas dans la CI : elle demande de construire les images de la pi
 | N3 : aucune ligne après 150 s | `traitement-flux` ou `traitement-pipeline` arrêté | `docker compose ps`, puis `docker compose logs traitement-flux traitement-pipeline` |
 | N6 : « navigateur non vérifié » | `npm ci` non fait dans `frontend/`, ou Chrome absent | `cd frontend && npm ci` ; `E2E_CHROME_PATH` donne le chemin d'un autre Chrome (lu par `playwright.config.ts`) |
 | E3 échoue et PostgreSQL reste arrêté | Interruption de la commande pendant la panne | `docker compose start postgres` |
+
+## 10. Le parcours avec l'usager (CIT-07, 21/11/2026)
+
+Critère d'acceptation de CIT-07 : **le parcours de bout en bout inclut l'usager et passe deux fois de suite.** Cinq cas s'ajoutent à `dev.py parcours`, entre le parcours nominal et les cas d'échec (14 cas en tout : N1 à N6, U1 à U5, E1 à E3). Même principe qu'avant : la pile Docker réelle, des mesures **simulées**, un vrai navigateur ; ici Chromium sur un écran de téléphone, devant l'application citoyenne construite.
+
+### 10.1 Les cas
+
+| Cas | Ce qui est joué | Ce qui est vérifié |
+|---|---|---|
+| U1 | Quatre minutes de mesures congestionnées (4 capteurs, 96 mesures) d'un carrefour libre, entre INT_06 et INT_02, run `cit07-…` | Les 96 mesures sont acceptées (202) |
+| U2 | Lecture de l'indicateur par l'API d'équipe (jeton `viewer`) | Chacun des 4 tronçons a, minute par minute, l'état annoncé par la règle de seuils (calculé avec le classificateur du traitement) : `FREE_FLOW → CONGESTED → CONGESTED → CONGESTED` |
+| U3 | Le service des alertes crée les alertes ; lecture par l'API **publique**, sans jeton | 4 alertes `congestion.persistante` (une par tronçon), et l'API publique en rend exactement les six champs de la liste blanche, `simulated` vrai, `Cache-Control: public, max-age=5` |
+| U4 | Chromium ouvre l'application citoyenne (« Mes trajets », ADR-031) | Première visite : des trajets proposés, rien de gardé sur l'appareil. Le citoyen **ajoute son trajet** (deux tronçons du carrefour de l'essai) et lit le verdict que la règle donne pour l'état **public** de ces tronçons, avec sa phrase de décision ; « Me prévenir » est gardé après rechargement ; une seule clé sur l'appareil, aucun cookie, aucun code du système à l'écran ; bandeau « Données simulées » |
+| U5 | **Échec : le service de circulation (`traitement`) est arrêté** | L'API publique répond 503 sans détail ni cache. Page ouverte : le trajet reste et « Mise à jour impossible… dernière information connue ». Page neuve : « momentanément indisponible », bouton « Réessayer », aucun mot technique. Service relancé : tout se rétablit |
+
+U1 à U4 forment une chaîne (un échec rend les suivants « non joués »). U5 suit U1 à U3 ; un échec de l'affichage (U4) ne masque pas l'essai de la panne. Les alertes d'essai sont **refermées à la fin** (minutes fluides envoyées) et le service arrêté est **toujours relancé** (passerelle rechargée), même après un échec. Captures : `docs/Capture d'ecran/CIT-07-parcours-usager-affichage.png`, `-avant-panne.png` et `-panne.png`.
+
+### 10.2 Résultat : deux exécutions de suite (21/11/2026, poste Linux)
+
+| Exécution | Cas satisfaits | Durée | Code de sortie |
+|---|---|---|---|
+| 1 | **14/14** | 1 min 53 | 0 |
+| 2, lancée aussitôt après | **14/14** | 1 min 44 | 0 |
+
+À chaque exécution, le carrefour libre change (INT_06 puis INT_05, puis INT_04) : le service des feux ignore une recommandation plus ancienne que la dernière reçue. U5 dure environ 30 s (arrêt, deux pages, relance, reprise). Sortie complète des deux exécutions : [parcours-usager-2026-11-21.txt](sorties-parcours/parcours-usager-2026-11-21.txt).
+
+### 10.3 Défauts trouvés en jouant le parcours
+
+| Défaut | Comment trouvé | Correction |
+|---|---|---|
+| **Un service arrêté mettait 60 s à répondre 503.** La première requête vers un service qui ne répond pas du tout attend le délai de connexion par défaut de nginx (60 s) : un citoyen ne verrait aucun message clair dans ce délai | U5 : l'appel à l'API publique pendant la panne expirait (HTTP 0 après 15 s) ; mesuré à la main : 60,0 s la première fois, 3,1 s ensuite | `proxy_connect_timeout 2s` dans `gateway/citoyen.conf` (routes publiques seulement). Le test de la passerelle réelle ne reproduit pas le cas (un service factice arrêté refuse la connexion tout de suite) : la preuve est U5, sur la pile réelle |
+| **E1 (CLD-13) échouait selon l'offset du message.** Il comptait les documents de `rejects`, or le flux **ignore** la copie d'un rejet dont l'identifiant `dlq:…:partition:offset` existe déjà (`DuplicateKeyError` avalée) ; après une réinitialisation de Kafka, les offsets repartent de zéro et retombent sur des identifiants de rejets du 17 au 20/11 : le rejet était fait, sa copie ignorée, le décompte ne bougeait pas | Seconde exécution : E1 en échec, puis en échec à chacun des cinq essais suivants (seul, après les cas U, après un redémarrage du flux). Vérifié : `dlq:traitement:iot.raw:1:1375` existait déjà (rejet du 20/11 à 09:45) | E1 compte `processing_stats` (`kind: rejects`, `values.FUTURE_TIMESTAMP`), qui s'incrémente dans tous les cas (`parcours.rejets_futurs`). **Conséquence à connaître** : après une réinitialisation de Kafka, un nouveau rejet peut ne pas avoir de copie dans `rejects` ; ses compteurs et l'événement `errors.dlq` existent, eux |
+| La passerelle gardait d'anciennes adresses après le redémarrage des services (503 sur la connexion) | Premier essai de U2 | Piège connu : `docker compose exec -T passerelle nginx -s reload` (CLAUDE.md, section 11) |
+
+### 10.4 Le front citoyen, sans réseau extérieur
+
+| Test | Ce qu'il prouve | Commande |
+|---|---|---|
+| `citizen/tests/parcours.test.tsx` (3 tests) | Un parcours du citoyen de l'ouverture au lendemain : trajets proposés, garder un trajet, « Me prévenir », un message quand une alerte s'ouvre, panne du service de circulation (dernier état gardé, message clair), reprise seule, retour le lendemain avec son trajet. Le vrai code du réseau (`src/api.ts`) parle à un faux serveur qui remplace `fetch` : **toute adresse qui n'est pas l'une des deux routes publiques est refusée** ; chaque appel est un `GET` relatif, sans jeton ni cookie. Ouverture pendant la panne : « Réessayer » relit tout de suite | `python3 scripts/dev/dev.py citoyen test` (Windows : `py -3 scripts/dev/dev.py citoyen test`) |
+| Tests de composants, d'accessibilité et de contraste (CIT-04 à CIT-06) | Chaque écran et chaque état | idem |
+| `scripts/dev/test_parcours_usager.py` (29 tests) | Chaque cas sait échouer (un état faux, un champ interne en trop, un cache faux, une alerte absente) ; les nettoyages sont joués même après un échec ; l'enchaînement des cas ; la borne de connexion de la passerelle | `python3 -m unittest discover -s scripts/dev -p "test_parcours_usager.py"` (Windows : `py -3 -m unittest discover -s scripts/dev -p "test_parcours_usager.py"`) |
+
+Vitest : **184 tests**, couverture 97,6 % des instructions (v2 « Mes trajets », ADR-031). Tests de `scripts/dev` : voir la section 10.6.
+
+### 10.5 CI, Linux et Windows : ce qui est vrai
+
+| Élément | État |
+|---|---|
+| Le front citoyen en CI | **Aucun job ne le lance.** `ci.yml` ne mentionne pas `citizen/` : ni `npm test`, ni lint, ni build. Les 184 tests ne sont donc jamais rejoués par la CI. Un job est **proposé** dans [ci-application-citoyenne.md](ci-application-citoyenne.md), **non appliqué** : modifier les contrôles de la CI demande l'accord écrit des deux membres (CLAUDE.md, section 6) |
+| Les tests de `scripts/dev` et de la passerelle en CI | Non lancés non plus (déjà dit en section 7) : `test_parcours_usager.py` et `test_acces_abus_public.py` ne sont rejoués que sur un poste |
+| Le parcours complet en CI | Non, pour la raison de la section 7 (treize conteneurs et Chromium) |
+| **Windows** | **Non vérifié.** La CI n'a aucun poste Windows. Le parcours a été joué sous Linux seulement. Le script du navigateur a été rendu portable (`npx.cmd`, `taskkill`) sans pouvoir l'essayer. À rejouer par Daddy Luciano : voir 10.7 |
+
+Le quatrième point de l'issue (« CI verte sur les deux postes ») n'est donc **pas atteint** : ni job pour le front citoyen, ni poste Windows. Ce document le dit plutôt que de laisser croire le contraire.
+
+### 10.6 Chiffres du 21/11/2026
+
+| Contrôle | Résultat |
+|---|---|
+| `dev.py parcours` deux fois de suite | 14/14 et 14/14 |
+| Vitest (citoyen) | 184 tests |
+| `scripts/dev` | 1084 tests, tous réussis |
+| Passerelle réelle (Docker) | 43 tests |
+
+### 10.7 Rejouer
+
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Préparer le navigateur du parcours usager | `cd citizen && npm ci` | `cd citizen; npm ci` |
+| Rejouer tout (14 cas, environ 2 minutes) | `python3 scripts/dev/dev.py parcours` | `py -3 scripts/dev/dev.py parcours` |
+| Seulement l'usager | `python3 scripts/dev/dev.py parcours U1 U2 U3 U4 U5` | `py -3 scripts/dev/dev.py parcours U1 U2 U3 U4 U5` |
+| **Essai à la main** : créer puis refermer des alertes simulées pendant que vous regardez l'application | Terminal 1 : `python3 scripts/dev/dev.py citoyen` ; terminal 2 : `python3 scripts/dev/dev.py citoyen manuel` ; ouvrir http://127.0.0.1:5174 | Terminal 1 : `py -3 scripts/dev/dev.py citoyen` ; terminal 2 : `py -3 scripts/dev/dev.py citoyen manuel` ; ouvrir http://127.0.0.1:5174 |
+| Si la connexion échoue en 503 après un redémarrage des services | `docker compose exec -T passerelle nginx -s reload` | idem |
+
+### 10.8 Limites et points ouverts pour la relecture croisée
+
+| N° | Point | État |
+|---|---|---|
+| 1 | Windows non vérifié ; la CI ne le couvre pas | À rejouer par Daddy Luciano |
+| 2 | Aucun job de CI pour `citizen/` ; proposition non appliquée | Décision des deux membres |
+| 3 | Deux exécutions de suite sur un poste : aucune mesure de variabilité plus large. La durée de U2 (15 à 17 s) suit celle du flux et du pipeline | Limite |
+| 4 | U5 arrête `alerte` (l'API), pas `alerte-worker` : la création d'alertes continue pendant la panne ; l'arrêt du worker est joué par `dev.py flux-complet F2` | Choix |
+| 5 | Après le redémarrage de PostgreSQL (E3), l'API publique des alertes répond 503 pendant environ une demi-minute avant de reprendre : constaté une fois, non analysé | Constat |
+| 6 | Le parcours ne passe que sur des données **simulées** ; le message « Données simulées » est vérifié à l'écran (U4, U5) | Voulu |
+| 7 | Les rejets du flux n'ont plus de copie dans `rejects` quand leur identifiant existe déjà (10.3) : un tableau de bord qui compterait `rejects` sous-compterait après une réinitialisation de Kafka | À décider : changer l'identifiant, ou le dire |
+| 8 | Chromium seulement (pas de Firefox ni de Safari) ; pas de vrai téléphone | Non vérifié |

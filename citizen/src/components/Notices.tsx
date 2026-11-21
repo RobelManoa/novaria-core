@@ -1,12 +1,24 @@
 import { ERROR_MESSAGE } from "../messages";
 import type { ApiError } from "../api";
 
-/** Toujours visible, même pendant le chargement ou en erreur : la donnée de la v1 vient d'un simulateur (ADR-027). */
+/**
+ * Toujours visible, même pendant le chargement ou en erreur : la donnée vient d'un simulateur (ADR-027). Une pastille courte en haut ;
+ * la phrase complète (« elles ne décrivent pas la circulation réelle ») est en bas de page.
+ */
 export function SimulatedBanner() {
   return (
     <p className="bandeau" role="note">
-      <strong>Données simulées.</strong> Ces informations viennent d'un simulateur : elles ne
-      décrivent pas la circulation réelle.
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+        <path
+          d="M12 21a9 9 0 100-18 9 9 0 000 18z M12 11v5 M12 8v.01"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <strong>Données simulées</strong>
     </p>
   );
 }
