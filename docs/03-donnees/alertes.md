@@ -301,10 +301,10 @@ Les mutations ont été jouées sur le code de MS-11 uniquement, avec les tests 
 
 ## 11. Lancer et vérifier
 
-| Action | Commande |
-|---|---|
-| Tests unitaires et de contrat (sans base ni bus) | `cd services/alerte` puis `pytest` |
-| Tests d'intégration (Kafka et PostgreSQL jetables) | `py -3 scripts/dev/dev.py test-integration --service alerte` (Windows) ou `make test-integration-alerte` |
-| Avec le rapport de délai | `NOVARIA_ALERTE_REPORT=rapport.json make test-integration-alerte` |
-| Tout démarrer | `py -3 scripts/dev/dev.py up` (le travailleur `alerte-worker` en fait partie) |
-| Voir les alertes en direct | tableau de bord, page « Alertes » ; ou `curl -N -H "Authorization: Bearer <jeton>" http://127.0.0.1:8000/api/v1/events/stream` |
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Tests unitaires et de contrat (sans base ni bus) | `cd services/alerte` puis `pytest` | `cd services\alerte` puis `pytest` |
+| Tests d'intégration (Kafka et PostgreSQL jetables) | `python3 scripts/dev/dev.py test-integration --service alerte` ou `make test-integration-alerte` | `py -3 scripts/dev/dev.py test-integration --service alerte` |
+| Avec le rapport de délai | `NOVARIA_ALERTE_REPORT=rapport.json make test-integration-alerte` | `$env:NOVARIA_ALERTE_REPORT = "rapport.json"; py -3 scripts/dev/dev.py test-integration --service alerte` |
+| Tout démarrer (le travailleur `alerte-worker` en fait partie) | `python3 scripts/dev/dev.py up` | `py -3 scripts/dev/dev.py up` |
+| Voir les alertes en direct | tableau de bord, page « Alertes » ; ou `curl -N -H "Authorization: Bearer <jeton>" http://127.0.0.1:8000/api/v1/events/stream` | tableau de bord, page « Alertes » ; ou `curl.exe -N -H "Authorization: Bearer <jeton>" http://127.0.0.1:8000/api/v1/events/stream` (`curl.exe`, pas l'alias `curl` de PowerShell) |

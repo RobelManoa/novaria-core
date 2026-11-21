@@ -105,7 +105,7 @@ A_METTRE_A_JOUR = COLONNES_SQL[3:]  # tout sauf la clé primaire
 # Le WHERE du DO UPDATE fait d'un rejeu une absence d'écriture : une ligne identique n'est pas réécrite (loaded_at reste celui du premier chargement).
 # Noms de colonnes constants, valeurs par paramètres (S608 ne s'applique pas).
 SQL_ECRITURE = (
-    f"INSERT INTO dwh.fact_traffic_window AS f (road_segment_key, {', '.join(COLONNES_SQL)}) "  # noqa: S608
+    f"INSERT INTO dwh.fact_traffic_window AS f (road_segment_key, {', '.join(COLONNES_SQL)}) "  # noqa: S608 - noms de colonnes constants (valeurs en paramètres)
     f"SELECT s.road_segment_key, {', '.join(['%s'] * len(COLONNES_SQL))} FROM dwh.dim_road_segment s WHERE s.road_segment_id = %s "
     "ON CONFLICT (road_segment_key, window_start, window_size_s, run_id) DO UPDATE SET "
     + ", ".join(f"{colonne} = EXCLUDED.{colonne}" for colonne in A_METTRE_A_JOUR)

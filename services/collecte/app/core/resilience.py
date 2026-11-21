@@ -45,7 +45,7 @@ def backoff_delays(
     factor: float = 2.0,
     max_s: float = 2.0,
     jitter: float = 0.2,
-    rng: Callable[[], float] = random.random,  # noqa: S311 - dispersion des reprises, pas de sécurité
+    rng: Callable[[], float] = random.random,  # noqa: S311 - dispersion des reprises (pas de sécurité)
 ) -> list[float]:
     """Les attentes entre `attempts` essais (donc `attempts - 1` valeurs)."""
     delays = []
@@ -66,7 +66,7 @@ def retry(
     retry_on: tuple[type[BaseException], ...] = (Exception,),
     never_retry: tuple[type[BaseException], ...] = (),
     sleep: Callable[[float], None] = time.sleep,
-    rng: Callable[[], float] = random.random,  # noqa: S311
+    rng: Callable[[], float] = random.random,  # noqa: S311 - dispersion des reprises (pas de sécurité)
     observer: Observer | None = None,
     name: str = "",
 ) -> Any:

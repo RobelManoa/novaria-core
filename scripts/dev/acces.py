@@ -176,7 +176,7 @@ class Pile:
         """Un appel sans nouvel essai, avec tout ce que la passerelle répond : (statut, en-têtes en minuscules, corps). Statut 0 : réseau."""
         demande = urllib.request.Request(url, data=corps, method=methode, headers=entetes or {})  # noqa: S310 - adresses locales
         try:
-            with urllib.request.urlopen(demande, timeout=delai) as reponse:  # noqa: S310
+            with urllib.request.urlopen(demande, timeout=delai) as reponse:  # noqa: S310 - adresses locales de la pile
                 statut, en_tetes, texte = reponse.status, reponse.headers.items(), reponse.read()
         except urllib.error.HTTPError as erreur:
             statut, en_tetes, texte = erreur.code, erreur.headers.items(), erreur.read()
@@ -197,7 +197,7 @@ class Pile:
         requete = urllib.request.Request(url, data=corps, method=methode, headers=entetes)  # noqa: S310 - adresses locales
         for _ in range(4):
             try:
-                with urllib.request.urlopen(requete, timeout=delai) as reponse:  # noqa: S310
+                with urllib.request.urlopen(requete, timeout=delai) as reponse:  # noqa: S310 - adresses locales de la pile
                     return reponse.status
             except urllib.error.HTTPError as erreur:
                 erreur.close()
@@ -238,9 +238,9 @@ class Pile:
 
     def jeton(self, nom: str, mot_de_passe: str) -> str:
         requete = urllib.request.Request(f"{self.passerelle}/api/v1/auth/login", method="POST", headers={"Content-Type": "application/json"},
-                                         data=json.dumps({"username": nom, "password": mot_de_passe}).encode())  # noqa: S310
+                                         data=json.dumps({"username": nom, "password": mot_de_passe}).encode())  # noqa: S310 - adresses locales de la pile
         try:
-            with urllib.request.urlopen(requete, timeout=15) as reponse:  # noqa: S310
+            with urllib.request.urlopen(requete, timeout=15) as reponse:  # noqa: S310 - adresses locales de la pile
                 return json.load(reponse)["access_token"]
         except (urllib.error.URLError, KeyError, ValueError) as erreur:
             raise Erreur(f"connexion de {nom} impossible ({erreur.__class__.__name__})") from erreur

@@ -183,7 +183,7 @@ class Pile:
             entetes["Authorization"] = f"Bearer {jeton_acces}"
         requete = urllib.request.Request(url, data=donnees, method=methode, headers=entetes)  # noqa: S310 - adresses locales
         try:
-            with urllib.request.urlopen(requete, timeout=20) as reponse:  # noqa: S310
+            with urllib.request.urlopen(requete, timeout=20) as reponse:  # noqa: S310 - adresses locales de la pile
                 statut, texte = reponse.status, reponse.read()
         except urllib.error.HTTPError as erreur:
             statut, texte = erreur.code, erreur.read()

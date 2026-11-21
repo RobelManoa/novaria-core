@@ -19,6 +19,8 @@ from app.domain.rules import invalid_params
 from app.schemas.api import AlertRuleListOut, AlertRuleOut, AlertRuleUpdate, Problem
 from app.services.ports import AlertStore, NotFound
 
+REGLE_INCONNUE = "Règle inconnue."
+
 router = APIRouter(tags=["Alertes"])
 
 RULE_ID = re.compile(r"^[a-z0-9_.-]{3,60}$")
@@ -62,7 +64,7 @@ def update_rule(
     store: Annotated[AlertStore, Depends(get_store)],
 ) -> dict:
     if not RULE_ID.fullmatch(rule_id):
-        raise ProblemError(NOT_FOUND, "Règle inconnue.")
+        raise ProblemError(NOT_FOUND, REGLE_INCONNUE)
     if not changes.model_fields_set:
         raise ProblemError(
             VALIDATION_ERROR,
@@ -71,7 +73,7 @@ def update_rule(
         )
     rule = next((r for r in store.rules() if r.rule_id == rule_id), None)
     if rule is None:
-        raise ProblemError(NOT_FOUND, "Règle inconnue.")
+        raise ProblemError(NOT_FOUND, REGLE_INCONNUE)
     if changes.params is not None:
         problems = [
             {"field": f"body.params.{name}", "message": message}
@@ -85,5 +87,5 @@ def update_rule(
             rule_id, enabled=changes.enabled, params=changes.params, min_gap_s=changes.min_gap_s
         )
     except NotFound as error:
-        raise ProblemError(NOT_FOUND, "Règle inconnue.") from error
+        raise ProblemError(NOT_FOUND, REGLE_INCONNUE) from error
     return rule_out(updated)

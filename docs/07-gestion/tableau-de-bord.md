@@ -129,7 +129,7 @@ Pour contrôler l'outil, chaque indicateur se retrouve avec des commandes de Git
 |---|---|---|
 | Issues fermées et total par jalon | `gh issue list --state all --limit 500 --json milestone,state --jq 'group_by(.milestone.title)\|map({jalon:.[0].milestone.title,total:length,fermees:(map(select(.state=="CLOSED"))\|length)})\|.[]'` | idem, en une ligne (les guillemets internes se protègent avec `\"`) |
 | Exigences au total | `curl -s https://raw.githubusercontent.com/RobelManoa/novaria-core/main/docs/02-specifications/exigences.md \| grep -c "^\| EXG-"` | `((Invoke-WebRequest -UseBasicParsing <adresse>).Content -split "`n" \| Select-String '^\| EXG-').Count` |
-| Exigences prouvées | même adresse, `grep -c "^\| EXG-.*\| Prouvé"` | même adresse, motif `'^\| EXG-.*\| Prouvé'` |
+| Exigences prouvées | même adresse, `grep -c "^\| EXG-.*\| Prouvé"` | même adresse, `Select-String '^\| EXG-.*\| Prouvé'` |
 | Risques au total, risques clos | même principe sur `docs/07-gestion/registre-risques.md` : `grep -c "^\| R[0-9]* \|"` puis `grep -E "^\| R[0-9]+ \|" \| grep -c "\| Clos"` | `Select-String` avec les mêmes motifs |
 
 Le bilan chiffré de `exigences.md` (« Prouvé / Partiel / À faire ») est déjà contrôlé par `scripts/dev/test_specifications.py` ; `test_tableau_de_bord.py` vérifie que l'outil retrouve les mêmes nombres.
