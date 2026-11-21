@@ -30,7 +30,8 @@ RACINE = Path(__file__).resolve().parents[2]
 GATEWAY = RACINE / "gateway"
 IMAGE = "nginxinc/nginx-unprivileged:1.30-alpine"
 SERVICES = ("traitement", "alerte", "reponse")
-ORIGINE = "http://localhost:8080"
+ORIGINE = "http://localhost:8080"  # l'équipe (CORS_ALLOWED_ORIGINS)
+ORIGINE_CITOYENNE = "http://127.0.0.1:5174"  # l'application citoyenne (CORS_PUBLIC_ORIGINS, CIT-06)
 AUTRE_ORIGINE = "http://evil.example"
 
 
@@ -103,9 +104,10 @@ class Pile:
             self.conteneurs.append(nom)
 
     def passerelle(self, *, cle: str | None, environnement: str = "local", origines: str = ORIGINE,
-                   suffixe: str = "gw") -> tuple[str, int]:
+                   origines_publiques: str = ORIGINE_CITOYENNE, suffixe: str = "gw") -> tuple[str, int]:
         nom = f"{self.nom}-{suffixe}"
-        env = ["-e", f"ENVIRONMENT={environnement}", "-e", f"CORS_ALLOWED_ORIGINS={origines}"]
+        env = ["-e", f"ENVIRONMENT={environnement}", "-e", f"CORS_ALLOWED_ORIGINS={origines}",
+               "-e", f"CORS_PUBLIC_ORIGINS={origines_publiques}"]
         if cle is not None:
             env += ["-e", f"JWT_SECRET={cle}"]
         docker("run", "-d", "--name", nom, "--network", self.nom, "--network-alias", f"passerelle-{suffixe}", "-p", "127.0.0.1::8000", *env,
@@ -473,12 +475,119 @@ class PasserelleReelle(unittest.TestCase):
         self.assertEqual(self.appel("GET", "/api/v1/alerts", ip="10.9.9.20")[0], 401, "l'API protégée a sa propre zone")
 
     def test_cors_d_une_route_citoyenne_n_autorise_que_l_origine_configuree_et_jamais_de_cookie(self):
-        _, entetes, _, _ = self.appel("GET", "/api/v1/public/alerts", entetes={"Origin": ORIGINE})
-        self.assertEqual(entetes["access-control-allow-origin"], ORIGINE)
+        _, entetes, _, _ = self.appel("GET", "/api/v1/public/alerts", entetes={"Origin": ORIGINE_CITOYENNE})
+        self.assertEqual(entetes["access-control-allow-origin"], ORIGINE_CITOYENNE)
         self.assertNotIn("access-control-allow-credentials", entetes)
         self.assertEqual(entetes["vary"], "Origin")
-        _, entetes, _, _ = self.appel("GET", "/api/v1/public/alerts", entetes={"Origin": AUTRE_ORIGINE})
-        self.assertNotIn("access-control-allow-origin", entetes)
+        for refusee in (AUTRE_ORIGINE, ORIGINE):  # une origine inconnue, et celle de l'équipe (liste à part, CIT-06)
+            _, entetes, _, _ = self.appel("GET", "/api/v1/public/alerts", entetes={"Origin": refusee})
+            self.assertNotIn("access-control-allow-origin", entetes, refusee)
+
+    # ============================================================== CIT-06 : sécurité de l'accès public
+    def test_l_origine_citoyenne_ne_donne_rien_sur_l_api_d_equipe_et_celle_de_l_equipe_rien_sur_l_espace_public(self):
+        for chemin in ("/api/v1/alerts", "/api/v1/signals", "/api/v1/health"):
+            _, entetes, _, _ = self.appel("GET", chemin, jeton_=jeton(self.cle, "viewer"), entetes={"Origin": ORIGINE_CITOYENNE})
+            self.assertNotIn("access-control-allow-origin", entetes, chemin)
+        _, entetes, _, _ = self.appel("GET", "/api/v1/alerts", jeton_=jeton(self.cle, "viewer"), entetes={"Origin": ORIGINE})
+        self.assertEqual(entetes["access-control-allow-origin"], ORIGINE, "l'équipe garde son CORS")
+
+    def test_la_preverification_d_une_route_publique_est_sans_jeton_en_lecture_seule_pour_l_origine_citoyenne(self):
+        chemin = "/api/v1/public/congestion"
+        statut, entetes, _, _ = self.appel("OPTIONS", chemin, entetes={"Origin": ORIGINE_CITOYENNE, "Access-Control-Request-Method": "GET"})
+        self.assertEqual(statut, 204)
+        self.assertEqual(entetes["access-control-allow-methods"], "GET, OPTIONS")
+        self.assertNotIn("access-control-allow-headers", entetes)
+        self.assertNotIn("access-control-allow-credentials", entetes)
+        self.assertEqual(entetes["cache-control"], "no-store", "une pré-vérification n'est jamais gardée par un cache")
+        refus = {
+            "écriture demandée": {"Origin": ORIGINE_CITOYENNE, "Access-Control-Request-Method": "POST"},
+            "jeton d'équipe demandé": {"Origin": ORIGINE_CITOYENNE, "Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "authorization"},
+            "origine inconnue": {"Origin": AUTRE_ORIGINE, "Access-Control-Request-Method": "GET"},
+            "origine de l'équipe": {"Origin": ORIGINE, "Access-Control-Request-Method": "GET"},
+            "sans origine": {"Access-Control-Request-Method": "GET"},
+        }
+        for nom, en_tetes in refus.items():
+            with self.subTest(nom):
+                statut, entetes, _, _ = self.appel("OPTIONS", chemin, entetes=en_tetes)
+                self.assertEqual(statut, 403, "un navigateur abandonne la requête si la pré-vérification n'est pas un succès")
+                if nom in ("origine inconnue", "origine de l'équipe", "sans origine"):
+                    self.assertNotIn("access-control-allow-origin", entetes)
+
+    def test_aucune_adresse_de_client_n_atteint_un_service_par_une_route_publique(self):
+        """L'adresse du client est transmise à l'API d'équipe (limites, journaux) mais jamais à un service pour l'espace public."""
+        for chemin in self.CITOYENNES:
+            _, _, corps, _ = self.appel("GET", chemin, ip="10.9.8.7", entetes={"X-Real-IP": "10.9.8.7", "Forwarded": "for=10.9.8.7"})
+            self.assertEqual(corps["xff"], "", chemin)
+        _, _, corps, _ = self.appel("GET", "/api/v1/alerts", jeton_=jeton(self.cle, "viewer"), ip="10.9.8.7")
+        self.assertEqual(corps["xff"], "10.9.8.7", "témoin : l'API d'équipe reçoit toujours l'adresse")
+
+    def test_le_journal_d_acces_ne_garde_pas_l_adresse_d_un_citoyen_mais_garde_celle_de_l_equipe(self):
+        citoyenne, equipe = "10.77.66.55", "10.77.66.56"
+        self.appel("GET", "/api/v1/public/congestion?x=1", ip=citoyenne)
+        self.appel("GET", "/api/v1/public/alerts", ip=citoyenne)
+        self.appel("POST", "/api/v1/public/alerts", ip=citoyenne, corps=b"{}")  # refusé par la passerelle : même journal
+        self.appel("GET", "/api/v1/public/inconnue", ip=citoyenne)
+        self.appel("GET", "/api/v1/public/%2e%2e/alerts", ip=citoyenne)  # chemin refusé : l'espace public à peine effleuré
+        self.appel("GET", "/api/v1/alerts", jeton_=jeton(self.cle, "viewer"), ip=equipe)
+        journal = self.pile.journal(self.nom)
+        self.assertNotIn(citoyenne, journal, "l'adresse d'un citoyen est dans le journal d'accès")
+        lignes = [ligne for ligne in journal.splitlines() if "/api/v1/public/" in ligne]
+        self.assertGreaterEqual(len(lignes), 3, "les requêtes publiques restent journalisées, sans adresse")
+        for ligne in lignes:
+            self.assertRegex(ligne, r'^- "(GET|POST|DELETE|PUT|PATCH) /api/v1/public/[^"]*" \d{3} ', ligne)
+        self.assertIn(equipe, journal, "témoin : l'adresse de l'équipe reste dans le journal")
+        self.assertNotIn("x=1", journal, "ni chaîne de requête")
+
+    def test_un_refus_de_debit_citoyen_n_ecrit_pas_l_adresse_dans_le_journal_d_erreurs(self):
+        adresse = "10.55.44.33"
+        with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
+            statuts = list(pool.map(lambda _: self.appel("GET", "/api/v1/public/alerts", ip=adresse)[0], range(60)))
+        self.assertGreater(statuts.count(429), 30, "le dépassement a bien eu lieu")
+        journal = self.pile.journal(self.nom)  # accès (stdout) et erreurs (stderr : /var/log/nginx/error.log y pointe)
+        self.assertNotIn(adresse, journal)
+        # témoin : la limite de l'API d'équipe, elle, nomme l'adresse (ce que CIT-06 ne change pas)
+        autre = "10.55.44.34"
+        with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
+            list(pool.map(lambda _: self.appel("GET", "/api/v1/auth/login", ip=autre)[0], range(40)))
+        self.assertIn(autre, self.pile.journal(self.nom))
+
+    def test_aucune_erreur_de_l_espace_public_ne_laisse_voir_l_interieur(self):
+        """Une erreur est au format commun et ne dit ni un service, ni un chemin, ni une trace, ni la version du logiciel."""
+        indices = ("traceback", "stack", "exception", "upstream", "traitement", "alerte", "reponse", "postgres", "mongo", "kafka",
+                   "/etc/", "/var/", "172.", "docker", "python", "uvicorn", "fastapi", "nginx/", "njs")
+        cas = [("GET", "/api/v1/public/inconnue", 404), ("GET", "/api/v1/public", 404), ("GET", "/api/v1/public/", 404),
+               ("POST", "/api/v1/public/alerts", 405), ("DELETE", "/api/v1/public/congestion", 405),
+               ("GET", "/api/v1/public/%2e%2e/alerts", 400), ("GET", "/api/v1/public/a//b", 400)]
+        for methode, chemin, attendu in cas:
+            with self.subTest(methode=methode, chemin=chemin):
+                statut, en_tetes, corps, _ = self.appel(methode, chemin, corps=b"{}" if methode != "GET" else None)
+                self.assertEqual(statut, attendu)
+                self.assertEqual(set(corps), {"type", "title", "status", "code", "detail", "correlation_id"}, "format commun, pas un champ de plus")
+                texte = (json.dumps(corps) + json.dumps(en_tetes)).lower()
+                for indice in indices:
+                    self.assertNotIn(indice, texte, f"« {indice} » dans la réponse")
+                self.assertEqual(en_tetes.get("server"), "nginx", "aucune version dans l'en-tête Server")
+                self.assertEqual(en_tetes["x-content-type-options"], "nosniff")
+                self.assertEqual(en_tetes["cache-control"], "no-store")
+        # Un identifiant de corrélation hostile n'est jamais recopié (il pourrait détourner le JSON).
+        _, _, corps, _ = self.appel("GET", "/api/v1/public/inconnue", entetes={"X-Correlation-ID": 'x","code":"HACK'})
+        self.assertEqual(corps["code"], "NOT_FOUND")
+        self.assertNotIn("HACK", json.dumps(corps))
+
+    def test_un_service_en_panne_derriere_une_route_publique_repond_503_sans_detail(self):
+        nom, port = self.pile.passerelle(cle=self.cle, suffixe="panne-pub")
+        docker("stop", f"{self.pile.nom}-alerte", check=False)
+        try:
+            statut, entetes, corps, _ = appeler(port, "GET", "/api/v1/public/alerts")
+            self.assertEqual((statut, corps["code"]), (503, "UPSTREAM_UNAVAILABLE"))
+            self.assertEqual(entetes["cache-control"], "no-store")
+            self.assertEqual(set(corps), {"type", "title", "status", "code", "detail", "correlation_id"})
+            texte = (corps["title"] + corps["detail"]).lower()
+            for indice in ("alerte", "connect", "refused", "172.", "host", "resolve", "timed out"):
+                self.assertNotIn(indice, texte, indice)
+        finally:
+            docker("start", f"{self.pile.nom}-alerte", check=False)
+            time.sleep(1)
 
     def test_hsts_n_est_pose_que_derriere_un_point_qui_parle_tls(self):
         _, entetes, _, _ = self.appel("GET", "/health")

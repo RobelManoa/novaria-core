@@ -55,7 +55,7 @@ Seul le type `CONGESTION` est public : un `SENSOR_FAULT` (capteur muet) ou un `T
 | Journal des services | La ligne d'accès contient la méthode, le **chemin** et le code, **jamais la chaîne de requête** | Test : `?jeton=valeur-secrete&nom=Dupont` n'apparaît dans aucune ligne `app.*` des deux services |
 | `/metrics` | L'étiquette `route` est le **modèle de route** ; aucune valeur de requête | Même test, sur la sortie de `/metrics` |
 | Audit (`traitement`) | Un appel **sans identité** n'écrit **aucune entrée** d'audit ; il est seulement **compté** sous `GET /api/v1/public/congestion` | Test sur le vrai observateur : 0 entrée d'audit, 1 compteur |
-| Journal de la passerelle | Garde l'**adresse du client** (nécessaire à la limite de débit) | **Limite assumée**, à réduire en CIT-06 (ADR-030, 4.3) |
+| Journal de la passerelle | Pour l'espace public, l'adresse est **remplacée par `-`** et n'est pas transmise aux services (`X-Forwarded-For` vide) ; la limite de débit la garde en mémoire seulement. Le journal d'**erreurs** nomme encore l'adresse quand un service est injoignable | Fait par CIT-06 ([sécurité de l'accès public](../04-devsecops/securite-acces-public.md)), limite restante assumée |
 
 ## 5. Passerelle (acquis de CIT-02)
 
@@ -70,7 +70,7 @@ Débit limité à 2 requêtes par seconde par adresse (rafale de 10), `Cache-Con
 | `services/traitement`, `tests/integration/test_indicators_postgres.py` (vrai PostgreSQL, base jetable) | 2 tests de plus (37 passent) : la requête publique donne les mêmes tronçons, états et fenêtres que les indicateurs existants, avec les bons côtés ; la route sur de vraies lignes, session en fuseau de Tokyo, rend de l'UTC |
 | Suites existantes adaptées | Les contrats d'authentification, d'audit et d'erreurs de `traitement`, et le test de couverture du contrat d'`alerte`, tiennent compte d'une route sans jeton ; **aucun test supprimé** |
 | `scripts/dev/test_contrat_public.py` et `gateway/tests/` | Contrat, liste blanche de l'ADR, passerelle réelle (CIT-02) |
-| `dev.py acces` | Famille « api public » : accès 8/8, refus 52/52, **accès interdits accordés : 0** ([sortie](../05-cloud-aws/sorties-acces/acces-citoyen-servi-2026-11-20.txt)) |
+| `dev.py acces` | Famille « api public » : accès 8/8, refus 52/52, **accès interdits accordés : 0** ([sortie](../05-cloud-aws/sorties-acces/acces-citoyen-servi-2026-11-20.txt)) ; famille « api public (abus) » (CIT-06) : témoins 3/3, abus refusés 19/19 ([sortie](../05-cloud-aws/sorties-acces/acces-citoyen-securite-2026-11-21.txt)) |
 
 ## 7. Preuve : capture de `curl` via la passerelle
 
@@ -93,8 +93,8 @@ Débit limité à 2 requêtes par seconde par adresse (rafale de 10), `Cache-Con
 | 1 | L'état est celui du **run le plus récent** de l'entrepôt : si deux runs se chevauchent (le simulateur et un essai), seul le dernier écrit est montré (vu le 20/11/2026 : après un essai d'une seule mesure, un seul tronçon apparaissait en `UNKNOWN`). Le jeu de démonstration d'un seul run ne le montre pas | Limite ; à reconsidérer si plusieurs runs coexistent |
 | 2 | Les alertes « en cours » sont **toutes les alertes de congestion non résolues** de la pile : des alertes de runs anciens y restent tant qu'elles ne sont pas résolues (40 sur la pile de travail le 20/11/2026) | Donnée de la pile de travail, pas un défaut de la route ; une règle d'ancienneté serait une décision |
 | 3 | La passerelle répond le 405 avec `Content-Type: application/octet-stream` au lieu de `application/problem+json` (corps JSON correct) | Défaut du générateur de routes, **existant pour toutes les routes**, non corrigé ici |
-| 4 | CORS pour l'origine de l'application citoyenne (liste d'origines de la passerelle) : à fixer quand l'application existe | CIT-04 / CIT-06 |
-| 5 | Adresse du client dans le journal de la passerelle | CIT-06 |
+| 4 | CORS pour l'origine de l'application citoyenne | Fait par CIT-06 : `CORS_PUBLIC_ORIGINS`, liste dédiée, lecture seule |
+| 5 | Adresse du client dans le journal de la passerelle | Fait par CIT-06 pour l'espace public (voir section 4) |
 | 6 | Les tests d'intégration contre PostgreSQL exigent `NOVARIA_TEST_POSTGRES_ADMIN_URL` : ignorés sans elle, donc **pas rejoués par la CI** si elle ne la définit pas | À vérifier |
 | 7 | Vérifié sous Linux ; non vérifié sous Windows | À rejouer par le binôme |
 

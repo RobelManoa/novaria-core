@@ -1568,7 +1568,7 @@ def cmd_front_dev(args: argparse.Namespace) -> int:
 
 CITIZEN_DIR = ROOT / "citizen"
 CITIZEN_PORT = 5174
-CITIZEN_ACTIONS = ("dev", "apercu", "build", "test", "captures", "delai")
+CITIZEN_ACTIONS = ("dev", "apercu", "build", "test", "captures", "delai", "cors")
 
 
 def cmd_citoyen(args: argparse.Namespace) -> int:
@@ -1580,7 +1580,7 @@ def cmd_citoyen(args: argparse.Namespace) -> int:
         code = subprocess.run([npm, "ci"], cwd=CITIZEN_DIR, check=False).returncode
         if code:
             return code
-    scripts = {"dev": ["run", "dev"], "apercu": ["run", "preview"], "build": ["run", "build"], "test": ["test"], "captures": ["run", "captures"]}
+    scripts = {"dev": ["run", "dev"], "apercu": ["run", "preview"], "build": ["run", "build"], "test": ["test"], "captures": ["run", "captures"], "cors": ["run", "cors"]}
     if args.action in ("apercu", "captures", "delai"):
         code = subprocess.run([npm, "run", "build"], cwd=CITIZEN_DIR, check=False).returncode
         if code:
@@ -1594,8 +1594,14 @@ def cmd_citoyen(args: argparse.Namespace) -> int:
             raise DevError(str(error)) from error
     if args.action in ("dev", "apercu"):
         print(f"Application citoyenne : http://127.0.0.1:{CITIZEN_PORT}  (Ctrl+C pour arrêter ; la passerelle doit tourner : dev.py up, port 8000)")
+    environnement = dict(os.environ)
+    if args.action == "cors" and ENV_FILE.exists():  # CIT-06 : les origines du `.env`, sinon celles de docker-compose.yml
+        valeurs = parse_env(ENV_FILE.read_text(encoding="utf-8"))
+        environnement.update({cle: valeurs[cle] for cle in ("CORS_PUBLIC_ORIGINS", "CORS_ALLOWED_ORIGINS", "GATEWAY_PORT") if valeurs.get(cle)})
+        if valeurs.get("GATEWAY_PORT"):
+            environnement.setdefault("GATEWAY", f"http://127.0.0.1:{valeurs['GATEWAY_PORT']}")
     try:
-        return subprocess.run([npm, *scripts[args.action]], cwd=CITIZEN_DIR, env=dict(os.environ), check=False).returncode
+        return subprocess.run([npm, *scripts[args.action]], cwd=CITIZEN_DIR, env=environnement, check=False).returncode
     except KeyboardInterrupt:
         return 0
 
@@ -1837,7 +1843,7 @@ def build_parser() -> argparse.ArgumentParser:
     front.add_argument("--stub", action="store_true", help="les appels /api passent par la maquette des prévisions (forecast-stub)")
     front.add_argument("--report-stub", action="store_true", help="les appels /api passent par la maquette des rapports (report-stub)")
     citoyen = add("citoyen", cmd_citoyen, "application citoyenne (CIT-04) : dev, apercu, build, test, captures ; http://127.0.0.1:5174, la passerelle doit tourner")
-    citoyen.add_argument("action", choices=CITIZEN_ACTIONS, nargs="?", default="dev", help="dev : serveur de développement (défaut) ; apercu : version construite ; test ; captures : écrans de téléphone dans docs/Capture d'ecran ; delai : mesure du délai d'apparition d'une alerte (CIT-05)")
+    citoyen.add_argument("action", choices=CITIZEN_ACTIONS, nargs="?", default="dev", help="dev : serveur de développement (défaut) ; apercu : version construite ; test ; captures : écrans de téléphone dans docs/Capture d'ecran ; delai : mesure du délai d'apparition d'une alerte (CIT-05) ; cors : CORS de l'espace public vu par un vrai navigateur (CIT-06)")
     stub = add("forecast-stub", cmd_forecast_stub, "lance la MAQUETTE de GET /api/v1/forecasts devant l'API (route non implémentée côté serveur)")
     stub.add_argument("--back-minutes", type=int, default=60, help="émission décalée avant la fin des données, pour avoir un observé à comparer (60)")
     reports = add("report-stub", cmd_report_stub, "lance la MAQUETTE de GET /api/v1/reports devant l'API (routes et robot absents côté serveur)")

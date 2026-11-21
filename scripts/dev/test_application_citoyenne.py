@@ -105,6 +105,55 @@ class AccordAvecLeContratDesAlertes(unittest.TestCase):
         self.assertIn("en mémoire seulement", texte)
 
 
+class SecretsEtEnTetes(unittest.TestCase):
+    """CIT-06 : rien de secret dans ce qui est livré au navigateur, et rien qui envoie ou reçoit un jeton d'équipe."""
+
+    FICHIERS = [p for p in (list(SRC.rglob("*")) + [APP / "index.html", APP / "vite.config.ts"]) if p.is_file() and p.suffix in (".ts", ".tsx", ".html")]
+    SECRETS = ("JWT_SECRET", "PG_PASSWORD", "POSTGRES_PASSWORD", "MONGO_ROOT", "SECRET_KEY", "API_KEY", "BEGIN PRIVATE KEY", "BEGIN RSA", "AKIA")
+
+    def test_aucun_fichier_d_environnement_dans_l_application(self):
+        self.assertEqual([p.name for p in APP.glob(".env*")], [], "un .env de l'application serait lu par Vite et recopié dans la version construite")
+        ignore = (RACINE / ".gitignore").read_text(encoding="utf-8")
+        self.assertRegex(ignore, r"(?m)^\.env", "le dépôt public ignore les fichiers .env")
+
+    def test_le_code_ne_lit_aucune_variable_d_environnement_secrete(self):
+        for fichier in self.FICHIERS:
+            texte = fichier.read_text(encoding="utf-8")
+            for utilise in re.findall(r"import\.meta\.env\.(\w+)", texte):
+                self.assertTrue(utilise.startswith("VITE_") or utilise in ("MODE", "DEV", "PROD", "BASE_URL"), f"{fichier.name} : {utilise}")
+            self.assertNotIn("process.env", texte, fichier.name)
+
+    def test_aucun_nom_de_secret_du_depot_n_apparait_dans_le_code_ni_la_configuration(self):
+        for fichier in self.FICHIERS:
+            texte = fichier.read_text(encoding="utf-8")
+            for secret in self.SECRETS:
+                self.assertNotIn(secret, texte, f"{fichier.name} cite {secret}")
+
+    def test_l_application_n_envoie_jamais_d_en_tete_d_authentification_ni_de_cookie(self):
+        for fichier in SRC.rglob("*.ts*"):
+            texte = fichier.read_text(encoding="utf-8")
+            self.assertNotRegex(texte, r"(?i)authorization|bearer|set-cookie|document\.cookie", fichier.name)
+        api = lire("api.ts")
+        self.assertIn('credentials: "omit"', api)
+        self.assertIn('headers: { Accept: "application/json" }', api)
+
+    def test_la_version_construite_ne_contient_ni_secret_ni_jeton(self):
+        dist = APP / "dist"
+        if not dist.is_dir():
+            self.skipTest("version non construite (dev.py citoyen build)")
+        for fichier in dist.rglob("*"):
+            if fichier.is_file() and fichier.suffix in (".js", ".css", ".html", ".map", ".json"):
+                texte = fichier.read_text(encoding="utf-8", errors="ignore")
+                for secret in (*self.SECRETS, "Bearer ", "Authorization"):
+                    self.assertNotIn(secret, texte, f"{fichier.name} contient {secret}")
+
+    def test_le_relais_de_developpement_ne_vise_que_la_passerelle_locale(self):
+        config = (APP / "vite.config.ts").read_text(encoding="utf-8")
+        cibles = re.findall(r"https?://[\w.:-]+", config)
+        self.assertTrue(cibles and all(c.startswith(("http://localhost", "http://127.0.0.1")) for c in cibles), cibles)
+        self.assertIn('host: "127.0.0.1"', config, "le serveur de développement n'écoute que sur la machine")
+
+
 class Garde_fous(unittest.TestCase):
     SOURCES = [p for p in SRC.rglob("*") if p.suffix in (".ts", ".tsx")]
 

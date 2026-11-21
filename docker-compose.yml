@@ -357,6 +357,9 @@ services:
       ENVIRONMENT: local
       JWT_SECRET: ${JWT_SECRET:-}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      # Origines de l'application citoyenne : la seule liste qui vaut pour /api/v1/public/ (CIT-06). Elle ne donne aucun droit sur
+      # l'API d'équipe, et la liste d'équipe ne donne rien sur l'espace public.
+      CORS_PUBLIC_ORIGINS: ${CORS_PUBLIC_ORIGINS:-http://127.0.0.1:5174,http://localhost:5174}
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./gateway:/etc/nginx/gateway:ro

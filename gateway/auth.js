@@ -2,7 +2,8 @@
 //
 // Ce que fait ce fichier :
 //   1. verify    : valide le jeton JWT (HS256) et le rôle exigé par la route (sous-requête auth_request) ;
-//   2. preflight : répond à la pré-vérification CORS (OPTIONS) sans jeton, pour les origines autorisées ;
+//   2. preflight : répond à la pré-vérification CORS (OPTIONS) sans jeton, pour les origines autorisées (deux listes : l'équipe
+//                  `CORS_ALLOWED_ORIGINS`, l'application citoyenne `CORS_PUBLIC_ORIGINS` pour /api/v1/public/, CIT-06) ;
 //   3. headers   : filtre d'en-têtes de TOUTES les réponses : en-têtes de sécurité, CORS, corrélation. Il
 //                  efface d'abord ceux des services : la passerelle est l'unique source de ces en-têtes.
 //
@@ -31,6 +32,11 @@ const CORS_METHODS = "GET, POST, PATCH, OPTIONS";
 const CORS_HEADERS = "Authorization, Content-Type, X-Correlation-ID";
 const CORS_EXPOSED = "X-Correlation-ID, Retry-After, Allow, WWW-Authenticate";
 const CORS_MAX_AGE = "600";
+// Routes publiques (CIT-06) : leur CORS est à part. Une seule famille de méthodes (lecture), aucun en-tête de requête hors de ceux que
+// le navigateur envoie sans pré-vérification, jamais le jeton d'équipe : une page qui tenterait de l'envoyer ici est refusée.
+const CORS_PUBLIC_METHODS = "GET, OPTIONS";
+const CORS_PUBLIC_EXPOSED = "X-Correlation-ID, Retry-After";
+const CORS_PUBLIC_REQUEST_HEADERS = ["accept"]; // un navigateur ne le demande même pas (en-tête sûr) ; tout autre, jeton compris, est refusé
 // Routes publiques de l'application citoyenne (ADR-030, CIT-02) : une réponse 200 se garde 5 s, le reste jamais.
 const PUBLIC_PREFIX = "/api/v1/public/";
 const isPublicSpace = (path) => path === "/api/v1/public" || path.startsWith(PUBLIC_PREFIX);
@@ -126,9 +132,22 @@ function allowedOrigin(origins, origin) {
   return origin && origins.includes(origin) ? origin : null;
 }
 
+/** La liste d'origines qui vaut pour un chemin : celle de l'application citoyenne pour l'espace public, celle de l'équipe sinon. */
+function originsFor(options) {
+  return isPublicSpace(options.path) ? options.publicOrigins || [] : options.origins;
+}
+
+/** Pré-vérification d'une route publique : lecture seulement, et aucun en-tête de requête hors de la liste (jamais `Authorization`). */
+function publicPreflightAllowed(requestedMethod, requestedHeaders) {
+  if (requestedMethod !== undefined && requestedMethod !== "GET") return false;
+  const wanted = (requestedHeaders || "").split(",").map((item) => item.trim().toLowerCase()).filter((item) => item.length > 0);
+  return wanted.every((name) => CORS_PUBLIC_REQUEST_HEADERS.includes(name));
+}
+
 /** Les en-têtes que la passerelle pose sur une réponse ; `null` efface. Pure : testée sans nginx. */
 function responseHeaders(options) {
-  const origins = options.origins;
+  const publicSpace = isPublicSpace(options.path);
+  const origins = originsFor(options);
   const origin = options.origin;
   const method = options.method;
   const path = options.path;
@@ -154,11 +173,12 @@ function responseHeaders(options) {
   if (origins.length > 0) headers["Vary"] = "Origin";
   if (allowed) {
     headers["Access-Control-Allow-Origin"] = allowed;
-    headers["Access-Control-Expose-Headers"] = CORS_EXPOSED;
+    headers["Access-Control-Expose-Headers"] = publicSpace ? CORS_PUBLIC_EXPOSED : CORS_EXPOSED;
     // Jamais de cookie : Access-Control-Allow-Credentials n'est pas envoyé.
     if (method === "OPTIONS") {
-      headers["Access-Control-Allow-Methods"] = CORS_METHODS;
-      headers["Access-Control-Allow-Headers"] = CORS_HEADERS;
+      headers["Access-Control-Allow-Methods"] = publicSpace ? CORS_PUBLIC_METHODS : CORS_METHODS;
+      // Espace public : aucun en-tête de requête autorisé en plus de ceux que le navigateur envoie seul (donc pas `Authorization`).
+      if (!publicSpace) headers["Access-Control-Allow-Headers"] = CORS_HEADERS;
       headers["Access-Control-Max-Age"] = CORS_MAX_AGE;
     }
   }
@@ -181,6 +201,7 @@ function createHandlers(environment, routesPath) {
   const key = environment.JWT_SECRET;
   const problem = keyProblem(key, environment.ENVIRONMENT || "local");
   const origins = parseOrigins(environment.CORS_ALLOWED_ORIGINS);
+  const publicOrigins = parseOrigins(environment.CORS_PUBLIC_ORIGINS);
   const routes = readRoutes(routesPath);
 
   // Sous-requête `auth_request` : 204 = accès accordé ; 401, 403 sont rendus tels quels par nginx ; toute autre
@@ -221,6 +242,14 @@ function createHandlers(environment, routesPath) {
   // Pré-vérification CORS : sans jeton, mais seulement pour une origine de la liste.
   function preflight(r) {
     const origin = r.headersIn["Origin"];
+    const path = r.variables.request_uri.split("?")[0];
+    if (isPublicSpace(path)) {
+      // Espace public : la liste de l'application citoyenne, la lecture seule, aucun en-tête d'équipe.
+      const allowed = allowedOrigin(publicOrigins, origin);
+      const fine = publicPreflightAllowed(r.headersIn["Access-Control-Request-Method"], r.headersIn["Access-Control-Request-Headers"]);
+      r.return(allowed && fine ? 204 : 403);
+      return;
+    }
     r.return(allowedOrigin(origins, origin) ? 204 : 403);
   }
 
@@ -234,6 +263,7 @@ function createHandlers(environment, routesPath) {
     }
     const wanted = responseHeaders({
       origins,
+      publicOrigins,
       status: r.status,
       origin: r.headersIn["Origin"],
       method: r.variables.request_method,
@@ -258,5 +288,5 @@ export default {
   verify: handlers.verify,
   preflight: handlers.preflight,
   headers: handlers.headers,
-  PUBLIC_CACHE, createHandlers, decode, keyProblem, requiredRole, allowedOrigin, responseHeaders, bearerToken, parseOrigins,
+  PUBLIC_CACHE, createHandlers, decode, keyProblem, requiredRole, allowedOrigin, responseHeaders, bearerToken, parseOrigins, publicPreflightAllowed,
 };

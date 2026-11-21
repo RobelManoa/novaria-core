@@ -40,6 +40,17 @@ PAUSE_PUBLIC_S = 0.6  # les routes publiques sont limitées à 2 requêtes par s
 ID_INCONNU = "essai-inconnu"
 ESPACE_PUBLIC = "/api/v1/public/"
 METHODES_D_ECRITURE = ("POST", "PUT", "PATCH", "DELETE")
+# CIT-06 : essais d'abus de l'espace public. Pour cette famille, « attendu = refus » : `obtenu` vrai veut dire que l'abus a abouti.
+FAMILLE_ABUS = "api public (abus)"
+ORIGINES_CITOYENNES_PAR_DEFAUT = "http://127.0.0.1:5174,http://localhost:5174"  # la valeur par défaut de docker-compose.yml
+ORIGINE_INCONNUE = "http://evil.example"
+REQUETES_DE_DEPASSEMENT = 60  # bien plus que 2 par seconde plus une rafale de 10
+RETABLISSEMENT_S = 6.0  # la rafale se vide : on laisse la limite se desserrer avant les essais suivants
+# Ce qu'une erreur publique ne doit jamais laisser lire : un service, un chemin du serveur, une trace, une version de logiciel.
+INDICES_INTERNES = ("traceback", "stack", "exception", "upstream", "traitement", "alerte", "reponse", "postgres", "mongo", "kafka",
+                    "/etc/", "/var/", "docker", "python", "uvicorn", "fastapi", "nginx/", "njs")
+CHAMPS_PROBLEME = {"type", "title", "status", "code", "detail", "correlation_id"}
+MOTS_SECRETS = ("PASSWORD", "SECRET", "TOKEN", "KEY", "PASS")
 
 
 @dataclass
@@ -160,6 +171,25 @@ class Pile:
             statut = self.appel(methode, url, jeton, corps, delai)
         return statut
 
+    def requete(self, methode: str, url: str, entetes: dict[str, str] | None = None, corps: bytes | None = None,
+                delai: float = 15) -> tuple[int, dict[str, str], str]:
+        """Un appel sans nouvel essai, avec tout ce que la passerelle répond : (statut, en-têtes en minuscules, corps). Statut 0 : réseau."""
+        demande = urllib.request.Request(url, data=corps, method=methode, headers=entetes or {})  # noqa: S310 - adresses locales
+        try:
+            with urllib.request.urlopen(demande, timeout=delai) as reponse:  # noqa: S310
+                statut, en_tetes, texte = reponse.status, reponse.headers.items(), reponse.read()
+        except urllib.error.HTTPError as erreur:
+            statut, en_tetes, texte = erreur.code, erreur.headers.items(), erreur.read()
+            erreur.close()
+        except (urllib.error.URLError, TimeoutError, OSError):
+            return 0, {}, ""
+        return statut, {nom.lower(): valeur for nom, valeur in en_tetes}, texte.decode("utf-8", "replace")
+
+    def journal_passerelle(self) -> str:
+        """Ce que la passerelle a écrit récemment (accès et erreurs) ; vide si Docker ne répond pas."""
+        sortie = self.docker("logs", "--since", "10m", "passerelle", delai=60)
+        return sortie.stdout + sortie.stderr if sortie.returncode == 0 else ""
+
     def appel(self, methode: str, url: str, jeton: str | None = None, corps: bytes | None = None, delai: float = 15) -> int:
         entetes = {"Content-Type": "application/json"}
         if jeton:
@@ -269,6 +299,139 @@ def essais_public(pile: Pile, matrice: dict, jetons: dict[str, str], pause: Call
                                 f"HTTP {statut} : route inexistante dans l'espace public"))
             pause(PAUSE_S)
     return essais
+
+
+def origines(env: dict[str, str], cle: str, par_defaut: str = "") -> list[str]:
+    """Les origines d'une variable de `.env` (séparées par des virgules), sinon la valeur par défaut."""
+    return [o.strip() for o in (env.get(cle) or par_defaut).split(",") if o.strip()]
+
+
+def adresse_jetable() -> str:
+    """Une adresse de client inventée (plage 10.250.0.0/16) : le dépassement de débit n'est pas imputé à la vraie adresse du banc.
+    La passerelle croit `X-Forwarded-For` d'un relais du réseau privé : limite assumée en local (gateway/README.md)."""
+    return f"10.250.{secrets.randbelow(250)}.{secrets.randbelow(250) + 1}"
+
+
+def secrets_du_front(env: dict[str, str], dossiers: list[Path]) -> list[str]:
+    """Les fichiers livrés au navigateur qui contiennent la VALEUR d'un secret de `.env` (jamais la valeur elle-même dans le résultat)."""
+    valeurs = {nom: valeur for nom, valeur in env.items()
+               if any(mot in nom.upper() for mot in MOTS_SECRETS) and len(valeur) >= 8 and "change-me" not in valeur}
+    trouves = []
+    for dossier in dossiers:
+        for fichier in sorted(dossier.rglob("*")) if dossier.is_dir() else []:
+            if not fichier.is_file() or "node_modules" in fichier.parts or fichier.stat().st_size > 5_000_000:
+                continue
+            texte = fichier.read_text(encoding="utf-8", errors="ignore")
+            for nom, valeur in valeurs.items():
+                if valeur in texte:
+                    trouves.append(f"{fichier.relative_to(dossier.parent).as_posix()} contient la valeur de {nom}")
+    return trouves
+
+
+def essais_public_abus(pile: Pile, matrice: dict, pause: Callable[[float], None] = time.sleep) -> list[Essai]:
+    """Application citoyenne (CIT-06) : des abus qu'une page ou un script pourrait tenter, et qui ne doivent pas aboutir.
+
+    Pour chaque essai `attendu` est faux (refus voulu) et `obtenu` est vrai SEULEMENT si l'abus a abouti, sauf les trois essais de
+    témoin (« attendu » vrai) qui prouvent que la protection ne ferme pas aussi ce qui doit rester ouvert."""
+    env = getattr(pile, "env", {})
+    api, essais = matrice["api"], []
+    lecture = api["publiques_lecture"][0]
+    citoyennes = origines(env, "CORS_PUBLIC_ORIGINS", ORIGINES_CITOYENNES_PAR_DEFAUT)
+    equipe = origines(env, "CORS_ALLOWED_ORIGINS", "http://localhost:8080")
+    citoyenne = citoyennes[0]
+    base = pile.passerelle
+
+    def abus(ressource: str, operation: str, abouti: bool, detail: str) -> None:
+        essais.append(Essai(FAMILLE_ABUS, "anonyme", ressource, operation, False, abouti, detail))
+
+    def temoin(ressource: str, operation: str, rempli: bool | None, detail: str) -> None:
+        essais.append(Essai(FAMILLE_ABUS, "anonyme", ressource, operation, True, rempli, detail))
+
+    # 1. CORS : seule l'origine de l'application citoyenne lit l'espace public, et elle ne lit que lui.
+    statut, h, _ = pile.requete("GET", f"{base}{lecture}", {"Origin": citoyenne})
+    temoin("CORS", f"origine citoyenne lit {lecture}", None if statut == 0 else h.get("access-control-allow-origin") == citoyenne,
+           f"HTTP {statut}, Access-Control-Allow-Origin {'accordé' if h.get('access-control-allow-origin') == citoyenne else 'absent'}")
+    pause(PAUSE_PUBLIC_S)
+    for nom, origine in (("origine inconnue", ORIGINE_INCONNUE), *(("origine du tableau de bord", o) for o in equipe[:1])):
+        statut, h, _ = pile.requete("GET", f"{base}{lecture}", {"Origin": origine})
+        abus("CORS", f"{nom} lit {lecture}", h.get("access-control-allow-origin") not in (None, "") if statut else None,
+             f"HTTP {statut}, Access-Control-Allow-Origin {h.get('access-control-allow-origin', 'absent')}")
+        pause(PAUSE_PUBLIC_S)
+    statut, h, _ = pile.requete("GET", f"{base}/api/v1/alerts", {"Origin": citoyenne})
+    abus("CORS", "origine citoyenne lit l'API d'équipe", h.get("access-control-allow-origin") not in (None, "") if statut else None,
+         f"HTTP {statut}, Access-Control-Allow-Origin {h.get('access-control-allow-origin', 'absent')}")
+    pause(PAUSE_S)
+    statut, h, _ = pile.requete("GET", f"{base}{lecture}", {"Origin": citoyenne})
+    abus("CORS", "cookies autorisés entre origines (Allow-Credentials)", "access-control-allow-credentials" in h if statut else None,
+         f"HTTP {statut}, Access-Control-Allow-Credentials {h.get('access-control-allow-credentials', 'absent')}")
+    pause(PAUSE_PUBLIC_S)
+    for nom, demande in (("une écriture (POST)", {"Access-Control-Request-Method": "POST"}),
+                         ("le jeton d'équipe (Authorization)", {"Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "authorization"})):
+        statut, _, _ = pile.requete("OPTIONS", f"{base}{lecture}", {"Origin": citoyenne, **demande})
+        abus("CORS", f"pré-vérification qui demande {nom}", statut in (200, 204) if statut else None, f"HTTP {statut} : un navigateur n'envoie rien si ce n'est pas un succès")
+        pause(PAUSE_S)
+
+    # 2. Erreurs : le format commun, aucun détail interne, des en-têtes de sécurité, jamais gardées par un cache.
+    cas = (("chemin inconnu", "GET", f"{base}{api['espace_public_interdit'][0]}", 404), ("écriture", "POST", f"{base}{lecture}", 405),
+           ("chemin refusé", "GET", f"{base}/api/v1/public/a//b", 400), ("chemin refusé (encodé)", "GET", f"{base}/api/v1/public/%2e%2e/alerts", 400))
+    for nom, methode, url, attendu in cas:
+        statut, h, texte = pile.requete(methode, url, {"Content-Type": "application/json"} if methode == "POST" else None, b"{}" if methode == "POST" else None)
+        try:
+            champs = set(json.loads(texte))
+        except ValueError:
+            champs = set()
+        fuites = [i for i in INDICES_INTERNES if i in (texte + json.dumps(h)).lower()]
+        mal_forme = statut != attendu or champs != CHAMPS_PROBLEME or h.get("cache-control") != "no-store" or h.get("x-content-type-options") != "nosniff"
+        server = h.get("server", "nginx")
+        abus("erreurs", f"erreur « {nom} » : détail interne ou version lisible", bool(fuites) or server != "nginx" if statut else None,
+             f"HTTP {statut} (attendu {attendu}) ; champs {'communs' if champs == CHAMPS_PROBLEME else 'DIFFÉRENTS'} ; "
+             f"indices : {', '.join(fuites) or 'aucun'} ; Server « {server} »")
+        abus("erreurs", f"erreur « {nom} » : format, cache ou en-têtes de sécurité manquants", mal_forme if statut else None,
+             f"Cache-Control {h.get('cache-control', 'absent')}, nosniff {h.get('x-content-type-options', 'absent')}")
+        pause(PAUSE_S)
+
+    # 3. Journal : l'adresse d'un citoyen n'y est pas ; elle y est pour l'équipe (témoin). Adresses inventées, repérables.
+    citoyen_ip, equipe_ip = adresse_jetable(), adresse_jetable()
+    pile.requete("GET", f"{base}{lecture}", {"X-Forwarded-For": citoyen_ip})
+    pile.requete("GET", f"{base}/api/v1/alerts", {"X-Forwarded-For": equipe_ip})  # refusé (401) : il est tout de même journalisé
+    pause(1.0)
+    journal = pile.journal_passerelle()
+    if journal:
+        abus("journal", "adresse d'un citoyen dans le journal de la passerelle", citoyen_ip in journal, "journal des 10 dernières minutes, adresse inventée")
+        temoin("journal", "adresse d'un appel d'équipe dans le journal (témoin)", equipe_ip in journal, "la protection ne vide pas tout le journal")
+    else:
+        abus("journal", "adresse d'un citoyen dans le journal de la passerelle", None, "journal illisible (Docker)")  # type: ignore[arg-type]
+
+    # 4. Dépassement de débit : la limite mord, dit pourquoi, et ne touche ni une autre adresse ni l'API d'équipe.
+    pile_ip, autre_ip = adresse_jetable(), adresse_jetable()
+    reponses = [pile.requete("GET", f"{base}{lecture}", {"X-Forwarded-For": pile_ip}) for _ in range(REQUETES_DE_DEPASSEMENT)]
+    refus = [r for r in reponses if r[0] == 429]
+    abus("débit", f"{REQUETES_DE_DEPASSEMENT} lectures publiques d'affilée sans être limité", len(refus) < REQUETES_DE_DEPASSEMENT // 2,
+         f"{len(refus)} refus 429 sur {REQUETES_DE_DEPASSEMENT} (rafale de 10, 2 par seconde)")
+    if refus:
+        _, h, texte = refus[0]
+        try:
+            code = json.loads(texte).get("code")
+        except ValueError:
+            code = None
+        abus("débit", "refus de débit sans le format commun, sans Retry-After ou gardé par un cache",
+             code != "RATE_LIMITED" or "retry-after" not in h or h.get("cache-control") != "no-store",
+             f"code {code}, Retry-After {h.get('retry-after', 'absent')}, Cache-Control {h.get('cache-control', 'absent')}")
+    statut, _, _ = pile.requete("GET", f"{base}{lecture}", {"X-Forwarded-For": autre_ip})
+    temoin("débit", "une autre adresse n'est pas limitée (témoin)", None if statut == 0 else statut == 200, f"HTTP {statut}")
+    statut, _, _ = pile.requete("GET", f"{base}/api/v1/alerts", {"X-Forwarded-For": pile_ip})
+    abus("débit", "la limite publique ouvre l'API d'équipe", statut not in (401, 429) if statut else None, f"HTTP {statut} : sans jeton, 401 attendu")
+    pause(RETABLISSEMENT_S)
+    return essais
+
+
+def essais_front(env: dict[str, str], racine: Path = ROOT) -> list[Essai]:
+    """Application citoyenne (CIT-06) : aucun secret de `.env` dans ce qui est livré au navigateur (sources et version construite)."""
+    citoyen = racine / "citizen"
+    trouves = secrets_du_front(env, [citoyen / "src", citoyen / "dist", citoyen / "index.html"])
+    construit = (citoyen / "dist").is_dir()
+    return [Essai(FAMILLE_ABUS, "anonyme", "front citoyen", "valeur d'un secret de .env dans le code livré", False, bool(trouves),
+                  "; ".join(trouves) if trouves else f"sources{' et version construite' if construit else ' (non construite : dist/ absent)'} sans aucune valeur secrète")]
 
 
 def essais_services_directs(pile: Pile, jetons: dict[str, str], pause: Callable[[float], None] = time.sleep) -> list[Essai]:
@@ -449,6 +612,9 @@ def executer(pile: Pile, matrice: dict | None = None, routes: list[dict] | None 
         essais += essais_api(pile, matrice, jetons, routes, pause)
         afficher("API publique (citoyen) : lecture ouverte, écritures refusées, espace public fermé…")
         essais += essais_public(pile, matrice, jetons, pause)
+        afficher("API publique : essais d'abus (CORS, erreurs, journal, dépassement de débit, secrets du front)…")
+        essais += essais_public_abus(pile, matrice, pause)
+        essais += essais_front(pile.env)
         afficher("API : un essai direct sur chaque service…")
         essais += essais_services_directs(pile, jetons, pause)
         afficher("PostgreSQL : catalogue des droits et essais réels…")
