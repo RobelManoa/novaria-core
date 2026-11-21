@@ -133,11 +133,6 @@ test("connexion puis tableau de bord, avec les valeurs de l'API", async ({ page 
 test("une session refusée par le serveur renvoie à la connexion", async ({ page }) => {
   const api = await installFakeApi(page, { rejectToken: true });
   await page.goto("/connexion");
-  // La page est déjà sur /connexion avant de se connecter : l'URL ne prouve rien. On attend donc le refus du jeton
-  // par le serveur (un 401 qui n'est pas celui de la connexion), puis on lit la session.
-  const refus = page.waitForResponse(
-    (reponse) => reponse.status() === 401 && !reponse.url().includes("/auth/login"),
-  );
   await signIn(page);
   // La connexion réussit, mais le serveur refuse ensuite le jeton : on revient à la connexion, sans écran de données.
   // On attend d'abord que le jeton ait été présenté (donc refusé) : sans cela, l'URL est déjà « /connexion » et la session
