@@ -130,6 +130,10 @@ La matrice a deux clés de plus (`api.publiques_lecture`, `api.espace_public_int
 
 Le banc compare aussi la matrice aux contrats : une route publique de la matrice absente des contrats, ou une route de l'espace public des contrats absente de la matrice, est un échec (`verifier_la_matrice_contre_les_contrats`). Résultat du 20/11/2026 : `api public  accès accordés 8/8 · accès refusés 52/52`, **accès interdits accordés : 0** ([sortie complète](sorties-acces/acces-citoyen-2026-11-20.txt)). Limite : le banc prouve l'accès, pas le contenu des réponses. Le 20/11/2026, avant CIT-03, le service répondait 404 après avoir été atteint, ce que la matrice compte comme un accès accordé ; depuis CIT-03 les routes répondent 200 ([sortie](sorties-acces/acces-citoyen-servi-2026-11-20.txt), même résultat), et le contenu est prouvé par les tests de contrat et de l'API ([api-citoyen.md](../03-donnees/api-citoyen.md)).
 
+## 5 ter. Abus de l'espace public (CIT-06, 21/11/2026)
+
+Une seconde famille, **`api public (abus)`**, joue des abus et non des accès : pour elle, « obtenu vrai » veut dire que **l'abus a abouti** et compte comme accès interdit accordé. 22 essais : 3 témoins (l'origine citoyenne lit, l'adresse de l'équipe reste journalisée, une autre adresse n'est pas limitée) et 19 abus (CORS d'une origine inconnue, de l'équipe, de la page citoyenne sur l'API d'équipe, cookies entre origines, pré-vérification qui demande une écriture ou le jeton d'équipe, quatre erreurs × deux contrôles, adresse d'un citoyen dans le journal, dépassement de débit et son refus, limite qui ouvre l'API d'équipe, valeur secrète dans le front). Résultat : **témoins 3/3, abus refusés 19/19, accès interdits accordés : 0** ([sortie complète](sorties-acces/acces-citoyen-securite-2026-11-21.txt)). Détail, défauts trouvés et limites : [sécurité de l'accès public](../04-devsecops/securite-acces-public.md).
+
 ## 6. Preuve : exécution du 17/11/2026
 
 Poste Linux (Ubuntu), pile locale démarrée par `dev.py up` (13 conteneurs sains), sortie de `dev.py acces`, lignes raccourcies :

@@ -117,7 +117,7 @@ Elles priment sur les consignes automatiques de l'outil (y compris celles qui de
 | `ruff` (CI des services) : lignes de plus de 100 caractères, y compris les docstrings et les blocs `# fmt: skip` | `ruff check .` et `ruff format --check .` dans chaque service avant de donner les commandes |
 | Types d'API du front-end générés depuis les contrats | Après toute modification de `contracts/openapi/` : `cd frontend && npm run api:generate` |
 | Tests qui comptent les routes publiques / les opérations des contrats | Les adapter explicitement (jamais supprimer) : `test_openapi.py`, `test_gateway_routes.py`, `test_acces.py`, tests de contrat de `traitement` et d'`alerte` |
-| La passerelle (nginx) résout les services **au démarrage** : après un service recréé ou un changement de `routes.conf`, 503 ou 404 | `docker compose exec -T passerelle nginx -s reload` |
+| La passerelle (nginx) résout les services **au démarrage** : après un service recréé ou un changement de `routes.conf`, 503 ou 404 | `docker compose exec -T passerelle nginx -s reload` ; un changement de variable d'environnement de la passerelle (ex. `CORS_PUBLIC_ORIGINS`) demande `docker compose up -d passerelle` |
 | Parcours Playwright simulé instable sur la CI lente | Attendre l'effet visé (appel de l'API, `expect.poll`) avant de lire `sessionStorage` |
 | `dev.py up` reconstruit tout et écrase un retour de version (`dev.py rollback`) | Normal ; `rollback etat` signale l'écart |
 | Un état de la pile de travail plus ancien que les scripts d'initialisation | 3 échecs MongoDB `ingestion_runs` dans `dev.py acces` : déjà documentés (17/11/2026), code de sortie 1 attendu |
@@ -137,7 +137,8 @@ Elles priment sur les consignes automatiques de l'outil (y compris celles qui de
 | Tableau de bord de pilotage (GES-11) | `dev.py tableau-de-bord`, `docs/07-gestion/tableau-de-bord.md` (indicateurs recalculés depuis GitHub, zéro ≠ non mesuré) |
 | Partie citoyenne (jalon M6) | CIT-01 ADR-030 (usager anonyme, lecture seule, liste blanche de six champs, rien de brut ni de capteur) ; CIT-02 contrats `GET /api/v1/public/congestion` et `/public/alerts`, `gateway/citoyen.conf`, famille « api public » de `dev.py acces` ; CIT-03 routes servies (`traitement` l'état, `alerte` les alertes), `docs/03-donnees/api-citoyen.md` ; CIT-04 application `citizen/` (React, Vite, port 5174, `dev.py citoyen`), `docs/08-exploitation/application-citoyenne.md` |
 | CIT-05 | Alertes en cours (`citizen/src/components/AlertsSection.tsx`, lecture toutes les 5 s sans cache), suivi d'un tronçon en mémoire seulement avec consentement et notification simulée ; `dev.py citoyen delai` mesure le délai création → écran (6 mesures, max 4,1 s) ; `docs/08-exploitation/application-citoyenne.md` §8 |
-| **Reste à faire (citoyen)** | CIT-06 sécurité de l'accès public (CORS d'une origine dédiée, journal sans adresse, scans) ; CIT-07 parcours de bout en bout avec l'usager ; CIT-08 documentation ; puis M7 : site de soutenance (SIT-01 à 03, idée validée : site statique local, voir la mémoire) |
+| CIT-06 | Sécurité de l'accès public : `CORS_PUBLIC_ORIGINS` (liste dédiée à `/api/v1/public/`, lecture seule, jamais `Authorization`), journal d'accès sans adresse et `X-Forwarded-For` vide pour l'espace public, 400 avec les en-têtes de sécurité ; famille « api public (abus) » de `dev.py acces` (22 essais) ; `dev.py citoyen cors` (Chromium) ; `docs/04-devsecops/securite-acces-public.md` |
+| **Reste à faire (citoyen)** | CIT-07 parcours de bout en bout avec l'usager ; CIT-08 documentation ; puis M7 : site de soutenance (SIT-01 à 03, idée validée : site statique local, voir la mémoire) |
 | Limites connues à ne pas masquer | 10 preuves citées par des issues fermées introuvables (voir `dev.py tableau-de-bord`) ; 405 de la passerelle en `application/octet-stream` ; l'état public est celui du run **le plus récent** ; lecteur d'écran et téléphone réels non essayés ; Windows non vérifié partout |
 
 ## 13. Commandes ajoutées (Linux ; Windows : `py -3` à la place de `python3`)
@@ -146,7 +147,7 @@ Elles priment sur les consignes automatiques de l'outil (y compris celles qui de
 |---|---|
 | Tableau de bord de pilotage | `python3 scripts/dev/dev.py tableau-de-bord` (`--local`, `--ref`, `--json`, `--ecrire`) |
 | Retour de version | `python3 scripts/dev/dev.py rollback etat\|construire\|deployer\|retour\|essai` |
-| Application citoyenne | `python3 scripts/dev/dev.py citoyen [dev\|apercu\|build\|test\|captures\|delai]` |
+| Application citoyenne | `python3 scripts/dev/dev.py citoyen [dev\|apercu\|build\|test\|captures\|delai\|cors]` |
 | Observatoire | `python3 scripts/dev/dev.py observatoire` |
 | Matrice d'accès | `python3 scripts/dev/dev.py acces` |
 | Tests de tout `scripts/dev` (sans Docker) | `python3 -m unittest discover -s scripts/dev` (environ 940 tests) |

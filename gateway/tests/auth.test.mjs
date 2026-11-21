@@ -154,7 +154,7 @@ test("les origines viennent d'une liste exacte : un joker, un chemin ou un hôte
 
 function headersFor(overrides = {}) {
   return auth.responseHeaders({
-    origins: ["http://localhost:8080"], origin: undefined, method: "GET", path: "/api/v1/alerts",
+    origins: ["http://localhost:8080"], publicOrigins: ["http://127.0.0.1:5174"], origin: undefined, method: "GET", path: "/api/v1/alerts",
     correlationId: "abc", forwardedProto: undefined, ...overrides,
   });
 }
@@ -199,8 +199,8 @@ test("l'espace public lui-même, une erreur sans route, n'est jamais gardé", ()
 });
 
 test("la mise en cache d'une route publique ne dépend pas de la chaîne de requête de l'appelant et garde le CORS", () => {
-  const h = headersFor({ path: "/api/v1/public/alerts", status: 200, origin: "http://localhost:8080" });
-  assert.equal(h["Access-Control-Allow-Origin"], "http://localhost:8080");
+  const h = headersFor({ path: "/api/v1/public/alerts", status: 200, origin: "http://127.0.0.1:5174" });
+  assert.equal(h["Access-Control-Allow-Origin"], "http://127.0.0.1:5174");
   assert.equal(h["Vary"], "Origin", "un cache partagé ne doit pas servir une origine à une autre");
   assert.equal(h["Access-Control-Allow-Credentials"], undefined, "jamais de cookie");
 });
@@ -400,4 +400,79 @@ test("la signature doit être en base64url : la forme base64 standard (+ / =) es
     verifie = true;
   }
   assert.ok(verifie, "aucune signature avec - ou _ trouvée");
+});
+
+// --------------------------------------------------------------------------- CORS de l'espace public (CIT-06)
+const CITOYEN = "http://127.0.0.1:5174";
+const EQUIPE = "http://localhost:8080";
+
+test("CIT-06 : l'espace public n'écoute que la liste de l'application citoyenne, jamais celle de l'équipe", () => {
+  const citoyen = headersFor({ path: "/api/v1/public/congestion", status: 200, origin: CITOYEN });
+  assert.equal(citoyen["Access-Control-Allow-Origin"], CITOYEN);
+  const equipe = headersFor({ path: "/api/v1/public/congestion", status: 200, origin: EQUIPE });
+  assert.equal(equipe["Access-Control-Allow-Origin"], undefined, "l'origine du tableau de bord n'a rien à lire ici");
+  assert.equal(equipe["Vary"], "Origin");
+});
+
+test("CIT-06 : l'origine de l'application citoyenne n'ouvre rien sur l'API d'équipe", () => {
+  for (const path of ["/api/v1/alerts", "/api/v1/signals", "/api/v1/auth/login", "/api/v1/health"]) {
+    assert.equal(headersFor({ path, status: 200, origin: CITOYEN })["Access-Control-Allow-Origin"], undefined, path);
+  }
+});
+
+test("CIT-06 : sans liste publique, aucun en-tête CORS sur l'espace public (même pour l'origine de l'équipe)", () => {
+  const h = headersFor({ publicOrigins: [], path: "/api/v1/public/alerts", status: 200, origin: EQUIPE });
+  assert.equal(h["Access-Control-Allow-Origin"], undefined);
+  assert.equal(h["Vary"], undefined);
+  assert.equal(headersFor({ publicOrigins: undefined, path: "/api/v1/public/alerts", origin: CITOYEN })["Access-Control-Allow-Origin"], undefined);
+});
+
+test("CIT-06 : la pré-vérification publique annonce la lecture seule et aucun en-tête d'équipe", () => {
+  const h = headersFor({ path: "/api/v1/public/alerts", method: "OPTIONS", status: 204, origin: CITOYEN });
+  assert.equal(h["Access-Control-Allow-Methods"], "GET, OPTIONS");
+  assert.equal(h["Access-Control-Allow-Headers"], undefined, "pas d'Authorization, pas de Content-Type");
+  assert.equal(h["Access-Control-Allow-Credentials"], undefined);
+  assert.doesNotMatch(h["Access-Control-Expose-Headers"], /WWW-Authenticate|Allow/);
+  assert.doesNotMatch(h["Access-Control-Allow-Methods"], /POST|PATCH|PUT|DELETE/);
+});
+
+test("CIT-06 : publicPreflightAllowed refuse l'écriture et tout en-tête de requête hors liste, dont le jeton", () => {
+  assert.equal(auth.publicPreflightAllowed("GET", undefined), true);
+  assert.equal(auth.publicPreflightAllowed(undefined, ""), true);
+  assert.equal(auth.publicPreflightAllowed("GET", "Accept"), true);
+  for (const method of ["POST", "PUT", "PATCH", "DELETE", "get"]) assert.equal(auth.publicPreflightAllowed(method, undefined), false, method);
+  for (const entetes of ["Authorization", "accept, authorization", "Cache-Control", "Pragma", "Content-Type", "X-Correlation-ID", "Cookie", "X-User-Role"]) {
+    assert.equal(auth.publicPreflightAllowed("GET", entetes), false, entetes);
+  }
+});
+
+test("CIT-06 : preflight public, 204 pour l'origine citoyenne en lecture seule, 403 pour tout le reste", () => {
+  const env = { JWT_SECRET: KEY, CORS_ALLOWED_ORIGINS: EQUIPE, CORS_PUBLIC_ORIGINS: CITOYEN };
+  const { preflight } = handlers(env, TABLE);
+  const essai = (uri, origin, methodeDemandee, entetesDemandes) => {
+    const { r, sortie } = requete({ method: "OPTIONS", uri, origin });
+    r.headersIn["Access-Control-Request-Method"] = methodeDemandee;
+    r.headersIn["Access-Control-Request-Headers"] = entetesDemandes;
+    preflight(r);
+    return sortie.status;
+  };
+  const alertes = "/api/v1/public/alerts";
+  assert.equal(essai(alertes, CITOYEN, "GET", undefined), 204);
+  assert.equal(essai(alertes, EQUIPE, "GET", undefined), 403, "origine d'équipe sur l'espace public");
+  assert.equal(essai(alertes, "http://evil.example", "GET", undefined), 403);
+  assert.equal(essai(alertes, undefined, "GET", undefined), 403);
+  assert.equal(essai(alertes, CITOYEN, "POST", undefined), 403, "écriture demandée");
+  assert.equal(essai(alertes, CITOYEN, "GET", "authorization"), 403, "jeton d'équipe demandé");
+  assert.equal(essai("/api/v1/alerts", CITOYEN, "GET", undefined), 403, "origine citoyenne sur l'API d'équipe");
+  assert.equal(essai("/api/v1/alerts", EQUIPE, "GET", "authorization"), 204, "l'équipe garde son comportement");
+});
+
+test("CIT-06 : le filtre d'en-têtes d'une route publique efface le CORS du service et pose celui de la liste citoyenne", () => {
+  const { headers: filtre } = handlers({ JWT_SECRET: KEY, CORS_ALLOWED_ORIGINS: EQUIPE, CORS_PUBLIC_ORIGINS: CITOYEN }, TABLE);
+  const { r, sortie } = requete({ uri: "/api/v1/public/alerts", origin: CITOYEN });
+  Object.assign(sortie.headers, { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Credentials": "true" });
+  r.status = 200;
+  filtre(r);
+  assert.equal(sortie.headers["Access-Control-Allow-Origin"], CITOYEN);
+  assert.equal(sortie.headers["Access-Control-Allow-Credentials"], undefined);
 });

@@ -188,7 +188,7 @@ restauration:  ## Restaure dans un environnement isolé et compare les totaux (C
 	$(DEV) restauration $(if $(NEG),--controles-negatifs,)
 sauvegarde-planifier: ## Planifie la sauvegarde sans cron (CLD-15)
 	$(DEV) sauvegarde-planifier
-citoyen:       ## Application citoyenne : make citoyen A=apercu (dev, apercu, build, test, captures ; CIT-04)
+citoyen:       ## Application citoyenne : make citoyen A=apercu (dev, apercu, build, test, captures, delai, cors ; CIT-04 à CIT-06)
 	$(DEV) citoyen $(A)
 tableau-de-bord: ## Tableau de bord de pilotage : exigences, risques, livrables par jalon, depuis GitHub (GES-11)
 	$(DEV) tableau-de-bord

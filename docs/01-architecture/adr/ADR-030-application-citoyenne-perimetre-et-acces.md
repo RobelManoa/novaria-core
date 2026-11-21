@@ -113,7 +113,7 @@ Le code citoyen est développé sur une **branche de travail temporaire** (`dev-
 
 - les contrôles continuent de s'exécuter sur les pull requests ; leurs résultats sont **lus et consignés**, pas masqués ;
 - **avant toute fusion de la branche dans `main`**, ces contrôles doivent passer, ou une exception documentée (`docs/04-devsecops/exceptions.md`, avec raison et date d'expiration) doit être acceptée par les deux membres ;
-- la tâche CIT-06 (« Scan Snyk et gitleaks verts sur le nouveau code ») reste dans le backlog et sera tenue ou amendée explicitement.
+- la tâche CIT-06 (« Scan Snyk et gitleaks verts sur le nouveau code ») est tenue à la lecture des résultats de la CI de sa pull request : gitleaks vérifié en local, Snyk à lire dans la CI ([sécurité de l'accès public](../../04-devsecops/securite-acces-public.md), section 6).
 
 ## 5. Conséquences
 
@@ -133,7 +133,7 @@ Si les routes publiques posent problème en M6 : l'application citoyenne lit des
 
 - `contracts/openapi/` contient les deux routes publiques (`security: []`) ; `gateway_routes.py` génère leur entrée ; **toute autre route sous `/api/v1/public/` répond 404** (CIT-02).
 - Un test compare les champs de chaque réponse publique à la liste de la section 4.4 ; un champ de plus fait échouer le test (CIT-02, CIT-03).
-- Un jeton d'équipe, une écriture, une route interne et un dépassement de débit **échouent tous sur une route publique** (matrice d'accès, CIT-06).
+- Un jeton d'équipe, une écriture, une route interne et un dépassement de débit **échouent tous sur une route publique** (matrice d'accès, famille « api public » et famille « api public (abus) », CIT-06 : [sécurité de l'accès public](../../04-devsecops/securite-acces-public.md)).
 - Un citoyen voit l'état de la circulation sur téléphone **sans se connecter**, avec « Données simulées » (CIT-04).
 - Une alerte créée par le service apparaît dans l'application en moins de 10 secondes (CIT-05).
 

@@ -12,7 +12,8 @@
     "format:check": "prettier --check src tests scripts",
     "test": "vitest run --coverage",
     "captures": "node scripts/captures.mjs",
-    "captures:alertes": "node scripts/captures-alertes.mjs"
+    "captures:alertes": "node scripts/captures-alertes.mjs",
+    "cors": "node scripts/cors-navigateur.mjs"
   },
   "dependencies": {
     "react": "^19.0.0",
