@@ -28,7 +28,7 @@ Docker est la seule exigence. Le dépôt est monté en lecture seule ; les donn�
 | Tests du prototype (PySpark compris) | `python3 scripts/dev/dev.py bigdata-test` | `py -3 scripts/dev/dev.py bigdata-test` |
 | Générer 90 jours (6,4 millions de lignes, 1,6 Go) | `python3 scripts/dev/dev.py bigdata -- generer --dossier /data/paris --jours 90` | `py -3 scripts/dev/dev.py bigdata -- generer --dossier /data/paris --jours 90` |
 | Mesurer 7 et 30 jours, trois moteurs | `python3 scripts/dev/dev.py bigdata -- mesurer --dossier /data/paris --jours 7,30 --moteurs python-sequentiel,python-parallele:4,spark:4` | `py -3 scripts/dev/dev.py bigdata -- mesurer --dossier /data/paris --jours 7,30 --moteurs python-sequentiel,python-parallele:4,spark:4` |
-| Un seul moteur, puis sa vérification | `… bigdata -- nettoyer --moteur spark --coeurs 4 --jours 7` puis `… bigdata -- verifier --moteur spark --coeurs 4 --jours 7` | idem avec `py -3` |
+| Un seul moteur, puis sa vérification | `python3 scripts/dev/dev.py bigdata -- nettoyer --moteur spark --coeurs 4 --jours 7` puis `python3 scripts/dev/dev.py bigdata -- verifier --moteur spark --coeurs 4 --jours 7` | `py -3 scripts/dev/dev.py bigdata -- nettoyer --moteur spark --coeurs 4 --jours 7` puis `py -3 scripts/dev/dev.py bigdata -- verifier --moteur spark --coeurs 4 --jours 7` |
 | Supprimer les données | `docker volume rm novaria-bigdata` | `docker volume rm novaria-bigdata` |
 
 Ressources par défaut : 4 cœurs et 6 Go (`--cpus`, `--memoire` de `dev.py bigdata`). Une mesure sans sa machine ne dit rien : le rapport de `mesurer` écrit l'environnement (versions, cœurs, limites).

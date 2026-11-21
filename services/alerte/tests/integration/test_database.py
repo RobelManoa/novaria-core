@@ -75,7 +75,7 @@ def test_the_database_refuses_a_negative_seed_and_a_malformed_scenario(run_id):
         ):
             with pytest.raises(psycopg.errors.CheckViolation):
                 connection.execute(
-                    "INSERT INTO alertes.alert (rule_id, kind, road_segment_id, intersection_id, "  # noqa: S608
+                    "INSERT INTO alertes.alert (rule_id, kind, road_segment_id, intersection_id, "  # noqa: S608 - nom de colonne tiré d'une liste fermée du test (valeurs en paramètres)
                     f"run_id, source_type, severity, opened_at, {column}) VALUES "
                     "('congestion.persistante', 'CONGESTION', 'ROAD_009', 'INT_01', %s, "
                     "'SIMULATED', 'INFO', now(), %s)",

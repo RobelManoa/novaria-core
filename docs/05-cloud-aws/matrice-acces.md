@@ -89,7 +89,7 @@ Source : `contracts/topics.json`. **Le broker local n'a ni authentification ni a
 
 ## 4. Méthode des essais
 
-`python3 scripts/dev/dev.py acces` compare la matrice à ce que la pile **fait**, sur les vrais composants :
+`python3 scripts/dev/dev.py acces` (Linux) ou `py -3 scripts/dev/dev.py acces` (Windows) compare la matrice à ce que la pile **fait**, sur les vrais composants :
 
 | Famille | Essais | Ce qui est vérifié |
 |---|---|---|

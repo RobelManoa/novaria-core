@@ -53,7 +53,7 @@ Abréviations : ML (Machine Learning, apprentissage automatique), F1 (moyenne ha
 | Registre | **non enregistré** : un modèle sous le seuil n'entre pas au registre (IA-04, IA-05) |
 | En service | **non** : la règle de seuils reste le classificateur en service (ADR-015, section 6) |
 | Format de fichier | `novaria-modele-lineaire` (JSON, aucun `pickle`) : le seul qui se charge |
-| Reproduction | `python3 scripts/dev/dev.py ml-pipeline` refait l'entraînement et l'évaluation depuis la configuration figée et compare les métriques à celles enregistrées |
+| Reproduction | `python3 scripts/dev/dev.py ml-pipeline` (Linux) ou `py -3 scripts/dev/dev.py ml-pipeline` (Windows) refait l'entraînement et l'évaluation depuis la configuration figée et compare les métriques à celles enregistrées |
 
 ## 6. Contrôles de sécurité du cycle (MLSecOps)
 

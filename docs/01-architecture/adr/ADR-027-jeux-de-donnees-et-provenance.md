@@ -2,11 +2,11 @@
 
 | Champ | Valeur |
 |---|---|
-| Date | 20/10/2026 |
+| Date | 20/10/2026 ; relue contre le dépôt le 20/11/2026 (DOC-11) |
 | Statut | Proposée : jeu de données à valider par le professeur (point 2 de GES-06) |
 | Décideurs | Manoa Robel (données et IA (intelligence artificielle)), Daddy Luciano (relecture) |
 | Validation du professeur | À demander (simulateur seul ou calé sur un jeu ouvert) |
-| Issues liées | DAT-01, DAT-10, IA-08, IA-09, IA-10, IA-11, MS-07 |
+| Issues liées | DAT-01, DAT-03, DAT-04, DAT-08, DAT-10, IA-08, IA-09, IA-10, IA-11, MS-07 |
 | Compétences BC05 | ETL (Extract, Transform, Load), Machine Learning et modélisation des données, Documentation |
 | S'appuie sur | [ADR-013](ADR-013-integration-donnees.md), [ADR-015](ADR-015-modeles-ia.md) |
 | Complété par | [Dictionnaire de données](../../03-donnees/dictionnaire-de-donnees.md) |
@@ -38,12 +38,15 @@ Un modèle vaut ce que valent ses données. Le projet n'a pas de capteurs réels
 
 ### 3.2 Rôle des jeux réels
 
+Trois jeux réels ouverts ont été comparés (DAT-01, [fiche des jeux](../../../data/datasets/README.md)). Aucun n'est chargé dans l'entrepôt `dwh.fact_traffic_window` : ils restent des fichiers sous `data/datasets/`, avec leur fiche de provenance.
+
 | Jeu | Contenu | Usage retenu |
 |---|---|---|
+| **Comptage routier de la Ville de Paris** (capteurs permanents, licence ODbL) | Débit horaire (`q`), taux d'occupation (`k`) et état du trafic par tronçon ; 3 036 tronçons, plus de 29 millions de lignes | **Jeu urbain réel choisi en DAT-01** : exerce l'ETL (téléchargement, nettoyage, rejets : DAT-03 et DAT-04) et le prototype Big Data (DAT-08, sur une copie **simulée** de même forme : la licence interdit de redistribuer les données réelles). Il ne remplace pas les runs simulés : son état du trafic dépend de `k` et n'est pas une vérité terrain exploitable ([fiche](../../../data/datasets/README.md), section 3.6) |
 | METR-LA | Vitesses de capteurs routiers de Los Angeles, pas de 5 minutes, historique ouvert | **Prévision uniquement** (IA-10) : séries longues, vitesses seules ; licence **non établie** (vérifiée le 18/11/2026) : usage de recherche en local, jamais redistribué ([fiche de provenance](../../../data/datasets/metr-la/PROVENANCE.md)) |
-| Jeu de l'UCI (University of California, Irvine) retenu dans DAT-01 | Jeu tabulaire de trafic | **Tutoriel de prise en main** (ETL, qualité, premiers modèles) ; ne remplace pas les runs |
+| Metro Interstate Traffic Volume (UCI, University of California, Irvine) | Un volume par heure sur une station du Minnesota, licence CC BY 4.0 | **Tutoriel de prise en main** (ETL, qualité, premiers modèles) ; ne remplace pas les runs |
 
-Les jeux réels ne contiennent pas de comptages de véhicules par fenêtre ni d'état de congestion. Ils **ne sont pas chargés dans l'entrepôt** `dwh.fact_traffic_window` (qui exige un comptage) : ils restent des fichiers sous `data/datasets/`, avec leur fiche de provenance.
+**Écart avec le texte d'origine du 20/10/2026**, qui disait « les jeux réels ne contiennent pas de comptages de véhicules par fenêtre ni d'état de congestion » et « jeu de l'UCI retenu dans DAT-01 » : c'est faux pour le jeu de Paris (il a un débit horaire et un état du trafic) et le jeu retenu en DAT-01 est celui de Paris, pas celui de l'UCI. METR-LA et le jeu de l'UCI n'ont, eux, ni état de congestion ni taux d'occupation. Le choix du jeu de Paris reste **à valider par le professeur** (point 2 de GES-06, [décisions du professeur](../../07-gestion/decisions-professeur.md)) ; la question « simulateur seul, ou simulateur calé sur le jeu de Paris ? » est posée dans la fiche.
 
 ### 3.3 Origine du label « congestionné »
 
@@ -63,6 +66,7 @@ flowchart LR
     EV --> DS[(Jeu v1 Parquet<br/>+ fiche de provenance)]
     SUMO["SUMO (conditionnel)"] -.-> RUN
     REAL["METR-LA<br/>(vitesses réelles)"] --> FC[Prévision IA-10]
+    PARIS["Paris : comptage routier<br/>(débit, occupation)"] --> ETL["ETL DAT-03, DAT-04<br/>et prototype DAT-08"]
     UCI["Jeu UCI"] --> TUT[Tutoriel DAT-01]
     DS --> SPLIT["Découpage par run<br/>et scénario"]
 ```
@@ -102,7 +106,7 @@ Fiche de provenance d'un jeu (`data/datasets/<jeu>/PROVENANCE.md`) :
 **Compromis acceptés**
 
 - Un modèle entraîné sur le générateur apprend le générateur : le résultat prouve la chaîne, pas la précision réelle (limite écrite dans le rapport).
-- METR-LA ne donne que des vitesses : pas de reconnaissance de la congestion sur données réelles.
+- METR-LA ne donne que des vitesses : pas de reconnaissance de la congestion sur données réelles. Le jeu de Paris donne un débit et une occupation, mais son état du trafic n'est pas une vérité terrain exploitable : le label d'apprentissage reste celui du générateur.
 - Le v0 est simple : trafic modélisé par des profils et du bruit, pas une simulation microscopique.
 
 **Risques et parades**

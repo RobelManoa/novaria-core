@@ -101,13 +101,13 @@ La clé doit faire 32 caractères au moins ; la valeur d'exemple de `.env.exampl
 
 ## 7. Tests et commandes
 
-| Action | Commande |
-|---|---|
-| Passerelle réelle devant trois services factices (Docker requis) | `python -m unittest discover -s gateway/tests -p "test_gateway.py" -v` ou `make test-gateway` |
-| Logique de `auth.js` sous Node, sans Docker | `node --test gateway/tests/auth.test.mjs` ou `make test-gateway-unit` |
-| Routes générées à jour, configuration sans trou (sans Docker, dans la CI) | `python -m unittest discover -s scripts/dev -p "test_gateway_routes.py"` |
-| Regénérer les routes après un changement de contrat | `python scripts/dev/gateway_routes.py` ou `make gateway-routes` |
-| Contrôle de la syntaxe | `docker run --rm --add-host traitement:127.0.0.1 --add-host alerte:127.0.0.1 --add-host reponse:127.0.0.1 -e JWT_SECRET=x -e ENVIRONMENT=local -v "$PWD/gateway/nginx.conf:/etc/nginx/nginx.conf:ro" -v "$PWD/gateway:/etc/nginx/gateway:ro" nginxinc/nginx-unprivileged:1.30-alpine nginx -t` |
+| Action | Linux (bash) | Windows (PowerShell) |
+|---|---|---|
+| Passerelle réelle devant trois services factices (Docker requis) | `python3 -m unittest discover -s gateway/tests -p "test_gateway.py" -v` ou `make test-gateway` | `py -3 -m unittest discover -s gateway\tests -p "test_gateway.py" -v` |
+| Logique de `auth.js` sous Node, sans Docker | `node --test gateway/tests/auth.test.mjs` ou `make test-gateway-unit` | `node --test gateway/tests/auth.test.mjs` |
+| Routes générées à jour, configuration sans trou (sans Docker, dans la CI) | `python3 -m unittest discover -s scripts/dev -p "test_gateway_routes.py"` | `py -3 -m unittest discover -s scripts\dev -p "test_gateway_routes.py"` |
+| Regénérer les routes après un changement de contrat | `python3 scripts/dev/gateway_routes.py` ou `make gateway-routes` | `py -3 scripts/dev/gateway_routes.py` |
+| Contrôle de la syntaxe | `docker run --rm --add-host traitement:127.0.0.1 --add-host alerte:127.0.0.1 --add-host reponse:127.0.0.1 -e JWT_SECRET=x -e ENVIRONMENT=local -v "$PWD/gateway/nginx.conf:/etc/nginx/nginx.conf:ro" -v "$PWD/gateway:/etc/nginx/gateway:ro" nginxinc/nginx-unprivileged:1.30-alpine nginx -t` | `docker run --rm --add-host traitement:127.0.0.1 --add-host alerte:127.0.0.1 --add-host reponse:127.0.0.1 -e JWT_SECRET=x -e ENVIRONMENT=local -v "${PWD}/gateway/nginx.conf:/etc/nginx/nginx.conf:ro" -v "${PWD}/gateway:/etc/nginx/gateway:ro" nginxinc/nginx-unprivileged:1.30-alpine nginx -t` |
 
 ## 8. Limites assumées
 

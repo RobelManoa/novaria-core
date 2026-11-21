@@ -38,6 +38,8 @@ from app.services.ports import (
 )
 from app.services.signals import SignalService
 
+CARREFOUR_INCONNU = "Carrefour inconnu."
+
 router = APIRouter(tags=["Feux"])
 
 INTERSECTION_ID = re.compile(r"^INT_[0-9]{2,}$")
@@ -57,7 +59,7 @@ AUTH = {
 def known(intersection_id: str) -> str:
     """Un carrefour mal formé n'existe pas : 404, comme un carrefour sans feux."""
     if not INTERSECTION_ID.fullmatch(intersection_id):
-        raise ProblemError(NOT_FOUND, "Carrefour inconnu.")
+        raise ProblemError(NOT_FOUND, CARREFOUR_INCONNU)
     return intersection_id
 
 
@@ -92,7 +94,7 @@ def get_signal(
     try:
         return state_out(service.view(known(intersection_id)))
     except UnknownIntersection as error:
-        raise ProblemError(NOT_FOUND, "Carrefour inconnu.") from error
+        raise ProblemError(NOT_FOUND, CARREFOUR_INCONNU) from error
 
 
 @router.get(
@@ -117,7 +119,7 @@ def list_commands(
     cursor: Annotated[str | None, Query(max_length=200)] = None,
 ) -> dict:
     if not service.knows(known(intersection_id)):
-        raise ProblemError(NOT_FOUND, "Carrefour inconnu.")
+        raise ProblemError(NOT_FOUND, CARREFOUR_INCONNU)
     try:
         entries, next_cursor = audit.history(intersection_id, limit, cursor)
     except InvalidCursor as error:
@@ -157,7 +159,7 @@ def send_command(
     service: Annotated[SignalService, Depends(get_service)],
 ) -> dict:
     if not service.knows(known(intersection_id)):
-        raise ProblemError(NOT_FOUND, "Carrefour inconnu.")
+        raise ProblemError(NOT_FOUND, CARREFOUR_INCONNU)
     resume = body.action == "RESUME_AUTOMATIC"
     command = Command(
         command_id=str(uuid.uuid4()),

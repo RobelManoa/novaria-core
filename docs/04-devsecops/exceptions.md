@@ -2,8 +2,8 @@
 
 Projet : Novaria Core, socle d'UrbanHub (bloc de compétences BC05)
 Responsables : Daddy Luciano et Manoa Robel (relecture croisée)
-Dernière mise à jour : 05/11/2026
-Issue de suivi : CLD-23
+Dernière mise à jour : 20/11/2026 (revue de sécurité CLD-19, section 15)
+Issues de suivi : CLD-23 (politique) et CLD-19 (revue des résultats Snyk et SonarQube)
 Statut : proposition à valider par les deux membres (relecture de la pull request)
 
 Ce document fixe trois règles : dans quel délai une faille est corrigée, qui accepte une exception, et pendant combien de temps. Il liste aussi les exceptions actives.
@@ -61,6 +61,8 @@ Chaque exception de `.snyk` a ces quatre éléments, vérifiés par un test (sec
 
 ## 6. Exceptions actives
 
+Cinq exceptions au 20/11/2026. SNYK-DEBIAN13-ZLIB-22249554 a été **supprimée** ce jour : corrigée (section 15.2).
+
 | Identifiant Snyk | Composant | Image | Raison | Créée le | Expiration | Registre |
 |---|---|---|---|---|---|---|
 | SNYK-DEBIAN13-ATTR-17678182 | libattr1 (Link Following) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian, revérifié le 15/11/2026 (renouvellement de l'exception du 17/10/2026) | 2026-11-15 | 2026-12-09 | R10 |
@@ -68,7 +70,6 @@ Chaque exception de `.snyk` a ces quatre éléments, vérifiés par un test (sec
 | SNYK-DEBIAN13-SQLITE3-22119065 | libsqlite3-0 (Out-of-bounds Write) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-11-03 | 2026-12-03 | R10 |
 | SNYK-DEBIAN13-SQLITE3-22119091 | libsqlite3-0 (Out-of-bounds Write) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-11-03 | 2026-12-03 | R10 |
 | SNYK-DEBIAN13-SQLITE3-22119098 | libsqlite3-0 (Out-of-bounds Write) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-11-03 | 2026-12-03 | R10 |
-| SNYK-DEBIAN13-ZLIB-22249554 | zlib1g (Out-of-bounds Write) | services Python (python:3.15-slim, Debian 13) | Aucun correctif publié par Debian à la date de création | 2026-11-05 | 2026-12-05 | R10 |
 
 ## 7. Scan hebdomadaire
 
@@ -89,6 +90,12 @@ Le test `scripts/dev/test_exceptions.py` vérifie que chaque exception de `.snyk
 - expire avant le 10/12/2026 et au plus 30 jours après sa création ;
 - figure dans le tableau de la section 6 avec la même expiration ;
 - est citée dans le registre des risques.
+
+Depuis CLD-19, le même test vérifie aussi :
+
+- que chaque `# noqa` d'une règle de sécurité (`S…`, `BLE001`) porte sa raison sur la ligne ou dans le commentaire qui la précède ;
+- qu'aucun marqueur de désactivation (`NOSONAR`, `nosemgrep`, `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, `# nosec`) n'apparaît dans le code, et que `sonar-project.properties` n'ignore aucune règle ;
+- que chaque règle SonarQube de la section 15.3 est « Corrigé » ou « Justifié » avec une raison, et qu'une exception justifiée expire au plus tard le 09/12/2026.
 
 | Linux (bash) | Windows (PowerShell) |
 |---|---|
@@ -161,6 +168,8 @@ Décision proposée : trois exceptions de 30 jours (création le 03/11/2026, exp
 
 Décision proposée : une exception de 30 jours (création le 05/11/2026, expiration le **05/12/2026**, avant le 10/12/2026), à approuver par l'**autre** membre du binôme (section 3). Elle se renouvelle séparément, après une nouvelle vérification (section 4).
 
+**Correction du 20/11/2026 (CLD-19).** Cette revue a rangé SNYK-DEBIAN13-ZLIB-22249554 parmi les failles « Out-of-bounds Write » (CWE-787) et lui a donné le numéro CVE-2026-76844. Le suivi de sécurité de Debian attribue ce numéro à `webpack-dev-middleware`, pas à zlib, et la page de Snyk l'intitule aujourd'hui « Directory Traversal in zlib » (CWE-22) avec un correctif publié : voir la section 15.2. Cette exception est supprimée.
+
 ## 14. Revue du 15/11/2026 : expiration des exceptions du 17/10/2026 (échec des contrôles `docker` de `main` et de la pull request #257)
 
 | Vérification | Résultat |
@@ -175,3 +184,94 @@ Décision proposée : une exception de 30 jours (création le 05/11/2026, expira
 Décision proposée : suppression de l'exception ZLIB-19520500 ; renouvellement de ATTR-17678182 et ACL-17677866 pour une durée de 24 jours (création le 15/11/2026, expiration le **09/12/2026**, dernier jour autorisé, section 4), à approuver par l'**autre** membre du binôme (section 3). Un nouveau renouvellement n'est pas possible après le 09/12/2026 (section 9) : sans correctif de Debian à cette date, il faut une autre solution (changer d'image de base, par exemple) et la décider avant.
 
 Autre point constaté le même jour : le contrôle `snyk` (dépendances) échoue aussi sur la pull request #257 avec le message « You have used your limit of private tests » : c'est le **quota mensuel de 200 essais privés** de l'organisation Snyk, pas une faille. Aucun changement de contrôle n'est proposé ici (section 6 de `CLAUDE.md`) ; voir la décision à prendre dans la description de la pull request.
+
+## 15. Revue de sécurité du 20/11/2026 (CLD-19) : résultats Snyk et SonarQube triés
+
+Critère de CLD-19 : **les exceptions ont une raison et une date d'expiration.** Cette section trie chaque résultat de gravité haute ou critique de Snyk et de SonarQube : corrigé, ou justifié avec une raison et une expiration. Les exceptions de Snyk sont dans la section 6 ; celles de SonarQube, dans la section 15.3. Aucune exception n'est silencieuse : un test (section 8) refuse une désactivation de contrôle qui n'a pas sa raison.
+
+Abréviations : CVE (Common Vulnerabilities and Exposures, identifiant public d'une faille), CWE (Common Weakness Enumeration, type de faiblesse), SCA (Software Composition Analysis, analyse des dépendances), SAST (Static Application Security Testing, analyse du code source), IaC (Infrastructure as Code), DSA (Debian Security Advisory, bulletin de sécurité de Debian).
+
+### 15.1 Sources et limites
+
+| Source | Lue le 20/11/2026 | Résultat |
+|---|---|---|
+| CI de `main` | API publique de GitHub, exécution 44702536815 (push de 08:26 UTC) | **15 jobs réussis**, dont `snyk`, `docker`, `sonarqube` et `gitleaks`. L'exécution précédente (07:28) avait échoué sur le test de `collecte` (`service (collecte)`), sans lien avec la sécurité |
+| SonarCloud | API publique (`issues/search`, `qualitygates/project_status`, `hotspots/search`), projet `RobelManoa_novaria-core`, branche par défaut | Porte de qualité **réussie** (six conditions sur le code nouveau : fiabilité, sécurité et maintenabilité à A, couverture 94,3 %, duplication 0,5 %, points chauds revus à 100 %). **215 résultats ouverts, tous de type `CODE_SMELL` : 0 `BUG`, 0 `VULNERABILITY`**, 0 point chaud à revoir. Gravité : 1 BLOCKER, 61 CRITICAL, 87 MAJOR, 66 MINOR |
+| Snyk | Pages publiques `security.snyk.io`, suivi de sécurité de Debian, installation réelle dans `python:3.15-slim` | **Aucun scan Snyk n'a été lancé** : il demande un jeton (secret, `CLAUDE.md`, section 6). La nécessité de chaque exception repose sur la CI verte, sur les pages de Snyk et de Debian et sur les versions réellement installées |
+
+**Non vérifié** : les alertes Dependabot de GitHub (elles demandent un accès au dépôt) ; le contenu du journal de Snyk dans la CI (il n'affiche pas les failles ignorées).
+
+Seuls les résultats SonarQube de gravité BLOCKER et CRITICAL (62) sont triés ici. Les 153 résultats MAJOR et MINOR sont de la dette de maintenabilité courante, sans effet sur la sécurité ; ils ne font pas l'objet d'une exception.
+
+### 15.2 Snyk : cinq exceptions maintenues, une supprimée
+
+Versions relevées dans une image `python:3.15-slim` tirée le 20/11/2026, après `apt-get update` et `apt-get upgrade -y --no-install-recommends` (la commande des Dockerfile). Colonne Debian : page du paquet source dans le suivi de sécurité de Debian (Debian 13 « trixie »).
+
+| Identifiant Snyk | Debian 13 (suivi de sécurité) | Snyk (page publique) | Version installée après la mise à jour | Décision |
+|---|---|---|---|---|
+| SNYK-DEBIAN13-ZLIB-22249554 | Les 14 CVE de zlib du suivi sont corrigées pour trixie ou sans état ouvert ; **CVE-2026-76844 n'est pas une faille de zlib** (c'est `webpack-dev-middleware`) | « Upgrade Debian:13 zlib to version 1:1.3.dfsg+really1.3.1-1+deb13u1 or higher » | zlib1g `1:1.3.dfsg+really1.3.1-1+deb13u1` | **Supprimée** : corrigée |
+| SNYK-DEBIAN13-ATTR-17678182 (CVE-2026-54371) | trixie « vulnerable (no DSA) » ; corrigée dans forky et sid | « no fixed version for Debian:13 attr » | libattr1 `1:2.5.2-3` (= candidate) | Maintenue, expiration 2026-12-09 |
+| SNYK-DEBIAN13-ACL-17677866 (CVE-2026-54369) | trixie « vulnerable (no DSA) » ; corrigée dans forky et sid | « no fixed version for Debian:13 acl » | libacl1 `2.3.2-2+b1` (= candidate) | Maintenue, expiration 2026-12-09 |
+| SNYK-DEBIAN13-SQLITE3-22119065 (CVE-2026-119373) | trixie « vulnerable (no DSA) » ; corrigée dans forky et sid | « no fixed version for Debian:13 sqlite3 » | libsqlite3-0 `3.46.1-7+deb13u2` (= candidate) | Maintenue, expiration 2026-12-03 |
+| SNYK-DEBIAN13-SQLITE3-22119091 (CVE-2026-119374) | idem | idem | idem | Maintenue, expiration 2026-12-03 |
+| SNYK-DEBIAN13-SQLITE3-22119098 (CVE-2026-119379) | idem | idem | idem | Maintenue, expiration 2026-12-03 |
+
+**Pourquoi l'exception de zlib est supprimée.** La mise à jour `1:1.3.dfsg+really1.3.1-1+deb13u1` (sécurité de Debian 13, annoncée le 01/11/2026) est installée par la ligne `apt-get upgrade` des Dockerfile et Snyk la donne comme version corrigée. La revue du 05/11/2026 l'avait créée à raison (la mise à jour n'était pas encore proposée par `apt`). La revue du 15/11/2026 l'a gardée parce que le changelog « ne cite pas CVE-2026-76844 » : ce raisonnement venait d'un mauvais numéro, puisque ce CVE n'appartient pas à zlib. Le numéro que Snyk affiche sur cette entrée est lui-même étrange (sa description est celle du paquet `webpack-dev-middleware`) : une anomalie de la base de Snyk, **non élucidée ici**. Ce qui compte pour la décision est la version corrigée, présente dans l'image.
+
+**Vérification de la suppression** : le job `docker` de la pull request qui la supprime (CI sur les quatre images de services). S'il échoue pour cette faille, l'exception est rétablie avec une nouvelle date (section 4) et cette section est corrigée.
+
+**Suite pour les cinq autres** : les trois failles de `libsqlite3-0` expirent le 03/12/2026. À cette date, après une nouvelle vérification (même procédure), elles se renouvellent pour **6 jours au plus** (jusqu'au 09/12/2026, section 4) ou se suppriment si Debian a publié un correctif. Les deux failles de `libattr1` et `libacl1` expirent le 09/12/2026 : pas de renouvellement possible (section 9).
+
+### 15.3 SonarQube : 62 résultats BLOCKER et CRITICAL
+
+| Règle | Nombre | Décision | Raison | Expiration |
+|---|---|---|---|---|
+| python:S1192 | 10 | Corrigé | Un littéral répété (« Alerte inconnue. », « /api/v1 », « | Méthode | »…) est devenu une constante de module, dans 9 fichiers (`services/alerte`, `services/reponse`, `services/traitement`, `ml/`). Comportement identique : tests des services `alerte` (464) et `reponse` (391) verts ; les rapports générés de `ml/` sont inchangés | sans objet |
+| python:S5655 | 1 | Corrigé | `services/traitement/app/flux/classifier.py:98` : la variable `current` est annotée `Hysteresis`. C'était un faux positif de typage (`dataclasses.replace` rend un type que l'analyseur n'infère pas). Il peut rester signalé au prochain scan ; la décision est alors « justifié » avec cette raison | sans objet |
+| python:S8414 | 1 | Justifié | BLOCKER, `services/traitement/app/main.py:37` : « ajouter `CORSMiddleware` en dernier ». Les deux couches placées **à l'extérieur** de CORS, `SecurityHeadersMiddleware` et `MetricsMiddleware`, ne refusent jamais une requête : la première ne fait qu'ajouter des en-têtes de sécurité, la seconde ne fait que compter. Le but de la règle (qu'aucune couche ne rejette une pré-vérification avant CORS) est donc atteint. L'ordre est voulu : une pré-vérification `OPTIONS` et chaque erreur portent ainsi aussi les en-têtes de sécurité (BE-08). Pré-vérifications couvertes par `services/traitement/tests/unit/test_cors.py` | 2026-12-09 |
+| python:S5754 | 1 | Justifié | `services/collecte/app/adapters/kafka_publisher.py:49` : `except BaseException` qui confie l'erreur à un `Future`. Même schéma que `concurrent.futures` de la bibliothèque standard : le `Future` doit **toujours** se résoudre, sinon l'appelant attendrait sans fin si le fil s'arrête par `SystemExit` ou `KeyboardInterrupt`. L'erreur n'est pas avalée : elle ressort à l'appelant. La suppression `# noqa: BLE001` de la ligne porte la même raison | 2026-12-09 |
+| python:S3776 | 19 | Justifié | Complexité cognitive de 16 à 26 (seuil 15) dans 19 fonctions : `ml/` (13 : `prevision/rapport.py` ×2, `prototype_sumo/` ×3, `jeu_entrainement/` ×3, `anomalies/variables.py`, `mesures/__main__.py`, `preparation/ajustement.py`, `registre/documents.py`, `stockage/objets.py`), `data/bigdata/bigdata/generer.py` (2) et `services/traitement/app/` (4 : `flux/classifier.py`, `flux/cleaning.py`, `flux/windows.py`, `api/responses.py`). Dette de **maintenabilité**, pas une faille (aucun résultat de type `BUG` ou `VULNERABILITY`). Ces fonctions sont couvertes par des tests ; en refactorer dix-neuf à moins de trois semaines de la soutenance risque plus (régression sur du code qui marche) qu'il ne rapporte. Refactoring reporté après le 10/12/2026 | 2026-12-09 |
+| typescript:S3776 | 1 | Justifié | `frontend/src/services/alertStream.ts:27` : complexité 19 (seuil 15), lecteur du flux d'alertes (SSE) couvert par `frontend/tests/services/alertStream.test.ts`. Même raison que ci-dessus | 2026-12-09 |
+| plsql:S1192 | 29 | Justifié | Un seul fichier, `data/dwh/sql/kpi/controle/verifier.sql` (241 lignes) : un script `psql` de contrôle (`\set`, `BEGIN` puis annulation) que SonarCloud analyse comme du PL/SQL. Les « littéraux dupliqués » sont les **valeurs du jeu de contrôle** (identifiants de tronçons, états, dates) calculé à la main dans [kpi.md](../03-donnees/kpi.md), section 4 : les remplacer par des constantes rendrait ce jeu illisible et affaiblirait le contrôle | 2026-12-09 |
+
+Total : **11 corrigés, 51 justifiés**. Aucune exception ne dépasse le 09/12/2026 (section 4). Aucune règle n'est désactivée dans `sonar-project.properties` et aucune ligne ne porte de marqueur `NOSONAR`.
+
+**Résolution dans SonarCloud.** Les 51 résultats justifiés restent **ouverts et visibles** dans SonarCloud tant qu'un membre connecté ne les marque pas « Accepted » (ou « Won't fix ») avec la raison ci-dessus : cette session n'a pas de jeton SonarCloud et n'a rien masqué. Ce marquage est à faire avant le 09/12/2026.
+
+### 15.4 Désactivations de contrôles : inventaire au 20/11/2026
+
+| Mécanisme | Nombre | Où et raison | Contrôle |
+|---|---|---|---|
+| `continue-on-error`, `\|\| true` (workflows), `--no-verify`, `--exclude-base-image-vulns`, `NOSONAR`, `# nosec`, `nosemgrep`, `eslint-disable`, `@ts-ignore`, `@ts-expect-error` | **0** | Aucun | `scripts/dev/test_exceptions.py` échoue si l'un d'eux apparaît |
+| `# noqa` pour une règle de sécurité (`S…`) ou une exception trop large (`BLE001`) | 69 | Chacun porte sa raison sur la ligne ou dans le commentaire qui précède. **19 n'en avaient aucune** (adresses locales de `scripts/dev/`, XML produit par notre SUMO, adresses du jeu ouvert de Paris, dispersion des reprises) et **2 ne l'avaient que quelques lignes plus haut** (`data/etl`, S608) : la raison a été écrite sur la ligne le 20/11/2026 | `test_exceptions.py` échoue pour un nouveau `# noqa` de sécurité sans raison |
+| Règles `ruff` ignorées par fichier (`pyproject.toml`) | 3 familles | `S101` (assert) dans les tests ; `S105` et `S106` (secrets d'essai) dans les tests des services qui en ont besoin ; `S608` dans `services/alerte/app/adapters/postgres_store.py` (noms de colonnes constants, valeurs passées en paramètres). Raison écrite dans le fichier | Revue de pull request |
+| Exceptions Snyk (`.snyk`) | 5 | Section 6 | `test_exceptions.py` (raison, expiration, registre) |
+| Faux positifs de gitleaks (`.gitleaksignore`) | 2 | Section 11 (empreinte exacte, aucune règle désactivée) | Test de la commande de la CI |
+| `sonar.exclusions` et `sonar.cpd.exclusions` | voir `sonar-project.properties` | Code généré (`frontend/src/types/api/`), migrations, et code **copié à l'identique** entre services (journaux, redaction, erreurs, jetons) dont l'identité est vérifiée par `scripts/dev/test_gabarit.py`. Raison en commentaire dans le fichier | Toute modification demande l'accord écrit des deux membres (`CLAUDE.md`, section 6) |
+| `# type: ignore` (typage) | 47 | Aucune règle de sécurité : 17 dans `scripts/dev/flux_complet.py`, le reste dans les services (couches ASGI et gestionnaires d'erreurs) et les tests | Aucun |
+
+### 15.5 Ce que les contrôles ne couvrent pas
+
+Un contrôle qui ne regarde pas une partie du dépôt ne la déclare pas saine. Ces zones sont **hors périmètre**, aujourd'hui, de la CI :
+
+| Contrôle | Couvre | Ne couvre pas |
+|---|---|---|
+| Snyk, dépendances (`snyk test`) | `requirements.txt` des quatre services (pas le gabarit) et le `package-lock.json` du front-end | `data/etl`, `data/bigdata`, `ml/` (et `ml/sumo`), `automation/rpa` |
+| Snyk, images (`snyk container test`) | Les images des quatre services et du front-end | Les images `simulator`, `data/bigdata` et `ml/sumo`, et les images amont `apache/kafka`, `mongo`, `postgres` et `nginx-unprivileged` (passerelle) |
+| Snyk, IaC | `infra/terraform` | Les Dockerfile, `docker-compose.yml` et les workflows |
+| Snyk, code (SAST) | Tout le dépôt, **sur `main` seulement** (100 essais par mois) | Les pull requests |
+| SonarCloud | `services`, `frontend/src`, `frontend/tests`, `data`, `ml` | `simulator`, `automation`, `scripts`, `gateway` |
+| `ruff` avec les règles de sécurité `S` | `services/*` | `scripts/`, `ml/`, `data/`, `simulator/`, `automation/` : les `# noqa: S…` de ces dossiers y suppriment un contrôle que la CI ne lance pas ; au moins 15 constats `ruff` (`S603`, `S607`, `S608`, `S110`) dans huit fichiers de `scripts/dev/` ne sont pas triés |
+
+Étendre ces périmètres modifie la CI : **décision des deux membres, non prise ici** (`CLAUDE.md`, section 6).
+
+### 15.6 Décisions et suite
+
+| Point | État |
+|---|---|
+| Supprimer l'exception de zlib (corrigée) | Fait dans cette pull request ; vérification par son job `docker` |
+| Corriger ce qui se corrige sans risque (11 résultats Sonar, 21 suppressions sans raison sur la ligne) | Fait |
+| Marquer les 51 résultats Sonar justifiés dans SonarCloud | À faire par un membre connecté, avant le 09/12/2026 |
+| Renouveler ou supprimer les trois exceptions de `libsqlite3-0` | Le 03/12/2026, après vérification (6 jours au plus) |
+| Étendre le périmètre de Snyk, de SonarCloud et de `ruff` | À décider à deux ; non fait |
+| Prochaine revue | 03/12/2026 |

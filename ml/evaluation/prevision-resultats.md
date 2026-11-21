@@ -1,6 +1,6 @@
 # Prévision de vitesse : résultats (IA-10)
 
-Fichier **généré** par `python3 scripts/dev/dev.py ml-prevision evaluer` (ne pas modifier à la main) ; le choix argumenté et la limite de validité sont dans [`prevision-comparaison.md`](prevision-comparaison.md).
+Fichier **généré** par `python3 scripts/dev/dev.py ml-prevision evaluer` (Linux) ou `py -3 scripts/dev/dev.py ml-prevision evaluer` (Windows) (ne pas modifier à la main) ; le choix argumenté et la limite de validité sont dans [`prevision-comparaison.md`](prevision-comparaison.md).
 
 ## Données et découpage
 

@@ -1287,6 +1287,43 @@ def cmd_bigdata_test(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------- matrice d'accès et essais de refus (CLD-18)
+def cmd_rollback(args: argparse.Namespace) -> int:
+    """Retour de version en local (CLD-16) : images étiquetées par SHA, révision précédente remise en service, révision vérifiée."""
+    import rollback
+
+    require_env()
+    require_docker()
+    env_values = parse_env(ENV_FILE.read_text(encoding="utf-8"))
+    moteur = rollback.Moteur(env=env_values)
+    services = [s.strip() for s in args.services.split(",") if s.strip()] if args.services else list(rollback.SERVICES)
+    try:
+        if args.action == "etat":
+            etat = moteur.etat()
+            for service in rollback.SERVICES:
+                ligne = etat.get(service)
+                vue = moteur.sante(service)
+                enregistree = (ligne or {}).get("en_service")
+                ecart = "" if vue is not None and vue == enregistree else "   <- écart : ce n'est pas la révision enregistrée (dev.py up reconstruit depuis les sources et l'écrase)"
+                print(f"{service:<11} en service {(enregistree or 'non enregistré')[:12]:<14} précédente {((ligne or {}).get('precedente') or 'aucune')[:12]:<14} /health : {(vue or 'injoignable')[:12]}{ecart}")
+        elif args.action == "construire":
+            sha = moteur.resoudre(args.ref)
+            for service in services:
+                print(moteur.construire(service, sha))
+        elif args.action == "deployer":
+            sha = moteur.resoudre(args.ref)
+            print("\n".join(moteur.deployer({s: sha for s in services})))
+        elif args.action == "retour":
+            print("\n".join(moteur.retour(services)))
+        else:
+            from flux_complet import Pile
+
+            etapes = rollback.essai(moteur, Pile(env_values), args.ancienne, args.nouvelle, services)
+            return 0 if all(ok for _, ok, _ in etapes) else 1
+    except rollback.ErreurRollback as erreur:
+        raise DevError(str(erreur)) from None
+    return 0
+
+
 def cmd_tableau_de_bord(args: argparse.Namespace) -> int:
     """Tableau de bord de pilotage (GES-11) : exigences, risques et livrables par jalon, recalculés depuis GitHub."""
     options = (["--ref", args.ref] if args.ref else []) + (["--local"] if args.local else []) + (["--json"] if args.json else []) + (["--ecrire"] if args.ecrire else [])
@@ -1954,6 +1991,12 @@ def build_parser() -> argparse.ArgumentParser:
     bdt = add("bigdata-test", cmd_bigdata_test, "tests du prototype Big Data dans son image (Docker)")
     bdt.add_argument("--cpus", default="4", help="cœurs alloués au conteneur (4 par défaut)")
     bdt.add_argument("--memoire", default="6g", help="mémoire allouée au conteneur (6g par défaut)")
+    rb = add("rollback", cmd_rollback, "retour de version en local (CLD-16) : etat, construire, deployer, retour, essai ; la pile doit tourner pour deployer, retour et essai")
+    rb.add_argument("action", choices=("etat", "construire", "deployer", "retour", "essai"), help="essai : ancienne révision, nouvelle révision, écriture, retour, contrôle des données")
+    rb.add_argument("--ref", default="HEAD", help="construire et deployer : branche, étiquette ou SHA (HEAD par défaut)")
+    rb.add_argument("--ancienne", default="HEAD~1", help="essai : révision d'origine (HEAD~1 par défaut)")
+    rb.add_argument("--nouvelle", default="HEAD", help="essai : révision à déployer puis à retirer (HEAD par défaut)")
+    rb.add_argument("--services", help="liste séparée par des virgules parmi collecte, traitement, alerte, reponse (les quatre par défaut)")
     tdb = add("tableau-de-bord", cmd_tableau_de_bord, "tableau de bord de pilotage (GES-11) : exigences vérifiées, risques traités, livrables par jalon, recalculés depuis GitHub")
     tdb.add_argument("--ref", help="branche, étiquette ou empreinte lue sur GitHub (main par défaut)")
     tdb.add_argument("--local", action="store_true", help="lit exigences.md et registre-risques.md dans la copie de travail")
