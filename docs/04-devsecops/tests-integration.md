@@ -118,7 +118,7 @@ Tests du banc : `test_parcours.py`, 18 tests, sans pile ni réseau (valeurs atte
 
 - **Un test qui ne peut pas échouer ne prouve rien.** Les valeurs attendues viennent d'un calcul indépendant ; E2 contient un **témoin** (le même sujet, un jeton valable, répond 200) qui montre que le 401 vient bien de l'expiration et non d'un compte ou d'une route cassés ; E3 vérifie que l'API **répond de nouveau** après la panne, pas seulement qu'elle a échoué.
 - **Un cas qui plante est un échec, pas un arrêt** : la suite est jouée et le compte jetable supprimé.
-- **Rien n'est écrit dans un fichier du dépôt.** Le compte rendu est la sortie standard ; pour le garder : `python3 scripts/dev/dev.py parcours > parcours.txt` (sous PowerShell, préférer `Out-File -Encoding utf8` à `>`).
+- **Rien n'est écrit dans un fichier du dépôt.** Le compte rendu est la sortie standard ; pour le garder : `python3 scripts/dev/dev.py parcours > parcours.txt` (Linux) ou `py -3 scripts/dev/dev.py parcours | Out-File -Encoding utf8 parcours.txt` (Windows : la redirection `>` de PowerShell 5.1 écrit en UTF-16).
 - **Le jeton expiré est construit avec `JWT_SECRET` lu dans `.env`** : la clé ne quitte jamais le processus, n'est pas affichée, et la réponse de chaque cas 401 est vérifiée pour ne pas la contenir.
 
 ## 7. Ce que la CI rejoue, et ce qu'elle ne rejoue pas

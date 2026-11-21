@@ -15,6 +15,8 @@ from app.core.redaction import install_redaction
 from app.core.unhandled import UnhandledErrorMiddleware
 from app.services.ports import StoreFailed
 
+API_PREFIX = "/api/v1"
+
 settings = get_settings()
 configure_logging(settings.service_name, settings.log_level)
 install_redaction()  # dernier filet : aucun secret (adresse de base, jeton) dans le journal
@@ -52,7 +54,7 @@ register_validation(app)
 app.add_exception_handler(StoreFailed, store_failed_handler)  # type: ignore[arg-type]
 # Point d'exploitation (MS-16) : hors contrat, non routé par la passerelle.
 app.add_api_route("/metrics", lambda: metrics_response(), methods=["GET"], include_in_schema=False)
-app.include_router(health.router, prefix="/api/v1")
-app.include_router(alerts.router, prefix="/api/v1")
-app.include_router(rules.router, prefix="/api/v1")
-app.include_router(stream.router, prefix="/api/v1")
+app.include_router(health.router, prefix=API_PREFIX)
+app.include_router(alerts.router, prefix=API_PREFIX)
+app.include_router(rules.router, prefix=API_PREFIX)
+app.include_router(stream.router, prefix=API_PREFIX)

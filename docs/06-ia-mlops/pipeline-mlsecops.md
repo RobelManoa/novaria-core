@@ -91,7 +91,7 @@ Déclenché **à la main** (`workflow_dispatch`), **sans aucun paramètre**.
 
 ## 5. Rejouer en local
 
-Prérequis : `ml-env` (scikit-learn, empreintes exigées) ; le jeu v1 construit (`python3 ml/src/construire_jeu.py`) ; pour S4, l'outil d'audit dans un environnement à part et la variable `PIP_AUDIT`.
+Prérequis : `ml-env` (scikit-learn, empreintes exigées) ; le jeu v1 construit (`python3 ml/src/construire_jeu.py` sous Linux, `py -3 ml\src\construire_jeu.py` sous Windows) ; pour S4, l'outil d'audit dans un environnement à part et la variable `PIP_AUDIT`.
 
 | Action | Linux (bash) | Windows (PowerShell) |
 |---|---|---|

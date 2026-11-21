@@ -392,7 +392,7 @@ def simulator_run(run_id: str, day: int) -> list[bytes]:
         "--anomaly", "retard:sensor=SENSOR_010,at=+40,delay=45",
         "--anomaly", "retard:sensor=SENSOR_012,at=+40,delay=120",
     ]  # fmt: skip
-    done = subprocess.run(command, capture_output=True, check=True, cwd=REPO)  # noqa: S603
+    done = subprocess.run(command, capture_output=True, check=True, cwd=REPO)  # noqa: S603 - notre interpréteur et le simulateur du dépôt
     return [line for line in done.stdout.splitlines() if line.strip()]
 
 

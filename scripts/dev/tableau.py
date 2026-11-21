@@ -149,7 +149,7 @@ def retard_en_secondes(retard: int, debit_ecriture: float | None, plancher: floa
 def http_texte(url: str, delai_s: float = 3.0) -> str | None:
     requete = urllib.request.Request(url, method="GET")  # noqa: S310 - adresses locales du fichier de configuration
     try:
-        with urllib.request.urlopen(requete, timeout=delai_s) as reponse:  # noqa: S310
+        with urllib.request.urlopen(requete, timeout=delai_s) as reponse:  # noqa: S310 - adresses locales du fichier de configuration
             return reponse.read().decode("utf-8", errors="replace") if reponse.status == 200 else None
     except (urllib.error.URLError, TimeoutError, OSError):
         return None

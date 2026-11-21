@@ -134,7 +134,7 @@ Ces pistes **ne sont pas exécutées** : changer le modèle ou le critère aprè
 
 ## 9. Refaire
 
-Prérequis : le jeu v1 existe (`python3 ml/src/construire_jeu.py`).
+Prérequis : le jeu v1 existe (`python3 ml/src/construire_jeu.py` sous Linux, `py -3 ml\src\construire_jeu.py` sous Windows).
 
 | Action | Linux (bash) | Windows (PowerShell) |
 |---|---|---|
