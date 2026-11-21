@@ -22,10 +22,15 @@ export default tseslint.config(
     files: ["src/**/*.{ts,tsx}"],
     rules: { "no-restricted-globals": ["error", ...DONNEES_SUR_L_APPAREIL] },
   },
+  // Exception unique (ADR-031, D3) : `src/stockage.ts` est le seul fichier qui touche au stockage du navigateur (les trajets du citoyen, rien d'autre).
+  {
+    files: ["src/stockage.ts"],
+    rules: { "no-restricted-globals": ["error", { name: "fetch", message: "Appeler l'API par src/api.ts." }] },
+  },
   // Tout appel réseau passe par src/api.ts : un fetch ailleurs contournerait les garde-fous (pas de jeton, pas de cookie).
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/api.ts"],
+    ignores: ["src/api.ts", "src/stockage.ts"],
     rules: {
       "no-restricted-globals": [
         "error",

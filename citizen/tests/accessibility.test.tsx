@@ -1,12 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import axe from "axe-core";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import App from "../src/App";
 import { ApiError } from "../src/api";
-import type { SegmentState } from "../src/types";
-import { network } from "./fixtures";
+import type { PublicAlert, SegmentState } from "../src/types";
+import { network, ouvrirDetail } from "./fixtures";
 
 /**
  * Audit automatique (axe-core, règles WCAG 2.0, 2.1 et 2.2 de niveaux A et AA) de chaque état de l'écran. Le contraste n'est pas
@@ -38,13 +38,13 @@ describe("accessibilité de chaque état (WCAG 2.1 AA)", () => {
 
   it("vue principale", async () => {
     render(<App alertsFetcher={async () => []} fetcher={async () => network()} />);
-    await screen.findByRole("region", { name: "En un coup d'œil" });
+    await screen.findByRole("region", { name: /trajets/i });
     expect(await audit()).toEqual([]);
   });
 
   it("liste vide", async () => {
     render(<App alertsFetcher={async () => []} fetcher={async () => []} />);
-    await screen.findByText("Aucune information pour le moment");
+    await screen.findByRole("region", { name: /trajets/i });
     expect(await audit()).toEqual([]);
   });
 
@@ -90,11 +90,13 @@ describe("page d'accueil", () => {
   });
 });
 
-describe("accessibilité des alertes et du suivi (CIT-05)", () => {
-  it("liste d'alertes, suivi consenti et notification simulée", async () => {
+describe("accessibilité de « Mes trajets » (ADR-031)", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  it("un trajet gardé, « Me prévenir » activé, le détail ouvert et un message simulé", async () => {
     const { default: userEvent } = await import("@testing-library/user-event");
     const { alert } = await import("./fixtures");
-    let courantes = [alert({ alert_id: "a" })];
+    let courantes: PublicAlert[] = [];
     render(
       <App
         fetcher={async () => network()}
@@ -102,16 +104,36 @@ describe("accessibilité des alertes et du suivi (CIT-05)", () => {
         alertsIntervalMs={20}
       />,
     );
-    await screen.findByText(/1 alerte en cours/);
+    const region = await screen.findByRole("region", { name: /trajets/i });
+    await userEvent.click(
+      within(within(region).getByRole("listitem", { name: "Aller à la gare" })).getByRole(
+        "button",
+        { name: "Garder ce trajet" },
+      ),
+    );
+    await ouvrirDetail("Aller à la gare");
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "Me prévenir si ce trajet se bloque" }),
+    );
     expect(await audit()).toEqual([]);
-    await userEvent.click(screen.getByRole("checkbox"));
-    await userEvent.click(screen.getAllByRole("button", { name: "Suivre le tronçon ROAD_002" })[0]);
-    courantes = [alert({ alert_id: "a" }), alert({ alert_id: "b", severity: "CRITICAL" })];
-    await screen.findByRole("group", { name: "Notification simulée" });
+    courantes = [alert({ alert_id: "m1", road_segment_id: "ROAD_004", severity: "CRITICAL" })];
+    await screen.findByRole("group", { name: "Message pour votre trajet" });
     expect(await audit()).toEqual([]);
   });
 
-  it("alertes en erreur", async () => {
+  it("le formulaire d'ajout d'un trajet, avec son message d'erreur", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    render(<App alertsFetcher={async () => []} fetcher={async () => network()} />);
+    await screen.findByRole("region", { name: /trajets/i });
+    await userEvent.click(screen.getByRole("button", { name: "Ajouter un trajet" }));
+    expect(await audit()).toEqual([]);
+    await userEvent.click(screen.getByRole("button", { name: "Ajouter ce trajet" }));
+    await screen.findByRole("alert");
+    expect(await audit()).toEqual([]);
+  });
+
+  it("« Me prévenir » avec le service des alertes en panne", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
     render(
       <App
         fetcher={async () => network()}
@@ -120,7 +142,18 @@ describe("accessibilité des alertes et du suivi (CIT-05)", () => {
         }}
       />,
     );
-    await screen.findByText(/momentanément indisponible/);
+    const region = await screen.findByRole("region", { name: /trajets/i });
+    await userEvent.click(
+      within(within(region).getByRole("listitem", { name: "Aller à la gare" })).getByRole(
+        "button",
+        { name: "Garder ce trajet" },
+      ),
+    );
+    await ouvrirDetail("Aller à la gare");
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "Me prévenir si ce trajet se bloque" }),
+    );
+    await screen.findByText(/ne se met plus à jour/);
     expect(await audit()).toEqual([]);
   });
 });

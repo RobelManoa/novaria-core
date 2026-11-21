@@ -2,7 +2,7 @@
   "name": "novaria-core-citoyen",
   "private": true,
   "version": "0.1.0",
-  "description": "Application citoyenne (PoC) : l'état de la circulation, sans compte, en lecture seule (ADR-030, CIT-04).",
+  "description": "Application citoyenne (PoC) : « Mes trajets », la circulation lue en un coup d'œil, sans compte (ADR-030, ADR-031).",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,6 @@
     "format:check": "prettier --check src tests scripts",
     "test": "vitest run --coverage",
     "captures": "node scripts/captures.mjs",
-    "captures:alertes": "node scripts/captures-alertes.mjs",
     "cors": "node scripts/cors-navigateur.mjs"
   },
   "dependencies": {

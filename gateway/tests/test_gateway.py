@@ -578,7 +578,10 @@ class PasserelleReelle(unittest.TestCase):
         nom, port = self.pile.passerelle(cle=self.cle, suffixe="panne-pub")
         docker("stop", f"{self.pile.nom}-alerte", check=False)
         try:
+            debut = time.monotonic()
             statut, entetes, corps, _ = appeler(port, "GET", "/api/v1/public/alerts")
+            attente = time.monotonic() - debut
+            self.assertLess(attente, 10, "le 503 arrive vite (ici le service factice refuse la connexion ; le cas du service qui ne répond pas du tout est joué sur la pile réelle par `dev.py parcours U5`)")
             self.assertEqual((statut, corps["code"]), (503, "UPSTREAM_UNAVAILABLE"))
             self.assertEqual(entetes["cache-control"], "no-store")
             self.assertEqual(set(corps), {"type", "title", "status", "code", "detail", "correlation_id"})

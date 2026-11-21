@@ -1,13 +1,11 @@
 #!/usr/bin/env node
 /**
- * Captures sur écran de téléphone (CIT-04) : l'application construite, un vrai Chromium, un écran de 390 × 844 pixels.
+ * Captures de « Mes trajets » sur écran de téléphone (ADR-031, CIT-10) : l'application construite, un vrai Chromium, 390 × 844 pixels.
+ * Les réponses de l'API sont FABRIQUÉES par ce script (mêmes champs que le contrat) : la pile ne produit pas à la demande un trajet bloqué, un
+ * ralenti et un libre en même temps, ni une alerte qui naît pendant la capture. Les noms de fichiers le disent. La capture sur la VRAIE pile
+ * vient de `dev.py parcours` (cas U4 et U5 : `CIT-07-parcours-usager-*.png`).
  *
- * - Capture 1 : l'API RÉELLE de la pile locale (la passerelle, `dev.py up` lancé), par le relais de Vite. Les données sont celles
- *   du simulateur, dites « simulées » à l'écran.
- * - Captures 2 à 7 : la réponse de l'API est FABRIQUÉE par ce script (mêmes six champs que le contrat) pour montrer ce que la pile
- *   ne produit pas à la demande : des états variés, le chargement, l'erreur, l'information ancienne. Elles le disent dans leur nom.
- *
- * Usage :  npm run build && npm run captures        (la pile locale doit tourner pour la capture 1)
+ * Usage :  npm run build && npm run captures        (ou : python3 scripts/dev/dev.py citoyen captures)
  * Variables : CAPTURES_DOSSIER (défaut : ../docs/Capture d'ecran), PORT_APERCU (défaut 5175).
  */
 import { spawn } from "node:child_process";
@@ -19,31 +17,38 @@ import { chromium } from "playwright-core";
 const DOSSIER = resolve(process.env.CAPTURES_DOSSIER ?? "../docs/Capture d'ecran");
 const PORT = Number(process.env.PORT_APERCU ?? 5175);
 const BASE = `http://127.0.0.1:${PORT}`;
-const MAINTENANT = new Date("2026-11-20T09:57:00Z");
 mkdirSync(DOSSIER, { recursive: true });
 
-/** Un réseau de six carrefours : l'heure de pointe (nord et ouest saturés, est et sud ralentis), un carrefour fluide, un tronçon sans mesure. */
-function reseauVarie(miseAJour = "2026-11-20T09:55:00Z") {
+const maintenant = Date.now();
+const ilYa = (minutes) =>
+  new Date(maintenant - minutes * 60_000).toISOString().replace(/\.\d{3}Z$/, "Z");
+const APPROCHES = ["N", "E", "S", "W"];
+
+/** Un réseau de 24 tronçons : la gare bloquée (nord), le marché ralenti, tout le reste fluide. */
+function reseau(etats = {}) {
   const items = [];
-  for (let c = 1; c <= 6; c += 1) {
-    ["N", "E", "S", "W"].forEach((approach, i) => {
-      let state = approach === "N" || approach === "W" ? "CONGESTED" : "SLOW";
-      if (c === 3) state = "FREE_FLOW";
-      if (c === 5 && approach === "S") state = "UNKNOWN";
-      if (c === 6 && (approach === "E" || approach === "S")) state = "FREE_FLOW";
-      items.push({
-        road_segment_id: `ROAD_${String((c - 1) * 4 + i + 1).padStart(3, "0")}`,
-        intersection_id: `INT_${String(c).padStart(2, "0")}`,
-        approach,
-        state,
-        updated_at: miseAJour,
-        simulated: true,
-      });
+  for (let i = 1; i <= 24; i += 1) {
+    const id = `ROAD_${String(i).padStart(3, "0")}`;
+    const defaut = id === "ROAD_001" ? "CONGESTED" : id === "ROAD_009" ? "SLOW" : "FREE_FLOW";
+    items.push({
+      road_segment_id: id,
+      intersection_id: `INT_${String(Math.ceil(i / 4)).padStart(2, "0")}`,
+      approach: APPROCHES[(i - 1) % 4],
+      state: etats[id] ?? defaut,
+      updated_at: ilYa(1),
+      simulated: true,
     });
   }
   return { items };
 }
-
+const alerte = (id, troncon, gravite) => ({
+  alert_id: id,
+  road_segment_id: troncon,
+  intersection_id: "INT_01",
+  severity: gravite,
+  opened_at: ilYa(0),
+  simulated: true,
+});
 const json = (corps, status = 200) => ({
   status,
   contentType: status === 200 ? "application/json" : "application/problem+json",
@@ -62,126 +67,130 @@ async function attendreServeur() {
   throw new Error("L'aperçu de Vite ne répond pas");
 }
 
-const apercu = spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort"], {
-  stdio: "ignore",
-});
+const WINDOWS = process.platform === "win32";
+const apercu = spawn(
+  WINDOWS ? "npx.cmd" : "npx",
+  ["vite", "preview", "--port", String(PORT), "--strictPort"],
+  {
+    stdio: "ignore",
+    shell: WINDOWS,
+  },
+);
+let code = 0;
 try {
   await attendreServeur();
   const navigateur = await chromium.launch();
-  const telephone = {
-    viewport: { width: 390, height: 844 },
-    deviceScaleFactor: 2,
-    isMobile: true,
-    hasTouch: true,
-    locale: "fr-FR",
-    timezoneId: "Europe/Paris",
-  };
 
-  async function prendre(
-    nom,
-    { reponse, colorScheme = "light", viewport, pleinePage = true, avant } = {},
-  ) {
+  async function page({
+    circulation = () => json(reseau()),
+    alertes = () => json({ items: [] }),
+    colorScheme = "light",
+  } = {}) {
     const contexte = await navigateur.newContext({
-      ...telephone,
-      ...(viewport ? { viewport } : {}),
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+      locale: "fr-FR",
+      timezoneId: "Europe/Paris",
       colorScheme,
     });
-    const page = await contexte.newPage();
-    await page.clock.setFixedTime(MAINTENANT);
-    if (reponse) await page.route("**/api/v1/public/congestion", reponse);
-    await page.goto(BASE);
-    if (avant) await avant(page);
-    await page.screenshot({ path: `${DOSSIER}/CIT-04-${nom}.png`, fullPage: pleinePage });
-    const texte = await page.locator("body").innerText();
-    await contexte.close();
-    console.log(`écrit CIT-04-${nom}.png`);
-    return texte;
+    const p = await contexte.newPage();
+    await p.route("**/api/v1/public/congestion", (route) => route.fulfill(circulation()));
+    await p.route("**/api/v1/public/alerts", (route) => route.fulfill(alertes()));
+    return p;
   }
+  const prendre = async (p, nom, options = {}) => {
+    await p.screenshot({ path: `${DOSSIER}/CIT-10-${nom}.png`, fullPage: false, ...options });
+    console.log(`écrit CIT-10-${nom}.png`);
+  };
+  const trajets = (p) => p.getByRole("region", { name: /trajets/i });
 
-  // 1. L'API réelle de la pile locale.
-  const reel = await prendre("01-vue-principale-api-reelle-simulee", {
-    avant: (page) =>
-      page.getByRole("region", { name: "En un coup d'œil" }).waitFor({ timeout: 15000 }),
+  // 1. Première visite : des trajets pour essayer, avec leur verdict.
+  let p = await page();
+  await p.goto(BASE);
+  await trajets(p).waitFor();
+  await prendre(p, "01-premiere-visite-reponse-fabriquee");
+
+  // 2. Un trajet gardé ; « Me prévenir » se règle dans son détail (capture 03), puis retour à l'accueil (capture 02).
+  await p
+    .getByRole("listitem", { name: "Aller à la gare" })
+    .getByRole("button", { name: "Garder ce trajet" })
+    .click();
+  await p.getByRole("link", { name: "Aller à la gare" }).click();
+  await p.getByRole("checkbox", { name: "Me prévenir si ce trajet se bloque" }).check();
+  await prendre(p, "03-detail-du-trajet-reponse-fabriquee");
+  await p.getByRole("link", { name: "Mes trajets" }).click();
+  await trajets(p).waitFor();
+  await prendre(p, "02-trajet-garde-reponse-fabriquee");
+
+  // 4. Ajouter un trajet.
+  await p.getByRole("button", { name: "Ajouter un trajet" }).click();
+  await p.getByRole("heading", { name: "Ajouter un trajet" }).scrollIntoViewIfNeeded();
+  await prendre(p, "04-ajouter-un-trajet-reponse-fabriquee");
+  await p.context().close();
+
+  // 5. Une alerte s'ouvre sur le trajet suivi : le message simulé apparaît en haut.
+  let nouvelle = false;
+  p = await page({
+    alertes: () => json({ items: nouvelle ? [alerte("a1", "ROAD_004", "WARNING")] : [] }),
   });
-  if (!reel.includes("Données simulées") || !reel.includes("Carrefour INT_01"))
-    throw new Error("La capture 1 ne montre pas l'état réel attendu");
+  await p.goto(BASE);
+  await trajets(p).waitFor();
+  await p
+    .getByRole("listitem", { name: "Aller à la gare" })
+    .getByRole("button", { name: "Garder ce trajet" })
+    .click();
+  await p.getByRole("link", { name: "Aller à la gare" }).click();
+  await p.getByRole("checkbox", { name: "Me prévenir si ce trajet se bloque" }).check();
+  nouvelle = true;
+  await p.getByRole("group", { name: "Message pour votre trajet" }).waitFor({ timeout: 15000 });
+  await p.evaluate(() => window.scrollTo(0, 0));
+  await prendre(p, "05-message-me-prevenir-reponse-fabriquee");
+  await p.context().close();
 
-  // 2 et 3. États variés (réponse fabriquée) : une page entière, puis le haut de page seul (ce qu'on voit sans défiler).
-  const varie = (route) => route.fulfill(json(reseauVarie()));
-  const attenteVue = (page) => page.getByRole("region", { name: "En un coup d'œil" }).waitFor();
-  await prendre("02-etats-varies-reponse-fabriquee", { reponse: varie, avant: attenteVue });
-  await prendre("03-etats-varies-premier-ecran-reponse-fabriquee", {
-    reponse: varie,
-    avant: attenteVue,
-    pleinePage: false,
-  });
-
-  // 4. Chargement : la réponse n'arrive jamais pendant la capture.
-  await prendre("04-chargement-reponse-fabriquee", {
-    reponse: () => {},
-    pleinePage: false,
-    avant: (page) => page.getByText("Chargement de la circulation…").waitFor(),
-  });
-
-  // 5. Erreur : le service est indisponible, aucune donnée à montrer.
-  await prendre("05-erreur-service-indisponible-reponse-fabriquee", {
-    reponse: (route) =>
-      route.fulfill(
-        json(
-          {
-            type: "x",
-            title: "Service indisponible",
-            status: 503,
-            code: "UPSTREAM_UNAVAILABLE",
-            detail: "x",
-          },
-          503,
-        ),
+  // 6. Le service de circulation est indisponible : message clair.
+  p = await page({
+    circulation: () =>
+      json(
+        {
+          type: "x",
+          title: "Service indisponible",
+          status: 503,
+          code: "UPSTREAM_UNAVAILABLE",
+          detail: "x",
+          correlation_id: "c",
+        },
+        503,
       ),
-    pleinePage: false,
-    avant: (page) => page.getByRole("alert").waitFor(),
   });
+  await p.goto(BASE);
+  await p.getByRole("alert").waitFor();
+  await prendre(p, "06-service-indisponible-reponse-fabriquee");
+  await p.context().close();
 
-  // 6. Information ancienne : les mesures datent d'une heure.
-  await prendre("06-information-ancienne-reponse-fabriquee", {
-    reponse: (route) => route.fulfill(json(reseauVarie("2026-11-20T08:50:00Z"))),
-    pleinePage: false,
-    avant: (page) => page.getByText("Information ancienne.").waitFor(),
+  // 7. Les mesures manquent : l'application dit sa prudence au lieu de répondre « Libre ».
+  p = await page({
+    circulation: () =>
+      json({ items: reseau().items.filter((i) => i.road_segment_id !== "ROAD_004") }),
   });
+  await p.goto(BASE);
+  await trajets(p).waitFor();
+  await prendre(p, "07-information-incomplete-reponse-fabriquee");
+  await p.context().close();
 
-  // 7. Thème sombre, et 8. écran étroit (320 px) : lisibilité sans défilement horizontal.
-  await prendre("07-theme-sombre-reponse-fabriquee", {
-    reponse: varie,
-    colorScheme: "dark",
-    avant: attenteVue,
-    pleinePage: false,
-  });
-  const etroit = await prendre("08-ecran-320-px-reponse-fabriquee", {
-    reponse: varie,
-    viewport: { width: 320, height: 640 },
-    avant: attenteVue,
-    pleinePage: false,
-  });
-  if (!etroit.includes("Carrefour INT_01"))
-    throw new Error("La capture 8 ne montre pas la vue principale");
-
-  // Contrôle : aucune page ne déborde en largeur (WCAG 1.4.10, reflux à 320 px).
-  const contexte = await navigateur.newContext({
-    ...telephone,
-    viewport: { width: 320, height: 640 },
-  });
-  const page = await contexte.newPage();
-  await page.route("**/api/v1/public/congestion", varie);
-  await page.goto(BASE);
-  await attenteVue(page);
-  const largeurs = await page.evaluate(() => ({
-    contenu: document.documentElement.scrollWidth,
-    fenetre: window.innerWidth,
-  }));
-  await contexte.close();
-  console.log(`largeur du contenu à 320 px : ${largeurs.contenu} (fenêtre : ${largeurs.fenetre})`);
-  if (largeurs.contenu > largeurs.fenetre) throw new Error("Défilement horizontal à 320 px");
+  // 8. Mode sombre.
+  p = await page({ colorScheme: "dark" });
+  await p.goto(BASE);
+  await trajets(p).waitFor();
+  await prendre(p, "08-mode-sombre-reponse-fabriquee");
+  await p.context().close();
   await navigateur.close();
+} catch (erreur) {
+  console.error(erreur);
+  code = 1;
 } finally {
-  apercu.kill();
+  if (WINDOWS) spawn("taskkill", ["/pid", String(apercu.pid), "/T", "/F"], { stdio: "ignore" });
+  else apercu.kill();
 }
+process.exit(code);

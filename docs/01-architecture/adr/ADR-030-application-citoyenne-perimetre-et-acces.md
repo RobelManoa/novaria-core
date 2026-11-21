@@ -87,7 +87,7 @@ Un **citoyen qui se déplace** dans la ville : il consulte l'état de la circula
 2. **Pas de jeton, pas de cookie, pas de compte.** Un jeton d'équipe envoyé à une route publique n'est ni lu ni utile : il ne donne **rien de plus** que l'anonyme.
 3. **Chaque réponse est un DTO écrit pour le public**, avec une **liste blanche** de champs (section 4.4). Le modèle interne n'est jamais sérialisé tel quel : un champ ajouté demain au modèle n'apparaît pas dehors.
 4. **Limitation de débit propre aux routes publiques** (zone distincte de la passerelle, valeur fixée par CIT-02), en-tête `Cache-Control` court, **CORS limité à l'origine de l'application citoyenne**, sans `Access-Control-Allow-Credentials`, erreurs sans détail interne.
-5. **Aucune donnée personnelle n'est demandée ni enregistrée par l'application** (pas de formulaire, pas de compte, pas d'identifiant de visiteur). Le journal technique de la passerelle garde l'adresse du client : à réduire pour les routes publiques (CIT-06) ; cette décision n'a pas reçu d'analyse juridique (RGPD) : un PoC simulé n'est pas une mise en production.
+5. *(Amendé par l'[ADR-031](ADR-031-application-citoyenne-v2-mes-trajets.md), D3, le 21/11/2026 : l'application garde sur l'appareil du citoyen la liste de ses trajets, sous une seule clé, sans jamais l'envoyer au serveur ; le reste de ce point est inchangé.)* **Aucune donnée personnelle n'est demandée ni enregistrée par l'application** (pas de formulaire, pas de compte, pas d'identifiant de visiteur). Le journal technique de la passerelle garde l'adresse du client : à réduire pour les routes publiques (CIT-06) ; cette décision n'a pas reçu d'analyse juridique (RGPD) : un PoC simulé n'est pas une mise en production.
 
 ### 4.4 Ce que l'usager ne voit jamais
 

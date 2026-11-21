@@ -1,3 +1,5 @@
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { PublicAlert, SegmentState } from "../src/types";
 
 /** Un tronçon au format du contrat (traitement.openapi.yaml, PublicSegmentState), modifiable champ par champ. */
@@ -46,4 +48,16 @@ export function alert(changes: Partial<PublicAlert> = {}): PublicAlert {
     simulated: true,
     ...changes,
   };
+}
+
+/** Depuis l'accueil, ouvre le détail d'un trajet gardé (toute la carte est un lien nommé d'après le trajet). */
+export async function ouvrirDetail(nom: string) {
+  await userEvent.click(await screen.findByRole("link", { name: nom }));
+  return screen.findByRole("article", { name: nom });
+}
+
+/** Revient à l'accueil par le lien « Mes trajets » de l'en-tête. */
+export async function retourAccueil() {
+  await userEvent.click(screen.getByRole("link", { name: "Mes trajets" }));
+  return screen.findByRole("region", { name: /^mes trajets$/i });
 }

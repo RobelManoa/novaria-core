@@ -99,10 +99,52 @@ class AccordAvecLeContratDesAlertes(unittest.TestCase):
             for interdit in ("acknowledged_by", "episode_id", "rule_id", "classifier_version", "scenario_id"):
                 self.assertNotIn(interdit, texte, f"{fichier.name} : champ interne `{interdit}` (ADR-030, section 4.4)")
 
-    def test_le_suivi_est_en_memoire_seulement(self):
-        texte = lire("useFollow.ts")
-        self.assertNotRegex(texte, r"localStorage|sessionStorage|indexedDB|document\.cookie")
-        self.assertIn("en mémoire seulement", texte)
+    def test_les_trajets_sont_gardes_sur_l_appareil_par_un_seul_fichier_et_sous_une_seule_cle(self):
+        """ADR-031, D3 : ce qui est gardé, où, et jamais ailleurs."""
+        texte = lire("stockage.ts")
+        self.assertIn("localStorage", texte)
+        self.assertNotRegex(texte, r"sessionStorage|indexedDB|document\.cookie|fetch\(|XMLHttpRequest")
+        self.assertEqual(re.findall(r'setItem\(([^,]+),', texte).count("CLE"), 1)
+        self.assertEqual(len(re.findall(r'export const CLE = "([^"]+)"', texte)), 1)
+        lint = (APP / "eslint.config.js").read_text(encoding="utf-8")
+        self.assertEqual(re.findall(r'files: \["(src/stockage\.ts)"\]', lint), ["src/stockage.ts"], "l'exception de lint ne vaut que pour ce fichier")
+
+    def test_aucun_nom_de_lieu_ne_contient_un_code_du_systeme(self):
+        import json
+
+        lieux = json.loads(lire("lieux.json"))
+        self.assertEqual(sorted(lieux), [f"INT_{i:02d}" for i in range(1, 7)])
+        self.assertEqual(len(set(lieux.values())), 6)
+        for nom in lieux.values():
+            self.assertNotRegex(nom, r"INT_|ROAD|\d|_")
+
+    def test_les_noms_couvrent_le_reseau_de_demonstration(self):
+        import json
+
+        reseau = (RACINE / "db" / "postgres" / "migrations" / "0005_reseau_demo.sql").read_text(encoding="utf-8")
+        carrefours = sorted(set(re.findall(r"\('(INT_\d{2})', 'Carrefour", reseau)))
+        self.assertEqual(carrefours, sorted(json.loads(lire("lieux.json"))))
+        self.assertEqual(len(re.findall(r"\('ROAD_\d{3}', 'INT_", reseau)), 24, "24 tronçons : 6 lieux × 4 côtés")
+
+    def test_les_faits_fixes_du_detail_sont_ceux_du_reseau_de_demonstration(self):
+        """Le détail dit « Grand axe · 2 voies · 300 m · 50 km/h » : ces faits ne viennent pas de l'API publique, ils sont copiés ici."""
+        import json
+
+        from gen_reseau import CARREFOURS
+
+        faits = json.loads(lire("reseau.json"))
+        attendu = {
+            int_id: {"type": rtype, "voies": voies, "longueur_m": longueur, "limite_kmh": limite}
+            for int_id, rtype, voies, longueur, limite in CARREFOURS
+        }
+        self.assertEqual(faits, attendu, "reseau.json doit rester la copie de gen_reseau.CARREFOURS")
+        self.assertEqual(sorted(faits), sorted(json.loads(lire("lieux.json"))))
+
+    def test_l_adr_031_est_la_et_les_trajets_proposes_existent(self):
+        adr = (RACINE / "docs" / "01-architecture" / "adr" / "ADR-031-application-citoyenne-v2-mes-trajets.md").read_text(encoding="utf-8")
+        for attendu in ("Mes trajets", "Libre", "Bloqué", "stockage local", "Place de la Gare"):
+            self.assertIn(attendu, adr)
+        self.assertEqual(len(re.findall(r'id: "propose-', lire("trajets.ts"))), 3)
 
 
 class SecretsEtEnTetes(unittest.TestCase):
@@ -172,8 +214,10 @@ class Garde_fous(unittest.TestCase):
     def test_aucun_jeton_aucun_cookie_aucun_stockage(self):
         for fichier in self.SOURCES:
             texte = fichier.read_text(encoding="utf-8")
-            for interdit in ("Authorization", "Bearer", "localStorage", "sessionStorage", "indexedDB", "document.cookie", "Set-Cookie"):
+            for interdit in ("Authorization", "Bearer", "sessionStorage", "indexedDB", "document.cookie", "Set-Cookie"):
                 self.assertNotIn(interdit, texte, f"{fichier.name} : {interdit}")
+            if fichier.name != "stockage.ts":  # ADR-031, D3 : un seul fichier touche au stockage du navigateur
+                self.assertNotIn("localStorage", texte, f"{fichier.name} : seul stockage.ts lit et écrit le stockage")
         self.assertIn('credentials: "omit"', lire("api.ts"))
 
     def test_aucun_html_brut_ni_evaluation_de_code(self):
@@ -194,6 +238,8 @@ class Garde_fous(unittest.TestCase):
     def test_l_interface_dit_toujours_que_les_donnees_sont_simulees(self):
         self.assertIn("Données simulées", lire("components/Notices.tsx"))
         self.assertIn("<SimulatedBanner />", lire("App.tsx"))
+        self.assertIn("Message simulé", lire("components/Messages.tsx"))
+        self.assertIn("c'est une simulation", lire("components/DetailTrajet.tsx"))  # « Me prévenir » se règle dans le détail
 
 
 class Depot(unittest.TestCase):

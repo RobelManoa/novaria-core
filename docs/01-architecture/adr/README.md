@@ -124,6 +124,7 @@ flowchart TB
 | [028](ADR-028-etats-de-congestion-et-alertes.md) | États de congestion, hystérésis et alertes par épisode | Proposée (seuils de départ) | À demander (indicateurs) |
 | [029](ADR-029-passerelle-et-authentification.md) | Passerelle d'API : le jeton et le rôle sont contrôlés avant tout service | Proposée | Non demandée |
 | [030](ADR-030-application-citoyenne-perimetre-et-acces.md) | Application citoyenne : un usager sans compte, en lecture seule, par des routes publiques à liste blanche | Proposée | À demander (C-08) |
+| [031](ADR-031-application-citoyenne-v2-mes-trajets.md) | Application citoyenne v2 : « mes trajets », une décision de départ, la tendance et la cause confirmée | Proposée | Sans objet |
 
 Vocabulaire des statuts : **Acceptée** (décidée) · **Acceptée sous condition** (décidée, avec une porte de sortie datée) · **Proposée** (analysée, confirmation attendue) · **À décider** (décision ouverte) · **Remplacée par ADR-XXX**.
 

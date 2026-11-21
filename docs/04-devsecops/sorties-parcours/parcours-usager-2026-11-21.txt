@@ -1,0 +1,52 @@
+# Parcours de bout en bout AVEC L'USAGER (CIT-07), écran « Mes trajets » (ADR-031, phase 1). Données simulées, pile locale, poste Linux.
+# Date : 2026-11-21 · Docker Compose · deux exécutions complètes de suite (14 cas : N1 à N6, U1 à U5, E1 à E3).
+# Commande : python3 scripts/dev/dev.py parcours   (code de sortie 0 aux deux exécutions)
+# Avant ces exécutions : passerelle rechargée (nginx -s reload), `proxy_connect_timeout 2s` en place, E1 compte processing_stats (voir tests-integration.md, 10.3).
+# U5 arrête le service `traitement` (la donnée de « Mes trajets ») ; U4 ajoute un trajet dans Chromium.
+# Sortie des commandes, sans modification (identifiants de comptes jetables, supprimés en fin d'exécution) :
+
+================ exécution 1
+
+Parcours de bout en bout sur la pile locale (la pile doit tourner : dev.py up). Les cas U1 à U4 envoient des mesures simulées et ouvrent Chromium ; U5 arrête puis relance le service des alertes ; E3 arrête puis relance PostgreSQL.
+[OK] N1  Compte et jeton (2.1 s) : compte parcours-29c65f (viewer) créé, connexion par la passerelle : jeton reçu
+[OK] N2  Donnée brute : collecte, bus, copie MongoDB (0.8 s) : 6 mesures de 2026-11-21T17:05:00Z acceptées (202 ACCEPTED), 6 copie(s) dans raw_events, run cld13-f7c414
+[OK] N3  Entrepôt : le flux et le pipeline écrivent la fenêtre (15.7 s) : 1 ligne dans dwh.fact_traffic_window : 30 véhicules, 30.1 km/h, état FREE_FLOW, égale au recalcul des 6 mesures
+[OK] N4  API : lecture par la passerelle, valeurs recalculées : GET /api/v1/indicators par la passerelle : 200, 1 indicateur, mêmes valeurs que l'entrepôt, provenance SIMULATED
+[OK] N5  Tableau de bord : le front-end sert la même donnée : le front-end (nginx, port du tableau de bord) sert le même indicateur : le navigateur le lira par ce chemin
+[OK] N6  Tableau de bord : un navigateur affiche la donnée (2.2 s) : Chrome, front-end sur http://127.0.0.1:8080 : connexion puis écran « exécution cld13-f7c414 », 30,1 km/h, 30 véhicules, 30,0 véh/min, tronçon ROAD_001 (1 passed (1.5s))
+[OK] U1  Usager : mesures congestionnées envoyées (17.1 s) : 96 mesures simulées de INT_05 (4 minutes congestionnées) acceptées (202), run cit07-004803
+[OK] U2  Usager : l'indicateur annonce la congestion (15.1 s) : GET /api/v1/indicators (jeton viewer) : 4 tronçons × 4 minutes, états FREE_FLOW → CONGESTED → CONGESTED → CONGESTED sur chacun, égaux à ceux de la règle de seuils (classificateur du traitement)
+[OK] U3  Usager : l'alerte est créée et publique (0.2 s) : 4 alertes `congestion.persistante` (WARNING, une par tronçon) créées par le service ; GET /api/v1/public/alerts, sans jeton : les 4 alertes avec exactement les six champs publics, `simulated` vrai, `Cache-Control: public, max-age=5`
+[OK] U4  Usager : « Mes trajets » dans un navigateur (4.9 s) : Chromium (390 × 844) : première visite avec 3 trajets proposés et rien de gardé ; le citoyen ajoute son trajet (ROAD_017, ROAD_018) et lit « Information indisponible » avec sa phrase de décision (l'état public de ces tronçons, par la règle) ; « Me prévenir » est gardé après rechargement, une seule clé sur l'appareil, aucun cookie, aucun code à l'écran ; bandeau « Données simulées » présent
+[OK] U5  Usager : service de circulation indisponible (28.1 s) : service `traitement` arrêté : l'API publique répond 503 sans détail ni cache ; page ouverte : le trajet reste et « Mise à jour impossible… dernière information connue » ; page neuve : « momentanément indisponible », bouton « Réessayer », aucun mot technique ; service relancé : tout se rétablit
+[OK] E1  Donnée invalide (4.1 s) : hors contrat : 422 VALIDATION_ERROR, absente de raw_events, rejet tracé (rejects 19477 à 19478) ; datée du futur : acceptée par la collecte, refusée par le flux (compteur FUTURE_TIMESTAMP du flux incrémenté), aucune ligne dans l'entrepôt
+[OK] E2  Jeton expiré (1.7 s) : passerelle : expiré depuis 1 min : 401 ; signature altérée : 401 ; absent : 401 ; valide, expire dans 10 min (témoin) : 200 ; jeton expiré directement sur le service : 401 ; navigateur : retour à la connexion, session effacée, aucune donnée (1 passed (1.1s))
+[OK] E3  Base indisponible (19.5 s) : API : 503 UPSTREAM_UNAVAILABLE sans détail ; collecte pendant la panne : 6 mesures acceptées (elle ne dépend pas de PostgreSQL) ; PostgreSQL redémarré : l'API répond de nouveau 200 ; les mesures reçues pendant la panne sont dans l'entrepôt, égales au recalcul (rien perdu)
+14/14 cas satisfaits.
+
+real	1m52,688s
+user	0m23,634s
+sys	0m3,530s
+
+================ exécution 2 (lancée aussitôt après)
+
+Parcours de bout en bout sur la pile locale (la pile doit tourner : dev.py up). Les cas U1 à U4 envoient des mesures simulées et ouvrent Chromium ; U5 arrête puis relance le service des alertes ; E3 arrête puis relance PostgreSQL.
+[OK] N1  Compte et jeton (1.9 s) : compte parcours-c5575d (viewer) créé, connexion par la passerelle : jeton reçu
+[OK] N2  Donnée brute : collecte, bus, copie MongoDB (0.9 s) : 6 mesures de 2026-11-21T17:07:00Z acceptées (202 ACCEPTED), 6 copie(s) dans raw_events, run cld13-643b57
+[OK] N3  Entrepôt : le flux et le pipeline écrivent la fenêtre (15.7 s) : 1 ligne dans dwh.fact_traffic_window : 30 véhicules, 30.1 km/h, état FREE_FLOW, égale au recalcul des 6 mesures
+[OK] N4  API : lecture par la passerelle, valeurs recalculées : GET /api/v1/indicators par la passerelle : 200, 1 indicateur, mêmes valeurs que l'entrepôt, provenance SIMULATED
+[OK] N5  Tableau de bord : le front-end sert la même donnée : le front-end (nginx, port du tableau de bord) sert le même indicateur : le navigateur le lira par ce chemin
+[OK] N6  Tableau de bord : un navigateur affiche la donnée (2 s) : Chrome, front-end sur http://127.0.0.1:8080 : connexion puis écran « exécution cld13-643b57 », 30,1 km/h, 30 véhicules, 30,0 véh/min, tronçon ROAD_001 (1 passed (1.4s))
+[OK] U1  Usager : mesures congestionnées envoyées (8.8 s) : 96 mesures simulées de INT_06 (4 minutes congestionnées) acceptées (202), run cit07-77cc42
+[OK] U2  Usager : l'indicateur annonce la congestion (15.1 s) : GET /api/v1/indicators (jeton viewer) : 4 tronçons × 4 minutes, états FREE_FLOW → CONGESTED → CONGESTED → CONGESTED sur chacun, égaux à ceux de la règle de seuils (classificateur du traitement)
+[OK] U3  Usager : l'alerte est créée et publique (0.2 s) : 4 alertes `congestion.persistante` (WARNING, une par tronçon) créées par le service ; GET /api/v1/public/alerts, sans jeton : les 4 alertes avec exactement les six champs publics, `simulated` vrai, `Cache-Control: public, max-age=5`
+[OK] U4  Usager : « Mes trajets » dans un navigateur (4.8 s) : Chromium (390 × 844) : première visite avec 3 trajets proposés et rien de gardé ; le citoyen ajoute son trajet (ROAD_021, ROAD_022) et lit « Information indisponible » avec sa phrase de décision (l'état public de ces tronçons, par la règle) ; « Me prévenir » est gardé après rechargement, une seule clé sur l'appareil, aucun cookie, aucun code à l'écran ; bandeau « Données simulées » présent
+[OK] U5  Usager : service de circulation indisponible (28.2 s) : service `traitement` arrêté : l'API publique répond 503 sans détail ni cache ; page ouverte : le trajet reste et « Mise à jour impossible… dernière information connue » ; page neuve : « momentanément indisponible », bouton « Réessayer », aucun mot technique ; service relancé : tout se rétablit
+[OK] E1  Donnée invalide (3.5 s) : hors contrat : 422 VALIDATION_ERROR, absente de raw_events, rejet tracé (rejects 19479 à 19480) ; datée du futur : acceptée par la collecte, refusée par le flux (compteur FUTURE_TIMESTAMP du flux incrémenté), aucune ligne dans l'entrepôt
+[OK] E2  Jeton expiré (1.8 s) : passerelle : expiré depuis 1 min : 401 ; signature altérée : 401 ; absent : 401 ; valide, expire dans 10 min (témoin) : 200 ; jeton expiré directement sur le service : 401 ; navigateur : retour à la connexion, session effacée, aucune donnée (1 passed (1.1s))
+[OK] E3  Base indisponible (19.6 s) : API : 503 UPSTREAM_UNAVAILABLE sans détail ; collecte pendant la panne : 6 mesures acceptées (elle ne dépend pas de PostgreSQL) ; PostgreSQL redémarré : l'API répond de nouveau 200 ; les mesures reçues pendant la panne sont dans l'entrepôt, égales au recalcul (rien perdu)
+14/14 cas satisfaits.
+
+real	1m43,607s
+user	0m23,625s
+sys	0m3,450s

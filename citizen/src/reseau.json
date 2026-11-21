@@ -1,0 +1,8 @@
+{
+  "INT_01": { "type": "ARTERIAL", "voies": 2, "longueur_m": 300, "limite_kmh": 50 },
+  "INT_02": { "type": "ARTERIAL", "voies": 2, "longueur_m": 300, "limite_kmh": 50 },
+  "INT_03": { "type": "COLLECTOR", "voies": 1, "longueur_m": 250, "limite_kmh": 50 },
+  "INT_04": { "type": "COLLECTOR", "voies": 1, "longueur_m": 250, "limite_kmh": 50 },
+  "INT_05": { "type": "LOCAL", "voies": 1, "longueur_m": 150, "limite_kmh": 30 },
+  "INT_06": { "type": "LOCAL", "voies": 1, "longueur_m": 150, "limite_kmh": 30 }
+}

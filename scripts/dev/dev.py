@@ -1477,18 +1477,22 @@ def cmd_panne(args: argparse.Namespace) -> int:
 
 # --------------------------------------------------------------------------- parcours de bout en bout (CLD-13)
 def cmd_parcours(args: argparse.Namespace) -> int:
-    """Rejoue le parcours nominal (donnée brute, entrepôt, API, tableau de bord) et les cas d'échec sur la pile locale."""
+    """Rejoue le parcours nominal (donnée brute, entrepôt, API, tableau de bord), le parcours de l'usager (CIT-07) et les cas d'échec sur la pile locale."""
+    import flux_complet
     import parcours
+    import parcours_usager
 
     require_env()
     require_docker()
+    cas = parcours_usager.tous_les_cas()
     ids = tuple(item.upper() for item in args.cas) or None
-    inconnus = [item for item in ids or () if item not in {cas[0] for cas in parcours.CAS}]
+    inconnus = [item for item in ids or () if item not in {c[0] for c in cas}]
     if inconnus:
-        raise DevError(f"Cas inconnu : {', '.join(inconnus)}. Cas possibles : {', '.join(cas[0] for cas in parcours.CAS)}.")
-    pile = parcours.Pile(parse_env(ENV_FILE.read_text(encoding="utf-8")))
-    print("Parcours de bout en bout sur la pile locale (la pile doit tourner : dev.py up).")
-    resultats = parcours.executer(pile, ids, afficher=lambda resultat: print(parcours.ligne(resultat), flush=True))
+        raise DevError(f"Cas inconnu : {', '.join(inconnus)}. Cas possibles : {', '.join(c[0] for c in cas)}.")
+    pile = flux_complet.Pile(parse_env(ENV_FILE.read_text(encoding="utf-8")))
+    print("Parcours de bout en bout sur la pile locale (la pile doit tourner : dev.py up). Les cas U1 à U4 envoient des mesures simulées et ouvrent Chromium ; "
+          "U5 arrête puis relance le service des alertes ; E3 arrête puis relance PostgreSQL.")
+    resultats = parcours.executer(pile, ids, afficher=lambda resultat: print(parcours.ligne(resultat), flush=True), cas=cas, chaines=parcours_usager.CHAINES)
     echecs = [resultat.cas for resultat in resultats if not resultat.ok]
     print(f"{len(resultats) - len(echecs)}/{len(resultats)} cas satisfaits." + (f" Échecs : {', '.join(echecs)}." if echecs else ""))
     return 1 if echecs else 0
@@ -1605,7 +1609,7 @@ def cmd_front_dev(args: argparse.Namespace) -> int:
 
 CITIZEN_DIR = ROOT / "citizen"
 CITIZEN_PORT = 5174
-CITIZEN_ACTIONS = ("dev", "apercu", "build", "test", "captures", "delai", "cors")
+CITIZEN_ACTIONS = ("dev", "apercu", "build", "test", "captures", "delai", "cors", "manuel")
 
 
 def cmd_citoyen(args: argparse.Namespace) -> int:
@@ -1622,6 +1626,13 @@ def cmd_citoyen(args: argparse.Namespace) -> int:
         code = subprocess.run([npm, "run", "build"], cwd=CITIZEN_DIR, check=False).returncode
         if code:
             return code
+    if args.action == "manuel":  # CIT-07 : essai humain (vous créez et refermez des alertes simulées), scripts/dev/citoyen_manuel.py
+        import citoyen_manuel
+
+        try:
+            return citoyen_manuel.executer()
+        except citoyen_manuel.Echec as error:
+            raise DevError(str(error)) from error
     if args.action == "delai":  # CIT-05 : délai d'apparition d'une alerte, pile réelle et vrai navigateur (scripts/dev/citoyen_delai.py)
         import citoyen_delai
 

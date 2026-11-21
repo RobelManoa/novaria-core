@@ -27,7 +27,7 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -278,6 +278,10 @@ class Contexte:
     mesures: list[dict] | None = None
     ligne: dict | None = None
     indicateur: dict | None = None
+    # Cas de l'usager (CIT-07) : ce qu'un cas apprend aux suivants (carrefour choisi, alertes créées…), et ce qu'il faut défaire à la fin
+    # même après un échec (renvoyer des minutes fluides pour refermer les alertes d'essai).
+    notes: dict = field(default_factory=dict)
+    nettoyages: list[Callable[[], None]] = field(default_factory=list)
 
 
 def _exiger(condition: bool, message: str) -> None:
@@ -380,6 +384,19 @@ def n6_navigateur(c: Contexte) -> str:
 
 
 # --------------------------------------------------------------------------- cas d'échec
+def rejets_futurs(pile: Pile) -> int:
+    """Le nombre de rejets `FUTURE_TIMESTAMP` comptés par le service de flux (`processing_stats`).
+
+    On ne compte PAS les documents de `rejects` : leur identifiant est `dlq:…:partition:offset` et le flux ignore la copie d'un rejet dont
+    l'identifiant existe déjà (idempotence du rejeu). Après une réinitialisation de Kafka, les offsets repartent de zéro et retombent sur
+    des identifiants d'anciens rejets : le nouveau rejet est bien fait mais sa copie est ignorée, et un décompte de `rejects` ne bouge pas
+    (CIT-07 : E1 échouait ainsi selon l'offset du message). Les compteurs de `processing_stats` sont incrémentés dans tous les cas."""
+    sortie = pile.mongo('db.processing_stats.aggregate([{$match: {kind: "rejects"}}, {$group: {_id: null, n: {$sum: "$values.FUTURE_TIMESTAMP"}}}])'
+                        '.toArray().reduce((total, ligne) => total + ligne.n, 0)')
+    derniere = [ligne for ligne in sortie.splitlines() if ligne.strip()][-1] if sortie.strip() else "0"
+    return int(float(derniere))
+
+
 def e1_donnee_invalide(c: Contexte) -> str:
     refus_avant = int(c.pile.mongo("db.rejects.countDocuments({})") or 0)
     invalide = mesure(c.run_id, c.debut + timedelta(seconds=5 * INTERVALLE_S), -3, 31.0, 0.2, 10.0)
@@ -391,16 +408,17 @@ def e1_donnee_invalide(c: Contexte) -> str:
     _exiger(absente.endswith("0"), f"la mesure invalide est dans raw_events : {absente}")
     refus_apres = int(c.pile.mongo("db.rejects.countDocuments({})") or 0)
     _exiger(refus_apres > refus_avant, f"aucun rejet tracé dans MongoDB (avant {refus_avant}, après {refus_apres})")
+    futurs_avant = rejets_futurs(c.pile)
     futur = mesure(c.run_id, datetime.now(UTC) + timedelta(hours=1), 5, 30.0, 0.2, 10.0)
     _exiger(c.pile.envoyer([futur]) == ["ACCEPTED"], "la mesure du futur est conforme au contrat : la collecte l'accepte")
     delai = time.monotonic() + 60
-    while time.monotonic() < delai and int(c.pile.mongo("db.rejects.countDocuments({})") or 0) <= refus_apres:
+    while time.monotonic() < delai and rejets_futurs(c.pile) <= futurs_avant:
         time.sleep(3)
-    _exiger(int(c.pile.mongo("db.rejects.countDocuments({})") or 0) > refus_apres, "le flux n'a pas refusé la mesure du futur")
+    _exiger(rejets_futurs(c.pile) > futurs_avant, "le flux n'a pas refusé la mesure du futur")
     lignes = c.pile.psql(f"SELECT count(*) FROM dwh.fact_traffic_window WHERE run_id = '{c.run_id}' AND window_start > now();")
     _exiger(lignes == [["0"]], f"une fenêtre du futur est dans l'entrepôt : {lignes}")
     return (f"hors contrat : 422 VALIDATION_ERROR, absente de raw_events, rejet tracé (rejects {refus_avant} à {refus_apres}) ; "
-            "datée du futur : acceptée par la collecte, refusée par le flux (rejet tracé), aucune ligne dans l'entrepôt")
+            "datée du futur : acceptée par la collecte, refusée par le flux (compteur FUTURE_TIMESTAMP du flux incrémenté), aucune ligne dans l'entrepôt")
 
 
 def e2_jeton_expire(c: Contexte) -> str:
@@ -481,24 +499,35 @@ NOMINAUX = ("N1", "N2", "N3", "N4", "N5", "N6")
 
 
 def executer(pile: Pile, ids: tuple[str, ...] | None = None, afficher: Callable[[Resultat], None] = lambda r: None,
-             maintenant: datetime | None = None) -> list[Resultat]:
-    """Joue les cas dans l'ordre. Un cas dont un prérequis a échoué est signalé « non joué », pas ignoré."""
+             maintenant: datetime | None = None, cas: tuple[tuple[str, str, Callable[[Contexte], str]], ...] | None = None,
+             chaines: tuple[tuple[str, ...], ...] | None = None) -> list[Resultat]:
+    """Joue les cas dans l'ordre. Un cas dont un prérequis a échoué est signalé « non joué », pas ignoré.
+
+    `cas` : la liste jouée (par défaut `CAS`). `chaines` : les suites de cas dépendants (par défaut le parcours nominal) ; dans chacune,
+    un cas qui suit un échec n'est pas joué. Les nettoyages enregistrés par les cas sont joués à la fin, même après un échec."""
     maintenant = maintenant or datetime.now(UTC)
-    choisis = [cas for cas in CAS if ids is None or cas[0] in ids]
+    chaines = chaines if chaines is not None else (NOMINAUX,)
+    choisis = [c for c in (cas if cas is not None else CAS) if ids is None or c[0] in ids]
     contexte = Contexte(pile, f"cld13-{secrets.token_hex(3)}", debut_de_minute_passee(maintenant))
     resultats: list[Resultat] = []
-    nominal_ok = True
+    rompues = [False] * len(chaines)
     try:
         for identifiant, titre, fonction in choisis:
-            if identifiant in NOMINAUX[1:] and not nominal_ok:
-                resultat = Resultat(identifiant, titre, False, "non joué : une étape précédente du parcours nominal a échoué")
+            if any(rompues[i] for i, chaine in enumerate(chaines) if identifiant in chaine[1:]):
+                resultat = Resultat(identifiant, titre, False, "non joué : une étape précédente du parcours a échoué")
             else:
                 resultat = _jouer(identifiant, titre, fonction, contexte)
-            if identifiant in NOMINAUX and not resultat.ok:
-                nominal_ok = False
+            for i, chaine in enumerate(chaines):
+                if identifiant in chaine and not resultat.ok:
+                    rompues[i] = True
             resultats.append(resultat)
             afficher(resultat)
     finally:
+        for nettoyage in reversed(contexte.nettoyages):
+            try:
+                nettoyage()
+            except Exception:  # noqa: BLE001 - un nettoyage raté ne masque pas le résultat du parcours
+                pass
         if contexte.nom:
             try:
                 pile.supprimer_compte(contexte.nom)
