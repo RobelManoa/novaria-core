@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import get_settings
 from app.core.errors import UPSTREAM_UNAVAILABLE, ProblemError
 from app.repositories.indicators import SqlIndicatorRepository
+from app.repositories.speed import SqlSpeedRepository
 from app.repositories.users import SqlUserRepository
 
 # L'entrepôt est servi en lecture seule : PostgreSQL refuse toute écriture sur cette connexion.
@@ -63,3 +64,14 @@ def get_indicator_repository() -> Iterator[SqlIndicatorRepository]:
         ) from error
     with factory() as session:
         yield SqlIndicatorRepository(session)
+
+
+def get_speed_repository() -> Iterator[SqlSpeedRepository]:
+    try:
+        factory = get_warehouse_session_factory()
+    except DatabaseNotConfigured as error:
+        raise ProblemError(
+            UPSTREAM_UNAVAILABLE, "L'entrepôt de données n'est pas configuré."
+        ) from error
+    with factory() as session:
+        yield SqlSpeedRepository(session)

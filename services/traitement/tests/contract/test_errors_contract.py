@@ -34,7 +34,7 @@ from app.core.errors import (
     UPSTREAM_UNAVAILABLE,
     VALIDATION_ERROR,
 )
-from app.db.session import get_indicator_repository, get_user_repository
+from app.db.session import get_indicator_repository, get_speed_repository, get_user_repository
 from app.main import app
 from app.models import Role
 from app.schemas.errors import Problem
@@ -50,6 +50,8 @@ USERS = "/api/v1/users"
 INDICATORS = "/api/v1/indicators"
 FORECASTS = "/api/v1/forecasts"
 REPORTS = "/api/v1/reports"
+SPEED_NETWORKS = "/api/v1/speed-networks"
+SPEED_FORECASTS = f"{SPEED_NETWORKS}/{{network_id}}/forecasts"
 REPORT_CONTENT = f"{REPORTS}/{{report_id}}/content"
 UNKNOWN_REPORT = "00000000-0000-4000-8000-000000000000"
 PROBLEM_KEYS = {"type", "title", "status", "code", "detail", "correlation_id", "errors"}
@@ -163,6 +165,21 @@ PROVOKERS = {
         # l'entrepôt de la mise en scène est vide : ni modèle ni référence ne peuvent répondre
         "503": lambda s: s.request("get", FORECASTS, role=Role.VIEWER),
     },
+    ("get", SPEED_NETWORKS): {
+        "401": lambda s: s.request("get", SPEED_NETWORKS),
+    },
+    ("get", SPEED_FORECASTS): {
+        "401": lambda s: s.request("get", SPEED_FORECASTS),
+        "404": lambda s: s.request("get", SPEED_FORECASTS, role=Role.VIEWER),
+        "422": lambda s: s.request(
+            "get", SPEED_FORECASTS, role=Role.VIEWER, params={"horizon_min": 4}
+        ),
+        # aucun dossier de modèles dans la mise en scène : aucun modèle utilisable, jamais une
+        # persistance
+        "503": lambda s: s.request(
+            "get", SPEED_FORECASTS.replace("{network_id}", "metr-la"), role=Role.VIEWER
+        ),
+    },
     ("get", REPORTS): {
         "401": lambda s: s.request("get", REPORTS),
         "422": lambda s: s.request("get", REPORTS, role=Role.VIEWER, params={"limit": 0}),
@@ -248,6 +265,8 @@ def test_the_only_errors_without_a_test_are_the_written_exemptions():
         ("get", f"{INDICATORS}/latest", "403"),
         ("get", f"{INDICATORS}/{{indicator_id}}", "403"),
         ("get", FORECASTS, "403"),
+        ("get", SPEED_NETWORKS, "403"),
+        ("get", SPEED_FORECASTS, "403"),
         ("get", REPORTS, "403"),
         ("get", REPORT_CONTENT, "403"),
     }
@@ -339,7 +358,7 @@ def serve_with_failing_database(scene, method: str, path: str, error: Exception)
     headers = scene.token(Role.ADMIN)
     app.dependency_overrides[get_user_repository] = broken(error)
     url = path.replace("{user_id}", UNKNOWN_ID).replace("{indicator_id}", "inconnu")
-    url = url.replace("{report_id}", UNKNOWN_REPORT)
+    url = url.replace("{report_id}", UNKNOWN_REPORT).replace("{network_id}", "metr-la")
     body = {"username": "u", "password": PASSWORD} if path == LOGIN else None
     if (method, path) == ("post", USERS):
         body = {"username": "nouveau", "password": "un-mot-de-passe-long", "role": "viewer"}
@@ -388,8 +407,12 @@ def test_an_unreachable_or_saturated_database_gives_a_503_without_the_address(
 
 @pytest.mark.parametrize(
     ("method", "path"),
-    [(m, p) for m, p in IMPLEMENTED if p.startswith((INDICATORS, FORECASTS))],
-    ids=[f"{m.upper()} {p}" for m, p in IMPLEMENTED if p.startswith((INDICATORS, FORECASTS))],
+    [(m, p) for m, p in IMPLEMENTED if p.startswith((INDICATORS, FORECASTS, SPEED_NETWORKS))],
+    ids=[
+        f"{m.upper()} {p}"
+        for m, p in IMPLEMENTED
+        if p.startswith((INDICATORS, FORECASTS, SPEED_NETWORKS))
+    ],
 )
 @pytest.mark.parametrize(
     ("error", "status"), [(RuntimeError("x"), 500), (unreachable(), 503)], ids=["500", "503"]
@@ -399,7 +422,8 @@ def test_a_failing_warehouse_is_reported_like_a_failing_accounts_database(
 ):
     headers = scene.token(Role.VIEWER)
     app.dependency_overrides[get_indicator_repository] = broken(error)
-    url = path.replace("{indicator_id}", "inconnu")
+    app.dependency_overrides[get_speed_repository] = broken(error)
+    url = path.replace("{indicator_id}", "inconnu").replace("{network_id}", "metr-la")
     response = scene.client.request(method.upper(), url, headers=headers)
     assert_problem(response, status, ALLOWED_CODES[str(status)])
 

@@ -40,7 +40,7 @@ Les rôles sont **ordonnés** : `viewer` < `operator` < `admin`. Un rôle supér
 |---|---|---|---|---|---|
 | Routes publiques | `/api/v1/health`, `POST /api/v1/auth/login` | oui | oui | oui | oui |
 | Profil du compte connecté | `/api/v1/auth/me` | — | lire | lire | lire |
-| Indicateurs, carrefours, tronçons, prévisions, rapports | `/api/v1/indicators`, `/intersections`, `/road-segments`, `/forecasts`, `/reports` | — | lire | lire | lire |
+| Indicateurs, carrefours, tronçons, prévisions, réseaux de vitesse et leur modèle, rapports | `/api/v1/indicators`, `/intersections`, `/road-segments`, `/forecasts`, `/speed-networks`, `/reports` | — | lire | lire | lire |
 | Alertes et flux temps réel | `/api/v1/alerts`, `/events/stream` | — | lire | lire, **acquitter, résoudre** | lire, acquitter, résoudre |
 | Règles d'alerte (seuils) | `/api/v1/alert-rules` | — | lire | lire | lire, **modifier** |
 | Feux et leurs commandes | `/api/v1/signals` | — | lire | lire, **commander** | lire, commander |

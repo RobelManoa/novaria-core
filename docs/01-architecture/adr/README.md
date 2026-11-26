@@ -122,6 +122,7 @@ flowchart TB
 | [027](ADR-027-jeux-de-donnees-et-provenance.md) | Jeux de données et provenance : simulateur Python d'abord | Proposée | À demander (jeu de données) |
 | [028](ADR-028-etats-de-congestion-et-alertes.md) | États de congestion, hystérésis et alertes par épisode | Proposée (seuils de départ) | À demander (indicateurs) |
 | [029](ADR-029-passerelle-et-authentification.md) | Passerelle d'API : le jeton et le rôle sont contrôlés avant tout service | Proposée | Non demandée |
+| [032](ADR-032-donnees-d-entrainement-et-reseau-extensible.md) | Données d'entraînement : campagnes du simulateur, METR-LA intégré en local, réseau extensible, modèles servis et expliqués | Proposée | Non demandée |
 
 Vocabulaire des statuts : **Acceptée** (décidée) · **Acceptée sous condition** (décidée, avec une porte de sortie datée) · **Proposée** (analysée, confirmation attendue) · **À décider** (décision ouverte) · **Remplacée par ADR-XXX**.
 

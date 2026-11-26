@@ -84,6 +84,7 @@ function serve({ forecasts, indicators }: Api = {}) {
     if (url.pathname === "/api/v1/indicators") {
       return indicators ? indicators(url) : json({ items: [], next_cursor: null });
     }
+    if (url.pathname === "/api/v1/speed-networks") return json({ items: [] }); // aucun réseau de vitesse chargé
     throw new Error(`Appel non prévu : ${url.pathname}`);
   });
 }

@@ -11,6 +11,7 @@ import ForecastChart, { type SeriesPoint } from "./ForecastChart";
 import styles from "./Forecasts.module.css";
 import { loadForecastView, loadSegments, MAX_OBSERVED, type ForecastView } from "./load";
 import ModelCard from "./ModelCard";
+import TrainedModel from "./TrainedModel";
 
 /** Horizon dont on montre le modèle : celui du milieu de la gamme, à défaut le plus court. */
 const MODEL_HORIZON = 15;
@@ -195,5 +196,10 @@ export default function Forecasts() {
       </StateMessage>
     );
   }
-  return <Panel segments={state.data} />;
+  return (
+    <>
+      <Panel segments={state.data} />
+      <TrainedModel />
+    </>
+  );
 }

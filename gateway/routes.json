@@ -116,6 +116,16 @@
  },
  {
   "method": "GET",
+  "pattern": "^/api/v1/speed\\-networks$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
+  "pattern": "^/api/v1/speed\\-networks/[^/]+/forecasts$",
+  "role": "viewer"
+ },
+ {
+  "method": "GET",
   "pattern": "^/api/v1/users$",
   "role": "admin"
  },

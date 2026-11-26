@@ -164,8 +164,8 @@ class Plausibilite(unittest.TestCase):
 
 
 class ScenariosDeclares(unittest.TestCase):
-    def test_trois_scenarios_decrits(self):
-        self.assertEqual(set(SCENARIOS), {"journee-calme", "heure-de-pointe", "incident-ponctuel"})
+    def test_les_scenarios_sont_decrits(self):
+        self.assertEqual(set(SCENARIOS), {"journee-calme", "heure-de-pointe", "incident-ponctuel", "campagne"})
         for scenario in SCENARIOS.values():
             self.assertTrue(scenario.description)
             self.assertRegex(scenario.scenario_id, r"^[a-z0-9_-]{1,60}$")  # motif du contrat pour scenario_id

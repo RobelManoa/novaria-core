@@ -506,7 +506,7 @@ ML_ANOMALIES = ROOT / "ml" / "src" / "detecter_anomalies.py"
 ML_SUMO = ROOT / "ml" / "src" / "lancer_sumo.py"
 ML_SUMO_ETAPES = ("image", "calibrer", "simuler", "rejouer", "comparer")
 ML_PREVISION = ROOT / "ml" / "src" / "prevoir.py"
-ML_PREVISION_ETAPES = ("telecharger", "verifier", "evaluer")
+ML_PREVISION_ETAPES = ("telecharger", "verifier", "evaluer", "exporter", "entrainer-reseau", "evaluer-reseau")
 
 
 def cmd_ml_anomalies(_: argparse.Namespace) -> int:
@@ -526,7 +526,7 @@ def cmd_ml_sumo(args: argparse.Namespace) -> int:
 
 def cmd_ml_prevision(args: argparse.Namespace) -> int:
     """Prévision de vitesse (IA-10) : télécharger et contrôler METR-LA, le contrôler seulement, ou évaluer (écrit ml/evaluation/prevision*)."""
-    if args.etape == "evaluer":
+    if args.etape in ("evaluer", "exporter", "entrainer-reseau", "evaluer-reseau"):
         if not ml_python().exists():
             print("ml/.venv est absent : lancer d'abord « ml-env » (scikit-learn et h5py y sont installés avec leurs empreintes).", file=sys.stderr)
             return 2
@@ -873,6 +873,12 @@ def cmd_etl_load(args: argparse.Namespace) -> int:
     """Charge un fichier de fenêtres dans dwh.fact_traffic_window ; rejouable sans changer les totaux (DAT-06)."""
     require_env()
     return run_etl("pipelines.charger_entrepot", ["--file", etl_file_argument(args.file), "--run-id", args.run_id], ("psycopg",), etl_database_urls())
+
+
+def cmd_etl_vitesses(args: argparse.Namespace) -> int:
+    """Charge un réseau de vitesses (manifeste et mesures de data/datasets/vitesses/<réseau>/) dans dwh.speed_* ; rejouable (IA-16)."""
+    require_env()
+    return run_etl("pipelines.charger_vitesses", ["--reseau", args.reseau], ("psycopg",), etl_database_urls())
 
 
 def cmd_etl_replay(args: argparse.Namespace) -> int:
@@ -1863,6 +1869,8 @@ def build_parser() -> argparse.ArgumentParser:
     load = add("etl-charger", cmd_etl_load, "charge un fichier de fenêtres dans dwh.fact_traffic_window (idempotent)")
     load.add_argument("--file", type=Path, required=True, help="fichier CSV de fenêtres")
     load.add_argument("--run-id", required=True, help="identifiant du run (partie de la clé d'idempotence)")
+    vitesses = add("etl-vitesses", cmd_etl_vitesses, "charge un réseau de vitesses (manifeste et mesures) dans dwh.speed_* : de nouveaux capteurs sans toucher au code (IA-16)")
+    vitesses.add_argument("--reseau", required=True, help="nom du dossier dans data/datasets/vitesses/ (metr-la)")
     replay = add("etl-rejouer", cmd_etl_replay, "charge trois fois le même fichier et compare les totaux (rapport de comparaison)")
     replay.add_argument("--file", type=Path, required=True, help="fichier CSV de fenêtres")
     replay.add_argument("--run-id", required=True, help="identifiant du run : seules ses lignes sont touchées")

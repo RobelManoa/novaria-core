@@ -22,4 +22,5 @@ class Scene:
     def request(self, method: str, path: str, *, role: Role | None = None, **kwargs):
         headers = self.token(role) if role else {}
         url = path.replace("{user_id}", UNKNOWN_ID).replace("{indicator_id}", "inconnu")
+        url = url.replace("{network_id}", "nulle-part")
         return self.client.request(method.upper(), url, headers=headers, **kwargs)

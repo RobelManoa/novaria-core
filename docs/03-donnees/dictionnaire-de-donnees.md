@@ -261,6 +261,27 @@ Vue en lecture seule (migration `0007`) que l'API des indicateurs interroge ([AP
 | `window_start`, `window_size_s`, `vehicle_count`, `flow_veh_per_min`, `average_speed_kmh`, `occupancy_rate`, `max_queue_length_m`, `speed_ratio`, `sample_count`, `expected_sample_count`, `completeness`, `congestion_state`, `classifier_version` | `fact_traffic_window` | Voir le tableau ci-dessus |
 | `run_id`, `source_type`, `scenario_id`, `seed`, `dataset_id` | `fact_traffic_window` et `dim_run` | Provenance complète, telle que le contrat la décrit |
 
+### 6.1 Réseaux de vitesse (`dwh.speed_*`, IA-16)
+
+Des séries de **vitesses seules**, sans comptage ni occupation (METR-LA : [fiche](../../data/datasets/metr-la/PROVENANCE.md)). Elles ont leurs propres tables parce que `fact_traffic_window` exige un comptage et qu'inventer des comptages fausserait la donnée ([ADR-032](../01-architecture/adr/ADR-032-donnees-d-entrainement-et-reseau-extensible.md)). Seules les vitesses **mesurées** ont une ligne. Un réseau s'ajoute par un fichier de description et un fichier de mesures (`dev.py etl-vitesses`), sans migration ni code. Ces tables n'entrent jamais dans `v_indicator` : l'état public du réseau fictif n'en est pas touché.
+
+| Table | Colonne | Type | Contrainte | Sens |
+|---|---|---|---|---|
+| `speed_network` | `network_id` | texte | clé primaire ; `^[a-z0-9][a-z0-9-]{0,39}$` | Identifiant du réseau (`metr-la`) |
+| | `label` | texte | obligatoire ; 1 à 120 caractères | Nom affiché |
+| | `description` | texte | obligatoire | Ce que sont ces données, et leur limite |
+| | `source_type` | texte | obligatoire ; clé étrangère vers `dim_source` | Provenance (jamais présentée comme simulée si elle est réelle) |
+| | `step_s` | entier | 60 ou 300 | Pas des mesures en secondes |
+| | `speed_unit` | texte | mph, kmh | Unité d'origine des vitesses |
+| | `loaded_at` | horodatage | obligatoire, défaut maintenant | Dernier chargement |
+| `speed_sensor` | `network_id` | texte | clé primaire (avec `sensor_key`) ; clé étrangère vers `speed_network` | Réseau |
+| | `sensor_key` | entier | clé primaire (avec `network_id`) ; ≥ 0 | **Rang stable** du capteur dans le réseau : l'ordre qu'un modèle appris suppose, jamais changé |
+| | `sensor_id` | texte | obligatoire ; unique par réseau ; 1 à 40 caractères | Identifiant d'origine du capteur |
+| `fact_speed_window` | `network_id` | texte | clé primaire (avec `observed_at`, `sensor_key`) | Réseau |
+| | `observed_at` | horodatage | clé primaire | Instant du pas tel que la source le donne (METR-LA : heure murale lue comme UTC) |
+| | `sensor_key` | entier | clé primaire ; clé étrangère vers `speed_sensor` | Capteur |
+| | `speed` | décimal | obligatoire ; > 0 et < 300 | Vitesse mesurée, dans l'unité du réseau |
+
 ## 7. Règles de calcul et d'états
 
 ### 7.1 État de congestion d'un tronçon (valeurs de départ)
