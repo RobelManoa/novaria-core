@@ -10,7 +10,7 @@ from datetime import datetime
 
 from . import rng
 from .network import INTERVAL_S, Segment
-from .scenarios import CAPACITY_PER_LANE_VEH_H, CONGESTED, FREE_FLOW, SLOW, Scenario, demand_factor
+from .scenarios import CAPACITY_PER_LANE_VEH_H, CONGESTED, FREE_FLOW, SLOW, Scenario
 
 # (moyenne, écart-type) du ratio vitesse / vitesse fluide, par état voulu
 STATE_RATIO = {FREE_FLOW: (0.90, 0.07), SLOW: (0.50, 0.09), CONGESTED: (0.20, 0.07)}
@@ -46,8 +46,7 @@ def read(seed: int, scenario: Scenario, segment: Segment, instant: datetime) -> 
     epoch = int(instant.timestamp())
     sensor = segment.sensor_id
     state = scenario.label_state(segment, instant)
-    seconds = epoch % 86400
-    demand = scenario.demand_scale * demand_factor(segment.road_type, seconds)
+    demand = scenario.demand_at(segment, instant)
     expected = demand * CAPACITY_PER_LANE_VEH_H * segment.lane_count * INTERVAL_S / 3600 * THROUGHPUT[state]
     count = min(rng.poisson(rng.uniform(seed, "count", sensor, epoch), expected), MAX_PER_LANE * segment.lane_count)
 

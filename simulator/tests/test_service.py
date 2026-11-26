@@ -72,7 +72,7 @@ class ServiceHttp(ServiceBase):
     def test_les_scenarios_se_listent(self):
         statut, corps = self.appel("GET", "/api/v1/scenarios")
         self.assertEqual(statut, 200)
-        self.assertEqual([s["scenario_id"] for s in corps["scenarios"]], ["journee-calme", "heure-de-pointe", "incident-ponctuel"])
+        self.assertEqual([s["scenario_id"] for s in corps["scenarios"]], ["journee-calme", "heure-de-pointe", "incident-ponctuel", "campagne"])
 
     # --- runs --------------------------------------------------------------------------------------------------
     def test_un_run_sans_destination_se_deroule_jusqu_au_bout(self):

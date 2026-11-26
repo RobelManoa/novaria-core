@@ -270,7 +270,7 @@ class LigneDeCommande(unittest.TestCase):
     def test_les_scenarios_se_listent(self):
         code, sortie, _ = self.lancer("scenarios")
         self.assertEqual(code, 0)
-        self.assertEqual([ligne.split()[0] for ligne in sortie.splitlines()], ["journee-calme", "heure-de-pointe", "incident-ponctuel"])
+        self.assertEqual([ligne.split()[0] for ligne in sortie.splitlines()], ["journee-calme", "heure-de-pointe", "incident-ponctuel", "campagne"])
 
     def test_stdout_ne_contient_que_des_messages_json_un_par_ligne(self):
         code, sortie, erreur = self.lancer(*self.BASE, "--stdout")
