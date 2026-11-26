@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import TrainedModel from "@/features/forecasts/TrainedModel";
@@ -202,5 +202,52 @@ describe("le modèle entraîné", () => {
     expect(
       await screen.findByText(/3 capteurs du réseau ne sont pas connus du modèle/),
     ).toBeVisible();
+  });
+  it("suit la date choisie, ignore un champ vidé et refait l'appel sur « Réessayer »", async () => {
+    const appels: URL[] = [];
+    let echec = true;
+    serve([NETWORK], (url) => {
+      appels.push(url);
+      return echec
+        ? json(
+            { type: "about:blank", title: "x", status: 500, code: "INTERNAL", correlation_id: "c" },
+            500,
+          )
+        : json(FORECASTS);
+    });
+    render(<TrainedModel />);
+    await screen.findByText("Impossible d'obtenir les prévisions du modèle");
+    echec = false;
+    await userEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+    await screen.findByText(/Sur 2 capteurs/);
+    const champ = screen.getByLabelText("Instant des dernières mesures (UTC)");
+    fireEvent.change(champ, { target: { value: "2012-06-20T08:00" } });
+    await waitFor(() =>
+      expect(appels.at(-1)?.searchParams.get("as_of")).toBe("2012-06-20T08:00:00Z"),
+    );
+    fireEvent.submit(champ.closest("form") as HTMLFormElement); // Entrée dans le champ ne recharge pas la page
+    const avant = appels.length;
+    fireEvent.change(champ, { target: { value: "" } });
+    expect(appels).toHaveLength(avant);
+  });
+
+  it("tient debout avec une fiche et une couverture incomplètes", async () => {
+    serve(
+      [
+        {
+          ...NETWORK,
+          source_type: "AUTRE_SOURCE",
+          coverage: { first: null, last: null, steps: 0, sensors: 0 },
+          model: { ...CARD, trained_at: null, periods: {}, test: {} },
+        },
+      ],
+      () => json({ ...FORECASTS, items: [] }),
+    );
+    render(<TrainedModel />);
+    const fiche = await screen.findByRole("region", { name: /Modèle entraîné :/ });
+    expect(fiche).toHaveTextContent("AUTRE_SOURCE");
+    expect(fiche).toHaveTextContent("date non communiquée");
+    expect(within(fiche).queryAllByRole("row")).toHaveLength(1); // l'en-tête seul : aucun horizon jugé
+    expect(await screen.findByText(/rien à comparer/)).toBeVisible();
   });
 });

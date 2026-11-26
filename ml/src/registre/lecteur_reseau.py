@@ -21,8 +21,6 @@ SOURCE = (
 
 def _charger():
     spec = importlib.util.spec_from_file_location(__name__, SOURCE)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"lecteur du réseau introuvable : {SOURCE}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[__name__] = module
     spec.loader.exec_module(module)

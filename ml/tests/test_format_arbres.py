@@ -62,6 +62,25 @@ class ParitéAvecScikitLearn(unittest.TestCase):
         with self.assertRaises(fa.FormatInvalide):
             fa.exporter(object(), self.noms)
 
+    def test_plusieurs_arbres_par_iteration_et_variables_categorielles_sont_refuses(self):
+        import numpy as np
+
+        class Noeuds:
+            def __init__(self, categorielle):
+                self.nodes = {"is_categorical": np.array([categorielle])}
+
+        class Faux:
+            n_features_in_ = 1
+            _baseline_prediction = np.array([[0.0]])
+
+        faux = Faux()
+        faux._predictors = [[Noeuds(False), Noeuds(False)]]
+        with self.assertRaisesRegex(fa.FormatInvalide, "un seul arbre"):
+            fa.exporter(faux, ("x",))
+        faux._predictors = [[Noeuds(True)]]
+        with self.assertRaisesRegex(fa.FormatInvalide, "catégorielles"):
+            fa.exporter(faux, ("x",))
+
 
 def _arbre_minimal(**changements):
     arbre = {"variable": [0, 0, 0], "seuil": [0.5, 0.0, 0.0], "gauche": [1, 0, 0], "droite": [2, 0, 0],
@@ -102,6 +121,9 @@ class Lecture(unittest.TestCase):
             "variables vides": _document(variables=[]),
             "noms en double": _document(variables=["x", "x"]),
             "aucun arbre": _document(arbres=[]),
+            "meta pas un objet": _document(meta=[]),
+            "arbre sans nœud": _document(arbres=[_arbre_minimal(feuille=None)]),
+            "arbre pas un objet": _document(arbres=["x"]),
             "base non finie": b'{"format":"novaria-modele-arbres","version":1,"variables":["x"],"base":NaN,"arbres":[],"meta":{}}',
             "champ d'arbre manquant": _document(arbres=[{k: v for k, v in _arbre_minimal().items() if k != "seuil"}]),
             "listes de longueurs différentes": _document(arbres=[_arbre_minimal(seuil=[0.5])]),
