@@ -56,10 +56,9 @@ def ecrire(serie: Serie, dossier: Path, depuis: str = DEPUIS) -> dict:
 def main() -> None:
     parseur = argparse.ArgumentParser()
     parseur.add_argument("--depuis", default=DEPUIS, help="premier jour écrit (AAAA-MM-JJ)")
-    parseur.add_argument("--sortie", type=Path, default=DOSSIER)
     arguments = parseur.parse_args()
-    nombres = ecrire(donnees.charger_metr_la(source.verifier()), arguments.sortie, arguments.depuis)
-    print(f"Écrit dans {arguments.sortie} : {nombres['pas']} pas, {nombres['capteurs']} capteurs, {nombres['mesures']} mesures.")
+    nombres = ecrire(donnees.charger_metr_la(source.verifier()), DOSSIER, arguments.depuis)
+    print(f"Écrit dans {DOSSIER} : {nombres['pas']} pas, {nombres['capteurs']} capteurs, {nombres['mesures']} mesures.")
 
 
 if __name__ == "__main__":

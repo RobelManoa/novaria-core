@@ -138,7 +138,7 @@ La fiche de METR-LA établit que le fichier ne sera ni commité, ni publié, ni 
 | Rubrique | Contenu |
 |---|---|
 | Repli | Si METR-LA est refusé (licence, professeur) : IA-14 est retirée, le réseau reste simulé, les campagnes (IA-12, IA-13) et l'extensibilité (IA-15) restent valables |
-| Vérification | Tests du simulateur (`python3 -m unittest discover -s simulator/tests`) ; pour chaque tâche, la preuve de la colonne « Preuve » |
+| Vérification | Tests du simulateur (Linux : `python3 -m unittest discover -s simulator/tests` ; Windows : `py -3 -m unittest discover -s simulator/tests`) ; pour chaque tâche, la preuve de la colonne « Preuve » |
 | Réexamen | Licence de METR-LA établie ou refusée ; un modèle appris bat la règle de seuils sur des jours jamais vus ; le professeur demande un autre jeu |
 
 ## 8. Limites et points ouverts

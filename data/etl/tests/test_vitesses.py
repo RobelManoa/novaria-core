@@ -9,9 +9,10 @@ import json
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import nullcontext, redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
+from unittest import mock
 
 RACINE = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(RACINE / "data" / "etl"))
@@ -209,6 +210,120 @@ class LigneDeCommande(unittest.TestCase):
                     os.environ["POSTGRES_URL"] = avant
         self.assertEqual(code, 1)
         self.assertIn("POSTGRES_URL", erreur.getvalue())
+
+
+class FausseConnexion:
+    """Une connexion PostgreSQL de papier : garde les requêtes, rend des rangs connus, peut refuser une écriture."""
+
+    def __init__(self, connus=(), erreur=None) -> None:
+        self.requetes: list[tuple] = []
+        self.connus = list(connus)
+        self.erreur = erreur
+        self.fermee = False
+
+    def transaction(self):
+        return nullcontext()
+
+    def cursor(self):
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+    def execute(self, requete, parametres=()):
+        if self.erreur and ("INSERT" in requete or "SELECT" in requete):
+            raise self.erreur
+        self.requetes.append((requete, parametres))
+
+    def fetchall(self):
+        return self.connus
+
+    def close(self):
+        self.fermee = True
+
+
+class EntrepotPostgresDePapier(unittest.TestCase):
+    def manifeste(self):
+        with tempfile.TemporaryDirectory() as t:
+            return cv.lire_manifeste(dossier(Path(t)) / "manifeste.json")
+
+    def test_un_nouveau_reseau_est_inscrit_avec_ses_capteurs_dans_l_ordre(self):
+        connexion = FausseConnexion()
+        cv.EntrepotPostgres(connexion).enregistrer(self.manifeste())
+        inserts = [p for r, p in connexion.requetes if "INSERT INTO dwh.speed_sensor" in r]
+        self.assertEqual(inserts, [("metr-la", 0, "A1"), ("metr-la", 1, "B2"), ("metr-la", 2, "C3")])
+
+    def test_seuls_les_capteurs_nouveaux_sont_ajoutes_en_fin_de_liste(self):
+        connexion = FausseConnexion(connus=[(0, "A1"), (1, "B2")])
+        cv.EntrepotPostgres(connexion).enregistrer(self.manifeste())
+        inserts = [p for r, p in connexion.requetes if "INSERT INTO dwh.speed_sensor" in r]
+        self.assertEqual(inserts, [("metr-la", 2, "C3")])
+
+    def test_un_capteur_deplace_ou_retire_est_refuse(self):
+        for nom, connus in {"déplacé": [(0, "B2")], "retiré": [(0, "A1"), (1, "B2"), (2, "C3"), (3, "D4")]}.items():
+            with self.subTest(nom), self.assertRaisesRegex(cv.ErreurChargement, "rang"):
+                cv.EntrepotPostgres(FausseConnexion(connus=connus)).enregistrer(self.manifeste())
+
+    def test_un_lot_s_ecrit_en_une_requete_par_colonnes(self):
+        connexion = FausseConnexion()
+        ecrites = cv.EntrepotPostgres(connexion).charger("metr-la", [("2012-06-20T08:00:00Z", 0, 60.5), ("2012-06-20T08:05:00Z", 1, 55.0)])
+        self.assertEqual(ecrites, 2)
+        requete, parametres = connexion.requetes[0]
+        self.assertIn("ON CONFLICT (network_id, observed_at, sensor_key) DO UPDATE", requete)
+        self.assertNotIn("TEMP", requete.upper())  # le compte du traitement n'a pas le droit de créer une table temporaire
+        self.assertEqual(parametres, ("metr-la", ["2012-06-20T08:00:00Z", "2012-06-20T08:05:00Z"], [0, 1], [60.5, 55.0]))
+
+    def test_un_refus_de_postgresql_devient_une_erreur_de_chargement_sans_detail(self):
+        import psycopg
+
+        entrepot = cv.EntrepotPostgres(FausseConnexion(erreur=psycopg.errors.InsufficientPrivilege("secret interne")))
+        with self.assertRaises(cv.ErreurChargement) as ctx:
+            entrepot.charger("metr-la", [("2012-06-20T08:00:00Z", 0, 60.5)])
+        self.assertIn("InsufficientPrivilege", str(ctx.exception))
+        self.assertNotIn("secret interne", str(ctx.exception))
+        with self.assertRaises(cv.ErreurChargement):
+            entrepot.enregistrer(self.manifeste())
+
+    def test_une_base_injoignable_donne_un_message_clair_sans_l_adresse(self):
+        import psycopg
+
+        with mock.patch.object(psycopg, "connect", side_effect=psycopg.OperationalError("hôte mot-de-passe-x")):
+            with self.assertRaises(cv.ErreurChargement) as ctx:
+                cv.EntrepotPostgres.depuis_url("postgresql://u:p@h/db")
+        self.assertIn("db-up", str(ctx.exception))
+        self.assertNotIn("mot-de-passe-x", str(ctx.exception))
+
+    def test_une_connexion_reussie_est_gardee_puis_fermee_par_la_ligne_de_commande(self):
+        import psycopg
+
+        connexion = FausseConnexion()
+        with tempfile.TemporaryDirectory() as t, mock.patch.object(psycopg, "connect", return_value=connexion):
+            (Path(t) / "metr-la").mkdir()
+            dossier(Path(t) / "metr-la", lignes=BONNES)
+            sortie = StringIO()
+            with redirect_stdout(sortie):
+                code = cv.principal(["--reseau", "metr-la", "--postgres-url", "postgresql://u:p@h/db"], base=Path(t))
+        self.assertEqual(code, 0)
+        self.assertTrue(connexion.fermee)
+        self.assertIn("3 chargées", sortie.getvalue())
+
+
+class FichiersIllisibles(unittest.TestCase):
+    def test_un_label_qui_n_est_pas_du_texte_est_refuse(self):
+        with tempfile.TemporaryDirectory() as t, self.assertRaisesRegex(cv.ErreurChargement, "label"):
+            cv.lire_manifeste(dossier(Path(t), {**MANIFESTE, "label": 12}) / "manifeste.json")
+
+    def test_des_mesures_absentes_ou_pas_en_utf8_sont_refusees(self):
+        with tempfile.TemporaryDirectory() as t:
+            manifeste = cv.lire_manifeste(dossier(Path(t)) / "manifeste.json")
+            with self.assertRaisesRegex(cv.ErreurChargement, "illisible"):
+                list(cv.lire_mesures(Path(t) / "absent.csv", manifeste, cv.Resultat("metr-la")))
+            (Path(t) / "mesures.csv").write_bytes(b"\xff\xfe\x00")
+            with self.assertRaisesRegex(cv.ErreurChargement, "UTF-8"):
+                list(cv.lire_mesures(Path(t) / "mesures.csv", manifeste, cv.Resultat("metr-la")))
 
 
 if __name__ == "__main__":

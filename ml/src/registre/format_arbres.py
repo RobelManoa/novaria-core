@@ -89,7 +89,7 @@ class Arbre:
         n = 0
         while not self.feuille[n]:
             x = ligne[self.variable[n]]
-            gauche = self.manquant_a_gauche[n] if x != x else x <= self.seuil[n]  # x != x : NaN
+            gauche = self.manquant_a_gauche[n] if math.isnan(x) else x <= self.seuil[n]
             n = self.gauche[n] if gauche else self.droite[n]
         return self.valeur[n]
 
