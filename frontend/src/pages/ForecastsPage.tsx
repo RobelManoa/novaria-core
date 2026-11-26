@@ -6,7 +6,7 @@ export default function ForecastsPage() {
     <>
       <PageHeader
         title="Prévisions"
-        intro="Le ratio de vitesse prévu pour les prochaines minutes, face à ce qui a été observé."
+        intro="Le ratio de vitesse prévu pour les prochaines minutes, face à ce qui a été observé, et le modèle entraîné qui prévoit les vitesses."
       />
       <Forecasts />
     </>

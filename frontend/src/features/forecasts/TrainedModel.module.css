@@ -1,0 +1,74 @@
+.section {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+.card {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.heading {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+}
+
+.sub {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.badge {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-weight: var(--weight-bold);
+}
+
+.note {
+  color: var(--color-text-muted);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  text-align: right;
+}
+
+.table th:first-child,
+.table td:first-child {
+  text-align: left;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.list {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.win {
+  font-weight: var(--weight-bold);
+}

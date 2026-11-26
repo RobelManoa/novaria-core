@@ -6,6 +6,9 @@ export type CongestionState = components["schemas"]["CongestionState"];
 export type Forecast = components["schemas"]["Forecast"];
 export type SourceType = components["schemas"]["SourceType"];
 export type Report = components["schemas"]["Report"];
+export type SpeedNetwork = components["schemas"]["SpeedNetwork"];
+export type ModelCard = components["schemas"]["ModelCard"];
+export type SpeedForecastList = components["schemas"]["SpeedForecastList"];
 
 // Traitement : référentiel, indicateurs, prévisions (contracts/openapi/traitement.openapi.yaml).
 const client = createApiClient<paths>();
@@ -64,6 +67,23 @@ export async function getIndicator(indicatorId: string) {
 
 export async function listForecasts(query: Query<operations["listForecasts"]>) {
   return unwrap(await client.GET("/api/v1/forecasts", { params: { query } }));
+}
+
+/** Les réseaux de vitesse chargés et leur modèle entraîné (Proposition de contrat, IA-16). */
+export async function listSpeedNetworks() {
+  return unwrap(await client.GET("/api/v1/speed-networks"));
+}
+
+/** Prévisions du modèle entraîné d'un réseau de vitesses, face à la persistance et à l'observé (IA-16). */
+export async function listSpeedForecasts(
+  networkId: string,
+  query?: Query<operations["listSpeedForecasts"]>,
+) {
+  return unwrap(
+    await client.GET("/api/v1/speed-networks/{network_id}/forecasts", {
+      params: { path: { network_id: networkId }, query },
+    }),
+  );
 }
 
 /** Rapports générés par le robot, du plus récent au plus ancien (Proposition de contrat, FE-06). */

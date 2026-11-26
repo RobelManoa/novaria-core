@@ -206,6 +206,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/speed-networks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Réseaux de vitesse chargés et leur modèle
+         * @description Les réseaux de mesures de vitesse (sans comptage) chargés dans l'entrepôt par fichier, avec leur couverture dans le temps et la fiche
+         *     du modèle entraîné qui les sert (jeu, périodes, erreurs de test contre la persistance, limites). Un réseau sans modèle utilisable le
+         *     dit dans `model_problem`. **Proposition (IA-16, ADR-032).**
+         */
+        get: operations["listSpeedNetworks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/speed-networks/{network_id}/forecasts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Prévisions d'un modèle entraîné sur un réseau de vitesses
+         * @description Pour chaque capteur du modèle : la vitesse prévue par le modèle, celle de la persistance (la dernière vitesse connue, la référence à
+         *     battre) et, si l'instant prévu est déjà dans l'entrepôt, la vitesse réellement mesurée. `as_of` est l'instant des dernières mesures
+         *     lues (le dernier instant mesuré à la date demandée ou avant ; le dernier du réseau si absent). Un modèle ne sert que son réseau : sans
+         *     modèle utilisable, la réponse est 503 `FORECAST_UNAVAILABLE`, jamais une persistance présentée comme un modèle. **Proposition (IA-16).**
+         */
+        get: operations["listSpeedForecasts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -318,6 +363,47 @@ export interface components {
         IntersectionPage: components["schemas"]["PageInfo"] & {
             items: components["schemas"]["Intersection"][];
         };
+        /** @description Fiche d'un modèle entraîné : ce qui permet de l'expliquer et de ne pas le surestimer. **Proposition (IA-16).** */
+        ModelCard: {
+            /** @description Jeu d'entraînement. */
+            dataset: string;
+            file_sha256: string;
+            horizons_min: number[];
+            /** @enum {string} */
+            kind: "REFERENCE" | "MODEL";
+            limits: string[];
+            name: string;
+            parameters: number;
+            /** @description Périodes d'apprentissage, de validation et de test, dans l'ordre du temps. */
+            periods: {
+                [key: string]: {
+                    /** Format: date-time */
+                    end: string;
+                    /** Format: date-time */
+                    start: string;
+                    steps: number;
+                };
+            };
+            /** @description Identifiant du run d'entraînement dans `model_runs` ; null tant que le modèle n'y est pas enregistré. */
+            run_id: string | null;
+            /** @description Nature des données d'entraînement (`REAL_HISTORICAL`, `SIMULATED`). */
+            source_type: string;
+            /** @description Erreur sur la période de test par horizon (clé : minutes), en miles par heure, contre la persistance. */
+            test: {
+                [key: string]: {
+                    /** @description 1 moins l'erreur du modèle sur celle de la persistance. */
+                    gain: number;
+                    interval_95: number[];
+                    mae_hgb_mph?: number | null;
+                    mae_model_mph: number;
+                    mae_persistence_mph: number;
+                };
+            };
+            /** Format: date-time */
+            trained_at: string | null;
+            variables: string[];
+            version: string;
+        };
         PageInfo: {
             /** @description Curseur de la page suivante ; `null` sur la dernière page. */
             next_cursor: string | null;
@@ -409,6 +495,42 @@ export interface components {
         };
         /** @enum {string} */
         SourceType: "SIMULATED" | "REAL_HISTORICAL" | "REAL_LIVE";
+        SpeedForecastList: {
+            as_of: components["schemas"]["UtcDateTime"];
+            horizon_min: number;
+            items: {
+                /** @description Vitesse mesurée à `target_time`, si elle est déjà dans l'entrepôt. */
+                observed_speed_kmh: number | null;
+                persistence_speed_kmh: number;
+                predicted_speed_kmh: number;
+                sensor_id: string;
+                target_time: components["schemas"]["UtcDateTime"];
+            }[];
+            model: components["schemas"]["ModelCard"];
+            network_id: string;
+            /** @description Capteurs du réseau que le modèle ne connaît pas : aucune prévision, jamais inventée. */
+            sensors_without_model: number;
+        };
+        SpeedNetwork: {
+            coverage: {
+                /** Format: date-time */
+                first: string | null;
+                /** Format: date-time */
+                last: string | null;
+                sensors: number;
+                steps: number;
+            };
+            description: string;
+            label: string;
+            model: components["schemas"]["ModelCard"] | null;
+            model_problem: string | null;
+            network_id: string;
+            source_type: string;
+            /** @enum {string} */
+            speed_unit: "mph" | "kmh";
+            /** @enum {integer} */
+            step_s: 60 | 300;
+        };
         /**
          * Format: date-time
          * @description Date et heure ISO 8601 en UTC, fuseau explicite (`Z`).
@@ -831,6 +953,82 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             422: components["responses"]["ValidationError"];
+        };
+    };
+    listSpeedNetworks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            "5XX": components["responses"]["ServerError"];
+            /** @description Les réseaux chargés. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["SpeedNetwork"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listSpeedForecasts: {
+        parameters: {
+            query?: {
+                /** @description Date des dernières mesures à lire (UTC). Le dernier instant du réseau si absente. */
+                as_of?: string;
+                /** @description Horizon en minutes, multiple de 5 de 5 à 30. Défaut 15. */
+                horizon_min?: number;
+                /** @description Un ou plusieurs capteurs (paramètre répété). Tous les capteurs du modèle si absent. */
+                sensor_id?: string[];
+            };
+            header?: never;
+            path: {
+                network_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            "5XX": components["responses"]["ServerError"];
+            /** @description Une prévision par capteur. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpeedForecastList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description Réseau inconnu, ou aucune mesure à cette date ou avant ; code `NOT_FOUND`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            422: components["responses"]["ValidationError"];
+            /** @description Aucun modèle utilisable pour ce réseau ; code `FORECAST_UNAVAILABLE`, le message dit pourquoi. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
 }
