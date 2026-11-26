@@ -55,13 +55,11 @@ describe("mes trajets", () => {
   it("ajouter son propre trajet : cocher des tronçons, nommer, valider", async () => {
     show();
     await trajets();
-    await userEvent.click(screen.getByRole("button", { name: "Ajouter un trajet" }));
+    await userEvent.click(screen.getByRole("link", { name: "Ajouter un trajet" }));
     await userEvent.click(
-      screen.getByRole("checkbox", { name: "Avenue des Tilleuls, en venant du nord" }),
+      screen.getByRole("button", { name: /^Avenue des Tilleuls, en venant du nord/ }),
     );
-    await userEvent.click(
-      screen.getByRole("checkbox", { name: "Rue du Marché, en venant du sud" }),
-    );
+    await userEvent.click(screen.getByRole("button", { name: /^Rue du Marché, en venant du sud/ }));
     await userEvent.type(screen.getByLabelText(/Nom du trajet/), "Chez moi au travail");
     await userEvent.click(screen.getByRole("button", { name: "Ajouter ce trajet" }));
     const region = await trajets();
@@ -74,9 +72,9 @@ describe("mes trajets", () => {
   it("un trajet sans nom reçoit un nom lisible, jamais un code", async () => {
     show();
     await trajets();
-    await userEvent.click(screen.getByRole("button", { name: "Ajouter un trajet" }));
+    await userEvent.click(screen.getByRole("link", { name: "Ajouter un trajet" }));
     await userEvent.click(
-      screen.getByRole("checkbox", { name: "Place de la Gare, en venant de l'est" }),
+      screen.getByRole("button", { name: /^Place de la Gare, en venant de l'est/ }),
     );
     await userEvent.click(screen.getByRole("button", { name: "Ajouter ce trajet" }));
     expect(lire().trajets?.[0].nom).toBe("Trajet par Place de la Gare");
@@ -85,12 +83,12 @@ describe("mes trajets", () => {
   it("refuse un trajet sans tronçon, et dit pourquoi en mots simples", async () => {
     show();
     await trajets();
-    await userEvent.click(screen.getByRole("button", { name: "Ajouter un trajet" }));
+    await userEvent.click(screen.getByRole("link", { name: "Ajouter un trajet" }));
     await userEvent.click(screen.getByRole("button", { name: "Ajouter ce trajet" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Choisissez au moins un tronçon.");
     expect(lire().trajets).toBeNull();
     await userEvent.click(
-      screen.getByRole("checkbox", { name: "Place de la Gare, en venant du nord" }),
+      screen.getByRole("button", { name: /^Place de la Gare, en venant du nord/ }),
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -98,14 +96,14 @@ describe("mes trajets", () => {
   it("refuse plus de quatre tronçons", async () => {
     show();
     await trajets();
-    await userEvent.click(screen.getByRole("button", { name: "Ajouter un trajet" }));
+    await userEvent.click(screen.getByRole("link", { name: "Ajouter un trajet" }));
     for (const cote of ["du nord", "de l'est", "du sud", "de l'ouest"]) {
       await userEvent.click(
-        screen.getByRole("checkbox", { name: `Place de la Gare, en venant ${cote}` }),
+        screen.getByRole("button", { name: new RegExp(`^Place de la Gare, en venant ${cote}`) }),
       );
     }
     await userEvent.click(
-      screen.getByRole("checkbox", { name: "Avenue des Tilleuls, en venant du nord" }),
+      screen.getByRole("button", { name: /^Avenue des Tilleuls, en venant du nord/ }),
     ); // le cinquième
     await userEvent.click(screen.getByRole("button", { name: "Ajouter ce trajet" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Choisissez 4 tronçons au plus.");
@@ -115,13 +113,13 @@ describe("mes trajets", () => {
   it("annuler l'ajout ne garde rien", async () => {
     show();
     await trajets();
-    await userEvent.click(screen.getByRole("button", { name: "Ajouter un trajet" }));
+    await userEvent.click(screen.getByRole("link", { name: "Ajouter un trajet" }));
     await userEvent.click(
-      screen.getByRole("checkbox", { name: "Place de la Gare, en venant du nord" }),
+      screen.getByRole("button", { name: /^Place de la Gare, en venant du nord/ }),
     );
-    await userEvent.click(screen.getByRole("button", { name: "Annuler" }));
+    await userEvent.click(screen.getByRole("link", { name: "Annuler" }));
     expect(
-      screen.queryByRole("checkbox", { name: "Place de la Gare, en venant du nord" }),
+      screen.queryByRole("button", { name: /^Place de la Gare, en venant du nord/ }),
     ).not.toBeInTheDocument();
     expect(lire().trajets).toBeNull();
   });
@@ -148,11 +146,13 @@ describe("mes trajets", () => {
         name: "Garder ce trajet",
       }),
     );
-    await userEvent.click(screen.getByRole("button", { name: "Effacer mes trajets" }));
+    await userEvent.click(screen.getByRole("link", { name: "Réglages et confidentialité" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Effacer mes trajets" }));
     expect(window.localStorage.getItem(CLE)).toBeNull();
     expect(window.localStorage.length).toBe(0);
-    expect(await trajets()).toHaveTextContent("Voici des exemples");
     expect(screen.queryByRole("button", { name: "Effacer mes trajets" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("link", { name: "Mes trajets" }));
+    expect(await trajets()).toHaveTextContent("Voici des exemples");
   });
 
   it("le verdict suit les données : Libre, Ralenti, Bloqué, avec la phrase qui aide à décider", async () => {
@@ -187,9 +187,9 @@ describe("mes trajets", () => {
       within(detail).getByRole("region", { name: "Où ça se passe" }),
     ).getAllByRole("listitem");
     expect(lignes[0]).toHaveTextContent("Place de la Gare, en venant du nord");
-    expect(lignes[0]).toHaveTextContent("Congestionné");
+    expect(lignes[0]).toHaveTextContent("Bloqué");
     expect(lignes[1]).toHaveTextContent("Place de la Gare, en venant de l'ouest");
-    expect(lignes[1]).toHaveTextContent("Fluide");
+    expect(lignes[1]).toHaveTextContent("Libre");
   });
 
   it("sans stockage (mode privé), l'application marche et le dit", async () => {

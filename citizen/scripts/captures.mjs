@@ -124,10 +124,17 @@ try {
   await trajets(p).waitFor();
   await prendre(p, "02-trajet-garde-reponse-fabriquee");
 
-  // 4. Ajouter un trajet.
-  await p.getByRole("button", { name: "Ajouter un trajet" }).click();
-  await p.getByRole("heading", { name: "Ajouter un trajet" }).scrollIntoViewIfNeeded();
+  // 4. Ajouter un trajet : les croix, le verdict du trajet choisi.
+  await p.getByRole("link", { name: "Ajouter un trajet" }).click();
+  await p.getByRole("button", { name: /^Avenue des Tilleuls, en venant du nord/ }).click();
+  await p.getByRole("button", { name: /^Place de la Gare, en venant du nord/ }).click();
+  await p.getByRole("region", { name: /^Votre trajet : 2 endroits/ }).scrollIntoViewIfNeeded();
   await prendre(p, "04-ajouter-un-trajet-reponse-fabriquee");
+
+  // 11. La carte du réseau : le résumé, le plan, la fiche de la place la plus grave.
+  await p.goto(`${BASE}/#/carte`);
+  await p.getByRole("region", { name: "Plan" }).waitFor();
+  await prendre(p, "11-carte-reponse-fabriquee");
   await p.context().close();
 
   // 5. Une alerte s'ouvre sur le trajet suivi : le message simulé apparaît en haut.
@@ -147,6 +154,18 @@ try {
   await p.getByRole("group", { name: "Message pour votre trajet" }).waitFor({ timeout: 15000 });
   await p.evaluate(() => window.scrollTo(0, 0));
   await prendre(p, "05-message-me-prevenir-reponse-fabriquee");
+
+  // 9. L'écran « Messages » : le message reçu pendant la visite, le réglage trajet par trajet (le détail n'a pas d'onglets : retour d'abord).
+  await p.getByRole("link", { name: "Mes trajets" }).click();
+  await p.getByRole("link", { name: /^Messages/ }).click();
+  await p.getByRole("region", { name: "Reçus pendant cette visite" }).waitFor();
+  await prendre(p, "09-messages-reponse-fabriquee");
+
+  // 10. Les réglages : les mots, ce qui est gardé et où, effacer.
+  await p.getByRole("link", { name: "Mes trajets" }).click();
+  await p.getByRole("link", { name: "Réglages et confidentialité" }).click();
+  await p.getByRole("region", { name: "Vos trajets restent chez vous" }).waitFor();
+  await prendre(p, "10-reglages-reponse-fabriquee");
   await p.context().close();
 
   // 6. Le service de circulation est indisponible : message clair.

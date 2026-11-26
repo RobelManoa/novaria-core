@@ -1,11 +1,14 @@
 import type { Approach, CongestionState, Severity } from "./types";
 
-/** Vocabulaire public de l'ADR-030 (section 4.2) : les mots de l'écran, jamais les codes techniques. */
+/**
+ * Les mots de l'écran pour l'état d'un tronçon, jamais les codes techniques. Ce sont ceux de la maquette (Libre, Ralenti, Bloqué, Sans mesure) :
+ * ils remplacent « Fluide » et « Congestionné » de l'ADR-030 pour parler comme le verdict d'un trajet (ADR-031, section 3.3).
+ */
 export const STATE_LABEL: Record<CongestionState, string> = {
-  FREE_FLOW: "Fluide",
+  FREE_FLOW: "Libre",
   SLOW: "Ralenti",
-  CONGESTED: "Congestionné",
-  UNKNOWN: "Information indisponible",
+  CONGESTED: "Bloqué",
+  UNKNOWN: "Sans mesure",
 };
 
 /** Une phrase pour un lecteur d'écran et pour l'infobulle : ce que l'état veut dire pour un trajet. */

@@ -90,7 +90,9 @@ describe("l'accueil : l'écran", () => {
       "BloquéPrévoyez beaucoup de retard.",
     ]);
     expect(within(region).getAllByRole("button", { name: "Garder ce trajet" })).toHaveLength(3);
-    expect(within(region).queryByRole("link")).not.toBeInTheDocument(); // un exemple n'a pas encore de détail
+    expect(
+      within(region).queryByRole("link", { name: /gare|marché|école/i }),
+    ).not.toBeInTheDocument(); // un exemple n'a pas encore de détail
     expect(screen.queryByRole("region", { name: "En ce moment" })).not.toBeInTheDocument();
   });
 

@@ -51,9 +51,10 @@ class AccordAvecLeContrat(unittest.TestCase):
             with self.subTest(table=nom):
                 self.assertEqual(cles_ts(labels, nom), set(attendu))
 
-    def test_les_libelles_sont_ceux_de_l_adr_030(self):
-        adr = (RACINE / "docs" / "01-architecture" / "adr" / "ADR-030-application-citoyenne-perimetre-et-acces.md").read_text(encoding="utf-8")
-        for code, mot in (("FREE_FLOW", "Fluide"), ("SLOW", "Ralenti"), ("CONGESTED", "Congestionné")):
+    def test_les_libelles_sont_ceux_de_l_adr_031(self):
+        """ADR-031, 3.3 : les mots de la maquette (Libre, Ralenti, Bloqué, Sans mesure) remplacent « Fluide » et « Congestionné » de l'ADR-030."""
+        adr = (RACINE / "docs" / "01-architecture" / "adr" / "ADR-031-application-citoyenne-v2-mes-trajets.md").read_text(encoding="utf-8")
+        for code, mot in (("FREE_FLOW", "Libre"), ("SLOW", "Ralenti"), ("CONGESTED", "Bloqué"), ("UNKNOWN", "Sans mesure")):
             self.assertIn(f"`{code}` → « {mot} »", adr)
             self.assertRegex(lire("labels.ts"), rf'{code}: "{mot}"')
 

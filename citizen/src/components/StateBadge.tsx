@@ -25,7 +25,7 @@ export function StateIcon({ state }: { state: CongestionState }) {
 
 /**
  * L'état d'un tronçon : un **mot** et une **forme**, jamais la couleur seule (WCAG 1.4.1). La couleur renforce, elle ne porte
- * pas l'information : une personne qui ne distingue pas le vert du rouge lit « Fluide » et voit une coche.
+ * pas l'information : une personne qui ne distingue pas le vert du rouge lit « Libre » et voit une coche.
  */
 export function StateBadge({ state }: { state: CongestionState }) {
   return (

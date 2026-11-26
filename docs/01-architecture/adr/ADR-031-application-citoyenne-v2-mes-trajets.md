@@ -3,7 +3,7 @@
 | Champ | Valeur |
 |---|---|
 | Date | 21/11/2026 |
-| Statut | Proposée : à valider par les deux membres. **Phase 1 réalisée le 21/11/2026** (écran « Mes trajets », CIT-10) ; phases 2 et 3 non commencées |
+| Statut | Proposée : à valider par les deux membres. **Phase 1 réalisée le 21/11/2026** (écran « Mes trajets », CIT-10) ; navigation, messages, réglages, carte et ajout par les croix ajoutés le 22/11/2026 (section 3.3) ; phases 2 et 3 non commencées |
 | Décideurs | Daddy Luciano, Manoa Robel |
 | Validation du professeur | Sans objet pour ce choix (changement d'interface) ; la demande C-08 reste à confirmer |
 | Issues liées | CIT-04 à CIT-07 (v1, fermées) ; nouvelles issues CIT-09 à CIT-14 (section 7) |
@@ -60,6 +60,27 @@ La liste « Alertes en cours », le bloc de consentement, les compteurs par éta
 ### 3.2 Ce qui est gardé
 
 Le bandeau « Données simulées » (ADR-027), la mise à jour automatique (5 s pour les alertes, 15 s pour la circulation), les messages clairs en cas de panne (CIT-07), l'accessibilité (WCAG 2.1 AA : un mot et une forme, contrastes calculés, lecteur d'écran), l'absence de compte et de cookie.
+
+### 3.3 Navigation, carte, ajout, messages et réglages (amendement du 22/11/2026)
+
+La maquette validée (design « Novaria Citoyen », 12 planches téléphone, 8 planches ordinateur) ajoute à l'écran principal une navigation du bas à trois onglets (Mes trajets, Carte, Messages), un écran de réglages, une carte du réseau et un ajout de trajet par les côtés des places. Cela précise la section 3.1 sans la contredire pour l'accueil :
+
+| Écran | Décision | Écart avec la maquette |
+|---|---|---|
+| Navigation | Trois onglets ; la roue de l'accueil ouvre les réglages ; le détail, l'ajout et les réglages n'ont pas d'onglets, seulement « Mes trajets » ou « Annuler » en haut | Aucun |
+| Messages | Les messages « Me prévenir » reçus **depuis l'ouverture de la page**, lus ou non (pastille sur l'onglet, bandeau en haut) ; réglage trajet par trajet | **Pas gardés sur l'appareil** : les garder étendrait la liste de la section 4.3 (D3). « De nouveau libre » n'est pas annoncé (seules les alertes qui s'ouvrent le sont) |
+| Réglages | Ce que veut dire chaque mot, ce qui est gardé et où, « Effacer mes trajets », supprimer un trajet, confort de lecture | « Modifier un trajet » non fait |
+| Carte | Résumé des 24 endroits par état, plan de six places (une croix de quatre côtés chacune), fiche de la place choisie avec ses faits fixes, alertes en cours, « Faire un trajet avec cette place » | **Réintroduit les compteurs par état** que la section 3.1 avait retirés de l'écran principal : ils ne sont plus sur l'accueil, seulement sur la carte |
+| Ajouter | Écran à part (`#/ajouter`) : on touche les côtés des places (boutons « <endroit> : <état> »), le verdict du trajet se lit avant de le garder, nom facultatif, « Me prévenir » | Remplace la liste de cases à cocher de la section 4.2 |
+
+**Mots de l'état d'un endroit.** Ceux de la maquette remplacent « Fluide » et « Congestionné » de l'ADR-030 (4.2), pour parler comme le verdict d'un trajet. Un endroit sans mesure est « Sans mesure » :
+
+| Code du contrat | Mot à l'écran |
+|---|---|
+| `FREE_FLOW` → « Libre » | Libre |
+| `SLOW` → « Ralenti » | Ralenti |
+| `CONGESTED` → « Bloqué » | Bloqué |
+| `UNKNOWN` → « Sans mesure » | Sans mesure |
 
 ## 4. Détail
 

@@ -22,6 +22,7 @@ export function useNotifications(
   now: () => number = Date.now,
 ) {
   const [messages, setMessages] = useState<readonly Message[]>([]);
+  const [lus, setLus] = useState<ReadonlySet<string>>(new Set());
   const vues = useRef<Set<string> | null>(null);
   const nowRef = useRef(now);
   nowRef.current = now;
@@ -50,9 +51,12 @@ export function useNotifications(
   }, [alertes, prete, trajets]);
 
   return {
+    /** Tous les messages reçus depuis l'ouverture de la page, le plus récent d'abord. Ils ne sont gardés nulle part : fermer la page les efface. */
     messages,
-    fermer: (alertId: string) =>
-      setMessages((liste) => liste.filter((m) => m.alert.alert_id !== alertId)),
-    toutFermer: () => setMessages([]),
+    /** Ceux que le citoyen n'a pas encore vus : le bandeau en haut de l'écran et la pastille de l'onglet « Messages ». */
+    nonLus: messages.filter((m) => !lus.has(m.alert.alert_id)),
+    /** Fermer un message le marque lu : il reste dans la liste de l'écran « Messages ». */
+    fermer: (alertId: string) => setLus((avant) => new Set(avant).add(alertId)),
+    toutLire: () => setLus(new Set(messages.map((m) => m.alert.alert_id))),
   };
 }

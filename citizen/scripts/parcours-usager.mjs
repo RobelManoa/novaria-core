@@ -79,8 +79,11 @@ const regionTrajets = (page) => page.getByRole("region", { name: /trajets/i });
 
 /** Le citoyen ajoute son trajet : cocher les tronçons, le nommer, valider. */
 async function ajouterTrajet(page) {
-  await page.getByRole("button", { name: "Ajouter un trajet" }).click();
-  for (const id of TRONCONS) await page.getByRole("checkbox", { name: nomDuTroncon(id) }).check();
+  await page.getByRole("link", { name: "Ajouter un trajet" }).click();
+  // Chaque côté d'une place est un bouton « <endroit> : <état> » : on le touche pour le choisir.
+  for (const id of TRONCONS) {
+    await page.getByRole("button", { name: new RegExp(`^${nomDuTroncon(id)}`) }).click();
+  }
   await page.getByLabel(/Nom du trajet/).fill(NOM);
   await page.getByRole("button", { name: "Ajouter ce trajet" }).click();
   await regionTrajets(page).getByRole("listitem", { name: NOM }).waitFor({ timeout: DELAI_MS });

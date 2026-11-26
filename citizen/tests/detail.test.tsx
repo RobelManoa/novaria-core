@@ -50,7 +50,19 @@ describe("le détail d'un trajet : les règles", () => {
       nom: "detail",
       id: "propose-gare-m3x9",
     });
-    for (const autre of ["", "#", "#/", "#/trajet/", "#/trajet/a/b", "#/trajet/<x>", "#/autre"]) {
+    expect(lireRoute("#/messages")).toEqual({ nom: "messages" });
+    expect(lireRoute("#/reglages")).toEqual({ nom: "reglages" });
+    for (const autre of [
+      "",
+      "#",
+      "#/",
+      "#/trajet/",
+      "#/trajet/a/b",
+      "#/trajet/<x>",
+      "#/autre",
+      "#/messages/x",
+      "#/Reglages",
+    ]) {
       expect(lireRoute(autre)).toEqual({ nom: "accueil" });
     }
     expect(lireRoute(lienDetail("t-1"))).toEqual({ nom: "detail", id: "t-1" });
@@ -166,10 +178,10 @@ describe("le détail d'un trajet : l'écran", () => {
     const endroits = within(ou).getAllByRole("listitem");
     expect(endroits).toHaveLength(2);
     expect(endroits[0]).toHaveTextContent("Place de la Gare, en venant du nord");
-    expect(endroits[0]).toHaveTextContent("Congestionné");
+    expect(endroits[0]).toHaveTextContent("Bloqué");
     expect(endroits[0]).toHaveTextContent("Grand axe · 2 voies · 300 m · limité à 50 km/h");
     expect(endroits[1]).toHaveTextContent("Place de la Gare, en venant de l'ouest");
-    expect(endroits[1]).toHaveTextContent("Fluide");
+    expect(endroits[1]).toHaveTextContent("Libre");
 
     expect(document.body.textContent).not.toMatch(/ROAD_|INT_/);
   });

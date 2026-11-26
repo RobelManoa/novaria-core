@@ -125,7 +125,7 @@ describe("accessibilité de « Mes trajets » (ADR-031)", () => {
     const { default: userEvent } = await import("@testing-library/user-event");
     render(<App alertsFetcher={async () => []} fetcher={async () => network()} />);
     await screen.findByRole("region", { name: /trajets/i });
-    await userEvent.click(screen.getByRole("button", { name: "Ajouter un trajet" }));
+    await userEvent.click(screen.getByRole("link", { name: "Ajouter un trajet" }));
     expect(await audit()).toEqual([]);
     await userEvent.click(screen.getByRole("button", { name: "Ajouter ce trajet" }));
     await screen.findByRole("alert");
