@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { PublicAlert, SegmentState } from "./types";
-import { AjouterTrajet } from "./components/AjouterTrajet";
+import { AjouterEcran } from "./components/AjouterEcran";
+import { CarteEcran } from "./components/CarteEcran";
 import { DetailTrajet } from "./components/DetailTrajet";
 import { Messages } from "./components/Messages";
+import { MessagesEcran } from "./components/MessagesEcran";
+import { Onglets } from "./components/Onglets";
+import { ReglagesEcran } from "./components/ReglagesEcran";
 import { ResumeTrajets } from "./components/ResumeTrajets";
 import { TroisMots } from "./components/TroisMots";
 import {
@@ -15,7 +19,7 @@ import {
 import { TrajetCard } from "./components/TrajetCard";
 import { STALE_AFTER_MS, ago, formatTime } from "./format";
 import { ERROR_MESSAGE } from "./messages";
-import { ACCUEIL, useRoute } from "./route";
+import { ACCUEIL, REGLAGES, lienAjouter, useRoute } from "./route";
 import { useAlerts } from "./useAlerts";
 import { useCongestion } from "./useCongestion";
 import { useNotifications } from "./useNotifications";
@@ -51,7 +55,6 @@ export default function App({
     now,
   );
   const current = useNow(30_000, now);
-  const [ajout, setAjout] = useState(false);
   const parId = useMemo(
     () => new Map(circulation.segments.map((s) => [s.road_segment_id, s] as const)),
     [circulation.segments],
@@ -66,6 +69,13 @@ export default function App({
   const surveille = trajets.trajets.some((t) => t.prevenir);
   const route = useRoute();
   const premiereOuverture = route.nom === "accueil" && montrerProposes;
+  const avecCirculation = route.nom !== "messages" && route.nom !== "reglages";
+  const alertesPubliques = alertes.status === "ready" && !alertes.error ? alertes.alerts : null;
+  // Ouvrir l'écran « Messages » marque tout lu : la pastille de l'onglet et le bandeau s'éteignent.
+  const { nonLus, toutLire } = messages;
+  useEffect(() => {
+    if (route.nom === "messages" && nonLus.length > 0) toutLire();
+  }, [route.nom, nonLus.length, toutLire]);
   const detail =
     route.nom === "detail" ? trajets.trajets.find((t) => t.id === route.id) : undefined;
   // Revenir à l'accueil (lien, bouton « retour » du navigateur) remet le focus et le défilement en haut, comme une nouvelle page.
@@ -85,7 +95,7 @@ export default function App({
         Aller au contenu
       </a>
       <header className="entete">
-        {route.nom === "detail" ? (
+        {route.nom === "detail" || route.nom === "reglages" || route.nom === "ajouter" ? (
           <a className="detail__retour" href={ACCUEIL}>
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
               <path
@@ -97,12 +107,44 @@ export default function App({
                 strokeLinejoin="round"
               />
             </svg>
-            Mes trajets
+            {route.nom === "ajouter" ? "Annuler" : "Mes trajets"}
           </a>
         ) : null}
-        <h1 id="titre-page" tabIndex={-1}>
-          {detail ? detail.nom : premiereOuverture ? "Votre route est-elle libre ?" : "Mes trajets"}
-        </h1>
+        <div className="entete__ligne">
+          <h1 id="titre-page" tabIndex={-1}>
+            {route.nom === "messages"
+              ? "Messages"
+              : route.nom === "carte"
+                ? "Carte du réseau"
+                : route.nom === "ajouter"
+                  ? "Ajouter un trajet"
+                  : route.nom === "reglages"
+                    ? "Réglages et confidentialité"
+                    : detail
+                      ? detail.nom
+                      : premiereOuverture
+                        ? "Votre route est-elle libre ?"
+                        : "Mes trajets"}
+          </h1>
+          {route.nom === "accueil" ? (
+            <a
+              className="entete__reglages"
+              href={REGLAGES}
+              aria-label="Réglages et confidentialité"
+            >
+              <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
+                <path
+                  d="M4 7h10 M18 7h2 M4 17h2 M10 17h10 M16 5v4 M8 15v4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </a>
+          ) : null}
+        </div>
         {route.nom === "accueil" && premiereOuverture ? (
           <p>
             Choisissez vos trajets. Pour chacun, vous voyez tout de suite si vous pouvez partir.
@@ -111,16 +153,33 @@ export default function App({
       </header>
       <main id="contenu" tabIndex={-1}>
         <SimulatedBanner />
-        <Messages messages={messages.messages} current={current} onFermer={messages.fermer} />
-        {circulation.status === "loading" ? <LoadingPanel /> : null}
-        {circulation.status === "error" && circulation.error ? (
+        {route.nom !== "messages" ? (
+          <Messages messages={nonLus} current={current} onFermer={messages.fermer} />
+        ) : null}
+        {route.nom === "messages" ? (
+          <MessagesEcran
+            messages={messages.messages}
+            trajets={trajets.trajets}
+            current={current}
+            onBasculer={trajets.basculerPrevenir}
+          />
+        ) : null}
+        {route.nom === "reglages" ? (
+          <ReglagesEcran
+            trajets={trajets.trajets}
+            onSupprimer={trajets.supprimer}
+            onToutEffacer={trajets.toutEffacer}
+          />
+        ) : null}
+        {avecCirculation && circulation.status === "loading" ? <LoadingPanel /> : null}
+        {avecCirculation && circulation.status === "error" && circulation.error ? (
           <ErrorPanel
             error={circulation.error}
             onRetry={circulation.refresh}
             busy={circulation.refreshing}
           />
         ) : null}
-        {circulation.status === "ready" ? (
+        {avecCirculation && circulation.status === "ready" ? (
           <>
             <div className="miseajour">
               <p>
@@ -163,7 +222,7 @@ export default function App({
                   trajets={trajets.trajets}
                   parId={parId}
                   current={current}
-                  alertes={alertes.status === "ready" && !alertes.error ? alertes.alerts : null}
+                  alertes={alertesPubliques}
                   onPrevenir={() => trajets.basculerPrevenir(detail.id)}
                   onSupprimer={() => {
                     trajets.supprimer(detail.id);
@@ -181,7 +240,21 @@ export default function App({
                   </a>
                 </section>
               )
-            ) : (
+            ) : null}
+            {route.nom === "carte" ? (
+              <CarteEcran parId={parId} alertes={alertesPubliques} current={current} />
+            ) : null}
+            {route.nom === "ajouter" ? (
+              <AjouterEcran
+                parId={parId}
+                lieu={route.lieu}
+                onAjouter={(t) => {
+                  trajets.ajouter(t);
+                  window.location.hash = ACCUEIL;
+                }}
+              />
+            ) : null}
+            {route.nom === "accueil" ? (
               <>
                 <ResumeTrajets trajets={trajets.trajets} parId={parId} />
                 {montrerProposes ? <TroisMots /> : null}
@@ -216,42 +289,28 @@ export default function App({
                         ))
                       : null}
                   </ul>
-                  {ajout ? (
-                    <AjouterTrajet
-                      onAjouter={(t) => {
-                        trajets.ajouter(t);
-                        setAjout(false);
-                      }}
-                      onFermer={() => setAjout(false)}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      className="bouton bouton--ajout"
-                      onClick={() => setAjout(true)}
+                  <a className="bouton bouton--ajout bouton--lien" href={lienAjouter()}>
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="24"
+                      height="24"
+                      aria-hidden="true"
+                      focusable="false"
                     >
-                      <svg
-                        viewBox="0 0 24 24"
-                        width="24"
-                        height="24"
-                        aria-hidden="true"
-                        focusable="false"
-                      >
-                        <path
-                          d="M12 5v14 M5 12h14"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.4"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      Ajouter un trajet
-                    </button>
-                  )}
+                      <path
+                        d="M12 5v14 M5 12h14"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    Ajouter un trajet
+                  </a>
                 </section>
               </>
-            )}
+            ) : null}
           </>
         ) : null}
       </main>
@@ -270,16 +329,15 @@ export default function App({
             de la page.
           </p>
         ) : null}
-        {trajets.trajets.length > 0 ? (
-          <button
-            type="button"
-            className="bouton bouton--discret bouton--petit"
-            onClick={trajets.toutEffacer}
-          >
-            Effacer mes trajets
-          </button>
-        ) : null}
       </footer>
+      {route.nom === "accueil" || route.nom === "carte" || route.nom === "messages" ? (
+        <Onglets
+          actif={
+            route.nom === "messages" ? "messages" : route.nom === "carte" ? "carte" : "trajets"
+          }
+          nonLus={nonLus.length}
+        />
+      ) : null}
     </div>
   );
 }
