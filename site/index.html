@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Novaria Core · Behind the Intelligence</title>
+<meta name="description" content="Soutenance BC05 : Novaria Core, socle de données et d'intelligence artificielle d'UrbanHub. Données simulées ou historiques.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#film">Aller au contenu</a>
+<div class="bar" id="bar"></div>
+<header class="top">
+  <div class="brand">NOVARIA<span> CORE</span></div>
+  <div class="where" id="where" aria-live="polite"></div>
+  <div class="tools">
+    <button type="button" id="btnJury" aria-expanded="false" aria-controls="jury" title="Touche J">Questions du jury</button>
+    <button type="button" id="btnOrat" class="opt" aria-pressed="false" aria-controls="orateur" title="Touche P">Orateur</button>
+    <button type="button" id="btnLex" class="opt" title="Touche L">Lexique</button>
+    <a class="opt" href="#demo">Démo</a>
+    <a class="opt" href="#matrice">BC05</a>
+    <button type="button" id="btnTheme" title="Touche T"></button>
+  </div>
+</header>
+<nav class="rail" id="rail" aria-label="Scènes du film"></nav>
+
+<main id="film"><noscript><p style="padding:120px 24px;font-size:18px">Ce site a besoin de JavaScript : il se lit dans un navigateur, sans connexion. Le texte complet est dans <code>contenu.js</code>.</p></noscript></main>
+<section class="plain" id="demo" aria-label="Démonstration"></section>
+<section class="plain" id="matrice" aria-label="Compétences BC05"></section>
+<footer id="foot"></footer>
+
+<div class="chipsim" id="chipsim" role="note"></div>
+<aside class="jury" id="jury" hidden aria-label="Questions du jury"></aside>
+<aside class="orateur" id="orateur" hidden aria-label="Mode orateur"></aside>
+
+<script src="contenu.js"></script>
+<script src="docs.js"></script>
+<script src="lexique.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
