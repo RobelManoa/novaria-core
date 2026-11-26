@@ -1,0 +1,4 @@
+# Réseau spatio-temporel de prévision (IA-16) : PyTorch, version processeur seulement. NON verrouillé par empreintes (à faire) :
+#   ml/.venv/bin/python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+# Sans lui, les tests du réseau sont ignorés ; le service, lui, n'en a pas besoin (numpy seul).
+torch>=2.9,<3.0

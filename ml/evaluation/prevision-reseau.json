@@ -1,0 +1,81 @@
+{
+ "jeu": "METR-LA",
+ "capteurs": 207,
+ "poids": 38854,
+ "lecture_du_test": 3,
+ "horizons": {
+  "5": {
+   "persistance": {
+    "mae": 2.7843003639048134,
+    "rmse": 4.594901759231851,
+    "biais": 0.00032940196477866527,
+    "n": 930703
+   },
+   "reseau": {
+    "mae": 2.2304647829834203,
+    "rmse": 3.900654814985538,
+    "biais": 0.3032063171477538,
+    "n": 930703
+   },
+   "ecart_contre_persistance": {
+    "ecart_mae": -0.5538355809213944,
+    "bas": -0.5757626715512456,
+    "haut": -0.5293227800319414,
+    "jours": 18
+   },
+   "gain_contre_persistance": 0.1989137336263075,
+   "hgb_ia16_mae_test": 2.307
+  },
+  "15": {
+   "persistance": {
+    "mae": 3.4566174754674615,
+    "rmse": 6.368671108984881,
+    "biais": 0.004644548961203328,
+    "n": 930693
+   },
+   "reseau": {
+    "mae": 2.701506161850625,
+    "rmse": 5.210843356250136,
+    "biais": 0.47224487185811015,
+    "n": 930693
+   },
+   "ecart_contre_persistance": {
+    "ecart_mae": -0.7551113136168451,
+    "bas": -0.7941436890494127,
+    "haut": -0.7101159540558444,
+    "jours": 18
+   },
+   "gain_contre_persistance": 0.21845382631316979,
+   "hgb_ia16_mae_test": 2.876
+  },
+  "30": {
+   "persistance": {
+    "mae": 4.144582706551482,
+    "rmse": 7.974273930169787,
+    "biais": 0.008248182247354898,
+    "n": 930680
+   },
+   "reseau": {
+    "mae": 3.0988263374084397,
+    "rmse": 6.20004611011905,
+    "biais": 0.6749353644915307,
+    "n": 930680
+   },
+   "ecart_contre_persistance": {
+    "ecart_mae": -1.0457563691430574,
+    "bas": -1.1331235066755094,
+    "haut": -0.9492892115049297,
+    "jours": 18
+   },
+   "gain_contre_persistance": 0.2523188564894555,
+   "hgb_ia16_mae_test": 3.337
+  }
+ },
+ "modele": {
+  "fichier": "var/models/prevision-metr-la-reseau.json",
+  "octets": 4511809,
+  "sha256": "493f85308530aa858a624b2cd0f9ad9c83b823e8aeabd30ee0215ac2dfdfd4de",
+  "ecart_max_numpy_contre_torch_mph": 0.0005241489052707493,
+  "fenetres_de_controle": 200
+ }
+}
