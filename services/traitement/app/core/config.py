@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     # --- Rapports automatiques (FE-06, IA-07) : dossier où le robot dépose les PDF et leurs
     # métadonnées, monté en lecture seule dans ce service. Non défini : la liste répond 503.
     reports_dir: str | None = Field(default=None, max_length=500)
+    # Dossier des modèles entraînés (IA-16) : un fichier `prevision-<réseau>-reseau.json` par
+    # réseau, monté en lecture seule.
+    models_dir: str | None = Field(default=None, max_length=500)
 
     # --- Sécurité applicative (BE-08) -----------------------------------------------------------
     # Origines de navigateur autorisées à lire les réponses (CORS), séparées par des virgules.

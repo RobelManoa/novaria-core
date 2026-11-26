@@ -6,11 +6,12 @@ from fastapi.testclient import TestClient
 from app.api.deps import reset_login_throttle
 from app.api.v1.reports import get_report_service
 from app.core.config import get_settings
-from app.db.session import get_indicator_repository, get_user_repository
+from app.db.session import get_indicator_repository, get_speed_repository, get_user_repository
 from app.main import app
 from app.services.reports import FileReportStore, ReportService
 from tests.fakes import SECRET, FakeIndicatorRepository, FakeUserRepository, Journal
 from tests.scene import Scene
+from tests.speed_data import FakeSpeedRepository
 
 
 @pytest.fixture(autouse=True)
@@ -58,6 +59,7 @@ def reports_dir(tmp_path):
 def client(secret, repo, indicators, journal, reports_dir):
     app.dependency_overrides[get_user_repository] = lambda: repo
     app.dependency_overrides[get_indicator_repository] = lambda: indicators
+    app.dependency_overrides[get_speed_repository] = lambda: FakeSpeedRepository()
     app.dependency_overrides[get_report_service] = lambda: ReportService(
         FileReportStore(reports_dir)
     )

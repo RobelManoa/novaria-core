@@ -40,7 +40,7 @@ flowchart LR
 
 | Sujet | État |
 |---|---|
-| Modèle entraîné (IA-10, jeu METR-LA), moyenne glissante | non fait ; `model.kind` = `MODEL` n'est jamais rendu |
+| Modèle entraîné sur METR-LA | **servi** depuis le 22/11/2026 par `GET /api/v1/speed-networks/{réseau}/forecasts` (section 5), pas par `/api/v1/forecasts` : `model.kind` = `MODEL` n'y est toujours jamais rendu, car ce modèle ne sert que le réseau METR-LA, jamais le réseau fictif (ADR-032). Gain de 20 à 25 % sur la persistance ([résultats](../../ml/evaluation/prevision-reseau.md)) |
 | Date du dernier entraînement et métrique du modèle | absentes du contrat (`model` = `kind`, `name`, `version`, `run_id`) : à ajouter avec un modèle entraîné |
 | Script de dérive et alerte locale (autres tâches d'IA-06) | faits : [Surveillance de la dérive](surveillance-derive.md) ; IA-06 (#82) reste ouverte tant que le modèle entraîné (IA-05, IA-10) et la date et la métrique du modèle manquent |
 | Comparaison prévu contre observé | impossible sur cette référence : l'instant prévu est dans le futur de la dernière donnée, la page écrit « Pas encore observé » |
@@ -55,3 +55,20 @@ flowchart LR
 | Pile Docker, via le front (`:8080`) | connexion, `GET /api/v1/forecasts` : 23 prévisions, 200 ; un tronçon à 60 minutes ; tronçon inconnu : liste vide ; `horizon_min=4` : 422. Le code de chargement de la page lit cette réponse : 23 tronçons, 6 horizons, 10 fenêtres observées |
 
 Limite de la preuve : la page n'a pas été rouverte dans un navigateur après cette tranche (pas de captures nouvelles) ; seul son code de chargement et de comparaison a été exécuté contre l'API réelle.
+
+## 5. Prévisions d'un modèle entraîné : `/api/v1/speed-networks` (IA-16, Proposition)
+
+| Route | Rôle |
+|---|---|
+| `GET /api/v1/speed-networks` | Les réseaux de vitesse chargés (`dwh.speed_*`), leur couverture dans le temps, la **fiche du modèle** (jeu, périodes, erreur de test contre la persistance, variables, limites) ou `model_problem` s'il n'y a pas de modèle utilisable |
+| `GET /api/v1/speed-networks/{réseau}/forecasts?as_of=&horizon_min=&sensor_id=` | Par capteur : la vitesse prévue par le **modèle**, celle de la **persistance** et, si l'instant prévu est déjà dans l'entrepôt, la vitesse **mesurée** (km/h). `as_of` : les dernières mesures à lire (le dernier instant du réseau si absent) ; `horizon_min` : 5, 10, 15, 20, 25 ou 30 |
+
+| Cas | Réponse |
+|---|---|
+| Pas de fichier de modèle, modèle illisible, capteurs du modèle absents du réseau, pas du réseau différent de 5 minutes | **503** `FORECAST_UNAVAILABLE`, avec la raison ; jamais une persistance présentée comme un modèle |
+| Réseau inconnu, ou aucune mesure à cette date ou avant | **404** `NOT_FOUND` |
+| Horizon hors de 5 à 30 minutes ou pas multiple de 5, plus de 50 capteurs demandés | **422** |
+| Capteur du réseau que le modèle ne connaît pas | Pas de prévision ; compté dans `sensors_without_model` |
+
+Le modèle est lu dans `MODELS_DIR` (dossier monté en **lecture seule**, jamais copié dans l'image). Preuves : `services/traitement/tests/unit/test_speed_forecasts.py` (17 tests), `tests/contract/test_speed_networks_contract.py` (contrat, bornes, 401, 404, 422, 503), essai de bout en bout avec une vraie base : 207 capteurs, 1 924 971 mesures chargées en 1 min 42 s, 150 ms par requête, gain mesuré à travers l'API de 22,7 / 22,1 / 26,9 % (68 instants de la période de test) ; **essai sur la pile complète** (passerelle, front-end, navigateur, matrice d'accès) : [résultats](../../ml/evaluation/prevision-reseau.md), section 7.
+

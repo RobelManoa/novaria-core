@@ -275,6 +275,85 @@ paths:
               schema: { $ref: "common.yaml#/components/schemas/Problem" }
         "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
 
+  /api/v1/speed-networks:
+    get:
+      tags: [Prévisions]
+      operationId: listSpeedNetworks
+      summary: Réseaux de vitesse chargés et leur modèle
+      description: |
+        Les réseaux de mesures de vitesse (sans comptage) chargés dans l'entrepôt par fichier, avec leur couverture dans le temps et la fiche
+        du modèle entraîné qui les sert (jeu, périodes, erreurs de test contre la persistance, limites). Un réseau sans modèle utilisable le
+        dit dans `model_problem`. **Proposition (IA-16, ADR-032).**
+      x-required-role: viewer
+      responses:
+        "200":
+          description: Les réseaux chargés.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/SpeedNetwork" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
+  /api/v1/speed-networks/{network_id}/forecasts:
+    get:
+      tags: [Prévisions]
+      operationId: listSpeedForecasts
+      summary: Prévisions d'un modèle entraîné sur un réseau de vitesses
+      description: |
+        Pour chaque capteur du modèle : la vitesse prévue par le modèle, celle de la persistance (la dernière vitesse connue, la référence à
+        battre) et, si l'instant prévu est déjà dans l'entrepôt, la vitesse réellement mesurée. `as_of` est l'instant des dernières mesures
+        lues (le dernier instant mesuré à la date demandée ou avant ; le dernier du réseau si absent). Un modèle ne sert que son réseau : sans
+        modèle utilisable, la réponse est 503 `FORECAST_UNAVAILABLE`, jamais une persistance présentée comme un modèle. **Proposition (IA-16).**
+      x-required-role: viewer
+      parameters:
+        - name: network_id
+          in: path
+          required: true
+          schema: { type: string, pattern: "^[a-z0-9][a-z0-9-]{0,39}$" }
+        - name: as_of
+          in: query
+          description: Date des dernières mesures à lire (UTC). Le dernier instant du réseau si absente.
+          schema: { type: string, format: date-time }
+        - name: horizon_min
+          in: query
+          description: Horizon en minutes, multiple de 5 de 5 à 30. Défaut 15.
+          schema: { type: integer, minimum: 5, maximum: 30, default: 15 }
+        - name: sensor_id
+          in: query
+          description: Un ou plusieurs capteurs (paramètre répété). Tous les capteurs du modèle si absent.
+          explode: true
+          schema:
+            type: array
+            maxItems: 50
+            items: { type: string, minLength: 1, maxLength: 40 }
+      responses:
+        "200":
+          description: Une prévision par capteur.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SpeedForecastList" }
+        "401": { $ref: "common.yaml#/components/responses/Unauthorized" }
+        "403": { $ref: "common.yaml#/components/responses/Forbidden" }
+        "404":
+          description: Réseau inconnu, ou aucune mesure à cette date ou avant ; code `NOT_FOUND`.
+          content:
+            application/problem+json:
+              schema: { $ref: "common.yaml#/components/schemas/Problem" }
+        "422": { $ref: "common.yaml#/components/responses/ValidationError" }
+        "503":
+          description: Aucun modèle utilisable pour ce réseau ; code `FORECAST_UNAVAILABLE`, le message dit pourquoi.
+          content:
+            application/problem+json:
+              schema: { $ref: "common.yaml#/components/schemas/Problem" }
+        "5XX": { $ref: "common.yaml#/components/responses/ServerError" }
+
   /api/v1/reports:
     get:
       tags: [Rapports]
@@ -515,6 +594,88 @@ components:
               type: [string, "null"]
               description: Identifiant du run d'entraînement (`model_runs`), qui remonte au code et aux données.
         provenance: { $ref: "common.yaml#/components/schemas/Provenance" }
+    ModelCard:
+      type: object
+      description: "Fiche d'un modèle entraîné : ce qui permet de l'expliquer et de ne pas le surestimer. **Proposition (IA-16).**"
+      required: [kind, name, version, run_id, trained_at, dataset, source_type, parameters, horizons_min, periods, test, variables, limits, file_sha256]
+      properties:
+        kind: { type: string, enum: [REFERENCE, MODEL] }
+        name: { type: string }
+        version: { type: string }
+        run_id: { type: [string, "null"], description: "Identifiant du run d'entraînement dans `model_runs` ; null tant que le modèle n'y est pas enregistré." }
+        trained_at: { type: [string, "null"], format: date-time }
+        dataset: { type: string, description: "Jeu d'entraînement." }
+        source_type: { type: string, description: "Nature des données d'entraînement (`REAL_HISTORICAL`, `SIMULATED`)." }
+        parameters: { type: integer, minimum: 0 }
+        horizons_min: { type: array, items: { type: integer } }
+        periods:
+          type: object
+          description: "Périodes d'apprentissage, de validation et de test, dans l'ordre du temps."
+          additionalProperties:
+            type: object
+            required: [start, end, steps]
+            properties:
+              start: { type: string, format: date-time }
+              end: { type: string, format: date-time }
+              steps: { type: integer }
+        test:
+          type: object
+          description: "Erreur sur la période de test par horizon (clé : minutes), en miles par heure, contre la persistance."
+          additionalProperties:
+            type: object
+            required: [mae_model_mph, mae_persistence_mph, gain, interval_95]
+            properties:
+              mae_model_mph: { type: number }
+              mae_persistence_mph: { type: number }
+              gain: { type: number, description: "1 moins l'erreur du modèle sur celle de la persistance." }
+              interval_95: { type: array, minItems: 2, maxItems: 2, items: { type: number } }
+              mae_hgb_mph: { type: [number, "null"] }
+        variables: { type: array, items: { type: string } }
+        limits: { type: array, items: { type: string } }
+        file_sha256: { type: string }
+    SpeedNetwork:
+      type: object
+      required: [network_id, label, description, source_type, step_s, speed_unit, coverage, model, model_problem]
+      properties:
+        network_id: { type: string, pattern: "^[a-z0-9][a-z0-9-]{0,39}$" }
+        label: { type: string }
+        description: { type: string }
+        source_type: { type: string }
+        step_s: { type: integer, enum: [60, 300] }
+        speed_unit: { type: string, enum: [mph, kmh] }
+        coverage:
+          type: object
+          required: [first, last, steps, sensors]
+          properties:
+            first: { type: [string, "null"], format: date-time }
+            last: { type: [string, "null"], format: date-time }
+            steps: { type: integer }
+            sensors: { type: integer }
+        model:
+          oneOf:
+            - { $ref: "#/components/schemas/ModelCard" }
+            - { type: "null" }
+        model_problem: { type: [string, "null"] }
+    SpeedForecastList:
+      type: object
+      required: [network_id, as_of, horizon_min, model, sensors_without_model, items]
+      properties:
+        network_id: { type: string }
+        as_of: { $ref: "common.yaml#/components/schemas/UtcDateTime" }
+        horizon_min: { type: integer, minimum: 5, maximum: 30 }
+        model: { $ref: "#/components/schemas/ModelCard" }
+        sensors_without_model: { type: integer, minimum: 0, description: "Capteurs du réseau que le modèle ne connaît pas : aucune prévision, jamais inventée." }
+        items:
+          type: array
+          items:
+            type: object
+            required: [sensor_id, target_time, predicted_speed_kmh, persistence_speed_kmh, observed_speed_kmh]
+            properties:
+              sensor_id: { type: string }
+              target_time: { $ref: "common.yaml#/components/schemas/UtcDateTime" }
+              predicted_speed_kmh: { type: number }
+              persistence_speed_kmh: { type: number }
+              observed_speed_kmh: { type: [number, "null"], description: "Vitesse mesurée à `target_time`, si elle est déjà dans l'entrepôt." }
     Report:
       type: object
       description: |

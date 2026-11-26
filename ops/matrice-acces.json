@@ -13,7 +13,7 @@
     },
     "ressources": [
       {"id": "profil", "libelle": "Profil du compte connecté", "chemins": ["/api/v1/auth/me"], "lecture": "viewer", "action": null},
-      {"id": "indicateurs", "libelle": "Indicateurs du trafic, carrefours, tronçons, prévisions, rapports", "chemins": ["/api/v1/indicators", "/api/v1/intersections", "/api/v1/road-segments", "/api/v1/forecasts", "/api/v1/reports"], "lecture": "viewer", "action": null},
+      {"id": "indicateurs", "libelle": "Indicateurs du trafic, carrefours, tronçons, prévisions, réseaux de vitesse et leur modèle, rapports", "chemins": ["/api/v1/indicators", "/api/v1/intersections", "/api/v1/road-segments", "/api/v1/forecasts", "/api/v1/speed-networks", "/api/v1/reports"], "lecture": "viewer", "action": null},
       {"id": "alertes", "libelle": "Alertes (lire, acquitter, résoudre) et flux temps réel", "chemins": ["/api/v1/alerts", "/api/v1/events/stream"], "lecture": "viewer", "action": "operator"},
       {"id": "regles-alerte", "libelle": "Règles d'alerte (seuils)", "chemins": ["/api/v1/alert-rules"], "lecture": "viewer", "action": "admin"},
       {"id": "feux", "libelle": "Feux de signalisation et leurs commandes", "chemins": ["/api/v1/signals"], "lecture": "viewer", "action": "operator"},
