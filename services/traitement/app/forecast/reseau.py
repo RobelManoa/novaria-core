@@ -1,9 +1,9 @@
 """Lecteur du format `novaria-modele-reseau` : le réseau spatio-temporel de prévision, lu et exécuté
 avec numpy seul (IA-16).
 
-Ce fichier est **copié tel quel** dans le service de traitement
-(`services/traitement/app/forecast/reseau.py`) : il n'importe rien du
-reste du dépôt, ni PyTorch, ni scikit-learn. Un test compare les deux copies octet par octet. Le
+Ce fichier est la **source unique** du lecteur : le service l'exécute, et l'entraînement le charge
+par son chemin (`ml/src/registre/lecteur_reseau.py`, sans second exemplaire à tenir à jour). Il
+n'importe rien du reste du dépôt, ni PyTorch, ni scikit-learn. Le
 format est du JSON (jamais de
 `pickle`) ; la lecture valide chaque champ, chaque forme de tableau et chaque nombre, et refuse tout
 ce qui n'est pas exactement ce format.

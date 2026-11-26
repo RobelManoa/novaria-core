@@ -82,6 +82,14 @@ class Lecture(unittest.TestCase):
         autre = modele.predire(self.vitesses - 20.0, self.presentes, self.instants)
         self.assertGreater(float(np.abs(autre - base).max()), 0.1)
 
+    def test_l_entrainement_charge_le_fichier_du_service_sans_en_tenir_de_copie(self):
+        from registre import lecteur_reseau
+
+        self.assertEqual(lecteur_reseau.__name__, "registre.lecteur_reseau")
+        fichier = lecteur_reseau.__file__.replace("\\", "/")
+        self.assertTrue(fichier.endswith("services/traitement/app/forecast/reseau.py"))
+        self.assertIs(self.classe, lecteur_reseau.ModeleReseau)
+
     def test_le_creneau_de_la_semaine_part_du_lundi(self):
         from registre.lecteur_reseau import creneau
 

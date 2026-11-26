@@ -53,7 +53,7 @@ flowchart LR
     A --> P["Page Prévisions : Modèle entraîné"]
 ```
 
-- **Format du modèle** : JSON (`novaria-modele-reseau`), jamais de `pickle`. Le service le relit et exécute le passage avant avec **numpy seul** (`services/traitement/app/forecast/reseau.py`, copie octet pour octet de `ml/src/registre/lecteur_reseau.py`, qu'un test compare). Écart avec PyTorch : 0,0005 mph.
+- **Format du modèle** : JSON (`novaria-modele-reseau`), jamais de `pickle`. Le service le relit et exécute le passage avant avec **numpy seul** (`services/traitement/app/forecast/reseau.py`, fichier unique : `ml/src/registre/lecteur_reseau.py` le charge par son chemin, sans second exemplaire). Écart avec PyTorch : 0,0005 mph.
 - **Un modèle ne sert que son réseau** : sans fichier de modèle, ou si les capteurs du modèle ne sont pas dans le réseau chargé, ou si le pas n'est pas de 5 minutes, l'API répond **503** et le dit. Elle ne rend jamais une persistance présentée comme un modèle. Un capteur du réseau que le modèle ne connaît pas n'a pas de prévision : il est compté (`sensors_without_model`).
 - **Des données sans comptage** : `dwh.speed_*` (migration 0009), à part de `fact_traffic_window` qui exige un comptage (inventer des comptages fausserait la donnée). Seules les vitesses mesurées ont une ligne.
 - **De nouveaux capteurs sans toucher au code** : on les ajoute en fin de liste dans `manifeste.json` et leurs lignes dans `mesures.csv`, puis `etl-vitesses`. Un capteur déjà connu ne change jamais de rang. Un test charge 3 capteurs puis 100 de plus avec le même code.
